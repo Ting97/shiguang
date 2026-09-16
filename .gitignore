@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# Node
+node_modules/
+dist/
+.next/
+.turbo/
+*.log
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# Expo / RN
+.expo/
+ios/Pods/
+
+# 本地数据
+*.sqlite
+*.db
