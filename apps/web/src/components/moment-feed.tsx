@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 
@@ -484,8 +484,17 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
   );
 }
 
-/** 动态流：左侧时间线，记录时间放在线右侧、卡片外；今天的动态只显示时刻 */
+/** 动态流：按天分组（今天/昨天/历史日期），组内时间线 + 记录时刻贴合节点 */
 export default function MomentFeed(props: Props) {
+  const groups = useMemo(() => {
+    const map = new Map<string, FeedMoment[]>();
+    for (const m of props.moments) {
+      const key = zhRecordTime(m.created_at).day;
+      (map.get(key) ?? map.set(key, []).get(key)!).push(m);
+    }
+    return [...map.entries()];
+  }, [props.moments]);
+
   if (props.moments.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-800 py-8 text-center text-xs text-slate-600">
@@ -495,33 +504,31 @@ export default function MomentFeed(props: Props) {
   }
 
   return (
-    <div className="relative space-y-3">
-      {/* 时间线：贯穿左侧的晨光竖线 */}
-      <div className="absolute bottom-4 left-[11px] top-4 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
-      {props.moments.map((m, i) => {
-        const t = zhRecordTime(m.created_at);
-        const prev = i > 0 ? zhRecordTime(props.moments[i - 1].created_at) : null;
-        const dayChanged = prev !== null && prev.day !== t.day; // 跨天处插入分割线（今天不标）
-        return (
-          <Fragment key={m.id}>
-            {dayChanged && (
-              <div className="flex items-center gap-2.5">
-                <span className="ml-[18px] w-12 shrink-0 text-left text-[10px] text-slate-500">{t.day}</span>
-                <div className="h-px flex-1 bg-slate-800/80" />
-              </div>
-            )}
-            <div className="relative flex items-start gap-2.5">
-              <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
-              {/* 记录时间：与时间线节点垂直居中、卡片外（历史动态附日期） */}
-              <div className={`ml-[18px] w-12 shrink-0 text-left leading-tight ${t.day !== "今天" ? "pt-5" : "pt-7"}`}>
-                {t.day !== "今天" && <div className="text-[10px] text-slate-600">{t.day}</div>}
-                <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
-              </div>
-              <MomentCard m={m} {...props} />
-            </div>
-          </Fragment>
-        );
-      })}
+    <div className="space-y-5">
+      {groups.map(([day, items]) => (
+        <section key={day}>
+          <h3 className="sticky top-14 z-30 -mx-1 mb-2 bg-gradient-to-b from-slate-950 via-slate-950/95 to-transparent px-1 pb-1 text-xs font-medium text-slate-500">
+            — {day} —
+          </h3>
+          <div className="relative space-y-3">
+            {/* 时间线：贯穿左侧的晨光竖线 */}
+            <div className="absolute bottom-4 left-[11px] top-4 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
+            {items.map((m) => {
+              const t = zhRecordTime(m.created_at);
+              return (
+                <div key={m.id} className="relative flex items-start gap-2.5">
+                  <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
+                  {/* 记录时刻：与节点垂直居中、卡片外 */}
+                  <div className="ml-[18px] w-12 shrink-0 pt-7 text-left leading-tight">
+                    <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
+                  </div>
+                  <MomentCard m={m} {...props} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
