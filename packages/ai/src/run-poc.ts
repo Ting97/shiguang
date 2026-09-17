@@ -30,7 +30,14 @@ let pass = 0;
 const rows: string[] = [];
 
 for (const c of set.cases as Case[]) {
-  const r = await parseInput(c.text, { now: NOW });
+  let r;
+  try {
+    r = await parseInput(c.text, { now: NOW });
+  } catch (e) {
+    // live 模式下单句 API 失败（如限流）不应中断整轮：记为该句失败
+    rows.push(`❌ #${String(c.id).padStart(2)} ${c.text.slice(0, 14).padEnd(14, "　")} API失败: ${String(e).slice(0, 60)}`);
+    continue;
+  }
   const checks: Record<string, boolean> = { activity: r.activity === c.activity };
 
   if (c.future) {

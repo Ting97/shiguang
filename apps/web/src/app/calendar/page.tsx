@@ -163,23 +163,27 @@ export default function CalendarPage() {
     `${anchor.slice(0, 4)}年`;
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <main className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-6xl px-5 py-8">
         <Nav />
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="glass mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
           <div className="flex items-center gap-2">
-            <button onClick={() => shift(-1)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800">‹</button>
-            <h1 className="min-w-44 text-center text-lg font-semibold">{title}</h1>
-            <button onClick={() => shift(1)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800">›</button>
-            <button onClick={() => setAnchor(todayStr())} className="ml-1 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">今天</button>
+            <button onClick={() => shift(-1)} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-slate-800/80">‹</button>
+            <h1 className="text-gradient min-w-44 text-center text-lg font-semibold">{title}</h1>
+            <button onClick={() => shift(1)} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-slate-800/80">›</button>
+            <button onClick={() => setAnchor(todayStr())} className="ml-1 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/50 hover:bg-slate-800/80">今天</button>
           </div>
-          <div className="flex rounded-lg border border-slate-700 p-0.5 text-xs">
+          <div className="flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
             {([["day", "日"], ["week", "周"], ["month", "月"], ["year", "年"]] as [View, string][]).map(([v, label]) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1 ${view === v ? "bg-sky-600 font-medium" : "text-slate-400 hover:text-slate-200"}`}
+                className={`rounded-full px-3.5 py-1 transition-all duration-200 ${
+                  view === v
+                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                }`}
               >
                 {label}
               </button>
@@ -202,7 +206,7 @@ export default function CalendarPage() {
               )}
               <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} />
             </div>
-            <aside className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+            <aside className="glass rounded-2xl p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">当日结构</h2>
               <DayDonut byActivity={dayStat} activities={activities} />
               <div className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">

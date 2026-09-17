@@ -6,7 +6,7 @@
 - `src/schema.ts`     zod Schema（ParseResult / LlmExtraction / 八大分类）
 - `src/duration.ts`   中文时长与金额解析（确定性）
 - `src/time-infer.ts` 时间块推断引擎（显式时长 / 相对时段 / 默认时长）
-- `src/client.ts`     GLM 客户端（OpenAI 兼容，智谱开放平台）
+- `src/glm.ts`     GLM 客户端（OpenAI 兼容，智谱开放平台）
 - `src/prompt.ts`     抽取提示词
 - `src/parse.ts`      管线：LLM 抽取 + 确定性时间计算 + 规则兜底
 - `src/run-poc.ts`    20 句 PoC 运行器
@@ -20,4 +20,4 @@ npm run poc:live  # GLM 实测（根目录 .env 配 ZHIPUAI_API_KEY）
 ```
 
 ## 环境变量
-见根目录 `.env.example`。模型默认 glm-4.6，可用 GLM_MODEL 覆盖。
+见根目录 `.env.example`。模型默认 glm-4.7-flash（免费档，混合思考模型——抽取调用已默认关闭思考），可用 GLM_MODEL 覆盖；免费档晚高峰偶发限流(429)，客户端内置指数退避重试 + 自动降级 GLM_FALLBACK_MODEL（默认 glm-4-flash）。

@@ -71,10 +71,10 @@ export default function CategoriesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <main className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="mb-1 text-lg font-semibold">活动分类管理</h1>
+        <h1 className="text-gradient mb-1 text-2xl font-bold">活动分类管理</h1>
         <p className="mb-5 text-xs text-slate-500">
           预设分类不可删除（可改名称/图标/颜色/默认时长）；自定义分类删除后其记录归入「其他」
         </p>
@@ -86,7 +86,7 @@ export default function CategoriesPage() {
         )}
 
         {/* 新增 */}
-        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+        <div className="glass mb-5 flex flex-wrap items-center gap-2 rounded-2xl p-4">
           <input
             value={adding.name}
             onChange={(e) => setAdding({ ...adding, name: e.target.value })}
@@ -112,7 +112,7 @@ export default function CategoriesPage() {
             className="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none"
           />
           <span className="text-[10px] text-slate-500">分钟</span>
-          <button onClick={add} className="rounded-lg bg-sky-600 px-4 py-1.5 text-sm font-medium hover:bg-sky-500">
+          <button onClick={add} className="btn-primary rounded-lg px-5 py-1.5 text-sm font-medium">
             新增
           </button>
         </div>
@@ -121,7 +121,7 @@ export default function CategoriesPage() {
         <ul className="space-y-1.5">
           {list.map((a) =>
             editing?.id === a.id ? (
-              <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+              <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-500/40 bg-slate-800/60 p-3">
                 <input
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
@@ -147,7 +147,7 @@ export default function CategoriesPage() {
                 <button onClick={save} className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500">保存</button>
               </li>
             ) : (
-              <li key={a.id} className="group flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+              <li key={a.id} className="glass glass-hover flex items-center gap-3 rounded-xl px-3 py-2.5">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: a.color }} />
                 <span className="text-lg">{a.icon}</span>
                 <span className="flex-1 text-sm">

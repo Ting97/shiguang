@@ -129,7 +129,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
     window.confirm(message) ? run(async () => (await fn(), "🗑 已删除")) : undefined;
 
   return (
-    <article className="group relative flex gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <article className="glass glass-hover group relative flex gap-3 rounded-2xl p-4 hover:-translate-y-0.5">
       {/* 头像位：心情 emoji（无心情时用意图图标） */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800/80 text-xl">
         {m.mood ? emoji : intent.icon}
@@ -514,9 +514,14 @@ export default function MomentFeed(props: Props) {
           <h3 className="sticky top-0 z-10 -mx-1 mb-1 bg-gradient-to-b from-slate-950 via-slate-950/95 to-transparent px-1 pb-1 pt-2 text-xs font-medium text-slate-500">
             — {day} —
           </h3>
-          <div className="space-y-2.5">
+          <div className="relative space-y-2.5 pl-7">
+            {/* 朋友圈式时间线：贯穿卡片左侧的晨光竖线 */}
+            <div className="absolute bottom-3 left-[11px] top-3 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
             {items.map((m) => (
-              <MomentCard key={m.id} m={m} {...props} />
+              <div key={m.id} className="relative">
+                <span className="absolute -left-[20px] top-8 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
+                <MomentCard m={m} {...props} />
+              </div>
             ))}
           </div>
         </section>

@@ -301,14 +301,15 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <main className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <header className="mb-6 text-center">
-          <h1 className="text-3xl font-bold">
-            拾光复利 <span className="text-sm font-normal text-slate-500">动态</span>
+        <header className="mb-7 text-center">
+          <h1 className="text-gradient text-4xl font-bold tracking-wide">
+            拾光复利
+            <span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">动态</span>
           </h1>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-500">
             随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办
           </p>
         </header>
@@ -327,14 +328,14 @@ export default function Home() {
             }}
             rows={2}
             placeholder='记录此刻…（试试"刚跑完步40分钟，心情不错"、"有点累"、"明天下午三点看牙"）'
-            className="w-full resize-none rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm outline-none placeholder:text-slate-600 focus:border-sky-500"
+            className="input-glow w-full resize-none rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
           />
           <div className="mt-2 flex items-center justify-between">
             <span className="text-[11px] text-slate-600">Enter 发布 · Shift+Enter 换行</span>
             <button
               onClick={submit}
               disabled={busy || !text.trim()}
-              className="rounded-lg bg-sky-600 px-6 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-40"
+              className="btn-primary rounded-xl px-7 py-2 text-sm font-medium"
             >
               {busy ? "识别中…" : "发布"}
             </button>
@@ -366,7 +367,7 @@ export default function Home() {
         </section>
 
         {/* 待办列表 */}
-        <section className="mb-6 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <section className="glass mb-6 rounded-2xl p-5">
           <h2 className="mb-3 text-sm font-semibold text-slate-300">
             📋 待办 <span className="ml-1 text-xs text-slate-500">{todos.length} 项 · 点击圆圈完成</span>
           </h2>
@@ -539,23 +540,31 @@ export default function Home() {
         </section>
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <section className="glass rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-300">
               🕐 今日日程 <span className="ml-1 text-xs text-slate-500">
                 {blocks.length} 段 · 共 {blocks.reduce((s, b) => s + b.duration_min, 0)} 分钟
               </span>
             </h2>
-            <div className="flex rounded-lg border border-slate-700 p-0.5 text-xs">
+            <div className="flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
               <button
                 onClick={() => setView("timeline")}
-                className={`rounded-md px-2.5 py-1 ${view === "timeline" ? "bg-sky-600 font-medium" : "text-slate-400 hover:text-slate-200"}`}
+                className={`rounded-full px-3 py-1 transition-all duration-200 ${
+                  view === "timeline"
+                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                }`}
               >
                 时间轴
               </button>
               <button
                 onClick={() => setView("list")}
-                className={`rounded-md px-2.5 py-1 ${view === "list" ? "bg-sky-600 font-medium" : "text-slate-400 hover:text-slate-200"}`}
+                className={`rounded-full px-3 py-1 transition-all duration-200 ${
+                  view === "list"
+                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                }`}
               >
                 列表
               </button>
