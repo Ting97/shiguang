@@ -506,14 +506,14 @@ export default function MomentFeed(props: Props) {
           <Fragment key={m.id}>
             {dayChanged && (
               <div className="flex items-center gap-2.5">
-                <span className="ml-5 w-12 shrink-0 text-right text-[10px] text-slate-500">{t.day}</span>
+                <span className="ml-[18px] w-12 shrink-0 text-left text-[10px] text-slate-500">{t.day}</span>
                 <div className="h-px flex-1 bg-slate-800/80" />
               </div>
             )}
             <div className="relative flex items-start gap-2.5">
               <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
-              {/* 记录时间：时间线右侧、卡片外（历史动态附日期） */}
-              <div className="ml-5 w-12 shrink-0 pt-4 text-right leading-tight">
+              {/* 记录时间：与时间线节点垂直居中、卡片外（历史动态附日期） */}
+              <div className={`ml-[18px] w-12 shrink-0 text-left leading-tight ${t.day !== "今天" ? "pt-5" : "pt-7"}`}>
                 {t.day !== "今天" && <div className="text-[10px] text-slate-600">{t.day}</div>}
                 <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
               </div>
