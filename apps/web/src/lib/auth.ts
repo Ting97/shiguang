@@ -17,10 +17,14 @@ export interface SessionUser {
   phone: string | null;
 }
 
-/** 当前用户：AUTH_DISABLED → 开发用户；否则解析会话（无效/过期 → null） */
+/** 当前用户：AUTH_DISABLED → 开发用户（仍读库取最新资料）；否则解析会话（无效/过期 → null） */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   if (process.env.AUTH_DISABLED === "1") {
-    return { id: DEV_USER_ID, nickname: "开发者", phone: null };
+    const { rows } = await pool.query(
+      `select id, nickname, phone from profiles where id = $1`,
+      [DEV_USER_ID],
+    );
+    return rows[0] ?? { id: DEV_USER_ID, nickname: "开发者", phone: null };
   }
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;

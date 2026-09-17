@@ -69,7 +69,15 @@ export default function Nav() {
       </div>
       {!authDisabled && nickname && (
         <span className="flex shrink-0 items-center gap-1.5 pr-2 text-xs text-slate-400">
-          <span className="hidden sm:inline">{nickname}</span>
+          <Link
+            href="/profile"
+            title="个人设置"
+            className={`rounded-full px-2 py-1 transition hover:bg-white/5 hover:text-sky-300 ${
+              pathname === "/profile" ? "text-sky-300" : ""
+            }`}
+          >
+            {nickname}
+          </Link>
           <button
             onClick={logout}
             title="退出登录"
