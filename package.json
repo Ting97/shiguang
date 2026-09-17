@@ -1,0 +1,17 @@
+{
+  "name": "shiguangri",
+  "version": "0.1.0",
+  "private": true,
+  "description": "拾光日 —— 个人经营系统：钱 · 时间 · 人",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @shiguangri/web",
+    "build": "npm run build -w @shiguangri/web",
+    "test": "npm test -w @shiguangri/ai",
+    "poc": "npm run poc -w @shiguangri/ai",
+    "poc:live": "npm run poc:live -w @shiguangri/ai"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

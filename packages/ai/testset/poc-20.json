@@ -1,0 +1,24 @@
+{
+  "cases": [
+    { "id": 1,  "text": "刚跑完步，练了40分钟",                "activity": "fitness", "durationMin": 40, "period": "now",   "finance": null, "people": [] },
+    { "id": 2,  "text": "中午和老王吃饭花了260",               "activity": "social",  "durationMin": 60, "period": "noon",  "finance": { "amountCents": -26000, "category": "餐饮" }, "people": ["老王"] },
+    { "id": 3,  "text": "下午跟客户聊了两个小时",              "activity": "work",    "durationMin": 120, "period": "afternoon", "finance": null, "people": [] },
+    { "id": 4,  "text": "晚上刷了会儿抖音",                    "activity": "fun",     "durationMin": 30, "period": "evening", "finance": null, "people": [] },
+    { "id": 5,  "text": "早上通勤上班，路上50分钟",            "activity": "commute", "durationMin": 50, "period": "morning", "finance": null, "people": [] },
+    { "id": 6,  "text": "上午学了两个小时英语",                "activity": "study",   "durationMin": 120, "period": "morning", "finance": null, "people": [] },
+    { "id": 7,  "text": "刚给爸妈打了个电话，聊了半小时",      "activity": "social",  "durationMin": 30, "period": "now",   "finance": null, "people": ["爸妈"] },
+    { "id": 8,  "text": "中午午睡了40分钟",                    "activity": "sleep",   "durationMin": 40, "period": "noon",  "finance": null, "people": [] },
+    { "id": 9,  "text": "下午开了三小时的项目评审会",          "activity": "work",    "durationMin": 180, "period": "afternoon", "finance": null, "people": [] },
+    { "id": 10, "text": "傍晚去超市买菜，花了180",             "activity": "chores",  "durationMin": 60, "period": "evening", "finance": { "amountCents": -18000, "category": "购物" }, "people": [] },
+    { "id": 11, "text": "晚上健身撸铁一小时",                  "activity": "fitness", "durationMin": 60, "period": "evening", "finance": null, "people": [] },
+    { "id": 12, "text": "刚看完一本书的三章，看了一个半小时",  "activity": "study",   "durationMin": 90, "period": "now",   "finance": null, "people": [] },
+    { "id": 13, "text": "上午处理邮件杂事，搞了一个小时",      "activity": "work",    "durationMin": 60, "period": "morning", "finance": null, "people": [] },
+    { "id": 14, "text": "中午和同事小李吃食堂",                "activity": "social",  "durationMin": 40, "period": "noon",  "finance": null, "people": ["小李"] },
+    { "id": 15, "text": "下午帮朋友搬家，弄了一下午",          "activity": "social",  "durationMin": 240, "period": "afternoon", "finance": null, "people": ["朋友"] },
+    { "id": 16, "text": "老王家孩子满月，随了600块礼",         "activity": "social",  "durationMin": 60, "period": "now",   "finance": { "amountCents": -60000, "category": "人情往来" }, "people": ["老王"] },
+    { "id": 17, "text": "晚上看电影《奥本海默》，三个小时",    "activity": "fun",     "durationMin": 180, "period": "evening", "finance": null, "people": [] },
+    { "id": 18, "text": "早上赖床刷手机到十点",               "activity": "fun",     "durationMin": 30, "period": "morning", "finance": null, "people": [] },
+    { "id": 19, "text": "刚写完周报，花了50分钟",              "activity": "work",    "durationMin": 50, "period": "now",   "finance": null, "people": [] },
+    { "id": 20, "text": "周末打扫了房间，两个小时",            "activity": "chores",  "durationMin": 120, "period": "now",   "finance": null, "people": [] }
+  ]
+}
