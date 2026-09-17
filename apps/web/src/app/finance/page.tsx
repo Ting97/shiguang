@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Nav from "@/components/nav";
+import BillImport from "@/components/bill-import";
 import { TX_CATEGORIES, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
 
 interface Account {
@@ -76,6 +77,7 @@ export default function FinancePage() {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirming, setConfirming] = useState<Tx | null>(null);
@@ -164,9 +166,14 @@ export default function FinancePage() {
             <span className="min-w-24 text-center text-sm font-semibold text-slate-200 tabular-nums">{monthTitle(month)}</span>
             <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
           </div>
-          <button onClick={() => setAdding(true)} className="btn-primary rounded-xl px-4 py-2 text-sm font-medium">
-            ＋ 记一笔
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button onClick={() => setImporting(true)} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-300 transition hover:bg-sky-500/20">
+              📥 导入账单
+            </button>
+            <button onClick={() => setAdding(true)} className="btn-primary rounded-xl px-4 py-2 text-sm font-medium">
+              ＋ 记一笔
+            </button>
+          </div>
         </div>
 
         {msg && (
@@ -414,6 +421,17 @@ export default function FinancePage() {
               }}
             />
           </Modal>
+        )}
+
+        {/* 账单导入弹层 */}
+        {importing && (
+          <BillImport
+            accounts={ov.accounts}
+            onClose={() => setImporting(false)}
+            onImported={async () => {
+              await load();
+            }}
+          />
         )}
 
         {/* 账户管理弹层 */}
