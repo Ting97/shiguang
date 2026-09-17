@@ -77,6 +77,7 @@ create table if not exists public.todos (
   source       text not null default 'voice' check (source in ('voice','keyboard','manual')),
   done_at      timestamptz,
   done_entry_id uuid references public.entries(id) on delete set null, -- 完成时的打卡记录
+  done_block_id uuid references public.time_blocks(id) on delete set null, -- 完成时生成的时间块（恢复未完成时删除）
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_todos_user_due on public.todos (user_id, due_at);

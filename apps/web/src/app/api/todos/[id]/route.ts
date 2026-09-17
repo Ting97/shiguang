@@ -8,10 +8,44 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as {
     done?: boolean;
+    undone?: boolean;
     title?: string;
     dueAt?: string | null; // ISO；null=清除时间
     activityId?: string;
   };
+
+  // ---- 模式零：恢复为未完成（撤销完成状态 + 删除完成时生成的日程块） ----
+  if (body.undone === true) {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const todo = (
+        await client.query(
+          `select * from todos where id = $1 and user_id = $2 and status = 'done'`,
+          [id, DEV_USER_ID],
+        )
+      ).rows[0];
+      if (!todo) {
+        await client.query("rollback");
+        return NextResponse.json({ error: "待办不存在或未完成" }, { status: 404 });
+      }
+      await client.query(`delete from time_blocks where id = $1`, [todo.done_block_id]);
+      const restored = (
+        await client.query(
+          `update todos set status = 'pending', done_at = null, done_entry_id = null, done_block_id = null
+           where id = $1 returning *`,
+          [id],
+        )
+      ).rows[0];
+      await client.query("commit");
+      return NextResponse.json({ todo: restored });
+    } catch (e) {
+      await client.query("rollback");
+      return NextResponse.json({ error: String(e) }, { status: 500 });
+    } finally {
+      client.release();
+    }
+  }
 
   // ---- 模式一：勾选完成 ----
   if (body.done === true) {
@@ -42,13 +76,16 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           [DEV_USER_ID, todo.entry_id, todo.activity_id, todo.title, dur],
         )
       ).rows[0];
-      await client.query(`update todos set done_entry_id = $2 where id = $1`, [
-        todo.id,
-        block.entry_id,
-      ]);
+      await client.query(
+        `update todos set done_entry_id = $2, done_block_id = $3 where id = $1`,
+        [todo.id, block.entry_id, block.id],
+      );
+      const todoFinal = (
+        await client.query(`select * from todos where id = $1`, [todo.id])
+      ).rows[0];
 
       await client.query("commit");
-      return NextResponse.json({ todo, block });
+      return NextResponse.json({ todo: todoFinal, block });
     } catch (e) {
       await client.query("rollback");
       return NextResponse.json({ error: String(e) }, { status: 500 });

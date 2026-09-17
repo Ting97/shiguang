@@ -256,6 +256,22 @@ export default function Home() {
     await load();
   }
 
+  async function restoreTodo(t: Todo) {
+    setDoneToday((list) => list.filter((x) => x.id !== t.id)); // 乐观更新
+    const r = await fetch(`/api/todos/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ undone: true }),
+    });
+    if (!r.ok) {
+      await load();
+      setMsg({ ok: false, text: "恢复失败，已还原" });
+      return;
+    }
+    setMsg({ ok: true, text: `↩️ 「${t.title}」已恢复为未完成（对应日程已移除）` });
+    await load();
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-10">
@@ -387,16 +403,83 @@ export default function Home() {
           {doneToday.length > 0 && (
             <details className="mt-3 border-t border-slate-800 pt-3">
               <summary className="cursor-pointer text-xs text-slate-500">
-                今日已完成 {doneToday.length} 项
+                今日已完成 {doneToday.length} 项（可恢复 / 修改 / 删除）
               </summary>
               <ul className="mt-2 space-y-1">
-                {doneToday.map((t) => (
-                  <li key={t.id} className="flex items-center gap-3 px-2 py-1 text-xs text-slate-500">
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
-                    <span className="flex-1 truncate line-through">{t.title}</span>
-                    <span>{t.done_at ? zhTime(t.done_at) : ""}</span>
-                  </li>
-                ))}
+                {doneToday.map((t) =>
+                  editingTodo?.id === t.id ? (
+                    <li key={t.id} className="rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          value={editingTodo.title}
+                          onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
+                          className="min-w-32 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                          placeholder="标题"
+                        />
+                        <input
+                          type="datetime-local"
+                          value={editingTodo.due}
+                          onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
+                          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                        />
+                        <select
+                          value={editingTodo.activityId}
+                          onChange={(e) => setEditingTodo({ ...editingTodo, activityId: e.target.value })}
+                          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                        >
+                          {activities.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.icon} {a.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          onClick={() => setEditingTodo(null)}
+                          className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                        >
+                          取消
+                        </button>
+                        <button
+                          onClick={saveTodoEdit}
+                          className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500"
+                        >
+                          保存
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-slate-800/60">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
+                      <span className="flex-1 truncate text-xs text-slate-500 line-through">{t.title}</span>
+                      <span className="shrink-0 text-xs text-slate-600">{t.done_at ? zhTime(t.done_at) : ""}</span>
+                      <span className="hidden shrink-0 gap-1 group-hover:flex">
+                        <button
+                          onClick={() => restoreTodo(t)}
+                          title="恢复为未完成"
+                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-amber-300"
+                        >
+                          ↩️
+                        </button>
+                        <button
+                          onClick={() => startTodoEdit(t)}
+                          title="修改"
+                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => removeTodo(t)}
+                          title="删除"
+                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300"
+                        >
+                          🗑
+                        </button>
+                      </span>
+                    </li>
+                  ),
+                )}
               </ul>
             </details>
           )}
