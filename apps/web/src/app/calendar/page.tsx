@@ -205,7 +205,7 @@ export default function CalendarPage() {
                   <BlockEditor draft={editing} activities={activities} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} onDelete={removeEdit} />
                 </div>
               )}
-              <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} />
+              <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} loading={loading} />
             </div>
             <aside className="glass rounded-2xl p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">当日结构</h2>

@@ -47,6 +47,14 @@ body {
   background: transparent;
 }
 
+/* 导航横向滚动容器：隐藏滚动条（移动端链接多时可滑动，退出按钮不被挤出屏幕） */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---------- 设计令牌：玻璃卡片 / 渐变标题 / 主按钮 / 输入发光 ---------- */
 
 /* 毛玻璃卡片：层次感 = 半透明底 + 背景模糊 + 高光描边 + 顶部内高光 */

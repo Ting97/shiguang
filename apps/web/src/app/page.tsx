@@ -5,6 +5,8 @@ import Nav from "@/components/nav";
 import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import MomentFeed from "@/components/moment-feed";
+import Reminders from "@/components/reminders";
+import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import { todayStr, zhDuration } from "@/lib/date";
 import { moodEmoji } from "@/lib/mood";
 import type { Activity, Block, FeedMoment } from "@/lib/types";
@@ -71,12 +73,14 @@ export default function Home() {
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
-    const [todayRes, feedRes] = await Promise.all([
+    const [todayRes, feedRes, reminderRes] = await Promise.all([
       fetch("/api/today"),
       fetch("/api/feed?limit=50"),
+      fetch("/api/reminders"),
     ]);
     const j = await todayRes.json();
     setTodos(j.todos ?? []);
@@ -85,6 +89,13 @@ export default function Home() {
     setActivities(j.activities ?? []);
     const f = await feedRes.json();
     setMoments(f.moments ?? []);
+    // W12 提醒横幅：接口失败不打扰主流程
+    try {
+      const rj = await reminderRes.json();
+      setReminderItems(pickReminders((rj.contacts ?? []) as ReminderContact[], (rj.todos ?? []) as ReminderTodo[]));
+    } catch {
+      setReminderItems([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -306,10 +317,10 @@ export default function Home() {
 
   return (
     <main className="min-h-screen text-slate-100">
-      <div className="mx-auto max-w-2xl px-5 py-8">
+      <div className="mx-auto max-w-2xl px-5 py-5 sm:py-8">
         <Nav />
-        <header className="mb-7 text-center">
-          <h1 className="text-gradient text-4xl font-bold tracking-wide">
+        <header className="mb-5 text-center sm:mb-7">
+          <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光复利
             <span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">动态</span>
           </h1>
@@ -317,6 +328,9 @@ export default function Home() {
             随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办
           </p>
         </header>
+
+        {/* W12 提醒横幅：生日/纪念日/到期待办 */}
+        <Reminders items={reminderItems} />
 
         {/* 输入区 */}
         <section className="mb-3">
@@ -371,7 +385,7 @@ export default function Home() {
         </section>
 
         {/* 待办列表 */}
-        <section className="glass mb-6 rounded-2xl p-5">
+        <section id="todos" className="glass mb-6 rounded-2xl p-5">
           <h2 className="mb-3 text-sm font-semibold text-slate-300">
             📋 待办 <span className="ml-1 text-xs text-slate-500">{todos.length} 项 · 点击圆圈完成</span>
           </h2>

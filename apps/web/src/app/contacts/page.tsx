@@ -7,7 +7,7 @@ import Nav from "@/components/nav";
 import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
 import { api } from "@/lib/client-api";
-import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel } from "@/lib/social";
+import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
 
 interface Contact {
   id: string;
@@ -200,7 +200,7 @@ export default function ContactsPage() {
                   <p className="mt-2.5 truncate text-xs text-slate-400">
                     {c.last_at ? (
                       <>
-                        <span className="text-slate-500">{relTime(c.last_at)}</span> · {c.last_summary ?? "往来"}
+                        <span className="text-slate-500">{relTime(c.last_at)}</span> · {displaySummary(c.last_summary) || "往来"}
                       </>
                     ) : (
                       <span className="text-slate-600">暂无往来记录</span>

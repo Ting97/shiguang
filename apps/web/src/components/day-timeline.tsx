@@ -12,6 +12,8 @@ interface Props {
   activities: Activity[];
   onCreate: (payload: { title: string; startAt: string; endAt: string; activityId: string }) => Promise<boolean>;
   onEditBlock: (b: Block) => void;
+  /** 数据是否仍在加载：加载结束后才做一次定位，避免定位到空数据 */
+  loading?: boolean;
 }
 
 const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
@@ -19,8 +21,9 @@ function hmOf(minutes: number): string {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
-export default function DayTimeline({ date, blocks, activities, onCreate, onEditBlock }: Props) {
+export default function DayTimeline({ date, blocks, activities, onCreate, onEditBlock, loading = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastAutoDate = useRef<string | null>(null);
   const isToday = date === todayStr();
   const dayStart = useMemo(() => parseYmd(date), [date]);
 
@@ -40,13 +43,19 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     return () => clearInterval(t);
   }, [isToday]);
 
-  // 进入时滚动到当前时刻附近（仅今天）
+  // 每个日期只在数据到位后自动定位一次：今天→当前时刻；其他日期→第一块日程（无块回顶部）
   useEffect(() => {
-    if (containerRef.current && isToday) {
-      containerRef.current.scrollTop = Math.max(0, nowMin * PX_PER_MIN - 160);
+    const el = containerRef.current;
+    if (!el || loading || lastAutoDate.current === date) return;
+    lastAutoDate.current = date;
+    if (isToday) {
+      el.scrollTop = Math.max(0, nowMin * PX_PER_MIN - 160);
+      return;
     }
+    const starts = blocks.map((b) => minOfDay(b.start_at));
+    el.scrollTop = starts.length ? Math.max(0, Math.min(...starts) * PX_PER_MIN - 160) : 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isToday]);
+  }, [date, loading, isToday, blocks]);
 
   /** ISO → 当天分钟数（跨天块钳到 0~1440） */
   const minOfDay = (iso: string) => {

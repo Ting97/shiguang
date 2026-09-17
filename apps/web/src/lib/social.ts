@@ -80,6 +80,14 @@ export function inferInteractionType(event?: string | null): InteractionType {
   return "其他";
 }
 
+/** 往来摘要展示：兼容去重修复前入库的「吃饭：吃饭」型重复拼接，显示时折叠为「吃饭」 */
+export function displaySummary(summary: string | null | undefined): string {
+  const s = (summary ?? "").trim();
+  const i = s.indexOf("：");
+  if (i > 0 && s.slice(i + 1) === s.slice(0, i)) return s.slice(0, i);
+  return s;
+}
+
 /** 距下一个生意的天数：0=今天；生日为 "MM-DD" 或完整日期字符串；无效返回 null */
 export function birthdayCountdown(birthday: string | null | undefined, today = new Date()): number | null {
   if (!birthday) return null;

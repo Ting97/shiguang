@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Nav from "@/components/nav";
 import ContactFormModal from "@/components/contact-form";
 import { api } from "@/lib/client-api";
-import { GROUP_EMOJI, TYPE_EMOJI, birthdayLabel, type InteractionType } from "@/lib/social";
+import { GROUP_EMOJI, TYPE_EMOJI, birthdayLabel, displaySummary, type InteractionType } from "@/lib/social";
 
 interface Contact {
   id: string;
@@ -230,7 +230,7 @@ export default function ContactDetailPage() {
                           </span>
                         )}
                       </div>
-                      {t.summary && <p className="mt-1 text-sm text-slate-200">{t.summary}</p>}
+                      {t.summary && <p className="mt-1 text-sm text-slate-200">{displaySummary(t.summary)}</p>}
                       {t.entry_text && t.entry_text !== t.summary && (
                         <p className="mt-0.5 truncate text-[11px] text-slate-500">「{t.entry_text}」</p>
                       )}

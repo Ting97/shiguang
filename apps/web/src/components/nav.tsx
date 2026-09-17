@@ -39,14 +39,14 @@ export default function Nav() {
 
   return (
     <nav className="sticky top-4 z-40 mb-8 flex items-center justify-between gap-2 rounded-full border border-white/10 bg-slate-900/70 p-1 pl-4 text-sm shadow-lg shadow-slate-950/50 backdrop-blur-xl">
-      <div className="flex flex-1 justify-center gap-1">
+      <div className="scrollbar-none flex min-w-0 flex-1 justify-start gap-1 overflow-x-auto sm:justify-center">
         {LINKS.map((l) => {
           const active = pathname === l.href;
           return (
             <Link
               key={l.href}
               href={l.href}
-              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
                 active
                   ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                   : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
@@ -59,7 +59,7 @@ export default function Nav() {
         {isAdmin && (
           <Link
             href="/invites"
-            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
               pathname === "/invites"
                 ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                 : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
@@ -74,7 +74,7 @@ export default function Nav() {
           <Link
             href="/profile"
             title="个人设置"
-            className={`rounded-full px-2 py-1 transition hover:bg-white/5 hover:text-sky-300 ${
+            className={`max-w-[4.5rem] truncate rounded-full px-2 py-1 transition hover:bg-white/5 hover:text-sky-300 sm:max-w-none ${
               pathname === "/profile" ? "text-sky-300" : ""
             }`}
           >
