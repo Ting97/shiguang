@@ -36,6 +36,10 @@ Next.js 15 (App Router) · React Native (Expo) · Supabase (Postgres+pgvector) �
 - ▶️ **Phase 0 进行中**：monorepo 脚手架 + Schema + 语音解析 PoC（20 句测试集验收 ≥85%）
 - ⏭ Phase 1：时间日记模块（5 周）
 
+## 线上环境
+
+**https://shiguang.ting97.cn** —— 腾讯云 + Caddy(HTTPS) + PostgreSQL 13 + systemd，发布/运维/备份详见 [docs/08-部署文档.md](docs/08-部署文档.md)
+
 ## 参与开发
 
 单人 + ZCode（智谱 Pro）协作开发。多端同步：`git clone git@github.com:Ting97/shiguangri.git`
