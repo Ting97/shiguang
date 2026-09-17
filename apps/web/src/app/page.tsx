@@ -51,8 +51,9 @@ const dueTag = (iso: string | null) => {
   if (!iso) return { text: "无时间", cls: "text-slate-500" };
   const d = new Date(iso);
   if (d < new Date()) return { text: "已过期", cls: "text-rose-400" };
-  const today = new Date();
-  const days = Math.ceil((d.getTime() - today.getTime()) / 86400_000);
+  // 按日历天比对（当天晚些时候是"今天"而非"明天"）
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((dayStart(d) - dayStart(new Date())) / 86400_000);
   if (days === 0) return { text: "今天", cls: "text-amber-300" };
   if (days === 1) return { text: "明天", cls: "text-sky-300" };
   return { text: `${days} 天后`, cls: "text-slate-400" };
