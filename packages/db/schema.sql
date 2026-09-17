@@ -64,6 +64,23 @@ create table if not exists public.time_blocks (
   created_at   timestamptz not null default now(),
   check (end_at > start_at)
 );
+-- 待办：来自未来话术（"明天下午三点看牙"）或手动创建；完成时关联完成记录
+create table if not exists public.todos (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references public.profiles(id) on delete cascade,
+  entry_id     uuid references public.entries(id) on delete set null,   -- 来源话术
+  title        text not null,
+  activity_id  text references public.activities(id),
+  due_at       timestamptz,                          -- 计划时间（解析引擎给出）
+  remind_at    timestamptz,                          -- 提醒时间（默认 due_at 前 15 分钟）
+  status       text not null default 'pending' check (status in ('pending','done','skipped','expired')),
+  source       text not null default 'voice' check (source in ('voice','keyboard','manual')),
+  done_at      timestamptz,
+  done_entry_id uuid references public.entries(id) on delete set null, -- 完成时的打卡记录
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_todos_user_due on public.todos (user_id, due_at);
+
 create index if not exists idx_blocks_user_range on public.time_blocks (user_id, start_at desc);
 
 -- ---------- 跨域联动草稿（P0 先落库，Phase 2/3 接管确认流） ----------

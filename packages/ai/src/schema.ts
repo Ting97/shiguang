@@ -17,8 +17,8 @@ export const ACTIVITY_NAMES: Record<(typeof ACTIVITY_IDS)[number], string> = {
   social: "社交", fun: "娱乐", chores: "家务", commute: "通勤", other: "其他",
 };
 
-/** 时间推断模式：显式时长 / 相对时段 / 类别默认 */
-export const TimeMode = z.enum(["explicit", "relative", "default"]);
+/** 时间推断模式：显式时长 / 相对时段 / 类别默认 / 未来计划（→ 创建 TODO） */
+export const TimeMode = z.enum(["explicit", "relative", "default", "future"]);
 
 export const TimeBlock = z.object({
   mode: TimeMode,
@@ -46,6 +46,8 @@ export const ParseResult = z.object({
   activity: ActivityId,
   title: z.string().max(30),
   time: TimeBlock,
+  /** 未来话术（明天/待会儿/计划…）→ true：上层据此创建 TODO 而非日程时间块 */
+  createsTodo: z.boolean().default(false),
   finance: FinanceDraft.default({ hasAmount: false }),
   people: z.array(PersonDraft).default([]),
   ambiguity: z.string().nullish(),
@@ -57,6 +59,8 @@ export type ParseResult = z.infer<typeof ParseResult>;
 
 /** LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳） */
 export const LlmExtraction = z.object({
+  /** past=已发生的事（记录日程）｜future=计划要做的事（创建待办） */
+  recordType: z.enum(["past", "future"]).default("past"),
   activity: ActivityId,
   title: z.string().max(30),
   durationMin: z.number().int().positive().nullish(),

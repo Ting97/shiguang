@@ -5,6 +5,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光日"App 的记录解析引擎
 
 ## 输出 JSON 字段
 {
+  "recordType": "past|future —— past=已发生的事（默认）；future=计划/待办（明天/后天/下周/待会儿/打算/要去做）",
   "activity": "sleep|work|study|fitness|social|fun|chores|commute|other 之一",
   "title": "≤8字短语，概括做的事",
   "durationMin": 数字或null —— 话术中明确给出的时长（分钟）；没说就 null，不要猜",

@@ -17,7 +17,13 @@ const set = JSON.parse(readFileSync(join(here, "../testset/poc-20.json"), "utf8"
 const NOW = new Date("2026-09-17T15:00:00+08:00");
 const live = !!process.env.ZHIPUAI_LIVE && hasApiKey();
 
-interface Case { id: number; text: string; activity: string; durationMin: number; period: string; finance: any; people: string[] }
+const fmt = (iso: string) => {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+interface Case { id: number; text: string; activity: string; durationMin?: number; period?: string; finance?: any; people?: string[]; future?: boolean }
 
 const durationTolerance = 15; // 分钟容差
 let pass = 0;
@@ -25,25 +31,33 @@ const rows: string[] = [];
 
 for (const c of set.cases as Case[]) {
   const r = await parseInput(c.text, { now: NOW });
-  const checks = {
-    activity: r.activity === c.activity,
-    duration: Math.abs(r.time.durationMin - c.durationMin) <= durationTolerance,
-    finance: c.finance
+  const checks: Record<string, boolean> = { activity: r.activity === c.activity };
+
+  if (c.future) {
+    // 未来话术：应生成 TODO（mode=future、createsTodo），时长/金额不参与判定
+    checks.todo = r.createsTodo === true && r.time.mode === "future";
+  } else {
+    checks.duration =
+      Math.abs(r.time.durationMin - (c.durationMin as number)) <= durationTolerance;
+    checks.finance = c.finance
       ? r.finance.hasAmount &&
         r.finance.amountCents === c.finance.amountCents &&
         (!c.finance.category || r.finance.category === c.finance.category)
-      : !r.finance.hasAmount,
-    people: c.people.length === r.people.length &&
-      c.people.every((n) => r.people.some((p) => p.name.includes(n))),
-  };
+      : !r.finance.hasAmount;
+    checks.people =
+      (c.people ?? []).length === r.people.length &&
+      (c.people ?? []).every((n) => r.people.some((p) => p.name.includes(n)));
+  }
+
   const ok = Object.values(checks).every(Boolean);
   if (ok) pass++;
   const why = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k).join("+");
   rows.push(
     `${ok ? "✅" : "❌"} #${String(c.id).padStart(2)} ${c.text.slice(0, 14).padEnd(14, "　")} ` +
-    `act=${r.activity}(期望${c.activity}) dur=${r.time.durationMin}(期望${c.durationMin}) ` +
-    `${r.finance.hasAmount ? `金额${(r.finance.amountCents! / 100).toFixed(0)}元 ` : ""}` +
-    `${r.people.length ? `人:${r.people.map((p) => p.name).join(",")} ` : ""}` +
+    `act=${r.activity}(期望${c.activity}) ` +
+    `${c.future ? `${r.createsTodo ? "→TODO" : "✗未识别为TODO"} due=${fmt(r.time.start)}` : `dur=${r.time.durationMin}(期望${c.durationMin}) `}` +
+    `${!c.future && r.finance.hasAmount ? `金额${(r.finance.amountCents! / 100).toFixed(0)}元 ` : ""}` +
+    `${!c.future && r.people.length ? `人:${r.people.map((p) => p.name).join(",")} ` : ""}` +
     `${why ? `← 不符:${why}` : ""}`
   );
 }

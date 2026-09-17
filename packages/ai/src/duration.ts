@@ -8,8 +8,8 @@ const CN_DIGITS: Record<string, number> = {
   五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
 };
 
-/** 中文数字（≤999）转阿拉伯数字：五十四→54，一百二→120，十→10 */
-function cnToNumber(s: string): number | null {
+/** 中文数字（≤999）转阿拉伯数字：五十四→54，一百二→120，十→10（供时长/钟点共用） */
+export function cnToNumber(s: string): number | null {
   if (/^\d+$/.test(s)) return parseInt(s, 10);
   if (!/^[零一二两俩三四五六七八九十百]+$/.test(s)) return null;
   let total = 0;

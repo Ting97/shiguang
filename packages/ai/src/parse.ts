@@ -8,7 +8,7 @@ import {
   LlmExtraction, ParseResult, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
 } from "./schema.js";
-import { inferTimeBlock, detectPeriod } from "./time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture } from "./time-infer.js";
 import { parseAmountCents } from "./duration.js";
 
 export interface ParseOptions {
@@ -28,7 +28,7 @@ const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["activity"]]> = [
   [/学|看书|阅读|读书|英语|上课|刷题|三章/, "study"],
   [/跑|撸铁|健身|锻炼|球类|散步/, "fitness"],
   [/抖音|电影|游戏|刷手机|逛街/, "fun"],
-  [/打扫|买菜|超市|做饭|洗衣|房间/, "chores"],
+  [/打扫|买菜|超市|做饭|洗衣|房间|垃圾/, "chores"],
   [/吃饭|聊|电话|爸妈|老王|小李|朋友|同事|随礼|满月|搬家|帮忙/, "social"],
 ];
 
@@ -46,6 +46,7 @@ function ruleExtract(text: string): LlmExtractionT {
     .filter((n) => !rawNames.some((m) => m !== n && m.includes(n)))
     .map((name) => ({ name, event: undefined }));
   return {
+    recordType: detectFuture(text) ? "future" : "past",
     activity,
     title: text.slice(0, 8),
     periodHint: detectPeriod(text) ?? "now",
@@ -99,7 +100,8 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   const durationFromText = parseDuration(text);
   const durationMin = ext.durationMin ?? durationFromText ?? defaults[ext.activity];
 
-  const tb = inferTimeBlock(text, now, durationMin, ext.periodHint);
+  // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制
+  const tb = inferTimeBlock(text, now, durationMin, ext.periodHint, ext.recordType === "future");
 
   return ParseResult.parse({
     activity: ext.activity,
@@ -111,6 +113,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
       durationMin: tb.durationMin,
       confidence,
     },
+    createsTodo: tb.mode === "future",
     finance: ext.finance,
     people: ext.people,
     ambiguity: ext.ambiguity ?? null,

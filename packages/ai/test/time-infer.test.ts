@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture } from "../src/time-infer.js";
 
-const NOW = new Date("2026-09-17T15:00:00+08:00"); // 周四下午三点
+const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
 
 test("刚 + 显式时长 → 回溯于当下", () => {
   const tb = inferTimeBlock("刚跑完步，练了40分钟", NOW, 60);
@@ -51,4 +51,42 @@ test("时段词识别", () => {
   assert.equal(detectPeriod("凌晨才睡"), "lateNight");
   assert.equal(detectPeriod("早上通勤"), "morning");
   assert.equal(detectPeriod("跑步了"), null);
+});
+
+// ---------- 未来话术 → TODO（mode='future'，不钳制） ----------
+
+test("未来检测", () => {
+  assert.equal(detectFuture("明天下午三点去看牙医"), "tomorrow");
+  assert.equal(detectFuture("待会儿记得倒垃圾"), "soon");
+  assert.equal(detectFuture("下周三上午开产品评审会"), "nextWeek");
+  assert.equal(detectFuture("后天回老家"), "dayAfter");
+  assert.equal(detectFuture("下午跟客户聊了两个小时"), null);
+  assert.equal(detectFuture("刚跑完步"), null);
+});
+
+test("明天+钟点 → 未来计划（明天15:00，不受当前钳制）", () => {
+  const tb = inferTimeBlock("明天下午三点去看牙医", NOW, 60);
+  assert.equal(tb.mode, "future");
+  assert.equal(new Date(tb.start).getDate(), 18);          // 9月18日
+  assert.equal(new Date(tb.start).getHours(), 15);         // 下午三点 = 15 点
+});
+
+test("待会儿 → now+1h", () => {
+  const tb = inferTimeBlock("待会儿记得倒垃圾", NOW, 30);
+  assert.equal(tb.mode, "future");
+  assert.equal(new Date(tb.start).getHours(), 16);         // 15:00 + 1h
+});
+
+test("下周三 → 定位到下周星期三（9/23）", () => {
+  const tb = inferTimeBlock("下周三上午开产品评审会", NOW, 60);
+  assert.equal(tb.mode, "future");
+  const s = new Date(tb.start);
+  assert.equal(s.getDate(), 23);                            // 2026-09-23 是周三
+  assert.equal(s.getHours(), 8);                            // 上午锚点
+});
+
+test("LLM 强制未来但无日期词 → 按 soon 处理", () => {
+  const tb = inferTimeBlock("要交季度报告", NOW, 60, null, true);
+  assert.equal(tb.mode, "future");
+  assert.ok(tb.start.getTime() > NOW.getTime());
 });

@@ -19,6 +19,9 @@
     { "id": 17, "text": "晚上看电影《奥本海默》，三个小时",    "activity": "fun",     "durationMin": 180, "period": "evening", "finance": null, "people": [] },
     { "id": 18, "text": "早上赖床刷手机到十点",               "activity": "fun",     "durationMin": 30, "period": "morning", "finance": null, "people": [] },
     { "id": 19, "text": "刚写完周报，花了50分钟",              "activity": "work",    "durationMin": 50, "period": "now",   "finance": null, "people": [] },
-    { "id": 20, "text": "周末打扫了房间，两个小时",            "activity": "chores",  "durationMin": 120, "period": "now",   "finance": null, "people": [] }
+    { "id": 20, "text": "周末打扫了房间，两个小时",            "activity": "chores",  "durationMin": 120, "period": "now",   "finance": null, "people": [] },
+    { "id": 21, "text": "明天下午三点去看牙医",                "activity": "other",   "future": true },
+    { "id": 22, "text": "待会儿记得倒垃圾",                    "activity": "chores",  "future": true },
+    { "id": 23, "text": "下周三上午开产品评审会",              "activity": "work",    "future": true }
   ]
 }
