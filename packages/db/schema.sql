@@ -145,7 +145,12 @@ create table if not exists public.audit_logs (
   created_at  timestamptz not null default now()
 );
 
--- ---------- 预设数据：8 大活动分类（seed） ----------
+-- ---------- 预设数据：开发期单用户（后续接 Auth 后由注册流程创建） ----------
+insert into public.profiles (id, nickname) values
+  ('00000000-0000-0000-0000-000000000000', '开发者')
+on conflict (id) do nothing;
+
+-- 八大活动分类
 insert into public.activities (id, user_id, name, icon, color, default_min, sort_order, is_preset) values
   ('sleep',  '00000000-0000-0000-0000-000000000000', '睡眠', '😴', '#6366f1', 480, 1, true),
   ('work',   '00000000-0000-0000-0000-000000000000', '工作', '💼', '#0ea5e9', 60, 2, true),
@@ -154,7 +159,6 @@ insert into public.activities (id, user_id, name, icon, color, default_min, sort
   ('social', '00000000-0000-0000-0000-000000000000', '社交', '👥', '#ec4899', 60, 5, true),
   ('fun',    '00000000-0000-0000-0000-000000000000', '娱乐', '🎮', '#8b5cf6', 30, 6, true),
   ('chores', '00000000-0000-0000-0000-000000000000', '家务', '🧹', '#84cc16', 60, 7, true),
-  ('commute','00000000-0000-0000-0000-000000000000', '通勤', '🚌', '#78716c', 30, 8, true)
+  ('commute','00000000-0000-0000-0000-000000000000', '通勤', '🚌', '#78716c', 30, 8, true),
+  ('other',  '00000000-0000-0000-0000-000000000000', '其他', '📌', '#64748b', 30, 9, true)
 on conflict (id) do nothing;
--- 注：seed 中的 user_id 为占位（0 号用户），正式注册流程会把预设复制给新用户：
---   insert into activities (id, user_id, ...) select gen_random_uuid()::text, :new_user_id, name, ... from activities where is_preset;

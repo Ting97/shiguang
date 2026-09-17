@@ -1,4 +1,4 @@
-import { ACTIVITY_NAMES, type ActivityId } from "./schema.js";
+import { ACTIVITY_NAMES, type ActivityId } from "./schema";
 
 /** 时间域抽取提示词（时间戳由确定性引擎计算，模型只给语义字段） */
 export const EXTRACT_SYSTEM_PROMPT = `你是"拾光日"App 的记录解析引擎。用户刚做完一件事，随口说了一句话（或敲了一行字）。请抽取结构化信息，严格输出 JSON。

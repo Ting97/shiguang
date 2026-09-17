@@ -2,14 +2,14 @@
  * 解析管线：一句话 → 多域结构化结果
  * 双引擎：LLM（有 API Key）+ 规则引擎（dry-run 兜底/离线/单测）
  */
-import { chat, extractJson, hasApiKey } from "./client.js";
-import { EXTRACT_SYSTEM_PROMPT, buildExtractUserPrompt } from "./prompt.js";
+import { chat, extractJson, hasApiKey } from "./glm";
+import { EXTRACT_SYSTEM_PROMPT, buildExtractUserPrompt } from "./prompt";
 import {
   LlmExtraction, ParseResult, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
-} from "./schema.js";
-import { inferTimeBlock, detectPeriod, detectFuture } from "./time-infer.js";
-import { parseAmountCents } from "./duration.js";
+} from "./schema";
+import { inferTimeBlock, detectPeriod, detectFuture } from "./time-infer";
+import { parseAmountCents, parseDuration } from "./duration";
 
 export interface ParseOptions {
   now?: Date;
@@ -96,7 +96,6 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
 
   // 时长：LLM 抽取优先，回退到话术再解析，最后类别默认
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
-  const { parseDuration } = await import("./duration.js");
   const durationFromText = parseDuration(text);
   const durationMin = ext.durationMin ?? durationFromText ?? defaults[ext.activity];
 

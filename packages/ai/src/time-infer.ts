@@ -4,7 +4,7 @@
  *  - 未来话术（明天/后天/下周/待会儿/计划…）→ mode 'future' → 上层创建 TODO（带计划时间，不钳制）
  *  - 过去/当前话术（默认）→ explicit / relative / default → 生成已发生的日程时间块
  */
-import { parseDuration, cnToNumber } from "./duration.js";
+import { parseDuration, cnToNumber } from "./duration";
 
 export type PeriodHint =
   | "now" | "morning" | "noon" | "afternoon" | "evening" | "night" | "lateNight";
