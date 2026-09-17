@@ -334,7 +334,7 @@ export default function Home() {
             placeholder='记录此刻…（试试"刚跑完步40分钟，心情不错"、"有点累"、"明天下午三点看牙"）'
             className="input-glow w-full resize-none rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
           />
-          <div className="mt-2 flex items-center justify-between">
+          <div className="mt-2 flex items-center justify-end sm:justify-between">
             <span className="hidden text-[11px] text-slate-600 sm:block">Enter 发布 · Shift+Enter 换行</span>
             <button
               onClick={submit}

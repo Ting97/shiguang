@@ -198,7 +198,7 @@ export default function CalendarPage() {
         {loading && <p className="py-8 text-center text-xs text-slate-500">加载中…</p>}
 
         {!loading && view === "day" && (
-          <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+          <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
             <div>
               {editing && (
                 <div className="mb-3">
@@ -209,7 +209,7 @@ export default function CalendarPage() {
             </div>
             <aside className="glass rounded-2xl p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">当日结构</h2>
-              <DayDonut byActivity={dayStat} activities={activities} />
+              <DayDonut byActivity={dayStat} activities={activities} size={100} thickness={12} />
               <div className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">
                 共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + b.duration_min, 0))}
               </div>

@@ -28,6 +28,14 @@ export const zhRecordTime = (iso: string) => {
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
+/** 跨天时间块的日期前缀：非今天 →「9月17日 」（避免凌晨记录的"昨天下午"被误读为今天） */
+const dayPrefix = (iso: string) => {
+  const d = new Date(iso);
+  const now = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return Math.round((day(now) - day(d)) / 86_400_000) === 0 ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `;
+};
+
 const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];
 
 /** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区与原日期） */
@@ -289,7 +297,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
                     {b.icon} {b.activityName} · {b.title}
                   </span>
                   <span className="shrink-0 tabular-nums text-slate-400">
-                    {zhClock(b.startAt)}–{zhClock(b.endAt)} · {b.durationMin} 分钟
+                    {dayPrefix(b.startAt)}{zhClock(b.startAt)}–{zhClock(b.endAt)} · {b.durationMin} 分钟
                   </span>
                   <RowAction
                     onEdit={() =>

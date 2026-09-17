@@ -159,18 +159,18 @@ export default function FinancePage() {
           <p className="mt-2 text-xs text-slate-500">动态里说的钱都在这里 —— 确认草稿、管账户、看月度结构</p>
         </header>
 
-        {/* 月份导航 + 记一笔 */}
-        <div className="mb-4 flex items-center justify-between">
+        {/* 月份导航 + 记一笔（窄屏自动换行，避免按钮溢出） */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button onClick={() => setMonth(shiftMonth(month, -1))} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">‹</button>
             <span className="min-w-24 text-center text-sm font-semibold text-slate-200 tabular-nums">{monthTitle(month)}</span>
             <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button onClick={() => setImporting(true)} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-300 transition hover:bg-sky-500/20">
               📥 导入账单
             </button>
-            <button onClick={() => setAdding(true)} className="btn-primary rounded-xl px-4 py-2 text-sm font-medium">
+            <button onClick={() => setAdding(true)} className="btn-primary whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
               ＋ 记一笔
             </button>
           </div>
@@ -469,10 +469,16 @@ const TX_COLORS: Record<string, string> = {
 };
 
 function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () => void; onEdit?: () => void; onDelete?: () => void }) {
+  const d = new Date(t.occurred_at);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const compactDay = `${sameYear ? "" : `${String(d.getFullYear()).slice(2)}/`}${d.getMonth() + 1}/${d.getDate()}`;
   return (
     <>
       <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${t.direction === "out" ? "bg-rose-500/15 text-rose-300" : "bg-emerald-500/15 text-emerald-300"}`}>
         {t.direction === "out" ? "支" : "收"}
+      </span>
+      <span className="w-12 shrink-0 text-[11px] tabular-nums text-slate-500" title={zhDay(t.occurred_at)}>
+        {compactDay}
       </span>
       <span className="flex-1 truncate text-sm">
         {t.category}
@@ -500,7 +506,6 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () 
           </button>
         )}
       </span>
-      {!onEdit && !onDelete && <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{zhDay(t.occurred_at)}</span>}
     </>
   );
 }
