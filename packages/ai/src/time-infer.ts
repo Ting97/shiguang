@@ -23,7 +23,7 @@ const PERIOD_ANCHORS: Record<Exclude<PeriodHint, "now">, number> = {
   morning: 8, noon: 12, afternoon: 14, evening: 19, night: 22, lateNight: 1,
 };
 
-const PERIOD_WORDS: Array<[RegExp, PeriodHint]> = [
+const PERIOD_WORDS: Array<[RegExp, Exclude<PeriodHint, "now">]> = [
   [/凌晨|清晨/, "lateNight"],
   [/早上|早晨|上午/, "morning"],
   [/中午|午饭|午休/, "noon"],
@@ -31,7 +31,7 @@ const PERIOD_WORDS: Array<[RegExp, PeriodHint]> = [
   [/傍晚|晚上|今晚|夜里|深夜/, "evening"],
 ];
 
-export function detectPeriod(text: string): PeriodHint | null {
+export function detectPeriod(text: string): Exclude<PeriodHint, "now"> | null {
   for (const [re, hint] of PERIOD_WORDS) if (re.test(text)) return hint;
   return null;
 }

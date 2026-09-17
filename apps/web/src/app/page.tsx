@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Nav from "@/components/nav";
 import DayTimeline from "@/components/day-timeline";
+import DayDonut from "@/components/day-donut";
+import { todayStr } from "@/lib/date";
+import type { Activity, Block } from "@/lib/types";
 
 interface Todo {
   id: string;
@@ -13,24 +17,6 @@ interface Todo {
   activity_name: string | null;
   icon: string | null;
   color: string | null;
-}
-interface Block {
-  id: string;
-  title: string;
-  start_at: string;
-  end_at: string;
-  duration_min: number;
-  activity_id: string;
-  activity_name: string;
-  icon: string;
-  color: string;
-  source: string;
-}
-interface Activity {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
 }
 interface BlockDraft {
   id: string;
@@ -291,6 +277,11 @@ export default function Home() {
     return true;
   }
 
+  const todayByActivity = blocks.reduce<Record<string, number>>((acc, b) => {
+    acc[b.activity_id] = (acc[b.activity_id] ?? 0) + b.duration_min;
+    return acc;
+  }, {});
+
   /** 时间轴上点击时间块 → 切到列表视图并打开编辑器 */
   function editBlockFromTimeline(b: Block) {
     setView("list");
@@ -299,8 +290,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <div className="mx-auto max-w-2xl px-5 py-10">
-        <header className="mb-8 text-center">
+      <div className="mx-auto max-w-2xl px-5 py-8">
+        <Nav />
+        <header className="mb-6 text-center">
           <h1 className="text-3xl font-bold">
             拾光日 <span className="text-sm font-normal text-slate-500">工作台</span>
           </h1>
@@ -535,12 +527,18 @@ export default function Home() {
           </div>
 
           {view === "timeline" ? (
+            <div>
+            <div className="mb-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+              <DayDonut byActivity={todayByActivity} activities={activities} size={90} thickness={12} />
+            </div>
             <DayTimeline
+              date={todayStr()}
               blocks={blocks}
               activities={activities}
               onCreate={createBlock}
               onEditBlock={editBlockFromTimeline}
             />
+            </div>
           ) : (
             <>
               {blocks.length === 0 && (

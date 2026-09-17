@@ -1,52 +1,29 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { parseYmd, todayStr, ymd } from "@/lib/date";
+import type { Activity, Block } from "@/lib/types";
 
-export interface TimelineBlock {
-  id: string;
-  title: string;
-  start_at: string;
-  end_at: string;
-  duration_min: number;
-  activity_id: string;
-  icon: string;
-  color: string;
-}
-export interface TimelineActivity {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-}
-
-const pad = (n: number) => String(n).padStart(2, "0");
 const PX_PER_MIN = 0.75; // 一天 1080px，一小时 45px
 
 interface Props {
-  blocks: TimelineBlock[];
-  activities: TimelineActivity[];
+  date: string; // YYYY-MM-DD
+  blocks: Block[];
+  activities: Activity[];
   onCreate: (payload: { title: string; startAt: string; endAt: string; activityId: string }) => Promise<boolean>;
-  onEditBlock: (b: TimelineBlock) => void;
+  onEditBlock: (b: Block) => void;
 }
 
-/** 把 ISO 转为"当天 0 点起的分钟数"（只支持今日块） */
-function minOfDay(iso: string): number {
-  const d = new Date(iso);
-  return d.getHours() * 60 + d.getMinutes();
-}
+const pad = (n: number) => String(n).padStart(2, "0");
 function hmOf(minutes: number): string {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
-/** 当天 0 点 + 分钟偏移 → ISO */
-function isoFromMinutes(minutes: number): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setMinutes(minutes);
-  return d.toISOString();
-}
 
-export default function DayTimeline({ blocks, activities, onCreate, onEditBlock }: Props) {
+export default function DayTimeline({ date, blocks, activities, onCreate, onEditBlock }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const isToday = date === todayStr();
+  const dayStart = useMemo(() => parseYmd(date), [date]);
+
   const [nowMin, setNowMin] = useState(() => {
     const n = new Date();
     return n.getHours() * 60 + n.getMinutes();
@@ -54,26 +31,34 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
   const [draft, setDraft] = useState<{ title: string; start: string; end: string; activityId: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // 每分钟刷新"当前时刻"红线
   useEffect(() => {
+    if (!isToday) return;
     const t = setInterval(() => {
       const n = new Date();
       setNowMin(n.getHours() * 60 + n.getMinutes());
     }, 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [isToday]);
 
-  // 进入时滚动到当前时刻附近
+  // 进入时滚动到当前时刻附近（仅今天）
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && isToday) {
       containerRef.current.scrollTop = Math.max(0, nowMin * PX_PER_MIN - 160);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isToday]);
 
-  // 合并已记录区间 → 计算未记录缺口（>2 分钟才算）
+  /** ISO → 当天分钟数（跨天块钳到 0~1440） */
+  const minOfDay = (iso: string) => {
+    const m = (new Date(iso).getTime() - dayStart.getTime()) / 60_000;
+    return Math.max(0, Math.min(1440, m));
+  };
+  const isoFromMinutes = (minutes: number) =>
+    new Date(dayStart.getTime() + minutes * 60_000).toISOString();
+
+  // 合并已记录区间 → 未记录缺口（>2 分钟）
   const gaps = useMemo(() => {
-    const sorted = [...blocks]
+    const sorted = blocks
       .map((b) => ({ s: minOfDay(b.start_at), e: minOfDay(b.end_at) }))
       .sort((a, b) => a.s - b.s);
     const merged: { s: number; e: number }[] = [];
@@ -90,7 +75,8 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
     }
     if (1440 - cursor > 2) out.push({ s: cursor, e: 1440 });
     return out;
-  }, [blocks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocks, date]);
 
   async function submitCreate() {
     if (!draft || !draft.title.trim() || saving) return;
@@ -107,7 +93,6 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
 
   return (
     <div>
-      {/* 补录表单（点击缺口后出现） */}
       {draft && (
         <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -158,10 +143,8 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
         </div>
       )}
 
-      {/* 时间轴主体 */}
       <div ref={containerRef} className="relative max-h-[480px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
         <div className="relative" style={{ height: `${1440 * PX_PER_MIN}px` }}>
-          {/* 小时刻度 */}
           {Array.from({ length: 25 }, (_, h) => (
             <div key={h} className="absolute inset-x-0 border-t border-slate-800/70" style={{ top: `${h * 60 * PX_PER_MIN}px` }}>
               <span
@@ -172,18 +155,10 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
             </div>
           ))}
 
-          {/* 未记录缺口（可点击补录） */}
           {gaps.map((g, i) => (
             <button
               key={`gap-${i}`}
-              onClick={() =>
-                setDraft({
-                  title: "",
-                  start: hmOf(g.s),
-                  end: hmOf(g.e),
-                  activityId: "other",
-                })
-              }
+              onClick={() => setDraft({ title: "", start: hmOf(g.s), end: hmOf(g.e), activityId: "other" })}
               title="点击补录这段时间"
               className="group absolute right-2 w-[calc(100%-3rem)] rounded border border-dashed border-slate-700/60 text-left transition hover:border-amber-500/60 hover:bg-amber-500/5"
               style={{ top: `${g.s * PX_PER_MIN}px`, height: `${Math.max((g.e - g.s) * PX_PER_MIN - 2, 8)}px` }}
@@ -196,10 +171,9 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
             </button>
           ))}
 
-          {/* 已记录时间块 */}
           {blocks.map((b) => {
             const s = minOfDay(b.start_at);
-            const e = Math.max(minOfDay(b.end_at), s + 2); // 极短块保底 2 分钟高度
+            const e = Math.max(minOfDay(b.end_at), s + 2);
             const h = (e - s) * PX_PER_MIN;
             return (
               <button
@@ -230,18 +204,19 @@ export default function DayTimeline({ blocks, activities, onCreate, onEditBlock 
             );
           })}
 
-          {/* 当前时刻红线 */}
-          <div className="pointer-events-none absolute inset-x-0 z-10" style={{ top: `${nowMin * PX_PER_MIN}px` }}>
-            <div className="relative border-t-2 border-rose-500/80">
-              <span className="absolute -top-2.5 right-1 rounded bg-rose-500 px-1 text-[9px] font-bold tabular-nums text-white">
-                {hmOf(nowMin)}
-              </span>
+          {isToday && (
+            <div className="pointer-events-none absolute inset-x-0 z-10" style={{ top: `${nowMin * PX_PER_MIN}px` }}>
+              <div className="relative border-t-2 border-rose-500/80">
+                <span className="absolute -top-2.5 right-1 rounded bg-rose-500 px-1 text-[9px] font-bold tabular-nums text-white">
+                  {hmOf(nowMin)}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
       <p className="mt-2 text-[10px] text-slate-600">
-        提示：点击彩色块可修改 · 点击虚线缺口可补录 · 红线为当前时刻（页面自动定位到当前时间附近）
+        提示：点击彩色块可修改 · 点击虚线缺口可补录{isToday ? " · 红线为当前时刻" : ""}
       </p>
     </div>
   );
