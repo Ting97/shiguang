@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Nav from "@/components/nav";
+import IconPicker from "@/components/icon-picker";
 import type { Activity } from "@/lib/types";
 
 interface Draft {
@@ -93,12 +94,7 @@ export default function CategoriesPage() {
             placeholder="新分类名称（如：带娃 / 冥想 / 副业）"
             className="min-w-36 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none focus:border-sky-500"
           />
-          <input
-            value={adding.icon}
-            onChange={(e) => setAdding({ ...adding, icon: e.target.value })}
-            title="图标（一个 emoji）"
-            className="w-14 rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-center text-sm outline-none"
-          />
+          <IconPicker value={adding.icon} onChange={(icon) => setAdding({ ...adding, icon })} />
           <input
             type="color"
             value={adding.color}
@@ -131,11 +127,7 @@ export default function CategoriesPage() {
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                   className="min-w-24 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
                 />
-                <input
-                  value={editing.icon}
-                  onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
-                  className="w-14 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-center text-sm outline-none"
-                />
+                <IconPicker value={editing.icon} onChange={(icon) => setEditing({ ...editing, icon })} />
                 <input
                   type="color"
                   value={editing.color}
