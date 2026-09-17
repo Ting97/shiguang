@@ -69,6 +69,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         await client.query("select default_min from activities where id = $1", [todo.activity_id])
       ).rows[0]?.default_min ?? 30;
       const now = new Date();
+      now.setSeconds(0, 0); // 对齐到整分钟
       const trimmed = await trimCompletionBlock(DEV_USER_ID, new Date(now.getTime() - dur * 60_000), now);
       let block: { id: string; entry_id: string | null; title: string } | null = null;
       if (trimmed) {

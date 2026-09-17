@@ -90,6 +90,7 @@ function ruleExtract(text: string): LlmExtractionT {
 
 export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
   const now = opts.now ?? new Date();
+  now.setSeconds(0, 0); // 时间对齐到整分钟：时间轴记录到分即可
   const useLlm = !opts.forceRules && hasApiKey();
 
   let ext: LlmExtractionT;

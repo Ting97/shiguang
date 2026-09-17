@@ -55,7 +55,9 @@ test("时段词识别", () => {
 
 // ---------- 未来话术 → TODO（mode='future'，不钳制） ----------
 
-test("未来检测", () => {
+test("未来检测（含'一会儿'语境回归）", () => {
+  assert.equal(detectFuture("刚做了一会儿拉伸"), null); // 过去语境
+  assert.equal(detectFuture("过一会儿再去倒垃圾"), "soon"); // 未来语境
   assert.equal(detectFuture("明天下午三点去看牙医"), "tomorrow");
   assert.equal(detectFuture("待会儿记得倒垃圾"), "soon");
   assert.equal(detectFuture("下周三上午开产品评审会"), "nextWeek");

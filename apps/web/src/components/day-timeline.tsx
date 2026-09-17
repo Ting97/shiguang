@@ -14,7 +14,7 @@ interface Props {
   onEditBlock: (b: Block) => void;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
+const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
 function hmOf(minutes: number): string {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
@@ -50,7 +50,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
 
   /** ISO → 当天分钟数（跨天块钳到 0~1440） */
   const minOfDay = (iso: string) => {
-    const m = (new Date(iso).getTime() - dayStart.getTime()) / 60_000;
+    const m = Math.floor((new Date(iso).getTime() - dayStart.getTime()) / 60_000);
     return Math.max(0, Math.min(1440, m));
   };
   const isoFromMinutes = (minutes: number) =>

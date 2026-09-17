@@ -41,7 +41,9 @@ export function detectFuture(text: string): FutureHint | null {
   if (/后天/.test(text)) return "dayAfter";
   if (/明天|明早|明晚/.test(text)) return "tomorrow";
   if (/下周|下礼拜|下星期/.test(text)) return "nextWeek";
-  if (/待会|等会|等一下|一会儿|一会|晚点|稍后/.test(text)) return "soon";
+  if (/待会|等会|等一下|晚点|稍后/.test(text)) return "soon";
+  // "一会儿"仅在未来语境算（"过一会儿再去"）；"刚做了一会儿拉伸"是过去
+  if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
   if (/(计划|打算|准备|要去|得去|记得|要去办|要交|要开)/.test(text)) return "soon";
   return null;
 }
