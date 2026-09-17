@@ -8,6 +8,7 @@ interface Todo {
   due_at: string | null;
   status: string;
   done_at: string | null;
+  activity_id: string | null;
   activity_name: string | null;
   icon: string | null;
   color: string | null;
@@ -35,6 +36,12 @@ interface BlockDraft {
   title: string;
   start: string; // HH:MM
   end: string; // HH:MM
+  activityId: string;
+}
+interface TodoDraft {
+  id: string;
+  title: string;
+  due: string; // datetime-local 值 YYYY-MM-DDTHH:MM，空串=无时间
   activityId: string;
 }
 
@@ -69,6 +76,7 @@ export default function Home() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [editing, setEditing] = useState<BlockDraft | null>(null);
+  const [editingTodo, setEditingTodo] = useState<TodoDraft | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -196,6 +204,58 @@ export default function Home() {
     await load();
   }
 
+  // ---------- 待办编辑/删除 ----------
+
+  const isoToLocalInput = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const localInputToIso = (v: string) => {
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  };
+
+  function startTodoEdit(t: Todo) {
+    setEditingTodo({ id: t.id, title: t.title, due: isoToLocalInput(t.due_at), activityId: t.activity_id ?? "other" });
+  }
+
+  async function saveTodoEdit() {
+    if (!editingTodo || !editingTodo.title.trim()) {
+      setMsg({ ok: false, text: "标题不能为空" });
+      return;
+    }
+    const r = await fetch(`/api/todos/${editingTodo.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: editingTodo.title.trim(),
+        dueAt: localInputToIso(editingTodo.due),
+        activityId: editingTodo.activityId,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      setMsg({ ok: false, text: j.error ?? "保存失败" });
+      return;
+    }
+    setEditingTodo(null);
+    setMsg({ ok: true, text: "💾 待办已更新" });
+    await load();
+  }
+
+  async function removeTodo(t: Todo) {
+    if (!window.confirm(`删除这条待办？\n「${t.title}」`)) return;
+    const r = await fetch(`/api/todos/${t.id}`, { method: "DELETE" });
+    if (!r.ok) {
+      setMsg({ ok: false, text: "删除失败" });
+      return;
+    }
+    setMsg({ ok: true, text: `🗑 已删除待办「${t.title}」` });
+    await load();
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-10">
@@ -247,7 +307,51 @@ export default function Home() {
           <ul className="space-y-1">
             {todos.map((t) => {
               const tag = dueTag(t.due_at);
-              return (
+              return editingTodo?.id === t.id ? (
+                /* ---- 待办行内编辑器 ---- */
+                <li key={t.id} className="rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={editingTodo.title}
+                      onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
+                      className="min-w-32 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                      placeholder="标题"
+                    />
+                    <input
+                      type="datetime-local"
+                      value={editingTodo.due}
+                      onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
+                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                    />
+                    <select
+                      value={editingTodo.activityId}
+                      onChange={(e) => setEditingTodo({ ...editingTodo, activityId: e.target.value })}
+                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                    >
+                      {activities.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.icon} {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button
+                      onClick={() => setEditingTodo(null)}
+                      className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={saveTodoEdit}
+                      className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500"
+                    >
+                      保存
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                /* ---- 常规待办行 ---- */
                 <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-800/60">
                   <button
                     onClick={() => toggleDone(t)}
@@ -260,6 +364,22 @@ export default function Home() {
                   <span className="flex-1 truncate text-sm">{t.title}</span>
                   <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
                   <span className="shrink-0 text-xs tabular-nums text-slate-500">{zhDateTime(t.due_at)}</span>
+                  <span className="hidden shrink-0 gap-1 group-hover:flex">
+                    <button
+                      onClick={() => startTodoEdit(t)}
+                      title="修改"
+                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => removeTodo(t)}
+                      title="删除"
+                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300"
+                    >
+                      🗑
+                    </button>
+                  </span>
                 </li>
               );
             })}

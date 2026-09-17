@@ -15,8 +15,6 @@ export function cnToNumber(s: string): number | null {
   let total = 0;
   let current = 0;
   for (const ch of s) {
-    const v = CN_DIGITS[ch];
-    if (v === undefined) return null;
     if (ch === "十") {
       total += (current || 1) * 10;
       current = 0;
@@ -24,6 +22,8 @@ export function cnToNumber(s: string): number | null {
       total += (current || 1) * 100;
       current = 0;
     } else {
+      const v = CN_DIGITS[ch];
+      if (v === undefined) return null;
       current = current * 10 + v;
     }
   }

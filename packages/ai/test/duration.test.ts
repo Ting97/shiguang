@@ -20,6 +20,12 @@ test("显式时长：口语变体", () => {
   assert.equal(parseDuration("弄了一下午") === null || true, true); // "一下午"无单位→null（由时段兜底）
 });
 
+test("中文数字含「十」的回归（十点/四十分钟/十点半）", () => {
+  assert.equal(parseDuration("跑了四十分钟"), 40);
+  assert.equal(parseDuration("十分钟的拉伸"), 10);
+  assert.equal(parseDuration("五十分钟"), 50);
+});
+
 test("无时长返回 null", () => {
   assert.equal(parseDuration("晚上刷了会儿抖音"), null);
   assert.equal(parseDuration("中午和老王吃饭"), null);
