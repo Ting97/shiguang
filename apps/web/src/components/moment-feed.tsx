@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 
@@ -105,7 +105,6 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
   const [editTodo, setEditTodo] = useState<{ id: string; title: string; due: string; activityId: string } | null>(null);
   const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
 
-  const t = zhRecordTime(m.created_at);
   const emoji = moodEmoji(m.mood);
   const intent =
     m.todos.length > 0
@@ -129,18 +128,15 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
     window.confirm(message) ? run(async () => (await fn(), "🗑 已删除")) : undefined;
 
   return (
-    <article className="glass glass-hover group relative flex gap-3 rounded-2xl p-4 hover:-translate-y-0.5">
+    <article className="glass glass-hover group relative mt-0 flex min-w-0 flex-1 gap-3 rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5">
       {/* 头像位：心情 emoji（无心情时用意图图标） */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800/80 text-xl">
         {m.mood ? emoji : intent.icon}
       </div>
 
       <div className="min-w-0 flex-1">
-        {/* 头部：记录时刻 + 意图标签 + 整条删除 */}
+        {/* 头部：意图标签 + 整条删除（记录时间在卡片外的时间线旁） */}
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span className="font-medium text-slate-400">
-            {t.day} <span className="tabular-nums">{t.clock}</span>
-          </span>
           <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
             {intent.icon} {intent.label}
           </span>
@@ -488,17 +484,8 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
   );
 }
 
-/** 动态流：按天分组（今天/昨天/日期分隔线），朋友圈式倒序 */
+/** 动态流：左侧时间线，记录时间放在线右侧、卡片外；今天的动态只显示时刻 */
 export default function MomentFeed(props: Props) {
-  const groups = useMemo(() => {
-    const map = new Map<string, FeedMoment[]>();
-    for (const m of props.moments) {
-      const key = zhRecordTime(m.created_at).day;
-      (map.get(key) ?? map.set(key, []).get(key)!).push(m);
-    }
-    return [...map.entries()];
-  }, [props.moments]);
-
   if (props.moments.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-800 py-8 text-center text-xs text-slate-600">
@@ -508,24 +495,23 @@ export default function MomentFeed(props: Props) {
   }
 
   return (
-    <div className="space-y-2">
-      {groups.map(([day, items]) => (
-        <section key={day}>
-          <h3 className="sticky top-0 z-10 -mx-1 mb-1 bg-gradient-to-b from-slate-950 via-slate-950/95 to-transparent px-1 pb-1 pt-2 text-xs font-medium text-slate-500">
-            — {day} —
-          </h3>
-          <div className="relative space-y-2.5 pl-7">
-            {/* 朋友圈式时间线：贯穿卡片左侧的晨光竖线 */}
-            <div className="absolute bottom-3 left-[11px] top-3 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
-            {items.map((m) => (
-              <div key={m.id} className="relative">
-                <span className="absolute -left-[20px] top-8 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
-                <MomentCard m={m} {...props} />
-              </div>
-            ))}
+    <div className="relative space-y-3">
+      {/* 时间线：贯穿左侧的晨光竖线 */}
+      <div className="absolute bottom-4 left-[11px] top-4 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
+      {props.moments.map((m) => {
+        const t = zhRecordTime(m.created_at);
+        return (
+          <div key={m.id} className="relative flex items-start gap-2.5">
+            <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
+            {/* 记录时间：时间线右侧、卡片外（历史动态附日期） */}
+            <div className="ml-5 w-12 shrink-0 pt-4 text-right leading-tight">
+              {t.day !== "今天" && <div className="text-[10px] text-slate-600">{t.day}</div>}
+              <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
+            </div>
+            <MomentCard m={m} {...props} />
           </div>
-        </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
