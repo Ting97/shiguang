@@ -18,10 +18,24 @@ interface Block {
   start_at: string;
   end_at: string;
   duration_min: number;
+  activity_id: string;
   activity_name: string;
   icon: string;
   color: string;
   source: string;
+}
+interface Activity {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+interface BlockDraft {
+  id: string;
+  title: string;
+  start: string; // HH:MM
+  end: string; // HH:MM
+  activityId: string;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -53,6 +67,8 @@ export default function Home() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [doneToday, setDoneToday] = useState<Todo[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +79,7 @@ export default function Home() {
     setTodos(j.todos ?? []);
     setDoneToday(j.doneToday ?? []);
     setBlocks(j.blocks ?? []);
+    setActivities(j.activities ?? []);
   }, []);
 
   useEffect(() => {
@@ -119,6 +136,63 @@ export default function Home() {
       return;
     }
     setMsg({ ok: true, text: `🎉 完成「${t.title}」，已记入今日日程` });
+    await load();
+  }
+
+  function startEdit(b: Block) {
+    setEditing({
+      id: b.id,
+      title: b.title,
+      start: zhTime(b.start_at),
+      end: zhTime(b.end_at),
+      activityId: b.activity_id,
+    });
+  }
+
+  /** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区） */
+  function combineHM(originalIso: string, hm: string): string {
+    const d = new Date(originalIso);
+    const [h, m] = hm.split(":").map(Number);
+    d.setHours(h, m, 0, 0);
+    return d.toISOString();
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    if (editing.end <= editing.start) {
+      setMsg({ ok: false, text: "结束时间必须晚于开始时间" });
+      return;
+    }
+    const b = blocks.find((x) => x.id === editing.id);
+    if (!b) return;
+    const r = await fetch(`/api/blocks/${editing.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: editing.title.trim() || b.title,
+        startAt: combineHM(b.start_at, editing.start),
+        endAt: combineHM(b.end_at, editing.end),
+        activityId: editing.activityId,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      setMsg({ ok: false, text: j.error ?? "保存失败" });
+      return;
+    }
+    setEditing(null);
+    setMsg({ ok: true, text: "💾 日程已更新" });
+    await load();
+  }
+
+  async function removeBlock(b: Block) {
+    if (!window.confirm(`删除这条日程？\n「${b.title}」 ${zhTime(b.start_at)}–${zhTime(b.end_at)}`)) return;
+    const r = await fetch(`/api/blocks/${b.id}`, { method: "DELETE" });
+    if (!r.ok) {
+      setMsg({ ok: false, text: "删除失败" });
+      return;
+    }
+    setMsg({ ok: true, text: `🗑 已删除「${b.title}」` });
     await load();
   }
 
@@ -221,17 +295,86 @@ export default function Home() {
             </p>
           )}
           <ul className="space-y-1.5">
-            {blocks.map((b) => (
-              <li key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-800/60">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                <span className="shrink-0 text-xs tabular-nums text-slate-400">
-                  {zhTime(b.start_at)}–{zhTime(b.end_at)}
-                </span>
-                <span className="text-base">{b.icon}</span>
-                <span className="flex-1 truncate text-sm">{b.title}</span>
-                <span className="shrink-0 text-xs text-slate-500">{b.duration_min} 分钟</span>
-              </li>
-            ))}
+            {blocks.map((b) =>
+              editing?.id === b.id ? (
+                /* ---- 行内编辑器 ---- */
+                <li key={b.id} className="rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={editing.title}
+                      onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                      className="min-w-32 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                      placeholder="标题"
+                    />
+                    <input
+                      type="time"
+                      value={editing.start}
+                      onChange={(e) => setEditing({ ...editing, start: e.target.value })}
+                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                    />
+                    <span className="text-xs text-slate-500">至</span>
+                    <input
+                      type="time"
+                      value={editing.end}
+                      onChange={(e) => setEditing({ ...editing, end: e.target.value })}
+                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                    />
+                    <select
+                      value={editing.activityId}
+                      onChange={(e) => setEditing({ ...editing, activityId: e.target.value })}
+                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                    >
+                      {activities.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.icon} {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button
+                      onClick={() => setEditing(null)}
+                      className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500"
+                    >
+                      保存
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                /* ---- 常规行 ---- */
+                <li key={b.id} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-800/60">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
+                  <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                    {zhTime(b.start_at)}–{zhTime(b.end_at)}
+                  </span>
+                  <span className="text-base">{b.icon}</span>
+                  <span className="flex-1 truncate text-sm">{b.title}</span>
+                  <span className="shrink-0 text-xs text-slate-500">{b.duration_min} 分钟</span>
+                  <span className="hidden shrink-0 gap-1 group-hover:flex">
+                    <button
+                      onClick={() => startEdit(b)}
+                      title="修改"
+                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => removeBlock(b)}
+                      title="删除"
+                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300"
+                    >
+                      🗑
+                    </button>
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         </section>
 

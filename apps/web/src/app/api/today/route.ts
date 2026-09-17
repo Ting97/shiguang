@@ -27,5 +27,10 @@ export async function GET() {
      order by b.start_at`,
     [DEV_USER_ID],
   );
-  return NextResponse.json({ todos, doneToday, blocks });
+  const { rows: activities } = await pool.query(
+    `select id, name, icon, color, sort_order from activities
+     where user_id = $1 order by sort_order`,
+    [DEV_USER_ID],
+  );
+  return NextResponse.json({ todos, doneToday, blocks, activities });
 }
