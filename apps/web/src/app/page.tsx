@@ -25,14 +25,15 @@ interface Block {
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const fmtDue = (iso: string | null) => {
+const zhDateTime = (iso: string | null) => {
   if (!iso) return "未定时间";
   const d = new Date(iso);
   const now = new Date();
   const sameYear = d.getFullYear() === now.getFullYear();
-  return `${sameYear ? "" : d.getFullYear() + "/"}${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const date = `${sameYear ? "" : d.getFullYear() + "年"}${d.getMonth() + 1}月${d.getDate()}日`;
+  return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
-const fmtHM = (iso: string) => {
+const zhTime = (iso: string) => {
   const d = new Date(iso);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
@@ -87,7 +88,7 @@ export default function Home() {
       if (!r.ok) throw new Error(j.error);
       setMsg(
         j.kind === "todo"
-          ? { ok: true, text: `📋 已创建待办：${fmtDue(j.todo.due_at)} ${j.todo.title}` }
+          ? { ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}` }
           : {
               ok: true,
               text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}`,
@@ -184,7 +185,7 @@ export default function Home() {
                   <span className="text-base">{t.icon ?? "📌"}</span>
                   <span className="flex-1 truncate text-sm">{t.title}</span>
                   <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-slate-500">{fmtDue(t.due_at)}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-slate-500">{zhDateTime(t.due_at)}</span>
                 </li>
               );
             })}
@@ -199,7 +200,7 @@ export default function Home() {
                   <li key={t.id} className="flex items-center gap-3 px-2 py-1 text-xs text-slate-500">
                     <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
                     <span className="flex-1 truncate line-through">{t.title}</span>
-                    <span>{t.done_at ? fmtHM(t.done_at) : ""}</span>
+                    <span>{t.done_at ? zhTime(t.done_at) : ""}</span>
                   </li>
                 ))}
               </ul>
@@ -224,7 +225,7 @@ export default function Home() {
               <li key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-800/60">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
                 <span className="shrink-0 text-xs tabular-nums text-slate-400">
-                  {fmtHM(b.start_at)}–{fmtHM(b.end_at)}
+                  {zhTime(b.start_at)}–{zhTime(b.end_at)}
                 </span>
                 <span className="text-base">{b.icon}</span>
                 <span className="flex-1 truncate text-sm">{b.title}</span>
@@ -235,7 +236,7 @@ export default function Home() {
         </section>
 
         <footer className="mt-10 text-center text-[10px] text-slate-600">
-          拾光日 shiguangri · Phase 1 开发中 · github.com/Ting97/shiguangri
+          拾光日 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
         </footer>
       </div>
     </main>
