@@ -25,3 +25,4 @@ ios/Pods/
 # 本地数据
 *.sqlite
 *.db
+*.tsbuildinfo
