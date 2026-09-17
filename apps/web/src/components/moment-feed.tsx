@@ -511,13 +511,16 @@ export default function MomentFeed(props: Props) {
             — {day} —
           </h3>
           <div className="relative space-y-3">
-            {/* 时间线：贯穿左侧的晨光竖线 */}
-            <div className="absolute bottom-4 left-[11px] top-4 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
-            {items.map((m) => {
+            {items.map((m, idx) => {
               const t = zhRecordTime(m.created_at);
+              const isLast = idx === items.length - 1;
               return (
                 <div key={m.id} className="relative flex items-start gap-2.5">
-                  <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
+                  {/* 连接线：从本节点延伸到下一个节点（末条不画，避免悬空） */}
+                  {!isLast && (
+                    <span className="absolute left-[10.5px] top-[42px] -bottom-3 w-px bg-gradient-to-b from-sky-500/40 to-indigo-500/15" />
+                  )}
+                  <span className="absolute left-[6px] top-8 z-10 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
                   {/* 记录时刻：与节点垂直居中、卡片外 */}
                   <div className="ml-[18px] w-12 shrink-0 pt-7 text-left leading-tight">
                     <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
