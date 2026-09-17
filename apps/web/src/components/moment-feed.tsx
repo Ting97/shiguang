@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 
@@ -498,18 +498,28 @@ export default function MomentFeed(props: Props) {
     <div className="relative space-y-3">
       {/* 时间线：贯穿左侧的晨光竖线 */}
       <div className="absolute bottom-4 left-[11px] top-4 w-px bg-gradient-to-b from-sky-500/50 via-indigo-500/25 to-transparent" />
-      {props.moments.map((m) => {
+      {props.moments.map((m, i) => {
         const t = zhRecordTime(m.created_at);
+        const prev = i > 0 ? zhRecordTime(props.moments[i - 1].created_at) : null;
+        const dayChanged = prev !== null && prev.day !== t.day; // 跨天处插入分割线（今天不标）
         return (
-          <div key={m.id} className="relative flex items-start gap-2.5">
-            <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
-            {/* 记录时间：时间线右侧、卡片外（历史动态附日期） */}
-            <div className="ml-5 w-12 shrink-0 pt-4 text-right leading-tight">
-              {t.day !== "今天" && <div className="text-[10px] text-slate-600">{t.day}</div>}
-              <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
+          <Fragment key={m.id}>
+            {dayChanged && (
+              <div className="flex items-center gap-2.5">
+                <span className="ml-5 w-12 shrink-0 text-right text-[10px] text-slate-500">{t.day}</span>
+                <div className="h-px flex-1 bg-slate-800/80" />
+              </div>
+            )}
+            <div className="relative flex items-start gap-2.5">
+              <span className="absolute left-[6px] top-8 h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 shadow-[0_0_10px_rgba(56,189,248,0.6)]" />
+              {/* 记录时间：时间线右侧、卡片外（历史动态附日期） */}
+              <div className="ml-5 w-12 shrink-0 pt-4 text-right leading-tight">
+                {t.day !== "今天" && <div className="text-[10px] text-slate-600">{t.day}</div>}
+                <div className="text-xs tabular-nums text-slate-400">{t.clock}</div>
+              </div>
+              <MomentCard m={m} {...props} />
             </div>
-            <MomentCard m={m} {...props} />
-          </div>
+          </Fragment>
         );
       })}
     </div>
