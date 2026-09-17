@@ -11,21 +11,21 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { rows: todos } = await pool.query(
     `select t.*, a.name as activity_name, a.icon, a.color
-     from todos t left join activities a on a.id = t.activity_id
+     from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id
      where t.user_id = $1 and t.status = 'pending'
      order by t.due_at asc nulls last, t.created_at desc`,
     [user.id],
   );
   const { rows: doneToday } = await pool.query(
     `select t.*, a.name as activity_name, a.icon
-     from todos t left join activities a on a.id = t.activity_id
+     from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id
      where t.user_id = $1 and t.status = 'done' and t.done_at::date = current_date
      order by t.done_at desc`,
     [user.id],
   );
   const { rows: blocks } = await pool.query(
     `select b.*, a.name as activity_name, a.icon, a.color
-     from time_blocks b join activities a on a.id = b.activity_id
+     from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
      where b.user_id = $1 and b.start_at::date = current_date
      order by b.start_at desc`,
     [user.id],

@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { seedPresetActivities } from "@/lib/seed";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/activities —— 全部分类 */
+/** GET /api/activities —— 全部分类（空则自愈播种，兜底早期注册的存量账号） */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { rows } = await pool.query(
+  let { rows } = await pool.query(
     `select * from activities where user_id = $1 order by sort_order, created_at`,
     [user.id],
   );
+  if (rows.length === 0) {
+    await seedPresetActivities(user.id);
+    ({ rows } = await pool.query(
+      `select * from activities where user_id = $1 order by sort_order, created_at`,
+      [user.id],
+    ));
+  }
   return NextResponse.json({ activities: rows });
 }
 

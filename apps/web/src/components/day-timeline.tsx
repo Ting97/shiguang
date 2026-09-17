@@ -184,7 +184,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
                 style={{
                   top: `${s * PX_PER_MIN}px`,
                   height: `${h - 2}px`,
-                  backgroundColor: `${b.color}26`,
+                  backgroundColor: `${b.color}40`,
                   borderColor: b.color,
                 }}
               >

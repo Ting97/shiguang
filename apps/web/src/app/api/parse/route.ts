@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, findOverlap, overlapError } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool, findOverlap } from "@/lib/db";import { getCurrentUser } from "@/lib/auth";
 import { parseInput } from "@shiguangri/ai";
 
 export const runtime = "nodejs";
@@ -47,21 +46,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ kind: "moment", result: r, entry });
     }
 
-    // schedule：时间轴约束（一个时刻只能做一件事）
-    const conflict = await findOverlap(user.id, r.time.start, r.time.end);
-    if (conflict) {
-      await client.query("rollback");
-      return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
-    }
-
-    const block = (
-      await client.query(
-        `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
-         values ($1,$2,$3,$4,$5,$6,$7,'keyboard') returning *`,
-        [user.id, entry.id, r.activity, r.title, r.time.start, r.time.end, r.time.mode],
-      )
-    ).rows[0];
-    // 财务草稿
+    // schedule：先落财务/人际草稿，再做时间轴约束（一个时刻只能做一件事）
+    // —— 冲突时日程块不登记，但动态本体与草稿保留（用户的话绝不丢弃）
     if (r.finance.hasAmount && r.finance.amountCents != null) {
       await client.query(
         `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at)
@@ -93,6 +79,20 @@ export async function POST(req: Request) {
         [user.id, c.id, entry.id, "其他", `${p.event ?? "互动"}：${r.title}`, r.time.end],
       );
     }
+
+    const conflict = await findOverlap(user.id, r.time.start, r.time.end);
+    if (conflict) {
+      await client.query("commit");
+      return NextResponse.json({ kind: "moment", result: r, entry, conflict });
+    }
+
+    const block = (
+      await client.query(
+        `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
+         values ($1,$2,$3,$4,$5,$6,$7,'keyboard') returning *`,
+        [user.id, entry.id, r.activity, r.title, r.time.start, r.time.end, r.time.mode],
+      )
+    ).rows[0];
 
     await client.query("commit");
     return NextResponse.json({ kind: "block", result: r, block, entry });

@@ -172,14 +172,14 @@ export default function CalendarPage() {
             <button onClick={() => shift(-1)} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-slate-800/80">‹</button>
             <h1 className="text-gradient min-w-44 text-center text-lg font-semibold">{title}</h1>
             <button onClick={() => shift(1)} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-slate-800/80">›</button>
-            <button onClick={() => setAnchor(todayStr())} className="ml-1 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/50 hover:bg-slate-800/80">今天</button>
+            <button onClick={() => setAnchor(todayStr())} className="ml-1 whitespace-nowrap rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/50 hover:bg-slate-800/80">今天</button>
           </div>
           <div className="flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
             {([["day", "日"], ["week", "周"], ["month", "月"], ["year", "年"]] as [View, string][]).map(([v, label]) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`rounded-full px-3.5 py-1 transition-all duration-200 ${
+                className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 sm:px-3.5 ${
                   view === v
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                     : "text-slate-400 hover:bg-white/5 hover:text-slate-100"

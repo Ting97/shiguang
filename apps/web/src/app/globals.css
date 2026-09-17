@@ -20,6 +20,13 @@ body {
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
+/* 移动端 fixed 背景不被支持且拖慢滚动，退化为随页滚动 */
+@media (max-width: 768px) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
 ::selection {
   background: rgba(56, 189, 248, 0.35);
 }

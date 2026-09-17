@@ -44,7 +44,7 @@ export default function Nav() {
             <Link
               key={l.href}
               href={l.href}
-              className={`rounded-full px-5 py-1.5 transition-all duration-200 ${
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
                 active
                   ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                   : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
@@ -57,7 +57,7 @@ export default function Nav() {
         {isAdmin && (
           <Link
             href="/invites"
-            className={`rounded-full px-5 py-1.5 transition-all duration-200 ${
+            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
               pathname === "/invites"
                 ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                 : "text-slate-400 hover:bg-white/5 hover:text-slate-100"

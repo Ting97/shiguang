@@ -20,7 +20,7 @@ export async function GET(req: Request) {
            'durationMin', b.duration_min, 'activityId', b.activity_id,
            'activityName', a.name, 'icon', a.icon, 'color', a.color
          ) order by b.start_at)
-         from time_blocks b join activities a on a.id = b.activity_id
+         from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
          where b.entry_id = e.id
        ), '[]') as blocks,
        coalesce((

@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   }
   const { rows } = await pool.query(
     `select b.*, a.name as activity_name, a.icon, a.color
-     from time_blocks b join activities a on a.id = b.activity_id
+     from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
      where b.user_id = $1
        and ((b.start_at at time zone $2)::date) between $3::date and $4::date
      order by b.start_at`,

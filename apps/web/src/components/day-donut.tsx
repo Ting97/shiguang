@@ -54,7 +54,7 @@ export default function DayDonut({ byActivity, activities, size = 120, thickness
             <div key={s.id} className="flex items-center gap-2 text-xs">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
               <span className="flex-1 truncate text-slate-300">
-                {a?.icon} {a?.name ?? "未知"}
+                {a?.icon ?? "📌"} {a?.name ?? "其他"}
               </span>
               <span className="shrink-0 tabular-nums text-slate-500">
                 {Math.round((s.min / total) * 100)}%

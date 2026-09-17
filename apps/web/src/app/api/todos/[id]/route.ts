@@ -69,7 +69,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
       // 完成即记录：以类别默认时长回填时间块（结束于当下，避让已有日程；无空间则跳过）
       const dur = (
-        await client.query("select default_min from activities where id = $1", [todo.activity_id])
+        await client.query("select default_min from activities where id = $1 and user_id = $2", [todo.activity_id, user.id])
       ).rows[0]?.default_min ?? 30;
       const now = new Date();
       now.setSeconds(0, 0); // 对齐到整分钟

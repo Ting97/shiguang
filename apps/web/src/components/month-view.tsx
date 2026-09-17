@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity, DayStat } from "@/lib/types";
-import { zhDuration, zhDate } from "@/lib/date";
+import { todayStr, zhDuration, zhDate } from "@/lib/date";
 
 interface Props {
   month: string; // YYYY-MM-01
@@ -33,7 +33,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
     for (const [id, min] of Object.entries(s.byActivity)) totals[id] = (totals[id] ?? 0) + min;
   }
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
 
   return (
     <div>
@@ -46,7 +46,8 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
         {cells.map((date, i) => {
           if (!date) return <div key={`e-${i}`} />;
           const s = stats.get(date);
-          const isToday = date === todayStr;
+          const isToday = date === today;
+          const isFuture = date > today;
           const donut = s && s.totalMin > 0;
           return (
             <button
@@ -67,7 +68,8 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
                   </span>
                 </>
               ) : (
-                <span className="text-[9px] text-slate-700">未记录</span>
+                /* 未来日期没有"未记录"义务，仅过去/今天温和提示 */
+                !isFuture && <span className="text-[9px] text-slate-700">未记录</span>
               )}
             </button>
           );

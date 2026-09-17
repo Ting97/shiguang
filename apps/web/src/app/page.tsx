@@ -93,7 +93,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 3500);
+    // 成功提示短展示；失败/警示保留更久，避免用户错过原因
+    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
     return () => clearTimeout(t);
   }, [msg]);
 
@@ -109,16 +110,19 @@ export default function Home() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       const moodTag = j.result.mood.label ? ` ${moodEmoji(j.result.mood.label)}${j.result.mood.label}` : "";
-      setMsg(
-        j.kind === "todo"
-          ? { ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` }
-          : j.kind === "moment"
-            ? { ok: true, text: `✨ 已记录此刻${moodTag}` }
-            : {
-                ok: true,
-                text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}`,
-              },
-      );
+      if (j.conflict) {
+        // AI 识别出日程但与已有时间块冲突：动态已保存，仅未登记时间轴
+        setMsg({
+          ok: false,
+          text: `⚠️ 已保存为动态，但识别的时间与「${j.conflict.title}」重叠，未登记时间轴 —— 可在下方时间轴补录或调整原日程`,
+        });
+      } else if (j.kind === "todo") {
+        setMsg({ ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` });
+      } else if (j.kind === "moment") {
+        setMsg({ ok: true, text: `✨ 已记录此刻${moodTag}` });
+      } else {
+        setMsg({ ok: true, text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}` });
+      }
       setText("");
       await load();
     } catch (e) {
@@ -547,10 +551,10 @@ export default function Home() {
                 {blocks.length} 段 · 共 {blocks.reduce((s, b) => s + b.duration_min, 0)} 分钟
               </span>
             </h2>
-            <div className="flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
+            <div className="flex shrink-0 rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
               <button
                 onClick={() => setView("timeline")}
-                className={`rounded-full px-3 py-1 transition-all duration-200 ${
+                className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 ${
                   view === "timeline"
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                     : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
@@ -560,7 +564,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => setView("list")}
-                className={`rounded-full px-3 py-1 transition-all duration-200 ${
+                className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 ${
                   view === "list"
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                     : "text-slate-400 hover:bg-white/5 hover:text-slate-100"

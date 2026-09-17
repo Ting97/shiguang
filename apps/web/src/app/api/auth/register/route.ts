@@ -3,6 +3,7 @@ import { pool } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 import { hashPassword, isValidPhone } from "@/lib/auth-crypto";
 import { smsConfigured, verifySmsCode } from "@/lib/sms";
+import { seedPresetActivities } from "@/lib/seed";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
     [`用户${phone.slice(-4)}`, phone, phoneVerified, hashPassword(password)],
   );
   const user = rows[0];
+  await seedPresetActivities(user.id); // 九大预设分类：新用户开箱即用
 
   await pool.query(`update invite_codes set used_by = $1, used_at = now() where code = $2`, [
     user.id, inviteCode.trim().toUpperCase(),
