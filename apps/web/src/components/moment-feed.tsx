@@ -74,7 +74,7 @@ function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "删除"
   delTitle?: string;
 }) {
   return (
-    <span className="hidden shrink-0 items-center gap-0.5 group-hover/row:flex">
+    <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover/row:flex">
       {onEdit && (
         <button
           onClick={onEdit}
@@ -163,7 +163,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
             <button
               onClick={() => setConfirming(true)}
               title="删除这条动态（连同识别出的日程/待办）"
-              className="hidden rounded px-1 text-xs text-slate-500 hover:text-rose-300 group-hover:block"
+              className="row-actions-hidden hidden rounded px-1 text-xs text-slate-500 hover:text-rose-300 group-hover:block"
             >
               删除
             </button>
@@ -216,7 +216,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
                 <span>{moodEmoji(m.mood)} 此刻心情：{m.mood}</span>
                 <button
                   onClick={() => setMoodPicker(true)}
-                  className="hidden text-[11px] text-slate-500 hover:text-sky-300 group-hover/mood:inline"
+                  className="row-actions-hidden hidden text-[11px] text-slate-500 hover:text-sky-300 group-hover/mood:inline"
                 >
                   改
                 </button>

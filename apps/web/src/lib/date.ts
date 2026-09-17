@@ -11,6 +11,11 @@ export function todayStr(): string {
   return ymd(new Date());
 }
 
+/** ISO 时间戳 → 本地日期键 YYYY-MM-DD（严禁用 iso.slice(0,10)，那是 UTC 日期） */
+export function localDateKey(iso: string): string {
+  return ymd(new Date(iso));
+}
+
 /** YYYY-MM-DD → Date（当天 0 点，避开 ISO 解析的时区坑） */
 export function parseYmd(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);

@@ -155,7 +155,7 @@ export default function CategoriesPage() {
                   {a.is_preset && <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">预设</span>}
                 </span>
                 <span className="text-xs tabular-nums text-slate-500">默认 {a.default_min} 分钟</span>
-                <span className="hidden gap-1 group-hover:flex">
+                <span className="row-actions hidden gap-1 group-hover:flex">
                   <button
                     onClick={() => setEditing({ id: a.id, name: a.name, icon: a.icon, color: a.color, defaultMin: a.default_min ?? 30 })}
                     className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"

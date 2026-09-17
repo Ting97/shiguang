@@ -105,3 +105,16 @@ body {
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12), 0 0 24px rgba(56, 189, 248, 0.1);
   background-color: rgba(2, 6, 23, 0.6);
 }
+
+/* ---------- 触屏可达性：hover 才出现的行内操作按钮，在无 hover 设备上常显 ---------- */
+/* 用法：容器 <span class="row-actions">，父级仍用 group + group-hover 控制桌面端淡入 */
+@media (hover: none) {
+  .row-actions {
+    display: flex !important;
+    opacity: 1 !important;
+  }
+  .row-actions-hidden {
+    display: block !important;
+    opacity: 1 !important;
+  }
+}

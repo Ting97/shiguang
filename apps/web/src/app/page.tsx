@@ -5,7 +5,7 @@ import Nav from "@/components/nav";
 import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import MomentFeed from "@/components/moment-feed";
-import { todayStr } from "@/lib/date";
+import { todayStr, zhDuration } from "@/lib/date";
 import { moodEmoji } from "@/lib/mood";
 import type { Activity, Block, FeedMoment } from "@/lib/types";
 
@@ -335,7 +335,7 @@ export default function Home() {
             className="input-glow w-full resize-none rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
           />
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-[11px] text-slate-600">Enter 发布 · Shift+Enter 换行</span>
+            <span className="hidden text-[11px] text-slate-600 sm:block">Enter 发布 · Shift+Enter 换行</span>
             <button
               onClick={submit}
               disabled={busy || !text.trim()}
@@ -438,7 +438,7 @@ export default function Home() {
                   <span className="flex-1 truncate text-sm">{t.title}</span>
                   <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
                   <span className="shrink-0 text-xs tabular-nums text-slate-500">{zhDateTime(t.due_at)}</span>
-                  <span className="hidden shrink-0 gap-1 group-hover:flex">
+                  <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                     <button
                       onClick={() => startTodoEdit(t)}
                       title="修改"
@@ -512,7 +512,7 @@ export default function Home() {
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
                       <span className="flex-1 truncate text-xs text-slate-500 line-through">{t.title}</span>
                       <span className="shrink-0 text-xs text-slate-600">{t.done_at ? zhTime(t.done_at) : ""}</span>
-                      <span className="hidden shrink-0 gap-1 group-hover:flex">
+                      <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                         <button
                           onClick={() => restoreTodo(t)}
                           title="恢复为未完成"
@@ -548,7 +548,7 @@ export default function Home() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-300">
               🕐 今日日程 <span className="ml-1 text-xs text-slate-500">
-                {blocks.length} 段 · 共 {blocks.reduce((s, b) => s + b.duration_min, 0)} 分钟
+                {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
               </span>
             </h2>
             <div className="flex shrink-0 rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
@@ -657,7 +657,7 @@ export default function Home() {
                   <span className="text-base">{b.icon}</span>
                   <span className="flex-1 truncate text-sm">{b.title}</span>
                   <span className="shrink-0 text-xs text-slate-500">{b.duration_min} 分钟</span>
-                  <span className="hidden shrink-0 gap-1 group-hover:flex">
+                  <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                     <button
                       onClick={() => startEdit(b)}
                       title="修改"

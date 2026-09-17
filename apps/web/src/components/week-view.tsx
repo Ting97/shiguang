@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity, Block } from "@/lib/types";
-import { zhDuration, zhDate, weekName } from "@/lib/date";
+import { localDateKey, todayStr, zhDuration, zhDate, weekName } from "@/lib/date";
 
 interface Props {
   /** 本周 7 天（周一起） */
@@ -20,7 +20,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
   const byDay = new Map<string, Block[]>();
   for (const d of days) byDay.set(d, []);
   for (const b of blocks) {
-    const key = b.start_at.slice(0, 10);
+    const key = localDateKey(b.start_at); // 按本地日期归列（UTC 切片会把凌晨块放进昨天）
     byDay.get(key)?.push(b);
   }
 
@@ -37,7 +37,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
         {days.map((d) => {
           const list = byDay.get(d) ?? [];
           const total = list.reduce((s, b) => s + b.duration_min, 0);
-          const isToday = d === new Date().toISOString().slice(0, 10);
+          const isToday = d === todayStr();
           return (
             <button key={d} onClick={() => onPickDay(d)} className="group text-left">
               <div className={`mb-1 rounded px-1 py-0.5 text-center text-[10px] ${isToday ? "bg-sky-600 font-bold" : "bg-slate-800/80 text-slate-400"}`}>

@@ -9,8 +9,8 @@ import MonthView from "@/components/month-view";
 import YearView from "@/components/year-view";
 import BlockEditor, { type BlockDraft } from "@/components/block-editor";
 import {
-  addDays, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
-  weekName, ymd, zhDate,
+  addDays, localDateKey, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
+  weekName, ymd, zhDate, zhDuration,
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
 
@@ -148,7 +148,8 @@ export default function CalendarPage() {
   }
 
   // ----- 标题与统计 -----
-  const dayBlocks = blocks.filter((b) => b.start_at.slice(0, 10) === anchor);
+  // 本地日期过滤（ISO 字符串 UTC 切片会把凌晨块筛掉）
+  const dayBlocks = blocks.filter((b) => localDateKey(b.start_at) === anchor);
   const dayStat: Record<string, number> = {};
   for (const b of dayBlocks) dayStat[b.activity_id] = (dayStat[b.activity_id] ?? 0) + b.duration_min;
   const weekDays = useMemo(() => {
@@ -210,7 +211,7 @@ export default function CalendarPage() {
               <h2 className="mb-3 text-sm font-semibold text-slate-300">当日结构</h2>
               <DayDonut byActivity={dayStat} activities={activities} />
               <div className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">
-                共 {dayBlocks.length} 段 · {dayBlocks.reduce((s, b) => s + b.duration_min, 0)} 分钟
+                共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + b.duration_min, 0))}
               </div>
             </aside>
           </div>

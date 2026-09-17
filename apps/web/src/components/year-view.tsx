@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity, DayStat } from "@/lib/types";
-import { zhDuration } from "@/lib/date";
+import { todayStr, zhDuration } from "@/lib/date";
 
 interface Props {
   year: string; // YYYY
@@ -17,7 +17,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
   const first = new Date(y, 0, 1);
   const lead = (first.getDay() + 6) % 7;
   const gridStart = new Date(y, 0, 1 - lead);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = todayStr(); // 本地日期（toISOString 是 UTC，凌晨会指到昨天）
 
   const weeks: string[][] = [];
   const cursor = new Date(gridStart);
@@ -68,7 +68,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
                 const inYear = date.startsWith(year);
                 const s = stats.get(date);
                 const lv = inYear ? level(s?.totalMin) : -1;
-                const isToday = date === todayStr;
+                const isToday = date === today;
                 return (
                   <button
                     key={date}

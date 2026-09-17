@@ -47,6 +47,8 @@ const zhDay = (iso: string) => {
   return `${label} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const monthTitle = (m: string) => `${Number(m.slice(0, 4))}年${Number(m.slice(5, 7))}月`;
+/** 负数放负号在前：-¥260（直接拼接会出现 ¥-260） */
+const fmtMoney = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
 function shiftMonth(m: string, delta: number): string {
   const [y, mm] = m.split("-").map(Number);
   const d = new Date(y, mm - 1 + delta, 1);
@@ -208,7 +210,7 @@ export default function FinancePage() {
             <div>
               <p className="text-[11px] text-slate-500">结余</p>
               <p className={`mt-1 text-xl font-bold tabular-nums ${ov.inCents - ov.outCents >= 0 ? "text-sky-300" : "text-rose-300"}`}>
-                ¥{yuan(ov.inCents - ov.outCents)}
+                {fmtMoney(ov.inCents - ov.outCents)}
               </p>
               {rate != null && <p className="mt-0.5 text-[10px] text-slate-500">储蓄率 {rate}%</p>}
             </div>
@@ -301,7 +303,7 @@ export default function FinancePage() {
             <h2 className="text-sm font-semibold text-slate-300">
               💳 账户
               <span className="ml-2 text-xs font-normal text-slate-500">
-                合计 ¥{yuan(ov.accounts.reduce((s, a) => s + a.balance_cents, 0))}
+                合计 {fmtMoney(ov.accounts.reduce((s, a) => s + a.balance_cents, 0))}
               </span>
             </h2>
             <button onClick={() => setManagingAccount(true)} className="text-xs text-slate-400 hover:text-sky-300">
@@ -313,7 +315,7 @@ export default function FinancePage() {
               <div key={a.id} className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2.5 text-center">
                 <p className="text-lg">{a.icon}</p>
                 <p className="truncate text-[11px] text-slate-400">{a.name}</p>
-                <p className="text-sm font-semibold tabular-nums text-slate-200">¥{yuan(a.balance_cents)}</p>
+                <p className="text-sm font-semibold tabular-nums text-slate-200">{fmtMoney(a.balance_cents)}</p>
               </div>
             ))}
             {ov.accounts.length === 0 && (
@@ -463,7 +465,7 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () 
       <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.direction === "out" ? "text-rose-300" : "text-emerald-300"}`}>
         {t.direction === "out" ? "-" : "+"}¥{yuan(t.amount_cents)}
       </span>
-      <span className="hidden shrink-0 gap-1 group-hover:flex">
+      <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
         {onConfirm && (
           <button onClick={onConfirm} title="确认入账" className="rounded px-1.5 py-0.5 text-xs text-amber-300 hover:bg-slate-700">
             ✓
@@ -642,7 +644,7 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
                 await api(`/api/accounts/${a.id}`, "DELETE");
                 await onChanged();
               }}
-              className="hidden text-xs text-slate-500 hover:text-rose-300 group-hover:block"
+              className="row-actions-hidden hidden text-xs text-slate-500 hover:text-rose-300 group-hover:block"
             >
               🗑
             </button>
