@@ -42,11 +42,12 @@ export interface FeedMoment {
     startAt: string;
     endAt: string;
     durationMin: number;
+    activityId: string;
     activityName: string;
     icon: string;
     color: string;
   }[];
-  todos: { id: string; title: string; dueAt: string | null; status: string }[];
+  todos: { id: string; title: string; dueAt: string | null; status: string; activityId: string | null }[];
   transactions: {
     id: string;
     amountCents: number;
@@ -54,5 +55,5 @@ export interface FeedMoment {
     category: string;
     counterparty: string | null;
   }[];
-  people: { name: string; summary: string | null }[];
+  people: { interactionId: string; name: string; summary: string | null }[];
 }

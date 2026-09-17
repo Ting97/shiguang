@@ -128,17 +128,6 @@ export default function Home() {
     }
   }
 
-  /** 删除动态（连同 AI 识别生成的日程/待办/流水） */
-  async function deleteMoment(m: FeedMoment) {
-    const r = await fetch(`/api/feed/${m.id}`, { method: "DELETE" });
-    if (!r.ok) {
-      setMsg({ ok: false, text: "删除失败" });
-      return;
-    }
-    setMsg({ ok: true, text: `🗑 已删除这条动态及其识别结果` });
-    await load();
-  }
-
   async function toggleDone(t: Todo) {
     // 乐观更新
     setTodos((list) => list.filter((x) => x.id !== t.id));
@@ -362,12 +351,17 @@ export default function Home() {
           </div>
         )}
 
-        {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果） */}
+        {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <section className="mb-6">
           <h2 className="mb-3 text-sm font-semibold text-slate-300">
-            🌱 我的动态 <span className="ml-1 text-xs font-normal text-slate-500">{moments.length} 条</span>
+            🌱 我的动态 <span className="ml-1 text-xs font-normal text-slate-500">{moments.length} 条 · 悬停卡片可修正识别结果</span>
           </h2>
-          <MomentFeed moments={moments} onDelete={deleteMoment} />
+          <MomentFeed
+            moments={moments}
+            activities={activities}
+            onRefresh={load}
+            notify={(ok, text) => setMsg({ ok, text })}
+          />
         </section>
 
         {/* 待办列表 */}

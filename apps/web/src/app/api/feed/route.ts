@@ -14,14 +14,15 @@ export async function GET(req: Request) {
        coalesce((
          select jsonb_agg(jsonb_build_object(
            'id', b.id, 'title', b.title, 'startAt', b.start_at, 'endAt', b.end_at,
-           'durationMin', b.duration_min, 'activityName', a.name, 'icon', a.icon, 'color', a.color
+           'durationMin', b.duration_min, 'activityId', b.activity_id,
+           'activityName', a.name, 'icon', a.icon, 'color', a.color
          ) order by b.start_at)
          from time_blocks b join activities a on a.id = b.activity_id
          where b.entry_id = e.id
        ), '[]') as blocks,
        coalesce((
          select jsonb_agg(jsonb_build_object(
-           'id', t.id, 'title', t.title, 'dueAt', t.due_at, 'status', t.status
+           'id', t.id, 'title', t.title, 'dueAt', t.due_at, 'status', t.status, 'activityId', t.activity_id
          ) order by t.created_at)
          from todos t where t.entry_id = e.id
        ), '[]') as todos,
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
          from transactions x where x.entry_id = e.id
        ), '[]') as transactions,
        coalesce((
-         select jsonb_agg(jsonb_build_object('name', c.name, 'summary', i.summary))
+         select jsonb_agg(jsonb_build_object('interactionId', i.id, 'name', c.name, 'summary', i.summary))
          from interactions i join contacts c on c.id = i.contact_id
          where i.entry_id = e.id
        ), '[]') as people

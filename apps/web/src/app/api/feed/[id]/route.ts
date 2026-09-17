@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
 import { pool, DEV_USER_ID } from "@/lib/db";
+import { ruleMood } from "@shiguangri/ai";
 
 export const runtime = "nodejs";
+
+/** PATCH /api/feed/:id —— 修正动态的心情（{ mood: 心情词 | null }；null=清除）；情绪分按心情词基准分补全 */
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = (await req.json().catch(() => ({}))) as { mood?: string | null };
+
+  const label = body.mood?.trim() || null;
+  const score = label ? (ruleMood(label)?.score ?? 0) : null;
+
+  const updated = (
+    await pool.query(
+      `update entries set mood = $1, mood_score = $2
+       where id = $3 and user_id = $4 returning id, mood, mood_score`,
+      [label, score, id, DEV_USER_ID],
+    )
+  ).rows[0];
+  if (!updated) return NextResponse.json({ error: "动态不存在" }, { status: 404 });
+  return NextResponse.json({ entry: updated });
+}
 
 /**
  * DELETE /api/feed/[id] —— 删除一条动态及其全部识别产物

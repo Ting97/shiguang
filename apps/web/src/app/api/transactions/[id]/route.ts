@@ -1,0 +1,64 @@
+import { NextResponse } from "next/server";
+import { pool, DEV_USER_ID } from "@/lib/db";
+
+export const runtime = "nodejs";
+
+/** PATCH /api/transactions/:id —— 修正流水草稿（方向/金额/类别/交易对象） */
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const body = (await req.json().catch(() => ({}))) as {
+    direction?: "out" | "in";
+    amountCents?: number; // 正整数（方向由 direction 决定）
+    category?: string;
+    counterparty?: string | null;
+  };
+
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  if (body.direction === "out" || body.direction === "in") {
+    vals.push(body.direction);
+    sets.push(`direction = $${vals.length}`);
+  }
+  if (body.amountCents != null) {
+    if (!Number.isInteger(body.amountCents) || body.amountCents <= 0) {
+      return NextResponse.json({ error: "金额必须为正整数（单位分）" }, { status: 400 });
+    }
+    vals.push(body.amountCents);
+    sets.push(`amount_cents = $${vals.length}`);
+  }
+  if (body.category?.trim()) {
+    vals.push(body.category.trim());
+    sets.push(`category = $${vals.length}`);
+  }
+  if (body.counterparty !== undefined) {
+    vals.push(body.counterparty?.trim() || null);
+    sets.push(`counterparty = $${vals.length}`);
+  }
+  if (sets.length === 0) {
+    return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
+  }
+  vals.push(id, DEV_USER_ID);
+
+  const updated = (
+    await pool.query(
+      `update transactions set ${sets.join(", ")}
+       where id = $${vals.length - 1} and user_id = $${vals.length} returning *`,
+      vals,
+    )
+  ).rows[0];
+  if (!updated) return NextResponse.json({ error: "流水不存在" }, { status: 404 });
+  return NextResponse.json({ transaction: updated });
+}
+
+/** DELETE /api/transactions/:id —— 删除识别错的流水 */
+export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const deleted = (
+    await pool.query(
+      `delete from transactions where id = $1 and user_id = $2 returning id`,
+      [id, DEV_USER_ID],
+    )
+  ).rows[0];
+  if (!deleted) return NextResponse.json({ error: "流水不存在" }, { status: 404 });
+  return NextResponse.json({ ok: true });
+}
