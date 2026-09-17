@@ -63,7 +63,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
                 <>
                   <MiniDonut byActivity={s!.byActivity} actMap={actMap} size={30} />
                   <span className="text-[9px] tabular-nums text-slate-500">
-                    {(s!.totalMin / 60).toFixed(1)}h
+                    {zhDuration(s!.totalMin)}
                   </span>
                 </>
               ) : (
@@ -79,7 +79,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
         <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
           <p className="mb-2 text-xs text-slate-400">
             {m} 月共记录 <span className="font-semibold text-slate-200">{zhDuration(grand)}</span>
-            <span className="ml-2 text-slate-500">· {recordedDays} 天有记录 · 日均 {(grand / recordedDays / 60).toFixed(1)} 小时</span>
+            <span className="ml-2 text-slate-500">· {recordedDays} 天有记录 · 日均 {zhDuration(Math.round(grand / recordedDays))}</span>
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {sorted.map(([id, min]) => (

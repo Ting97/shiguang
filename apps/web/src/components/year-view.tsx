@@ -97,7 +97,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
         <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
           <p className="mb-2 text-xs text-slate-400">
             {year} 年共记录 <span className="font-semibold text-slate-200">{zhDuration(grand)}</span>
-            <span className="ml-2 text-slate-500">· {recordedDays} 天有记录 · 平均每天 {(grand / 365).toFixed(1)} 分钟</span>
+            <span className="ml-2 text-slate-500">· {recordedDays} 天有记录 · 平均每天 {zhDuration(Math.round(grand / 365))}</span>
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {sorted.map(([id, min]) => (
