@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ const TZ = "Asia/Shanghai";
 
 /** GET /api/blocks/range?from=YYYY-MM-DD&to=YYYY-MM-DD —— 区间内原始时间块 */
 export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const url = new URL(req.url);
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
@@ -22,7 +25,7 @@ export async function GET(req: Request) {
      where b.user_id = $1
        and ((b.start_at at time zone $2)::date) between $3::date and $4::date
      order by b.start_at`,
-    [DEV_USER_ID, TZ, from, to],
+    [user.id, TZ, from, to],
   );
   return NextResponse.json({ blocks: rows });
 }

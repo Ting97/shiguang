@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const LINKS = [
   { href: "/", label: "工作台" },
@@ -11,24 +12,59 @@ const LINKS = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [authDisabled, setAuthDisabled] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => {
+      if (r.status === 401) {
+        location.href = "/login"; // 会话失效（异地退出/过期）→ 回登录页
+        return;
+      }
+      r.json().then((j) => {
+        setNickname(j.nickname ?? "我");
+        setAuthDisabled(Boolean(j.authDisabled));
+      });
+    });
+  }, []);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    location.href = "/login";
+  }
+
   return (
-    <nav className="sticky top-4 z-40 mb-8 flex justify-center gap-1 rounded-full border border-white/10 bg-slate-900/70 p-1 text-sm shadow-lg shadow-slate-950/50 backdrop-blur-xl">
-      {LINKS.map((l) => {
-        const active = pathname === l.href;
-        return (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={`rounded-full px-5 py-1.5 transition-all duration-200 ${
-              active
-                ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
-            }`}
+    <nav className="sticky top-4 z-40 mb-8 flex items-center justify-between gap-2 rounded-full border border-white/10 bg-slate-900/70 p-1 pl-4 text-sm shadow-lg shadow-slate-950/50 backdrop-blur-xl">
+      <div className="flex flex-1 justify-center gap-1">
+        {LINKS.map((l) => {
+          const active = pathname === l.href;
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`rounded-full px-5 py-1.5 transition-all duration-200 ${
+                active
+                  ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                  : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+              }`}
+            >
+              {l.label}
+            </Link>
+          );
+        })}
+      </div>
+      {!authDisabled && nickname && (
+        <span className="flex shrink-0 items-center gap-1.5 pr-2 text-xs text-slate-400">
+          <span className="hidden sm:inline">{nickname}</span>
+          <button
+            onClick={logout}
+            title="退出登录"
+            className="rounded-full px-2 py-1 transition hover:bg-white/5 hover:text-rose-300"
           >
-            {l.label}
-          </Link>
-        );
-      })}
+            ⎋
+          </button>
+        </span>
+      )}
     </nav>
   );
 }

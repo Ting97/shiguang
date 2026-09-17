@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 /** PATCH /api/transactions/:id —— 修正流水草稿（方向/金额/类别/交易对象） */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as {
     direction?: "out" | "in";
@@ -37,7 +40,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (sets.length === 0) {
     return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
   }
-  vals.push(id, DEV_USER_ID);
+  vals.push(id, user.id);
 
   const updated = (
     await pool.query(
@@ -52,11 +55,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
 /** DELETE /api/transactions/:id —— 删除识别错的流水 */
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
   const deleted = (
     await pool.query(
       `delete from transactions where id = $1 and user_id = $2 returning id`,
-      [id, DEV_USER_ID],
+      [id, user.id],
     )
   ).rows[0];
   if (!deleted) return NextResponse.json({ error: "流水不存在" }, { status: 404 });

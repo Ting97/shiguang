@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/feed?limit=50 —— 动态流：entries 按记录时刻倒序，聚合 AI 识别出的日程/待办/金额/人物 */
 export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const url = new URL(req.url);
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50), 1), 200);
 
@@ -42,7 +45,7 @@ export async function GET(req: Request) {
      where e.user_id = $1
      order by e.created_at desc
      limit $2`,
-    [DEV_USER_ID, limit],
+    [user.id, limit],
   );
   return NextResponse.json({ moments: rows });
 }

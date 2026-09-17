@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 /** PATCH /api/activities/:id —— 修改分类（名称/图标/颜色/默认时长） */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
@@ -25,7 +28,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     sets.push(`default_min = $${vals.length}`);
   }
   if (sets.length === 0) return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
-  vals.push(id, DEV_USER_ID);
+  vals.push(id, user.id);
 
   try {
     const updated = (
@@ -47,6 +50,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
 /** DELETE /api/activities/:id —— 删除自定义分类（其时间块/待办归入"其他"）；预设分类不可删 */
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
   const client = await pool.connect();
   try {
@@ -54,7 +59,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     const act = (
       await client.query(
         `select * from activities where id = $1 and user_id = $2`,
-        [id, DEV_USER_ID],
+        [id, user.id],
       )
     ).rows[0];
     if (!act) {
@@ -65,9 +70,9 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
       await client.query("rollback");
       return NextResponse.json({ error: "预设分类不可删除（可修改名称/图标/颜色）" }, { status: 400 });
     }
-    await client.query(`update time_blocks set activity_id = 'other' where activity_id = $1 and user_id = $2`, [id, DEV_USER_ID]);
-    await client.query(`update todos set activity_id = 'other' where activity_id = $1 and user_id = $2`, [id, DEV_USER_ID]);
-    await client.query(`delete from activities where id = $1 and user_id = $2`, [id, DEV_USER_ID]);
+    await client.query(`update time_blocks set activity_id = 'other' where activity_id = $1 and user_id = $2`, [id, user.id]);
+    await client.query(`update todos set activity_id = 'other' where activity_id = $1 and user_id = $2`, [id, user.id]);
+    await client.query(`delete from activities where id = $1 and user_id = $2`, [id, user.id]);
     await client.query("commit");
     return NextResponse.json({ ok: true, reassigned: true });
   } catch (e) {

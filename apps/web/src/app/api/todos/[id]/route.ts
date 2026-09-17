@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID, trimCompletionBlock } from "@/lib/db";
+import { pool, trimCompletionBlock } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 /** PATCH /api/todos/:id —— { done: true } 勾选完成（生成日程块）；或传字段修改待办 */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as {
     done?: boolean;
@@ -22,7 +25,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const todo = (
         await client.query(
           `select * from todos where id = $1 and user_id = $2 and status = 'done'`,
-          [id, DEV_USER_ID],
+          [id, user.id],
         )
       ).rows[0];
       if (!todo) {
@@ -56,7 +59,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         await client.query(
           `update todos set status = 'done', done_at = now()
            where id = $1 and user_id = $2 and status = 'pending' returning *`,
-          [id, DEV_USER_ID],
+          [id, user.id],
         )
       ).rows[0];
       if (!todo) {
@@ -70,14 +73,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       ).rows[0]?.default_min ?? 30;
       const now = new Date();
       now.setSeconds(0, 0); // 对齐到整分钟
-      const trimmed = await trimCompletionBlock(DEV_USER_ID, new Date(now.getTime() - dur * 60_000), now);
+      const trimmed = await trimCompletionBlock(user.id, new Date(now.getTime() - dur * 60_000), now);
       let block: { id: string; entry_id: string | null; title: string } | null = null;
       if (trimmed) {
         block = (
           await client.query(
             `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
              values ($1,$2,$3,$4,$5,$6,'default','manual') returning id, entry_id, title`,
-            [DEV_USER_ID, todo.entry_id, todo.activity_id, todo.title, trimmed.start.toISOString(), trimmed.end.toISOString()],
+            [user.id, todo.entry_id, todo.activity_id, todo.title, trimmed.start.toISOString(), trimmed.end.toISOString()],
           )
         ).rows[0];
       }
@@ -112,7 +115,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (sets.length === 0) {
     return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
   }
-  vals.push(id, DEV_USER_ID);
+  vals.push(id, user.id);
   const updated = (
     await pool.query(
       `update todos set ${sets.join(", ")}
@@ -127,11 +130,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
 /** DELETE /api/todos/:id —— 删除待办（已完成的也可删） */
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
   const deleted = (
     await pool.query(
       `delete from todos where id = $1 and user_id = $2 returning id, title`,
-      [id, DEV_USER_ID],
+      [id, user.id],
     )
   ).rows[0];
   if (!deleted) return NextResponse.json({ error: "待办不存在" }, { status: 404 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,8 @@ const TZ = "Asia/Shanghai";
 
 /** GET /api/stats/range?from=&to= —— 按日按类别的时长聚合（月视图/年热力图/趋势用） */
 export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const url = new URL(req.url);
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
@@ -24,7 +27,7 @@ export async function GET(req: Request) {
      where b.user_id = $1
        and ((b.start_at at time zone $2)::date) between $3::date and $4::date
      group by 1, 2`,
-    [DEV_USER_ID, TZ, from, to],
+    [user.id, TZ, from, to],
   );
 
   const daysMap = new Map<string, { date: string; totalMin: number; byActivity: Record<string, number> }>();

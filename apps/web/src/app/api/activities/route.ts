@@ -1,20 +1,25 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/activities —— 全部分类 */
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { rows } = await pool.query(
     `select * from activities where user_id = $1 order by sort_order, created_at`,
-    [DEV_USER_ID],
+    [user.id],
   );
   return NextResponse.json({ activities: rows });
 }
 
 /** POST /api/activities —— 新增自定义分类 */
 export async function POST(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
     icon?: string;
@@ -32,7 +37,7 @@ export async function POST(req: Request) {
                  (select coalesce(max(sort_order), 0) + 1 from activities where user_id = $1), false)
          returning *`,
         [
-          DEV_USER_ID,
+          user.id,
           name,
           body.icon?.trim() || "🏷",
           /^#[0-9a-fA-F]{6}$/.test(body.color ?? "") ? body.color : "#64748b",

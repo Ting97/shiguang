@@ -9,6 +9,46 @@ create table if not exists public.profiles (
   id          uuid primary key default gen_random_uuid(),  -- = auth.users.id（Supabase 模式）
   nickname    text,
   timezone    text not null default 'Asia/Shanghai',
+  -- 账户体系（migrations/002）：手机号+密码/验证码登录，微信扫码预留
+  phone       text unique,                                 -- ^1[3-9]\d{9}$
+  phone_verified boolean not null default false,
+  password_hash  text,                                     -- scrypt，可空（纯验证码用户）
+  wechat_openid  text unique,                              -- 预留：微信开放平台网站应用
+  status      text not null default 'active',
+  last_login_at timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+-- 会话（migrations/002）：cookie 只放随机 token，库里存 sha256(token)
+create table if not exists public.sessions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  token_hash  text not null unique,
+  user_agent  text,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_sessions_user on public.sessions (user_id, expires_at);
+
+-- 短信验证码（migrations/002）
+create table if not exists public.sms_codes (
+  id          uuid primary key default gen_random_uuid(),
+  phone       text not null,
+  code_hash   text not null,
+  purpose     text not null check (purpose in ('login','bind')),
+  attempts    int not null default 0,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_sms_phone on public.sms_codes (phone, created_at desc);
+
+-- 邀请码（migrations/002）：一码一人
+create table if not exists public.invite_codes (
+  code        text primary key,
+  created_by  uuid references public.profiles(id),
+  used_by     uuid unique references public.profiles(id),
+  used_at     timestamptz,
+  expires_at  timestamptz,
   created_at  timestamptz not null default now()
 );
 
