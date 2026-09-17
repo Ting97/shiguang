@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   birthdayCountdown,
   birthdayLabel,
+  inferGroupFromContext,
   inferGroupFromName,
   inferInteractionType,
 } from "../src/lib/social.ts";
@@ -21,6 +22,21 @@ test("分组推断：普通名字返回 null（落默认「朋友」）", () => 
   assert.equal(inferGroupFromName("老王"), null);
   assert.equal(inferGroupFromName("老张"), null);
   assert.equal(inferGroupFromName(""), null);
+});
+
+test("上下文分组推断：LLM 剥掉的身份前缀从原句找回来", () => {
+  // 「客户张总」被 LLM 抽成「张总」→ 回原句拼回前缀
+  assert.equal(inferGroupFromContext("张总", "下午和客户张总开会聊了1小时"), "客户");
+  assert.equal(inferGroupFromContext("小李", "上午和同事小李对齐了需求"), "同事");
+  assert.equal(inferGroupFromContext("阿凯", "晚上和大学同学阿凯打球"), "同学");
+  // 名字本身可命中的直接短路，不依赖原句
+  assert.equal(inferGroupFromContext("老妈", "老妈打电话来了"), "家人");
+  // 原句没有身份线索 → null（落「朋友」）
+  assert.equal(inferGroupFromContext("老王", "中午和老王吃饭花了260"), null);
+  // 原句里找不到名字 → null
+  assert.equal(inferGroupFromContext("张总", "陪爸妈逛街"), null);
+  assert.equal(inferGroupFromContext("", "任意"), null);
+  assert.equal(inferGroupFromContext("张总", ""), null);
 });
 
 test("往来类型推断：事件短语映射", () => {

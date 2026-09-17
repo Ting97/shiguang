@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap } from "@/lib/db";import { getCurrentUser } from "@/lib/auth";
 import { parseInput } from "@shiguangri/ai";
-import { inferGroupFromName, inferInteractionType } from "@/lib/social";
+import { inferGroupFromContext, inferInteractionType } from "@/lib/social";
 
 export const runtime = "nodejs";
 
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         await client.query(
           `insert into contacts (user_id, name, group_tag) values ($1, $2, $3)
            on conflict (user_id, name) do update set name = excluded.name returning id`,
-          [user.id, p.name, inferGroupFromName(p.name) ?? "朋友"],
+          [user.id, p.name, inferGroupFromContext(p.name, text.trim()) ?? "朋友"],
         )
       ).rows[0];
       // 事件与标题相同时不重复拼接（「吃饭：吃饭」→「吃饭」）

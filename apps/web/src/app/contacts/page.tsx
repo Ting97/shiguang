@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Nav from "@/components/nav";
 import ContactFormModal from "@/components/contact-form";
+import ContactGraph from "@/components/contact-graph";
 import { api } from "@/lib/client-api";
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel } from "@/lib/social";
 
@@ -40,9 +42,11 @@ function relTime(iso: string): string {
 }
 
 export default function ContactsPage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [group, setGroup] = useState<string>("全部");
   const [q, setQ] = useState("");
+  const [view, setView] = useState<"list" | "graph">("list");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<Contact | "new" | null>(null);
 
@@ -92,6 +96,25 @@ export default function ContactsPage() {
           <p className="mt-2 text-xs text-slate-500">
             动态里提到的人都在这里 —— 分组档案、生日提醒、往来时间线
           </p>
+          {/* 列表 | 图谱 视图切换 */}
+          <div className="mt-4 inline-flex rounded-full border border-white/10 bg-slate-900/70 p-1 text-xs">
+            {([
+              ["list", "📋 列表"],
+              ["graph", "🕸 图谱"],
+            ] as const).map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-full px-4 py-1.5 transition-all duration-200 ${
+                  view === v
+                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                    : "text-slate-400 hover:text-slate-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </header>
 
         {/* 分组筛选 + 搜索 + 建档 */}
@@ -146,6 +169,8 @@ export default function ContactsPage() {
           <p className="rounded-xl border border-dashed border-slate-800 py-10 text-center text-xs text-slate-600">
             没有匹配的联系人
           </p>
+        ) : view === "graph" ? (
+          <ContactGraph contacts={filtered} onOpen={(id) => router.push(`/contacts/${id}`)} />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {filtered.map((c) => {
@@ -206,7 +231,7 @@ export default function ContactsPage() {
         )}
 
         <footer className="mt-10 text-center text-[10px] text-slate-600">
-          拾光复利 · 人际模块 v1（Phase 3 W9）· 语音提及自动建档
+          拾光复利 · 人际模块 v2（Phase 3 W9~W11）· 语音提及自动建档
         </footer>
       </div>
     </main>

@@ -43,6 +43,30 @@ export function inferGroupFromName(name: string): ContactGroup | null {
   return null;
 }
 
+/**
+ * 上下文版分组推断：LLM 常把「客户张总」抽成「张总」，身份前缀被剥掉，
+ * 只拿名字推断永远落「朋友」。回原句找到名字位置，把它前面的修饰词拼回来再推断。
+ * 名字本身能命中的（老妈/王老板）直接返回；原句里找不到名字返回 null。
+ */
+export function inferGroupFromContext(name: string, rawText: string): ContactGroup | null {
+  if (!name || !rawText) return null;
+  const direct = inferGroupFromName(name);
+  if (direct) return direct;
+  const i = rawText.indexOf(name);
+  if (i < 0) return null;
+  return inferGroupFromName(rawText.slice(Math.max(0, i - 4), i) + name);
+}
+
+/** 分组色（人际图谱 / 列表头像共用）：与全局色板同风格的高饱和暗底色 */
+export const GROUP_COLOR: Record<string, string> = {
+  家人: "#f43f5e",
+  朋友: "#f59e0b",
+  同事: "#0ea5e9",
+  同学: "#10b981",
+  客户: "#8b5cf6",
+  其他: "#64748b",
+};
+
 /** 往来事件短语 → 互动类型（原 event 来自 LLM 抽取，如 吃饭/送礼/打电话） */
 export function inferInteractionType(event?: string | null): InteractionType {
   const e = (event ?? "").trim();

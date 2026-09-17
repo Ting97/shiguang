@@ -532,6 +532,7 @@ function TxForm({
       : toLocalInput(new Date().toISOString()).slice(0, 16),
   );
   const [note, setNote] = useState(initial?.note ?? "");
+  const [counterparty, setCounterparty] = useState(initial?.counterparty ?? "");
   const [busy, setBusy] = useState(false);
 
   return (
@@ -593,12 +594,21 @@ function TxForm({
           className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
         />
       </div>
-      <input
-        value={note ?? ""}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="备注（可空）"
-        className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
-      />
+      <div className="flex gap-2">
+        <input
+          value={counterparty}
+          onChange={(e) => setCounterparty(e.target.value)}
+          placeholder="对方（可空）"
+          title="和谁有关 —— 填了会关联到 TA 的人情账（如：老王）"
+          className="w-24 shrink-0 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+        />
+        <input
+          value={note ?? ""}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="备注（可空）"
+          className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+        />
+      </div>
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-slate-400 hover:bg-slate-700">
           取消
@@ -617,6 +627,7 @@ function TxForm({
                 accountId: accountId || null,
                 occurredAt: date ? new Date(date).toISOString() : new Date().toISOString(),
                 note: note || null,
+                counterparty: counterparty.trim() || null,
               });
             } finally {
               setBusy(false);
