@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,5 +14,6 @@ export async function GET() {
     nickname: user.nickname,
     phone: user.phone,
     authDisabled: process.env.AUTH_DISABLED === "1",
+    isAdmin: user.id === DEV_USER_ID, // 管理员 = 初始化账号（继承开发用户 UUID）
   });
 }

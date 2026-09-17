@@ -14,6 +14,7 @@ export default function Nav() {
   const pathname = usePathname();
   const [nickname, setNickname] = useState<string | null>(null);
   const [authDisabled, setAuthDisabled] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me").then((r) => {
@@ -24,6 +25,7 @@ export default function Nav() {
       r.json().then((j) => {
         setNickname(j.nickname ?? "我");
         setAuthDisabled(Boolean(j.authDisabled));
+        setIsAdmin(Boolean(j.isAdmin));
       });
     });
   }, []);
@@ -52,6 +54,18 @@ export default function Nav() {
             </Link>
           );
         })}
+        {isAdmin && (
+          <Link
+            href="/invites"
+            className={`rounded-full px-5 py-1.5 transition-all duration-200 ${
+              pathname === "/invites"
+                ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+            }`}
+          >
+            邀请
+          </Link>
+        )}
       </div>
       {!authDisabled && nickname && (
         <span className="flex shrink-0 items-center gap-1.5 pr-2 text-xs text-slate-400">
