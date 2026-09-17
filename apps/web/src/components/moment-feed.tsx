@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
+import { TX_CATEGORIES } from "@/lib/finance";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const zhClock = (iso: string) => {
@@ -27,7 +28,6 @@ export const zhRecordTime = (iso: string) => {
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
-const TX_CATEGORIES = ["餐饮", "交通", "人情往来", "学习", "购物", "娱乐", "其他"];
 const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];
 
 /** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区与原日期） */

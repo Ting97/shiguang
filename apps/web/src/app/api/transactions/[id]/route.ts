@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-/** PATCH /api/transactions/:id —— 修正流水草稿（方向/金额/类别/交易对象） */
+/** PATCH /api/transactions/:id —— 修正流水（方向/金额/类别/交易对象/账户）；{confirm:true} 草稿转正 */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -14,6 +14,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     amountCents?: number; // 正整数（方向由 direction 决定）
     category?: string;
     counterparty?: string | null;
+    accountId?: string | null;
+    confirm?: boolean; // 草稿 → 已确认入账
   };
 
   const sets: string[] = [];
@@ -36,6 +38,26 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (body.counterparty !== undefined) {
     vals.push(body.counterparty?.trim() || null);
     sets.push(`counterparty = $${vals.length}`);
+  }
+  if (body.accountId !== undefined) {
+    if (body.accountId === null) {
+      vals.push(null);
+      sets.push(`account_id = $${vals.length}`);
+    } else {
+      const owned = await pool.query(
+        `select id from accounts where id = $1 and user_id = $2 and archived = false`,
+        [body.accountId, user.id],
+      );
+      if (owned.rows.length === 0) {
+        return NextResponse.json({ error: "账户不存在" }, { status: 400 });
+      }
+      vals.push(body.accountId);
+      sets.push(`account_id = $${vals.length}`);
+    }
+  }
+  if (body.confirm === true) {
+    vals.push(false);
+    sets.push(`is_draft = $${vals.length}`);
   }
   if (sets.length === 0) {
     return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
