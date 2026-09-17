@@ -294,7 +294,7 @@ export default function Home() {
         <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-3xl font-bold">
-            拾光日 <span className="text-sm font-normal text-slate-500">工作台</span>
+            拾光复利 <span className="text-sm font-normal text-slate-500">工作台</span>
           </h1>
           <p className="mt-1 text-xs text-slate-500">说一句话 → 未来生成待办 · 过去记录日程</p>
         </header>
@@ -633,7 +633,7 @@ export default function Home() {
         </section>
 
         <footer className="mt-10 text-center text-[10px] text-slate-600">
-          拾光日 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
+          拾光复利 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
         </footer>
       </div>
     </main>
