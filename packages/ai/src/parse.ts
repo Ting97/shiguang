@@ -24,15 +24,40 @@ export interface ParseOptions {
 const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["activity"]]> = [
   [/午睡|睡觉|补觉/, "sleep"],
   [/通勤|路上|地铁|公交|打车/, "commute"],
-  [/开会|评审|周报|邮件|客户|上班|加班|项目/, "work"],
+  [/开会|评审|周报|报告|邮件|客户|上班|加班|项目/, "work"],
   [/学|看书|阅读|读书|英语|上课|刷题|三章/, "study"],
-  [/跑|撸铁|健身|锻炼|球类|散步/, "fitness"],
+  [/跑|撸铁|健身|锻炼|球类|散步|拉伸/, "fitness"],
   [/抖音|电影|游戏|刷手机|逛街/, "fun"],
   [/打扫|买菜|超市|做饭|洗衣|房间|垃圾/, "chores"],
   [/吃饭|聊|电话|爸妈|老王|小李|朋友|同事|随礼|满月|搬家|帮忙/, "social"],
 ];
 
 const PEOPLE_RE = [/老王/g, /爸妈/g, /小李/g, /朋友/g, /同事(?:小李)?/g];
+
+/** 心情规则表：[匹配词, 心情词, 基准情绪分]（规则引擎兜底 & LLM 缺 score 时的补全依据） */
+const MOOD_RULES: Array<[RegExp, string, number]> = [
+  [/生气|气死|愤怒|火大|气人/, "生气", -80],
+  [/难过|伤心|失落|想哭|emo|崩溃/, "难过", -70],
+  [/委屈|心酸/, "委屈", -60],
+  [/孤独|寂寞/, "孤独", -60],
+  [/焦虑|压力|紧张|担心|慌|发愁/, "焦虑", -60],
+  [/烦|暴躁|郁闷|抓狂|无语/, "烦躁", -60],
+  [/累|疲惫|困|犯困|乏力|虚/, "疲惫", -40],
+  [/幸福|感恩|感谢|幸运|幸运儿/, "幸福", 70],
+  [/兴奋|激动|期待|迫不及待/, "兴奋", 80],
+  [/开心|高兴|快乐|心情好|心情不错|心情真好|爽|美滋滋/, "开心", 60],
+  [/满足|充实|值得|值了|有成就感|骄傲/, "满足", 60],
+  [/放松|舒服|惬意|治愈|解压|舒坦/, "放松", 50],
+  [/平静|还行|一般|淡淡/, "平静", 10],
+];
+
+/** 规则引擎心情识别：返回 null=无情绪色彩 */
+export function ruleMood(text: string): { label: string; score: number } | null {
+  for (const [re, label, score] of MOOD_RULES) {
+    if (re.test(text)) return { label, score };
+  }
+  return null;
+}
 
 /**
  * 规则引擎标题：剥离时间/金额/时段等修饰成分，保留事项本身（不截尾）。
@@ -64,11 +89,15 @@ function ruleExtract(text: string): LlmExtractionT {
   const people = [...new Set(rawNames)]
     .filter((n) => !rawNames.some((m) => m !== n && m.includes(n)))
     .map((name) => ({ name, event: undefined }));
+  const mood = ruleMood(text);
+  // status 启发式：没命中任何活动词、没说时长/金额/人物，只是带情绪的一句话 → 纯动态
+  const statusLike = activity === "other" && !parseDuration(text) && amount === null && people.length === 0 && mood !== null;
   return {
-    recordType: detectFuture(text) ? "future" : "past",
+    recordType: detectFuture(text) ? "future" : statusLike ? "status" : "past",
     activity,
     title: makeTitle(text),
     periodHint: detectPeriod(text) ?? "now",
+    mood: mood ?? { label: null, score: null },
     finance: amount !== null
       ? {
           hasAmount: true,
@@ -122,8 +151,20 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   // 防御：过滤模型输出的占位人名（"省略"/"无"/空）
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
 
-  // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制
+  // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制；status → 时间无意义，仅留档
   const tb = inferTimeBlock(text, now, durationMin, ext.periodHint, ext.recordType === "future");
+
+  // 意图分流：future 优先（"明天要交报告了好焦虑"是待办+焦虑，不是状态）
+  const intent: ParseResultT["intent"] =
+    ext.recordType === "future" || tb.mode === "future"
+      ? "todo"
+      : ext.recordType === "status"
+        ? "status"
+        : "schedule";
+
+  // 心情：LLM 词优先；score 缺失时按规则基准分补全
+  const moodLabel = (ext.mood.label ?? "").trim() || null;
+  const moodScore = moodLabel ? (ext.mood.score ?? ruleMood(moodLabel)?.score ?? 0) : null;
 
   return ParseResult.parse({
     activity: ext.activity,
@@ -135,7 +176,8 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
       durationMin: tb.durationMin,
       confidence,
     },
-    createsTodo: tb.mode === "future",
+    intent,
+    mood: { label: moodLabel, score: moodScore },
     finance: ext.finance,
     people,
     ambiguity: ext.ambiguity ?? null,

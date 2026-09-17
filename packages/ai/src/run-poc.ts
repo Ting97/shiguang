@@ -34,8 +34,8 @@ for (const c of set.cases as Case[]) {
   const checks: Record<string, boolean> = { activity: r.activity === c.activity };
 
   if (c.future) {
-    // 未来话术：应生成 TODO（mode=future、createsTodo），时长/金额不参与判定
-    checks.todo = r.createsTodo === true && r.time.mode === "future";
+    // 未来话术：应生成 TODO（mode=future、intent=todo），时长/金额不参与判定
+    checks.todo = r.intent === "todo" && r.time.mode === "future";
   } else {
     checks.duration =
       Math.abs(r.time.durationMin - (c.durationMin as number)) <= durationTolerance;
@@ -55,7 +55,7 @@ for (const c of set.cases as Case[]) {
   rows.push(
     `${ok ? "✅" : "❌"} #${String(c.id).padStart(2)} ${c.text.slice(0, 14).padEnd(14, "　")} ` +
     `act=${r.activity}(期望${c.activity}) ` +
-    `${c.future ? `${r.createsTodo ? "→TODO" : "✗未识别为TODO"} due=${fmt(r.time.start)}` : `dur=${r.time.durationMin}(期望${c.durationMin}) `}` +
+    `${c.future ? `${r.intent === "todo" ? "→TODO" : "✗未识别为TODO"} due=${fmt(r.time.start)}` : `dur=${r.time.durationMin}(期望${c.durationMin}) `}` +
     `${!c.future && r.finance.hasAmount ? `金额${(r.finance.amountCents! / 100).toFixed(0)}元 ` : ""}` +
     `${!c.future && r.people.length ? `人:${r.people.map((p) => p.name).join(",")} ` : ""}` +
     `${why ? `← 不符:${why}` : ""}`

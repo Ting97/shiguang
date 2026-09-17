@@ -4,7 +4,7 @@ import { parseInput } from "@shiguangri/ai";
 
 export const runtime = "nodejs";
 
-/** POST /api/parse  { text } —— 一句话落库：TODO 或 日程时间块 (+财务/人际草稿) */
+/** POST /api/parse  { text } —— 一句话发动态：AI 识别意图后落 TODO / 日程块 / 纯心情 (+财务/人际草稿) */
 export async function POST(req: Request) {
   const { text } = (await req.json()) as { text?: string };
   if (!text?.trim()) {
@@ -16,14 +16,16 @@ export async function POST(req: Request) {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // 动态本体：记录时刻 created_at + AI 心情
     const entry = (
       await client.query(
-        `insert into entries (user_id, source, raw_text) values ($1,'keyboard',$2) returning id`,
-        [DEV_USER_ID, text.trim()],
+        `insert into entries (user_id, source, raw_text, mood, mood_score)
+         values ($1,'keyboard',$2,$3,$4) returning id, raw_text, mood, mood_score, created_at`,
+        [DEV_USER_ID, text.trim(), r.mood.label, r.mood.score],
       )
     ).rows[0];
 
-    if (r.createsTodo) {
+    if (r.intent === "todo") {
       const remind = new Date(new Date(r.time.start).getTime() - 15 * 60_000);
       const todo = (
         await client.query(
@@ -33,16 +35,20 @@ export async function POST(req: Request) {
         )
       ).rows[0];
       await client.query("commit");
-      return NextResponse.json({ kind: "todo", result: r, todo });
+      return NextResponse.json({ kind: "todo", result: r, todo, entry });
     }
 
-    // 时间轴约束：一个时刻只能做一件事（未来 TODO 不占时间轴，不校验）
-    if (!r.createsTodo) {
-      const conflict = await findOverlap(DEV_USER_ID, r.time.start, r.time.end);
-      if (conflict) {
-        await client.query("rollback");
-        return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
-      }
+    // 纯心情/状态动态：不生成日程，到此为止
+    if (r.intent === "status") {
+      await client.query("commit");
+      return NextResponse.json({ kind: "moment", result: r, entry });
+    }
+
+    // schedule：时间轴约束（一个时刻只能做一件事）
+    const conflict = await findOverlap(DEV_USER_ID, r.time.start, r.time.end);
+    if (conflict) {
+      await client.query("rollback");
+      return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
     }
 
     const block = (
@@ -86,7 +92,7 @@ export async function POST(req: Request) {
     }
 
     await client.query("commit");
-    return NextResponse.json({ kind: "block", result: r, block });
+    return NextResponse.json({ kind: "block", result: r, block, entry });
   } catch (e) {
     await client.query("rollback");
     return NextResponse.json({ error: String(e) }, { status: 500 });

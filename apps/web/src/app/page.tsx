@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Nav from "@/components/nav";
 import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
+import MomentFeed from "@/components/moment-feed";
 import { todayStr } from "@/lib/date";
-import type { Activity, Block } from "@/lib/types";
+import { moodEmoji } from "@/lib/mood";
+import type { Activity, Block, FeedMoment } from "@/lib/types";
 
 interface Todo {
   id: string;
@@ -58,6 +60,7 @@ const dueTag = (iso: string | null) => {
 
 export default function Home() {
   const [text, setText] = useState("");
+  const [moments, setMoments] = useState<FeedMoment[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [doneToday, setDoneToday] = useState<Todo[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -67,15 +70,20 @@ export default function Home() {
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/today");
-    const j = await r.json();
+    const [todayRes, feedRes] = await Promise.all([
+      fetch("/api/today"),
+      fetch("/api/feed?limit=50"),
+    ]);
+    const j = await todayRes.json();
     setTodos(j.todos ?? []);
     setDoneToday(j.doneToday ?? []);
     setBlocks(j.blocks ?? []);
     setActivities(j.activities ?? []);
+    const f = await feedRes.json();
+    setMoments(f.moments ?? []);
   }, []);
 
   useEffect(() => {
@@ -99,13 +107,16 @@ export default function Home() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
+      const moodTag = j.result.mood.label ? ` ${moodEmoji(j.result.mood.label)}${j.result.mood.label}` : "";
       setMsg(
         j.kind === "todo"
-          ? { ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}` }
-          : {
-              ok: true,
-              text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}`,
-            },
+          ? { ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` }
+          : j.kind === "moment"
+            ? { ok: true, text: `✨ 已记录此刻${moodTag}` }
+            : {
+                ok: true,
+                text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}`,
+              },
       );
       setText("");
       await load();
@@ -115,6 +126,17 @@ export default function Home() {
       setBusy(false);
       inputRef.current?.focus();
     }
+  }
+
+  /** 删除动态（连同 AI 识别生成的日程/待办/流水） */
+  async function deleteMoment(m: FeedMoment) {
+    const r = await fetch(`/api/feed/${m.id}`, { method: "DELETE" });
+    if (!r.ok) {
+      setMsg({ ok: false, text: "删除失败" });
+      return;
+    }
+    setMsg({ ok: true, text: `🗑 已删除这条动态及其识别结果` });
+    await load();
   }
 
   async function toggleDone(t: Todo) {
@@ -294,28 +316,39 @@ export default function Home() {
         <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-3xl font-bold">
-            拾光复利 <span className="text-sm font-normal text-slate-500">工作台</span>
+            拾光复利 <span className="text-sm font-normal text-slate-500">动态</span>
           </h1>
-          <p className="mt-1 text-xs text-slate-500">说一句话 → 未来生成待办 · 过去记录日程</p>
+          <p className="mt-1 text-xs text-slate-500">
+            随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办
+          </p>
         </header>
 
         {/* 输入区 */}
-        <section className="mb-3 flex gap-2">
-          <input
+        <section className="mb-3">
+          <textarea
             ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder='试试："明天下午三点去看牙医" 或 "刚跑完步40分钟"'
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm outline-none placeholder:text-slate-600 focus:border-sky-500"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={2}
+            placeholder='记录此刻…（试试"刚跑完步40分钟，心情不错"、"有点累"、"明天下午三点看牙"）'
+            className="w-full resize-none rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm outline-none placeholder:text-slate-600 focus:border-sky-500"
           />
-          <button
-            onClick={submit}
-            disabled={busy || !text.trim()}
-            className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium hover:bg-sky-500 disabled:opacity-40"
-          >
-            {busy ? "解析中…" : "记录"}
-          </button>
+          <div className="mt-2 flex items-center justify-between">
+            <span className="text-[11px] text-slate-600">Enter 发布 · Shift+Enter 换行</span>
+            <button
+              onClick={submit}
+              disabled={busy || !text.trim()}
+              className="rounded-lg bg-sky-600 px-6 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-40"
+            >
+              {busy ? "识别中…" : "发布"}
+            </button>
+          </div>
         </section>
         {msg && (
           <div
@@ -328,6 +361,14 @@ export default function Home() {
             {msg.text}
           </div>
         )}
+
+        {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果） */}
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-slate-300">
+            🌱 我的动态 <span className="ml-1 text-xs font-normal text-slate-500">{moments.length} 条</span>
+          </h2>
+          <MomentFeed moments={moments} onDelete={deleteMoment} />
+        </section>
 
         {/* 待办列表 */}
         <section className="mb-6 rounded-xl border border-slate-800 bg-slate-900/50 p-5">

@@ -42,12 +42,22 @@ export const PersonDraft = z.object({
   event: z.string().nullish(), // 吃饭/送礼/通话/帮忙...
 });
 
+/** 心情域：任何话术都可能带情绪色彩（与做什么事正交） */
+export const MoodDraft = z.object({
+  label: z.string().nullish(), // 心情词：开心/疲惫/焦虑…，null=无情绪色彩
+  score: z.coerce.number().int().min(-100).max(100).nullish(), // -100~100，正=积极
+});
+
 export const ParseResult = z.object({
   activity: ActivityId,
   title: z.string().max(30),
   time: TimeBlock,
-  /** 未来话术（明天/待会儿/计划…）→ true：上层据此创建 TODO 而非日程时间块 */
-  createsTodo: z.boolean().default(false),
+  /** 意图分流：schedule=已发生的日程（落时间块）｜todo=未来计划（落待办）｜status=纯心情/状态动态（仅记录，不落日程） */
+  intent: z.enum(["schedule", "todo", "status"]),
+  mood: z.object({
+    label: z.string().nullable(),
+    score: z.number().int().min(-100).max(100).nullable(),
+  }),
   finance: FinanceDraft.default({ hasAmount: false }),
   people: z.array(PersonDraft).default([]),
   ambiguity: z.string().nullish(),
@@ -59,8 +69,8 @@ export type ParseResult = z.infer<typeof ParseResult>;
 
 /** LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳）；数值宽容（模型偶发输出字符串数字） */
 export const LlmExtraction = z.object({
-  /** past=已发生的事（记录日程）｜future=计划要做的事（创建待办） */
-  recordType: z.enum(["past", "future"]).default("past"),
+  /** past=已发生的事（记录日程）｜future=计划要做的事（创建待办）｜status=纯心情/状态（仅记录动态） */
+  recordType: z.enum(["past", "future", "status"]).default("past"),
   activity: ActivityId,
   title: z.string().max(30),
   durationMin: z.coerce.number().int().positive().nullish(),
@@ -69,6 +79,7 @@ export const LlmExtraction = z.object({
     .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
     .nullish()
     .catch(null),
+  mood: MoodDraft.nullish().transform((v) => v ?? {}),
   finance: z
     .object({
       hasAmount: z.coerce.boolean().default(false),

@@ -27,3 +27,32 @@ export interface DayStat {
   totalMin: number;
   byActivity: Record<string, number>;
 }
+
+/** 动态（朋友圈式记录流的一条）：记录时刻 + AI 识别产物 */
+export interface FeedMoment {
+  id: string;
+  raw_text: string;
+  source: string;
+  mood: string | null;
+  mood_score: number | null;
+  created_at: string; // 记录时刻（动态的"发布时间"）
+  blocks: {
+    id: string;
+    title: string;
+    startAt: string;
+    endAt: string;
+    durationMin: number;
+    activityName: string;
+    icon: string;
+    color: string;
+  }[];
+  todos: { id: string; title: string; dueAt: string | null; status: string }[];
+  transactions: {
+    id: string;
+    amountCents: number;
+    direction: string;
+    category: string;
+    counterparty: string | null;
+  }[];
+  people: { name: string; summary: string | null }[];
+}
