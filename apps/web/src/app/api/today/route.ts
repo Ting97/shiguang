@@ -24,7 +24,7 @@ export async function GET() {
     `select b.*, a.name as activity_name, a.icon, a.color
      from time_blocks b join activities a on a.id = b.activity_id
      where b.user_id = $1 and b.start_at::date = current_date
-     order by b.start_at`,
+     order by b.start_at desc`,
     [DEV_USER_ID],
   );
   const { rows: activities } = await pool.query(

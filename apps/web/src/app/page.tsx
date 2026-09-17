@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import DayTimeline from "@/components/day-timeline";
 
 interface Todo {
   id: string;
@@ -77,6 +78,7 @@ export default function Home() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [editingTodo, setEditingTodo] = useState<TodoDraft | null>(null);
+  const [view, setView] = useState<"timeline" | "list">("timeline");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -270,6 +272,29 @@ export default function Home() {
     }
     setMsg({ ok: true, text: `↩️ 「${t.title}」已恢复为未完成（对应日程已移除）` });
     await load();
+  }
+
+  /** 时间轴缺口补录 */
+  async function createBlock(payload: { title: string; startAt: string; endAt: string; activityId: string }) {
+    const r = await fetch("/api/blocks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      setMsg({ ok: false, text: j.error ?? "补录失败" });
+      return false;
+    }
+    setMsg({ ok: true, text: `✍️ 已补录：${payload.title}` });
+    await load();
+    return true;
+  }
+
+  /** 时间轴上点击时间块 → 切到列表视图并打开编辑器 */
+  function editBlockFromTimeline(b: Block) {
+    setView("list");
+    startEdit(b);
   }
 
   return (
@@ -485,19 +510,45 @@ export default function Home() {
           )}
         </section>
 
-        {/* 今日时间轴 */}
+        {/* 今日日程：时间轴 / 列表 双视图 */}
         <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">
-            🕐 今日日程 <span className="ml-1 text-xs text-slate-500">
-              {blocks.length} 段 · 共 {blocks.reduce((s, b) => s + b.duration_min, 0)} 分钟
-            </span>
-          </h2>
-          {blocks.length === 0 && (
-            <p className="py-4 text-center text-xs text-slate-600">
-              还没有记录 —— 说句"刚做完…"，或去完成一个待办
-            </p>
-          )}
-          <ul className="space-y-1.5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-300">
+              🕐 今日日程 <span className="ml-1 text-xs text-slate-500">
+                {blocks.length} 段 · 共 {blocks.reduce((s, b) => s + b.duration_min, 0)} 分钟
+              </span>
+            </h2>
+            <div className="flex rounded-lg border border-slate-700 p-0.5 text-xs">
+              <button
+                onClick={() => setView("timeline")}
+                className={`rounded-md px-2.5 py-1 ${view === "timeline" ? "bg-sky-600 font-medium" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                时间轴
+              </button>
+              <button
+                onClick={() => setView("list")}
+                className={`rounded-md px-2.5 py-1 ${view === "list" ? "bg-sky-600 font-medium" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                列表
+              </button>
+            </div>
+          </div>
+
+          {view === "timeline" ? (
+            <DayTimeline
+              blocks={blocks}
+              activities={activities}
+              onCreate={createBlock}
+              onEditBlock={editBlockFromTimeline}
+            />
+          ) : (
+            <>
+              {blocks.length === 0 && (
+                <p className="py-4 text-center text-xs text-slate-600">
+                  还没有记录 —— 说句"刚做完…"，或去完成一个待办
+                </p>
+              )}
+              <ul className="space-y-1.5">
             {blocks.map((b) =>
               editing?.id === b.id ? (
                 /* ---- 行内编辑器 ---- */
@@ -579,6 +630,8 @@ export default function Home() {
               ),
             )}
           </ul>
+            </>
+          )}
         </section>
 
         <footer className="mt-10 text-center text-[10px] text-slate-600">
