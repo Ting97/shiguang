@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap } from "@/lib/db";import { getCurrentUser } from "@/lib/auth";
 import { parseInput } from "@shiguangri/ai";
+import { inferGroupFromName, inferInteractionType } from "@/lib/social";
 
 export const runtime = "nodejs";
 
@@ -64,19 +65,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // 人际草稿：联系人 upsert + 往来事件
+    // 人际草稿：联系人 upsert（按称谓推断分组）+ 往来事件（按事件短语推断类型）
     for (const p of r.people) {
       const c = (
         await client.query(
-          `insert into contacts (user_id, name) values ($1,$2)
+          `insert into contacts (user_id, name, group_tag) values ($1, $2, $3)
            on conflict (user_id, name) do update set name = excluded.name returning id`,
-          [user.id, p.name],
+          [user.id, p.name, inferGroupFromName(p.name) ?? "朋友"],
         )
       ).rows[0];
+      // 事件与标题相同时不重复拼接（「吃饭：吃饭」→「吃饭」）
+      const summary = p.event ? (p.event === r.title ? p.event : `${p.event}：${r.title}`) : r.title;
       await client.query(
         `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
          values ($1,$2,$3,$4,$5,$6)`,
-        [user.id, c.id, entry.id, "其他", `${p.event ?? "互动"}：${r.title}`, r.time.end],
+        [user.id, c.id, entry.id, inferInteractionType(p.event), summary, r.time.end],
       );
     }
 

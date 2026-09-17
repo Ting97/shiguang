@@ -32,9 +32,9 @@ Next.js 15 (App Router) · React Native (Expo) · Supabase (Postgres+pgvector) �
 
 ## 当前状态
 
-- ✅ 调研与需求定稿（2026-09-16）
-- ▶️ **Phase 0 进行中**：monorepo 脚手架 + Schema + 语音解析 PoC（20 句测试集验收 ≥85%）
-- ⏭ Phase 1：时间日记模块（5 周）
+- ✅ Phase 0~2 完成：脚手架+语音 PoC、时间日记（四视图日历/动态流/待办）、财务（账户/记账/CSV 导入/月度报表）、账户体系（手机号+密码/验证码、邀请码）
+- ▶️ **Phase 3 进行中**：人际模块 W9 联系人档案 + W10 TA 档案页核心已上线（详见 [docs/10-人际模块.md](docs/10-人际模块.md)）；⏭ W11 星型关系图谱、W12 提醒推送
+- ⏭ Phase 4：交叉复盘 + 上线
 
 ## 线上环境
 
