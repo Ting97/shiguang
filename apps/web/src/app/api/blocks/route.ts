@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool, DEV_USER_ID, findOverlap, overlapError } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-/** POST /api/blocks —— 手动创建时间块（日视图缺口补录） */
+/** POST /api/blocks —— 手动创建时间块（日视图缺口补录）；不允许与已有日程重叠 */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     title?: string;
@@ -13,6 +13,10 @@ export async function POST(req: Request) {
   };
   if (!body.title?.trim() || !body.startAt || !body.endAt || !body.activityId) {
     return NextResponse.json({ error: "标题、起止时间、类别均必填" }, { status: 400 });
+  }
+  const conflict = await findOverlap(DEV_USER_ID, body.startAt, body.endAt);
+  if (conflict) {
+    return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
   }
   try {
     const block = (

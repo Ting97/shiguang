@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool, DEV_USER_ID, findOverlap, overlapError } from "@/lib/db";
 import { parseInput } from "@shiguangri/ai";
 
 export const runtime = "nodejs";
@@ -36,6 +36,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ kind: "todo", result: r, todo });
     }
 
+    // 时间轴约束：一个时刻只能做一件事（未来 TODO 不占时间轴，不校验）
+    if (!r.createsTodo) {
+      const conflict = await findOverlap(DEV_USER_ID, r.time.start, r.time.end);
+      if (conflict) {
+        await client.query("rollback");
+        return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
+      }
+    }
+
     const block = (
       await client.query(
         `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
@@ -43,7 +52,6 @@ export async function POST(req: Request) {
         [DEV_USER_ID, entry.id, r.activity, r.title, r.time.start, r.time.end, r.time.mode],
       )
     ).rows[0];
-
     // 财务草稿
     if (r.finance.hasAmount && r.finance.amountCents != null) {
       await client.query(

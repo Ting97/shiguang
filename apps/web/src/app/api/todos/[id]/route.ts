@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool, DEV_USER_ID, trimCompletionBlock } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -64,21 +64,25 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         return NextResponse.json({ error: "待办不存在或已完成" }, { status: 404 });
       }
 
-      // 完成即记录：以类别默认时长回填一个时间块（结束于当下）
+      // 完成即记录：以类别默认时长回填时间块（结束于当下，避让已有日程；无空间则跳过）
       const dur = (
         await client.query("select default_min from activities where id = $1", [todo.activity_id])
       ).rows[0]?.default_min ?? 30;
-      const block = (
-        await client.query(
-          `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
-           values ($1,$2,$3,$4, now() - ($5 || ' minutes')::interval, now(), 'default', 'manual')
-           returning *`,
-          [DEV_USER_ID, todo.entry_id, todo.activity_id, todo.title, dur],
-        )
-      ).rows[0];
+      const now = new Date();
+      const trimmed = await trimCompletionBlock(DEV_USER_ID, new Date(now.getTime() - dur * 60_000), now);
+      let block: { id: string; entry_id: string | null; title: string } | null = null;
+      if (trimmed) {
+        block = (
+          await client.query(
+            `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
+             values ($1,$2,$3,$4,$5,$6,'default','manual') returning id, entry_id, title`,
+            [DEV_USER_ID, todo.entry_id, todo.activity_id, todo.title, trimmed.start.toISOString(), trimmed.end.toISOString()],
+          )
+        ).rows[0];
+      }
       await client.query(
         `update todos set done_entry_id = $2, done_block_id = $3 where id = $1`,
-        [todo.id, block.entry_id, block.id],
+        [todo.id, block?.entry_id ?? null, block?.id ?? null],
       );
       const todoFinal = (
         await client.query(`select * from todos where id = $1`, [todo.id])

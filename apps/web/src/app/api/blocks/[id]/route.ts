@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool, DEV_USER_ID, findOverlap, overlapError } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-/** PATCH /api/blocks/:id —— 修改时间块（标题/起止时间/类别） */
+/** PATCH /api/blocks/:id —— 修改时间块（标题/起止时间/类别）；新时间段不得与其他块重叠 */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as {
@@ -12,6 +12,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     endAt?: string; // ISO
     activityId?: string;
   };
+
+  // 重叠校验：新起止与现有块（排除自身）
+  const cur = (
+    await pool.query(`select start_at, end_at from time_blocks where id = $1 and user_id = $2`, [id, DEV_USER_ID])
+  ).rows[0];
+  if (!cur) return NextResponse.json({ error: "日程不存在" }, { status: 404 });
+  const newStart = body.startAt ?? cur.start_at;
+  const newEnd = body.endAt ?? cur.end_at;
+  const conflict = await findOverlap(DEV_USER_ID, newStart, newEnd, id);
+  if (conflict) {
+    return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
+  }
 
   const sets: string[] = [];
   const vals: unknown[] = [];
