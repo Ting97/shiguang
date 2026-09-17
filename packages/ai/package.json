@@ -7,7 +7,7 @@
   "scripts": {
     "test": "tsx --test test/*.test.ts",
     "poc": "tsx src/run-poc.ts",
-    "poc:live": "ZHIPUAI_LIVE=1 tsx src/run-poc.ts"
+    "poc:live": "ZHIPUAI_LIVE=1 tsx --env-file-if-exists=../../.env src/run-poc.ts"
   },
   "dependencies": {
     "zod": "^3.24.0"

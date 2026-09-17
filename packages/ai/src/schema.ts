@@ -31,15 +31,15 @@ export const TimeBlock = z.object({
 /** 财务域联动草稿 */
 export const FinanceDraft = z.object({
   hasAmount: z.boolean(),
-  amountCents: z.number().int().optional(), // 正=收入 负=支出
-  category: z.string().optional(),
-  counterparty: z.string().optional(),
+  amountCents: z.number().int().nullish(), // 正=收入 负=支出
+  category: z.string().nullish(),
+  counterparty: z.string().nullish(),
 });
 
 /** 人际域联动草稿 */
 export const PersonDraft = z.object({
   name: z.string(),
-  event: z.string().optional(), // 吃饭/送礼/通话/帮忙...
+  event: z.string().nullish(), // 吃饭/送礼/通话/帮忙...
 });
 
 export const ParseResult = z.object({
@@ -57,20 +57,32 @@ export const ParseResult = z.object({
 
 export type ParseResult = z.infer<typeof ParseResult>;
 
-/** LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳） */
+/** LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳）；数值宽容（模型偶发输出字符串数字） */
 export const LlmExtraction = z.object({
   /** past=已发生的事（记录日程）｜future=计划要做的事（创建待办） */
   recordType: z.enum(["past", "future"]).default("past"),
   activity: ActivityId,
   title: z.string().max(30),
-  durationMin: z.number().int().positive().nullish(),
+  durationMin: z.coerce.number().int().positive().nullish(),
   /** 话术中的相对时段词，如 "刚/中午/下午/晚上/凌晨" */
   periodHint: z
     .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
-    .nullish(),
-  finance: FinanceDraft.default({ hasAmount: false }),
-  people: z.array(PersonDraft).default([]),
-  ambiguity: z.string().nullish(),
+    .nullish()
+    .catch(null),
+  finance: z
+    .object({
+      hasAmount: z.coerce.boolean().default(false),
+      amountCents: z.coerce.number().int().nullish(),
+      category: z.string().nullish(),
+      counterparty: z.string().nullish(),
+    })
+    .nullish()
+    .transform((v) => v ?? { hasAmount: false }),
+  people: z
+    .array(z.object({ name: z.string(), event: z.string().nullish() }))
+    .nullish()
+    .transform((v) => v ?? []),
+  ambiguity: z.string().nullish().catch(null),
 });
 
 export type LlmExtraction = z.infer<typeof LlmExtraction>;

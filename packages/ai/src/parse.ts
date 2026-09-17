@@ -34,6 +34,25 @@ const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["activity"]]> = [
 
 const PEOPLE_RE = [/老王/g, /爸妈/g, /小李/g, /朋友/g, /同事(?:小李)?/g];
 
+/**
+ * 规则引擎标题：剥离时间/金额/时段等修饰成分，保留事项本身（不截尾）。
+ * "刚跑完步，练了40分钟" → "刚跑完步"；"明天下午三点去看牙医" → "去看牙医"
+ */
+function makeTitle(text: string): string {
+  const cleaned = text
+    .replace(/(待会儿?|等会儿?|一会儿|晚点|稍后|明天|后天|下周[一二三四五六日天]?|早上|上午|中午|下午|傍晚|晚上|凌晨|刚刚?)/g, " ")
+    .replace(/\d{1,2}\s*[点:：时]\d{0,2}\s*分?/g, " ")
+    .replace(/(\d+|[一二两俩三四五六七八九十百]+)\s*(个半|半)?\s*(个小时|小时|钟头|分钟|分|min)/g, " ")
+    .replace(/(花费|消费|花|随|付|充值|打款)了?\s*\d+(?:\.\d+)?\s*(块|元|钱)?/g, " ")
+    .replace(/\d+(?:\.\d+)?\s*(块|元)/g, " ")
+    .replace(/(记得|要|打算|计划|准备)/g, " ")
+    .replace(/[\s，,。！!？?、；;]+/g, " ")
+    .trim()
+    .replace(/(练了|聊了|看了|搞了|弄了|花了|用了)$/u, "")
+    .trim();
+  return (cleaned || text).slice(0, 20);
+}
+
 function ruleExtract(text: string): LlmExtractionT {
   let activity: LlmExtractionT["activity"] = "other";
   for (const [re, act] of RULE_KEYWORDS) {
@@ -48,7 +67,7 @@ function ruleExtract(text: string): LlmExtractionT {
   return {
     recordType: detectFuture(text) ? "future" : "past",
     activity,
-    title: text.slice(0, 8),
+    title: makeTitle(text),
     periodHint: detectPeriod(text) ?? "now",
     finance: amount !== null
       ? {
@@ -86,6 +105,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
       ext = parsed.data;
       confidence = 0.9;
     } else {
+      console.warn("[ai] LLM 输出未通过校验，规则兜底：", parsed.error.issues.slice(0, 3));
       ext = ruleExtract(text); // LLM 输出不合格 → 规则兜底
       confidence = 0.5;
     }
@@ -98,6 +118,8 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
   const durationFromText = parseDuration(text);
   const durationMin = ext.durationMin ?? durationFromText ?? defaults[ext.activity];
+  // 防御：过滤模型输出的占位人名（"省略"/"无"/空）
+  const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
 
   // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制
   const tb = inferTimeBlock(text, now, durationMin, ext.periodHint, ext.recordType === "future");
@@ -114,7 +136,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     },
     createsTodo: tb.mode === "future",
     finance: ext.finance,
-    people: ext.people,
+    people,
     ambiguity: ext.ambiguity ?? null,
     engine: useLlm ? "llm" : "rules",
   });
