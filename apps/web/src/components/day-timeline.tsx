@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseYmd, todayStr, ymd } from "@/lib/date";
+import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import type { Activity, Block } from "@/lib/types";
 
 const PX_PER_MIN = 0.75; // 一天 1080px，一小时 45px
@@ -31,8 +32,14 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     const n = new Date();
     return n.getHours() * 60 + n.getMinutes();
   });
-  const [draft, setDraft] = useState<{ title: string; start: string; end: string; activityId: string } | null>(null);
+  const [draft, setDraft] = useState<BlockDraftValue | null>(null);
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  // 表单打开时滚入视口：时间轴自动定位到当前时刻后，点击深处缺口时表单在区域顶部、视口之外，看起来像"没反应"
+  useEffect(() => {
+    if (draft) formRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [draft]);
 
   useEffect(() => {
     if (!isToday) return;
@@ -123,57 +130,18 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
 
   return (
     <div>
-      {draft && (
-        <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-amber-300">
-              补录 <span className="tabular-nums">{draft.start}–{draft.end}</span>
-            </span>
-            <input
-              autoFocus
-              value={draft.title}
-              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              onKeyDown={(e) => e.key === "Enter" && submitCreate()}
-              placeholder="这段时间在做什么？"
-              className="min-w-28 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-amber-400"
-            />
-            <input
-              type="time"
-              value={draft.start}
-              onChange={(e) => setDraft({ ...draft, start: e.target.value })}
-              className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none"
-            />
-            <span className="text-xs text-slate-500">至</span>
-            <input
-              type="time"
-              value={draft.end}
-              onChange={(e) => setDraft({ ...draft, end: e.target.value })}
-              className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none"
-            />
-            <select
-              value={draft.activityId}
-              onChange={(e) => setDraft({ ...draft, activityId: e.target.value })}
-              className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none"
-            >
-              {activities.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.icon} {a.name}
-                </option>
-              ))}
-            </select>
-            <button onClick={() => setDraft(null)} className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700">
-              取消
-            </button>
-            <button
-              onClick={submitCreate}
-              disabled={saving || !draft.title.trim()}
-              className="rounded bg-amber-600 px-3 py-1 text-xs font-medium hover:bg-amber-500 disabled:opacity-40"
-            >
-              {saving ? "保存中…" : "补录"}
-            </button>
-          </div>
-        </div>
-      )}
+      <div ref={formRef}>
+        {draft && (
+          <BlockDraftForm
+            value={draft}
+            activities={activities}
+            busy={saving}
+            onChange={setDraft}
+            onCancel={() => setDraft(null)}
+            onSubmit={submitCreate}
+          />
+        )}
+      </div>
 
       <div ref={containerRef} className="relative max-h-[480px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
         <div className="relative" style={{ height: `${1440 * PX_PER_MIN}px` }} onClick={containerClick}>

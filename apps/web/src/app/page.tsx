@@ -7,7 +7,8 @@ import DayDonut from "@/components/day-donut";
 import MomentFeed from "@/components/moment-feed";
 import Reminders from "@/components/reminders";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
-import { todayStr, zhDuration } from "@/lib/date";
+import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
+import { parseYmd, todayStr, zhDuration } from "@/lib/date";
 import { moodEmoji } from "@/lib/mood";
 import type { Activity, Block, FeedMoment } from "@/lib/types";
 
@@ -71,6 +72,9 @@ export default function Home() {
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [editingTodo, setEditingTodo] = useState<TodoDraft | null>(null);
   const [view, setView] = useState<"timeline" | "list">("timeline");
+  const [listDraft, setListDraft] = useState<BlockDraftValue | null>(null);
+  const [listSaving, setListSaving] = useState(false);
+  const listFormRef = useRef<HTMLDivElement>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
@@ -313,6 +317,47 @@ export default function Home() {
   function editBlockFromTimeline(b: Block) {
     setView("list");
     startEdit(b);
+  }
+
+  // ---------- 列表视图新增日程 ----------
+
+  const hmLocal = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const minOfDayLocal = (iso: string) => {
+    const day = parseYmd(todayStr());
+    return Math.max(0, Math.min(1440, Math.floor((new Date(iso).getTime() - day.getTime()) / 60_000)));
+  };
+
+  /** 从当前小时起找第一个空闲的整点 1 小时槽位（都占用则用当前小时，由冲突提示兜底） */
+  function nextFreeSlot(): BlockDraftValue {
+    const now = new Date();
+    const curH = now.getHours();
+    const spans = blocks.map((b) => [minOfDayLocal(b.start_at), minOfDayLocal(b.end_at)]);
+    for (let h = curH; h < 24; h++) {
+      if (!spans.some(([s, e]) => h * 60 < e && (h + 1) * 60 > s)) {
+        return { title: "", start: hmLocal(h * 60), end: hmLocal((h + 1) * 60), activityId: "other" };
+      }
+    }
+    return { title: "", start: hmLocal(curH * 60), end: hmLocal(Math.min(24, curH + 1) * 60), activityId: "other" };
+  }
+
+  useEffect(() => {
+    if (listDraft) listFormRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [listDraft]);
+
+  async function submitListDraft() {
+    if (!listDraft || !listDraft.title.trim() || listSaving) return;
+    setListSaving(true);
+    const [sh, sm] = listDraft.start.split(":").map(Number);
+    const [eh, em] = listDraft.end.split(":").map(Number);
+    const day = parseYmd(todayStr());
+    const ok = await createBlock({
+      title: listDraft.title.trim(),
+      startAt: new Date(day.getTime() + (sh * 60 + sm) * 60_000).toISOString(),
+      endAt: new Date(day.getTime() + (eh * 60 + em) * 60_000).toISOString(),
+      activityId: listDraft.activityId,
+    });
+    setListSaving(false);
+    if (ok) setListDraft(null);
   }
 
   return (
@@ -605,9 +650,29 @@ export default function Home() {
             </div>
           ) : (
             <>
+              <div ref={listFormRef}>
+                {listDraft && (
+                  <BlockDraftForm
+                    value={listDraft}
+                    activities={activities}
+                    busy={listSaving}
+                    onChange={setListDraft}
+                    onCancel={() => setListDraft(null)}
+                    onSubmit={submitListDraft}
+                  />
+                )}
+              </div>
+              <div className="mb-2 flex justify-end">
+                <button
+                  onClick={() => setListDraft(nextFreeSlot())}
+                  className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs text-sky-300 transition hover:border-sky-500/50"
+                >
+                  ＋ 新增日程
+                </button>
+              </div>
               {blocks.length === 0 && (
                 <p className="py-4 text-center text-xs text-slate-600">
-                  还没有记录 —— 说句"刚做完…"，或去完成一个待办
+                  还没有记录 —— 说句"刚做完…"，点「＋ 新增日程」，或去完成一个待办
                 </p>
               )}
               <ul className="space-y-1.5">
