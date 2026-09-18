@@ -57,6 +57,7 @@ for (const c of set.cases as Case[]) {
     checks.finance = c.finance
       ? r.finance.hasAmount &&
         r.finance.amountCents === c.finance.amountCents &&
+        (!c.finance.direction || r.finance.direction === c.finance.direction) &&
         (!c.finance.category || r.finance.category === c.finance.category)
       : !r.finance.hasAmount;
     checks.people =

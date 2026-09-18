@@ -156,7 +156,8 @@ export default function Home() {
         body: JSON.stringify({ text: text.trim() }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
+      // 防御非约定响应（网关错误页/结构变更）：给出可读原因，而不是 TypeError
+      if (!r.ok || !j?.result) throw new Error(j?.error || `服务异常(${r.status})，请稍后重试`);
       const moodTag = j.result.mood.label ? ` ${moodEmoji(j.result.mood.label)}${j.result.mood.label}` : "";
       // 五域命中汇总
       const hits: string[] = [];
@@ -174,7 +175,7 @@ export default function Home() {
           text: `⚠️ ${summary}，但识别的时间与「${j.conflict.title}」重叠，未登记时间轴 —— 可在下方时间轴补录或调整原日程`,
         });
       } else if (j.kind === "todo") {
-        setMsg({ ok: true, text: `📋 ${summary} · ${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` });
+        setMsg({ ok: true, text: `📋 ${summary} · ${zhDateTime(j.todo?.due_at ?? null)} ${j.todo?.title ?? j.result.title}${moodTag}` });
           } else if (j.kind === "moment") {
             setMsg({
               ok: true,
@@ -183,7 +184,7 @@ export default function Home() {
                 : `✨ ${summary}${moodTag}`,
             });
       } else {
-        setMsg({ ok: true, text: `✅ ${summary} · ${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}` });
+        setMsg({ ok: true, text: `✅ ${summary} · ${j.result.time.durationMin} 分钟 · ${j.block?.title ?? j.result.title}${moodTag}` });
       }
       setText("");
       // 新动态要立即可见：搜索过滤中则清空搜索再刷新

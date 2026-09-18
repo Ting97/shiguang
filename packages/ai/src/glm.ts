@@ -20,7 +20,7 @@ interface ChatOptions {
   thinking?: boolean;
 }
 
-/** 单轮对话，返回文本内容。429/5xx 指数退避重试；免费档高峰拥塞耗尽重试后自动降级 GLM_FALLBACK_MODEL */
+/** 单轮对话，返回文本内容。timeoutMs 是所有重试的总预算（默认 30s）；429/5xx/超时/网络异常均重试；429 耗尽后降级 GLM_FALLBACK_MODEL */
 export async function chat(opts: ChatOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY;
   if (!key) throw new Error("缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
@@ -41,43 +41,53 @@ export async function chat(opts: ChatOptions): Promise<string> {
     body.thinking = { type: opts.thinking ? "enabled" : "disabled" };
   }
 
-  async function chatOnce(m: string): Promise<string> {
-    const maxAttempts = 4;
+  // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）
+  async function chatOnce(m: string, deadline: number): Promise<string> {
+    const maxAttempts = 5;
+    let lastErr: unknown = new Error(`GLM(${m}) 未响应`);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const remainMs = deadline - Date.now();
+      if (remainMs <= 0) break;
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 30_000);
-      let res: Response;
+      const timer = setTimeout(() => ctl.abort(), remainMs);
       try {
-        res = await fetch(`${base}/chat/completions`, {
+        const res = await fetch(`${base}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
           body: JSON.stringify({ ...body, model: m }),
           signal: ctl.signal,
         });
+        if (res.ok) {
+          const json = (await res.json()) as any;
+          return json.choices?.[0]?.message?.content ?? "";
+        }
+        lastErr = new Error(`GLM(${m}) HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+        if (res.status !== 429 && res.status < 500) throw lastErr; // 参数/鉴权错误重试无意义
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") {
+          // 总预算内的等待已耗尽（挂起的连接被掐断）——继续重试只会再超时
+          lastErr = new Error(`GLM(${m}) 响应超时（预算耗尽）`);
+          break;
+        }
+        lastErr = e; // 网络瞬断等其他异常：可重试
       } finally {
         clearTimeout(timer);
       }
-
-      if (res.ok) {
-        const json = (await res.json()) as any;
-        return json.choices?.[0]?.message?.content ?? "";
+      if (attempt < maxAttempts) {
+        const waitMs = Math.min(1500 * 2 ** (attempt - 1), deadline - Date.now());
+        if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
       }
-      const errText = (await res.text()).slice(0, 300);
-      const retryable = res.status === 429 || res.status >= 500;
-      if (!retryable || attempt === maxAttempts) {
-        throw new Error(`GLM(${m}) HTTP ${res.status}: ${errText}`);
-      }
-      await new Promise((r) => setTimeout(r, 2000 * 2 ** (attempt - 1) + Math.random() * 500));
     }
-    throw new Error("unreachable");
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   }
 
+  const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
   try {
-    return await chatOnce(model);
+    return await chatOnce(model, deadline);
   } catch (e) {
-    if (fallback && fallback !== model && String(e).includes("HTTP 429")) {
+    if (fallback && fallback !== model && String(e).includes("HTTP 429") && deadline - Date.now() > 5_000) {
       console.warn(`[ai] ${model} 持续限流，降级 ${fallback} 兜底`);
-      return await chatOnce(fallback);
+      return await chatOnce(fallback, deadline);
     }
     throw e;
   }

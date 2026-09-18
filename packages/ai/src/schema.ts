@@ -29,10 +29,11 @@ export const TimeBlock = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-/** 财务域联动草稿 */
+/** 财务域联动草稿（amountCents 恒为正数，方向由 direction 表达） */
 export const FinanceDraft = z.object({
   hasAmount: z.boolean(),
-  amountCents: z.number().int().nullish(), // 正=收入 负=支出
+  direction: z.enum(["out", "in"]).default("out"), // out=支出(花了/买了) in=收入(收到/到账)
+  amountCents: z.number().int().nullish(),
   category: z.string().nullish(),
   counterparty: z.string().nullish(),
 });
@@ -138,6 +139,7 @@ export const LlmExtraction = z.object({
   finance: z
     .object({
       hasAmount: z.coerce.boolean().default(false),
+      direction: z.enum(["out", "in"]).nullish().catch(null),
       amountCents: z.coerce.number().int().nullish(),
       category: z.string().nullish(),
       counterparty: z.string().nullish(),

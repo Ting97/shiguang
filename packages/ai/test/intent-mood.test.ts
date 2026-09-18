@@ -96,7 +96,8 @@ test("复合句：日程+金额+人物+心情同时命中", async () => {
   const r = await parse("中午和老王吃饭花了260，吃得挺开心");
   assert.equal(r.intent, "schedule");
   assert.equal(r.activity, "social");
-  assert.equal(r.finance.amountCents, -26000);
+  assert.equal(r.finance.amountCents, 26000); // 金额恒为正，方向在 direction
+  assert.equal(r.finance.direction, "out");
   assert.deepEqual(r.people.map((p) => p.name), ["老王"]);
   assert.equal(r.mood.label, "开心");
   assert.ok((r.mood.score ?? 0) > 0);

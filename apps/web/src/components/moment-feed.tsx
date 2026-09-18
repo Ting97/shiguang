@@ -568,7 +568,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
               </button>
             );
           })}
-          <span className="ml-auto text-[10px] text-slate-700">点图标重识别该域</span>
+          <span className="ml-auto hidden text-[10px] text-slate-700 sm:inline">点图标重识别该域</span>
         </div>
       </div>
     </article>

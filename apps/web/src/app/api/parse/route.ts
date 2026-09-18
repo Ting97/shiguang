@@ -39,11 +39,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "text 必填" }, { status: 400 });
   }
 
-  const r = await parseInput(text.trim());
   const pendingDomains: string[] = [];
+  // 新建的日程块/待办要随响应返回（前端 toast 用；缺失会导致前端报「解析失败」）
+  let createdBlock: Record<string, unknown> | null = null;
+  let createdTodo: Record<string, unknown> | null = null;
 
   const client = await pool.connect();
   try {
+    // 放进 try：解析异常时返回约定 JSON（前端能展示原因），而不是裸 500
+    const r = await parseInput(text.trim());
     await client.query("begin");
     // 动态本体：记录时刻 created_at + AI 心情（心情域置信度足够才直接写）
     const moodOk = !!r.mood.label && r.mood.confidence >= CONFIDENCE_THRESHOLD;
@@ -81,6 +85,7 @@ export async function POST(req: Request) {
           [user.id, entry.id, r.activity, r.title, r.time.start, r.time.end, r.time.mode],
         )
       ).rows[0];
+      createdBlock = block;
       await recordRecognition(client, user.id, entry.id, "schedule", "applied", { blockId: block.id, title: r.title }, r.scheduleConfidence, r.engine);
     } else if (r.scheduleApplicable) {
       pendingDomains.push("schedule");
@@ -98,8 +103,9 @@ export async function POST(req: Request) {
              values ($1,$2,$3,$4,$5,$6,'keyboard') returning *`,
             [user.id, entry.id, r.title, r.activity, r.time.start, remind.toISOString()],
           )
-        ).rows[0];
-        await recordRecognition(client, user.id, entry.id, "todo", "applied", { todoId: todo.id, title: r.title, dueAt: r.time.start }, r.todoConfidence, r.engine);
+          ).rows[0];
+          createdTodo = todo;
+          await recordRecognition(client, user.id, entry.id, "todo", "applied", { todoId: todo.id, title: r.title, dueAt: r.time.start }, r.todoConfidence, r.engine);
       } else {
         pendingDomains.push("todo");
       }
@@ -114,7 +120,7 @@ export async function POST(req: Request) {
          values ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [
           user.id, entry.id,
-          (r.finance.amountCents ?? 0) < 0 ? "out" : "in",
+          r.finance.direction === "in" ? "in" : "out",
           Math.abs(r.finance.amountCents ?? 0),
           r.finance.category ?? "其他",
           r.finance.counterparty ?? null,
@@ -147,7 +153,10 @@ export async function POST(req: Request) {
     }
 
     await client.query("commit");
-    return NextResponse.json({ kind: r.intent === "todo" ? "todo" : r.intent === "schedule" ? "block" : "moment", result: r, entry, pendingDomains });
+    return NextResponse.json({
+      kind: r.intent === "todo" ? "todo" : r.intent === "schedule" ? "block" : "moment",
+      result: r, entry, block: createdBlock, todo: createdTodo, pendingDomains,
+    });
   } catch (e) {
     await client.query("rollback");
     return NextResponse.json({ error: String(e) }, { status: 500 });
@@ -171,7 +180,7 @@ async function persistFinanceAndPeople(
        values ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [
         userId, entryId,
-        (r.finance.amountCents ?? 0) < 0 ? "out" : "in",
+        r.finance.direction === "in" ? "in" : "out",
         Math.abs(r.finance.amountCents ?? 0),
         r.finance.category ?? "其他",
         r.finance.counterparty ?? null,

@@ -23,7 +23,9 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 ### 3. finance 收支（提到钱）
 - 适用：「花了260」「随了600块礼」「退款到账50」
 - 不适用：「这东西好贵啊」（无具体金额）、「攒钱好难」
-- 金额换算为分：260元→26000；随礼/份子→category"人情往来"；收入 amountCents 为正
+- 金额换算为分，**一律给正数**：260元→26000
+- **方向用 direction 表达**：支出（花了/买了/付了/消费/点了/打车花了…）→"out"；收入（收到/到账/工资/红包/退款/报销…）→"in"；只说金额没说方向时默认"out"
+- 随礼/份子→category"人情往来"
 
 ### 4. mood 心情（情绪色彩）
 - 适用：「挺开心的」「累死了」「好焦虑」「吃得满足」——情绪词可能藏在动作里
@@ -41,7 +43,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
   "reasoning": { "schedule": "一句话判断", "todo": "…", "finance": "…", "mood": "…", "diet": "…" },
   "schedule": { "applicable": bool, "activity": "sleep|work|study|fitness|social|fun|chores|commute|other", "title": "≤8字短语", "durationMin": 数字或null(话术明确给出才填), "periodHint": "now|morning|noon|afternoon|evening|night|lateNight", "confidence": 0~1 },
   "todo": { "applicable": bool, "confidence": 0~1 },
-  "finance": { "hasAmount": bool, "amountCents": 数字或null, "category": "餐饮/交通/人情往来/学习/购物/娱乐/其他", "counterparty": "交易对象或null", "confidence": 0~1 },
+  "finance": { "hasAmount": bool, "direction": "out|in", "amountCents": 正数或null, "category": "餐饮/交通/人情往来/学习/购物/娱乐/其他", "counterparty": "交易对象或null", "confidence": 0~1 },
   "mood": { "label": "情绪词或null", "score": -100~100或null, "confidence": 0~1 },
   "diet": { "applicable": bool, "meal": "早餐|午餐|晚餐|加餐|夜宵|未知", "items": [ { "name": "食物", "amount": "分量如1碗", "kcal": 整数或null } ], "totalKcal": 已知项合计或null, "confidence": 0~1 },
   "people": [ { "name": "提到的人（老王/爸妈/同事小李）", "event": "吃饭/送礼/通话/帮忙…" } ], 没有人物时输出空数组 []（禁止输出"省略"）,
@@ -60,7 +62,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 - other 其他：以上皆非
 
 ## 规则
-1. 组合句各域独立命中：「中午和老王吃饭花了260，吃得挺开心」→ schedule✓(social) + finance✓(-26000,餐饮,老王) + mood✓(开心,70) + diet✓(按食物) + people[老王]。
+1. 组合句各域独立命中：「中午和老王吃饭花了260，吃得挺开心」→ schedule✓(social) + finance✓(out,26000,餐饮,老王) + mood✓(开心,70) + diet✓(按食物) + people[老王]。
 2. 只输出 JSON，不要解释。`;
 
 export function buildExtractUserPrompt(text: string, nowIso: string): string {

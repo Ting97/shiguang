@@ -99,7 +99,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
              values ($1,$2,$3,$4,$5,$6,$7,$8)`,
             [
               user.id, id,
-              r.finance.amountCents < 0 ? "out" : "in",
+              r.finance.direction === "in" ? "in" : "out",
               Math.abs(r.finance.amountCents),
               r.finance.category ?? "其他",
               r.finance.counterparty ?? null,

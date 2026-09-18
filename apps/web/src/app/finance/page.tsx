@@ -36,6 +36,7 @@ interface Overview {
   draftCount: number;
   budget: { monthly_limit_cents: number; alert_threshold: number };
   accounts: Account[];
+  trend: { month: string; outCents: number; inCents: number; rate: number | null }[];
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -237,6 +238,9 @@ export default function FinancePage() {
               {rate != null && <p className="mt-0.5 text-[10px] text-slate-500">储蓄率 {rate}%</p>}
             </div>
           </div>
+
+          {/* 储蓄率趋势（近 6 个月） */}
+          <SavingsTrend trend={ov.trend} />
 
           {/* 预算进度 */}
           <div className="mt-4 border-t border-slate-800 pt-3">
@@ -758,6 +762,47 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
         >
           添加
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** 储蓄率趋势（近 6 个月小柱图）：rate=null 表示当月无收入无法计算 */
+function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
+  const max = Math.max(100, ...trend.map((t) => Math.abs(t.rate ?? 0)));
+  return (
+    <div className="mt-4 border-t border-slate-800 pt-3">
+      <p className="mb-2 text-[11px] text-slate-400">📈 储蓄率 · 近 6 个月</p>
+      <div className="flex items-end justify-between gap-2">
+        {trend.map((t, i) => {
+          const isCur = i === trend.length - 1;
+          const h = t.rate == null ? 4 : Math.max(6, (Math.abs(t.rate) / max) * 64);
+          return (
+            <div key={t.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <span
+                className={`text-[10px] tabular-nums ${
+                  t.rate == null ? "text-slate-600" : t.rate >= 0 ? "text-emerald-300" : "text-rose-300"
+                }`}
+              >
+                {t.rate == null ? "—" : `${t.rate}%`}
+              </span>
+              <div
+                title={`${t.month}：收入 ¥${yuan(t.inCents)} · 支出 ¥${yuan(t.outCents)}`}
+                className={`w-full rounded-t transition-colors ${
+                  t.rate == null
+                    ? "bg-slate-800"
+                    : t.rate >= 0
+                      ? "bg-gradient-to-t from-emerald-600/50 to-emerald-400/80"
+                      : "bg-gradient-to-t from-rose-600/50 to-rose-400/80"
+                } ${isCur ? "ring-1 ring-sky-400/60" : ""}`}
+                style={{ height: h }}
+              />
+              <span className={`text-[9px] tabular-nums ${isCur ? "text-slate-300" : "text-slate-600"}`}>
+                {Number(t.month.slice(5))}月
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

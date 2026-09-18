@@ -78,7 +78,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
              values ($1,$2,$3,$4,$5,$6,$7,$8)`,
             [
               user.id, id,
-              result.direction ?? (result.amountCents < 0 ? "out" : "in"),
+              result.direction === "in" ? "in" : "out", // 旧 pending 数据无 direction 时默认支出
               Math.abs(result.amountCents),
               result.category ?? "其他",
               result.counterparty ?? null,

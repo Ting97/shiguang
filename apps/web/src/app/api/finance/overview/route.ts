@@ -41,6 +41,31 @@ export async function GET(req: Request) {
 
   const [cur, prev] = await Promise.all([summary(month), summary(monthOf(month, -1))]);
 
+  // 近 6 个月（含当月）收支 → 储蓄率趋势；无流水的月份由前端补零
+  const { rows: trendRows } = await pool.query(
+    `select to_char(occurred_at at time zone $2, 'YYYY-MM') as month,
+            sum(case when direction = 'out' then amount_cents else 0 end)::int as out_cents,
+            sum(case when direction = 'in'  then amount_cents else 0 end)::int as in_cents
+     from transactions
+     where user_id = $1 and is_draft = false
+       and to_char(occurred_at at time zone $2, 'YYYY-MM') >= $3
+     group by 1 order by 1`,
+    [user.id, TZ, monthOf(month, -5)],
+  );
+  const trendMap = new Map(trendRows.map((r) => [r.month, r]));
+  const trend = Array.from({ length: 6 }, (_, i) => {
+    const m = monthOf(month, i - 5);
+    const row = trendMap.get(m);
+    const outCents = row ? Number(row.out_cents) : 0;
+    const inCents = row ? Number(row.in_cents) : 0;
+    return {
+      month: m,
+      outCents,
+      inCents,
+      rate: inCents > 0 ? Math.round(((inCents - outCents) / inCents) * 100) : null,
+    };
+  });
+
   const { rows: draftRows } = await pool.query(
     `select count(*)::int as n from transactions where user_id = $1 and is_draft = true`,
     [user.id],
@@ -70,6 +95,7 @@ export async function GET(req: Request) {
     inCents: cur.inCents,
     byCategory: cur.byCategory,
     prev: { outCents: prev.outCents, inCents: prev.inCents },
+    trend,
     draftCount: draftRows[0].n,
     budget: budgetRows[0] ?? { monthly_limit_cents: 0, alert_threshold: 80 },
     accounts,

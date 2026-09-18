@@ -16,8 +16,9 @@
       "durationMin": 60,
       "period": "noon",
       "finance": {
-        "amountCents": -26000,
-        "category": "餐饮"
+        "amountCents": 26000,
+        "category": "餐饮",
+        "direction": "out"
       },
       "people": [
         "老王"
@@ -95,8 +96,9 @@
       "durationMin": 60,
       "period": "evening",
       "finance": {
-        "amountCents": -18000,
-        "category": "购物"
+        "amountCents": 18000,
+        "category": "购物",
+        "direction": "out"
       },
       "people": []
     },
@@ -156,8 +158,9 @@
       "durationMin": 60,
       "period": "now",
       "finance": {
-        "amountCents": -60000,
-        "category": "人情往来"
+        "amountCents": 60000,
+        "category": "人情往来",
+        "direction": "out"
       },
       "people": [
         "老王"
@@ -265,8 +268,9 @@
       "diet": true,
       "dietMeal": "午餐",
       "finance": {
-        "amountCents": -26000,
-        "category": "餐饮"
+        "amountCents": 26000,
+        "category": "餐饮",
+        "direction": "out"
       },
       "people": [
         "老王"
@@ -321,8 +325,9 @@
       "diet": true,
       "dietMeal": "午餐",
       "finance": {
-        "amountCents": -32000,
-        "category": "餐饮"
+        "amountCents": 32000,
+        "category": "餐饮",
+        "direction": "out"
       },
       "people": [
         "老王"
@@ -356,9 +361,21 @@
       "activity": "other",
       "diet": true,
       "finance": {
-        "amountCents": -3500,
-        "category": "餐饮"
+        "amountCents": 3500,
+        "category": "餐饮",
+        "direction": "out"
       }
+    },
+    {
+      "id": 42,
+      "text": "收到红包88元",
+      "activity": "other",
+      "finance": {
+        "amountCents": 8800,
+        "direction": "in",
+        "category": "人情往来"
+      },
+      "people": []
     }
   ]
 }

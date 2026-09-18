@@ -89,8 +89,9 @@ function ruleExtract(text: string): LlmExtractionT {
     finance: amount !== null
       ? {
           hasAmount: true,
-          amountCents: -amount,
-          category: /随|礼|满月/.test(text)
+          direction: /收到|到账|工资|红包|奖金|进账|报销|退款|退了|入账/.test(text) ? ("in" as const) : ("out" as const),
+          amountCents: amount,
+          category: /随|礼|满月|红包/.test(text)
             ? "人情往来"
             : /超市|买菜|购物/.test(text)
               ? "购物"
@@ -123,18 +124,25 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   let confidence: number;
 
   if (useLlm) {
-    const raw = await chat({
-      system: EXTRACT_SYSTEM_PROMPT,
-      user: buildExtractUserPrompt(text, now.toISOString()),
-    });
-    const parsed = LlmExtraction.safeParse(extractJson(raw));
-    if (parsed.success) {
-      ext = parsed.data;
-      confidence = 0.9;
-    } else {
-      console.warn("[ai] LLM 输出未通过校验，规则兜底：", parsed.error.issues.slice(0, 3));
-      ext = ruleExtract(text); // LLM 输出不合格 → 规则兜底
-      confidence = 0.5;
+    try {
+      const raw = await chat({
+        system: EXTRACT_SYSTEM_PROMPT,
+        user: buildExtractUserPrompt(text, now.toISOString()),
+      });
+      const parsed = LlmExtraction.safeParse(extractJson(raw));
+      if (parsed.success) {
+        ext = parsed.data;
+        confidence = 0.9;
+      } else {
+        console.warn("[ai] LLM 输出未通过校验，规则兜底：", parsed.error.issues.slice(0, 3));
+        ext = ruleExtract(text);
+        confidence = 0.5;
+      }
+    } catch (e) {
+      // LLM 调用失败（限流/超时/断网/输出无 JSON）：规则兜底，打卡入口永不因此失败
+      console.warn("[ai] LLM 调用失败，规则兜底：", String(e).slice(0, 200));
+      ext = ruleExtract(text);
+      confidence = 0.4;
     }
   } else {
     ext = ruleExtract(text);
@@ -194,7 +202,9 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     },
     finance: {
       hasAmount: ext.finance.hasAmount,
-      amountCents: ext.finance.amountCents ?? null,
+      // 方向以模型给的 direction 为准；缺失时默认支出（随口记账多为花销），金额恒为正
+      direction: ext.finance.direction ?? "out",
+      amountCents: Math.abs(ext.finance.amountCents ?? 0) || null,
       category: ext.finance.category ?? null,
       counterparty: ext.finance.counterparty ?? null,
     },
