@@ -27,6 +27,8 @@ interface Case {
   id: number; text: string; activity: string; durationMin?: number; period?: string;
   finance?: any; people?: string[]; future?: boolean;
   diet?: boolean; dietMeal?: string; noSchedule?: boolean; mood?: string;
+  /** 期望时间块开始的北京日期（YYYY-MM-DD）：相对日解析（昨天/上周X/周X）回归用 */
+  startDay?: string;
 }
 
 const durationTolerance = 15; // 分钟容差
@@ -53,6 +55,11 @@ for (const c of set.cases as Case[]) {
       checks.noSchedule = r.intent === "status" && !r.scheduleApplicable;
     } else if (c.durationMin !== undefined) {
       checks.duration = Math.abs(r.time.durationMin - c.durationMin) <= durationTolerance;
+    }
+    if (c.startDay !== undefined) {
+      // 时间块开始日期（北京日历日）：验证相对日解析落对了天
+      const bj = new Date(new Date(r.time.start).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+      checks.date = bj === c.startDay;
     }
     checks.finance = c.finance
       ? r.finance.hasAmount &&

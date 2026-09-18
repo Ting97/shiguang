@@ -48,6 +48,29 @@ export function detectFuture(text: string): FutureHint | null {
   return null;
 }
 
+/**
+ * 相对日引用检测（过去/当日）：昨天/前天/大前天/上周X/上礼拜X/周X。
+ * 返回相对今天的天数偏移（≤0），null=没有显式相对日。周制：周一为一周开始。
+ */
+export function detectDayRef(text: string, now: Date): number | null {
+  if (/大前天/.test(text)) return -3;
+  if (/前天/.test(text)) return -2;
+  if (/昨天|昨晚|昨夜|昨儿/.test(text)) return -1;
+  const wd = text.match(/(上)?(?:周|礼拜|星期)([一二三四五六日天])/);
+  if (wd) {
+    const target = WEEKDAYS[wd[2]]; // 0=周日
+    const posInWeek = target === 0 ? 6 : target - 1; // 周一=0 … 周日=6
+    const daysIntoWeek = (now.getDay() + 6) % 7;
+    if (wd[1]) return -(daysIntoWeek + 7 - posInWeek); // 上周X
+    let offset = posInWeek - daysIntoWeek; // 本周内的 X 相对今天
+    if (offset > 0) offset -= 7; // 本周还没到的周X，过去语境视为上周 X
+    return offset;
+  }
+  if (/上周|上礼拜|上星期/.test(text)) return -7;
+  if (/今天|今日/.test(text)) return 0;
+  return null;
+}
+
 /** 话术中的钟点："三点"/"15:30"/"下午三点"(配合 period 换算 12/24h) */
 export function parseClock(text: string, period: PeriodHint | null): { hour: number; minute: number } | null {
   const m = text.match(/(\d{1,2}|[一二两三四五六七八九十]+)\s*[点时:：]\s*(\d{1,2})?\s*分?/);
@@ -132,6 +155,21 @@ export function inferTimeBlock(
 
   const clampToNow = (start: Date, end: Date): [Date, Date] =>
     end > now ? [new Date(now.getTime() - dur * 60_000), new Date(now)] : [start, end];
+
+  // 0.5) 显式相对日（昨天/前天/上周X/周X）：日期 = 今天偏移，时刻 = 钟点/时段锚点（无则按 20:00 回顾锚）
+  const dayRef = detectDayRef(text, now);
+  if (dayRef !== null) {
+    const base = new Date(now.getTime() + dayRef * 24 * 3600_000);
+    const clock = parseClock(text, period);
+    let anchor = clock
+      ? atHour(base, clock.hour, clock.minute)
+      : period && period !== "now"
+        ? atHour(base, PERIOD_ANCHORS[period])
+        : atHour(base, 20);
+    let end = new Date(anchor.getTime() + dur * 60_000);
+    [anchor, end] = clampToNow(anchor, end); // 今天且锚点在未来时收拢到当下
+    return { mode: duration ? "explicit" : "relative", start: anchor, end, durationMin: dur };
+  }
 
   // 1) 有相对时段 → 锚点起 + 时长
   if (period && period !== "now") {

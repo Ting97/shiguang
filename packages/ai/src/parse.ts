@@ -26,7 +26,7 @@ export interface ParseOptions {
 const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["schedule"]["activity"]]> = [
   [/午睡|睡觉|补觉/, "sleep"],
   [/通勤|路上|地铁|公交|打车/, "commute"],
-  [/开会|评审|周报|报告|邮件|客户|上班|加班|项目/, "work"],
+  [/开[了了个]*会|评审|周报|报告|代码|开发|编程|邮件|客户|上班|加班|项目/, "work"],
   [/学|看书|阅读|读书|英语|上课|刷题|三章/, "study"],
   [/跑|撸铁|健身|锻炼|球类|散步|拉伸/, "fitness"],
   [/抖音|电影|游戏|刷手机|逛街/, "fun"],

@@ -49,6 +49,7 @@ export default function ContactFormModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="姓名（必填）"
+              maxLength={30}
               className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
             />
             <input

@@ -376,6 +376,36 @@
         "category": "人情往来"
       },
       "people": []
+    },
+    {
+      "id": 43,
+      "text": "昨天下午跑了5公里",
+      "activity": "fitness",
+      "startDay": "2026-09-16",
+      "people": []
+    },
+    {
+      "id": 44,
+      "text": "上周五下午写了两小时代码",
+      "activity": "work",
+      "durationMin": 120,
+      "startDay": "2026-09-11",
+      "people": []
+    },
+    {
+      "id": 45,
+      "text": "前天上午去体检",
+      "activity": "other",
+      "startDay": "2026-09-15",
+      "people": []
+    },
+    {
+      "id": 46,
+      "text": "周三开了个会",
+      "activity": "work",
+      "durationMin": 60,
+      "startDay": "2026-09-16",
+      "people": []
     }
   ]
 }
