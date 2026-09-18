@@ -73,7 +73,8 @@ export async function GET(req: Request) {
      where e.user_id = $1 ${searchSql}
      order by e.created_at desc
      limit $2 offset $3`,
-    q ? [user.id, limit, offset, `%${q}%`] : [user.id, limit, offset],
+    // 转义 ilike 通配符，避免用户输入的 % _ 被当模糊匹配
+    q ? [user.id, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`] : [user.id, limit, offset],
   );
   const total = rows[0] ? Number(rows[0].total_count) : 0;
   return NextResponse.json({ moments: rows, total });
