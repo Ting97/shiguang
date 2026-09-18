@@ -30,12 +30,15 @@ export async function findOverlap(
 
 /** 冲突的中文提示 */
 export function overlapError(c: { title: string; start_at: string; end_at: string }): string {
-  const f = (iso: string) => {
-    const d = new Date(iso);
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
-  return `这段时间已有日程「${c.title}」（${f(c.start_at)}–${f(c.end_at)}），一个时刻只能做一件事，请调整时间或先处理原日程`;
+  const p = (n: number) => String(n).padStart(2, "0");
+  const zh = (d: Date) => `${d.getMonth() + 1}月${d.getDate()}日`;
+  const hm = (d: Date) => `${p(d.getHours())}:${p(d.getMinutes())}`;
+  const s = new Date(c.start_at);
+  const e = new Date(c.end_at);
+  // 跨天/不同日的冲突必须带日期，否则「23:00–07:00」看不出占用的是哪天
+  const sameDay = s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth() && s.getDate() === e.getDate();
+  const range = sameDay ? `${hm(s)}–${hm(e)}` : `${zh(s)} ${hm(s)} – ${zh(e)} ${hm(e)}`;
+  return `这段时间已有日程「${c.title}」（${range}），一个时刻只能做一件事，请调整时间或先处理原日程`;
 }
 
 /**

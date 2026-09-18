@@ -133,8 +133,13 @@ export default function Home() {
         });
       } else if (j.kind === "todo") {
         setMsg({ ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` });
-      } else if (j.kind === "moment") {
-        setMsg({ ok: true, text: `✨ 已记录此刻${moodTag}` });
+          } else if (j.kind === "moment") {
+            setMsg({
+              ok: true,
+              text: j.conflictMessage
+                ? `✨ 已记录动态（未生成日程：${j.conflictMessage}）`
+                : `✨ 已记录此刻${moodTag}`,
+            });
       } else {
         setMsg({ ok: true, text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}` });
       }

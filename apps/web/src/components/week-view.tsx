@@ -20,8 +20,12 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
   const byDay = new Map<string, Block[]>();
   for (const d of days) byDay.set(d, []);
   for (const b of blocks) {
-    const key = localDateKey(b.start_at); // 按本地日期归列（UTC 切片会把凌晨块放进昨天）
-    byDay.get(key)?.push(b);
+    // 跨天块归入它覆盖的每一天（每列按当天的交集钳制显示），只归开始日会漏掉跨到次日的凌晨段
+    const startKey = localDateKey(b.start_at);
+    const endKey = localDateKey(b.end_at);
+    for (const d of days) {
+      if (d >= startKey && d <= endKey) byDay.get(d)?.push(b);
+    }
   }
 
   // 各类合计（水平堆叠条）
@@ -36,7 +40,14 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
       <div className="grid grid-cols-7 gap-1.5">
         {days.map((d) => {
           const list = byDay.get(d) ?? [];
-          const total = list.reduce((s, b) => s + b.duration_min, 0);
+          const day0 = dayStarts.get(d) ?? 0;
+          // 每列合计按当天交集算，跨天块不重复计入两天
+          const clampMin = (b: Block) => {
+            const s = Math.max(Math.min((new Date(b.start_at).getTime() - day0) / 60_000, 1440), 0);
+            const e = Math.max(Math.min((new Date(b.end_at).getTime() - day0) / 60_000, 1440), 0);
+            return e - s;
+          };
+          const total = list.reduce((s, b) => s + clampMin(b), 0);
           const isToday = d === todayStr();
           return (
             <button key={d} onClick={() => onPickDay(d)} className="group text-left">
@@ -48,8 +59,9 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
                   <div key={h} className={`absolute inset-x-0 ${h % 6 === 0 ? "border-t border-slate-800/70" : ""}`} style={{ top: `${h * 60 * PX_PER_MIN}px` }} />
                 ))}
                 {list.map((b) => {
-                  const s = Math.max((new Date(b.start_at).getTime() - (dayStarts.get(d) ?? 0)) / 60_000, 0);
-                  const e = Math.min(s + b.duration_min, 1440);
+                  // 起止都钳到当天 0~1440（跨天块只显示落在当天的部分）
+                  const s = Math.max(Math.min((new Date(b.start_at).getTime() - (dayStarts.get(d) ?? 0)) / 60_000, 1440), 0);
+                  const e = Math.max(Math.min((new Date(b.end_at).getTime() - (dayStarts.get(d) ?? 0)) / 60_000, 1440), 0);
                   return (
                     <div
                       key={b.id}

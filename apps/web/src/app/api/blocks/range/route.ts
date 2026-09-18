@@ -19,11 +19,15 @@ export async function GET(req: Request) {
   if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) {
     return NextResponse.json({ error: "from/to 需为合法日期且 from ≤ to" }, { status: 400 });
   }
+  // 按「区间与查询日期有交集」取：跨天块在其覆盖的每一天都返回（前端按天钳制显示），
+  // 避免开始日在前一天的凌晨占用段在当天不可见、却仍触发冲突拦截
   const { rows } = await pool.query(
     `select b.*, a.name as activity_name, a.icon, a.color
      from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
      where b.user_id = $1
-       and ((b.start_at at time zone $2)::date) between $3::date and $4::date
+       and tstzrange(b.start_at, b.end_at, '[)') && tstzrange(
+            $3::date::timestamp at time zone $2,
+            ($4::date + 1)::timestamp at time zone $2)
      order by b.start_at`,
     [user.id, TZ, from, to],
   );

@@ -27,10 +27,15 @@ export async function GET() {
      order by t.done_at desc`,
     [user.id, TZ],
   );
+  // 今日块：按「区间与今天有交集」取——跨天块（如昨晚23:00→今早07:00的睡眠）也要出现在今天，
+  // 否则它的凌晨段在界面上不可见，但冲突检测仍会拦截，造成"有冲突却看不到块"的错觉
   const { rows: blocks } = await pool.query(
     `select b.*, a.name as activity_name, a.icon, a.color
      from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
-     where b.user_id = $1 and (b.start_at at time zone $2)::date = (now() at time zone $2)::date
+     where b.user_id = $1
+       and tstzrange(b.start_at, b.end_at, '[)') && tstzrange(
+            date_trunc('day', now() at time zone $2) at time zone $2,
+            (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2)
      order by b.start_at desc`,
     [user.id, TZ],
   );

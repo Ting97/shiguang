@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, findOverlap } from "@/lib/db";import { getCurrentUser } from "@/lib/auth";
+import { pool, findOverlap, overlapError } from "@/lib/db";import { getCurrentUser } from "@/lib/auth";
 import { parseInput } from "@shiguangri/ai";
 import { inferGroupFromContext, inferInteractionType } from "@/lib/social";
 
@@ -85,8 +85,15 @@ export async function POST(req: Request) {
 
     const conflict = await findOverlap(user.id, r.time.start, r.time.end);
     if (conflict) {
+      // 冲突降级为纯动态（保留心情/金额/人物草稿），但必须把原因告诉用户，否则"没记上日程"毫无感知
       await client.query("commit");
-      return NextResponse.json({ kind: "moment", result: r, entry, conflict });
+      return NextResponse.json({
+        kind: "moment",
+        result: r,
+        entry,
+        conflict,
+        conflictMessage: overlapError(conflict),
+      });
     }
 
     const block = (
