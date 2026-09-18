@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const LINKS = [
-  { href: "/", label: "工作台" },
+  { href: "/", label: "动态" },
   { href: "/calendar", label: "日历" },
   { href: "/contacts", label: "人际" },
   { href: "/finance", label: "财务" },

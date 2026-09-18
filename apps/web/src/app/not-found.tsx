@@ -10,7 +10,7 @@ export default function NotFound() {
         href="/"
         className="mt-6 btn-primary rounded-xl px-5 py-2 text-sm font-medium"
       >
-        返回工作台
+        返回动态
       </Link>
     </main>
   );
