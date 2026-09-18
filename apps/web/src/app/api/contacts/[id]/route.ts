@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       `select id, name, alias, group_tag,
               to_char(birthday, 'YYYY-MM-DD') as birthday,
               to_char(anniversary, 'YYYY-MM-DD') as anniversary,
-              intimacy, importance, notes, created_at
+              intimacy, importance, notes, created_at, ai_profile, to_char(ai_profile_at, 'YYYY-MM-DD HH24:MI') as ai_profile_at
        from contacts where id = $1 and user_id = $2`,
       [id, user.id],
     )

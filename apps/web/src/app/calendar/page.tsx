@@ -9,7 +9,7 @@ import MonthView from "@/components/month-view";
 import YearView from "@/components/year-view";
 import BlockEditor, { type BlockDraft } from "@/components/block-editor";
 import {
-  addDays, localDateKey, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
+  addDays, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
   weekName, ymd, zhDate, zhDuration,
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
@@ -149,7 +149,9 @@ export default function CalendarPage() {
 
   // ----- 标题与统计 -----
   // 本地日期过滤（ISO 字符串 UTC 切片会把凌晨块筛掉）
-  const dayBlocks = blocks.filter((b) => localDateKey(b.start_at) === anchor);
+  // range API 已按「区间与当天有交集」返回：跨天块（如昨晚→今早的睡眠）也要显示/统计，
+  // 不能再按 start_at 的日期过滤（会把凌晨占用段筛没，导致"看得见的冲突缺口"）
+  const dayBlocks = blocks;
   const dayStat: Record<string, number> = {};
   for (const b of dayBlocks) dayStat[b.activity_id] = (dayStat[b.activity_id] ?? 0) + b.duration_min;
   const weekDays = useMemo(() => {

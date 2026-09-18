@@ -19,6 +19,8 @@ interface Contact {
   importance: number;
   notes: string | null;
   created_at: string;
+  ai_profile: { summary: string; likes: string[]; dislikes: string[]; facts: string[] } | null;
+  ai_profile_at: string | null;
 }
 interface TimelineItem {
   id: string;
@@ -60,6 +62,7 @@ export default function ContactDetailPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
 
   const load = useCallback(async () => {
     const j = await api(`/api/contacts/${id}`, "GET");
@@ -67,6 +70,20 @@ export default function ContactDetailPage() {
     setTimeline(j.timeline ?? []);
     setMoney(j.money ?? []);
   }, [id]);
+
+  async function runProfile() {
+    if (profiling) return;
+    setProfiling(true);
+    try {
+      const j = await api(`/api/contacts/${id}/ai-profile`, "POST");
+      setContact((c) => (c ? { ...c, ai_profile: j.profile, ai_profile_at: new Date().toISOString() } : c));
+      setMsg({ ok: true, text: "✨ 交往画像已更新" });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setProfiling(false);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -182,6 +199,60 @@ export default function ContactDetailPage() {
             <p className="mt-3 whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs leading-relaxed text-slate-300">
               {contact.notes}
             </p>
+          )}
+        </section>
+
+        {/* AI 交往画像（W10）：基于往来记录提炼喜好/忌讳/重要事实 */}
+        <section className="glass mb-4 rounded-2xl p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-300">
+              ✨ AI 交往画像
+              {contact.ai_profile_at && (
+                <span className="ml-2 text-[11px] font-normal text-slate-500">提炼于 {contact.ai_profile_at}</span>
+              )}
+            </h2>
+            <button
+              onClick={runProfile}
+              disabled={profiling}
+              className="whitespace-nowrap rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300 transition hover:bg-purple-500/20 disabled:opacity-50"
+            >
+              {profiling ? "提炼中…" : contact.ai_profile ? "重新提炼" : "提炼交往画像"}
+            </button>
+          </div>
+          {profiling && <p className="mt-3 animate-pulse text-xs text-purple-300/80">正在通读往来记录，总结喜好 / 忌讳 / 值得记住的事…</p>}
+          {!profiling && !contact.ai_profile && (
+            <p className="mt-3 text-xs leading-relaxed text-slate-500">
+              让 AI 通读与 TA 的往来记录和人情账，提炼交往风格、喜好与忌讳 —— 见面前扫一眼。
+            </p>
+          )}
+          {!profiling && contact.ai_profile && (
+            <div className="mt-3 space-y-2.5">
+              <p className="text-sm leading-relaxed text-slate-200">{contact.ai_profile.summary}</p>
+              {contact.ai_profile.likes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-emerald-300/80">💚 喜欢</span>
+                  {contact.ai_profile.likes.map((x) => (
+                    <span key={x} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-200">{x}</span>
+                  ))}
+                </div>
+              )}
+              {contact.ai_profile.dislikes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-rose-300/80">⚠️ 忌讳</span>
+                  {contact.ai_profile.dislikes.map((x) => (
+                    <span key={x} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-200">{x}</span>
+                  ))}
+                </div>
+              )}
+              {contact.ai_profile.facts.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-sky-300/80">📌 记住</span>
+                  {contact.ai_profile.facts.map((x) => (
+                    <span key={x} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200">{x}</span>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </section>
 
