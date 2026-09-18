@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     : "";
 
   const { rows } = await pool.query(
-    `select e.id, e.raw_text, e.source, e.mood, e.mood_score, e.created_at,
+    `select e.id, e.raw_text, e.source, e.mood, e.mood_score, e.created_at, e.analyzed_at,
        count(*) over () as total_count,
        coalesce((
          select jsonb_agg(jsonb_build_object(
@@ -65,7 +65,8 @@ export async function GET(req: Request) {
        (select jsonb_build_object('id', d.id, 'meal', d.meal, 'items', d.items, 'totalKcal', d.total_kcal)
          from diet_records d where d.entry_id = e.id) as diet,
        coalesce((
-         select jsonb_object_agg(rg.domain, jsonb_build_object('status', rg.status, 'confidence', rg.confidence))
+         select jsonb_object_agg(rg.domain, jsonb_build_object(
+           'status', rg.status, 'confidence', rg.confidence, 'reason', rg.result->>'reason'))
          from entry_recognitions rg where rg.entry_id = e.id
        ), '{}'::jsonb) as recognitions
      from entries e

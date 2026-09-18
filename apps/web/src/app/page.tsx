@@ -9,7 +9,6 @@ import Reminders from "@/components/reminders";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
-import { moodEmoji } from "@/lib/mood";
 import type { Activity, Block, FeedMoment } from "@/lib/types";
 
 interface Todo {
@@ -90,6 +89,13 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // 发布后识别产物的延迟刷新定时器（卸载时清理，避免对已卸载组件 setState）
+  const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const timers = refreshTimers.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
 
   const load = useCallback(async (opts?: { limit?: number; query?: string }) => {
     // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
@@ -157,35 +163,9 @@ export default function Home() {
       });
       const j = await r.json();
       // 防御非约定响应（网关错误页/结构变更）：给出可读原因，而不是 TypeError
-      if (!r.ok || !j?.result) throw new Error(j?.error || `服务异常(${r.status})，请稍后重试`);
-      const moodTag = j.result.mood.label ? ` ${moodEmoji(j.result.mood.label)}${j.result.mood.label}` : "";
-      // 五域命中汇总
-      const hits: string[] = [];
-      if (j.kind === "todo" || j.result.intent === "todo") hits.push("📋 待办");
-      else if (j.result.scheduleApplicable) hits.push("🕒 日程");
-      if (j.result.finance?.hasAmount) hits.push("💰 收支");
-      if (j.result.mood?.label) hits.push(`${moodEmoji(j.result.mood.label)} 心情`);
-      if (j.result.diet?.applicable) hits.push(`🍽 饮食`);
-      const pending = (j.pendingDomains ?? []).length > 0 ? ` · ❓ ${(j.pendingDomains as string[]).length} 项待确认` : "";
-      const summary = `已识别：${hits.length ? hits.join(" + ") : "纯动态"}${pending}`;
-      if (j.conflict) {
-        // AI 识别出日程但与已有时间块冲突：动态已保存，仅未登记时间轴
-        setMsg({
-          ok: false,
-          text: `⚠️ ${summary}，但识别的时间与「${j.conflict.title}」重叠，未登记时间轴 —— 可在下方时间轴补录或调整原日程`,
-        });
-      } else if (j.kind === "todo") {
-        setMsg({ ok: true, text: `📋 ${summary} · ${zhDateTime(j.todo?.due_at ?? null)} ${j.todo?.title ?? j.result.title}${moodTag}` });
-          } else if (j.kind === "moment") {
-            setMsg({
-              ok: true,
-              text: j.conflictMessage
-                ? `✨ ${summary}（未生成日程：${j.conflictMessage}）`
-                : `✨ ${summary}${moodTag}`,
-            });
-      } else {
-        setMsg({ ok: true, text: `✅ ${summary} · ${j.result.time.durationMin} 分钟 · ${j.block?.title ?? j.result.title}${moodTag}` });
-      }
+      if (!r.ok || !j?.entry) throw new Error(j?.error || `服务异常(${r.status})，请稍后重试`);
+      // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
+      setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / 待办 / 收支 / 心情 / 饮食…" });
       setText("");
       // 新动态要立即可见：搜索过滤中则清空搜索再刷新
       if (query || searchInput) {
@@ -195,8 +175,13 @@ export default function Home() {
       } else {
         await load();
       }
+      // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（组件卸载时清理）
+      for (const delay of [6000, 16000]) {
+        const t = setTimeout(() => void load(), delay);
+        refreshTimers.current.push(t);
+      }
     } catch (e) {
-      setMsg({ ok: false, text: `解析失败：${e instanceof Error ? e.message : e}` });
+      setMsg({ ok: false, text: `记录失败：${e instanceof Error ? e.message : e}` });
     } finally {
       setBusy(false);
       inputRef.current?.focus();

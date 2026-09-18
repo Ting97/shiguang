@@ -98,6 +98,10 @@ export const ParseResult = z.object({
 
 export type ParseResult = z.infer<typeof ParseResult>;
 
+/** 模型 confidence 容错：null/缺失给默认值（z.coerce 会把 null 强转成 0，必须先 nullish 短路） */
+const conf = (d: number) =>
+  z.coerce.number().min(0).max(1).nullish().transform((v) => v ?? d);
+
 /**
  * LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳）；数值宽容（模型偶发输出字符串数字）。
  * JSON 键序即生成序：reasoning 放最前引导模型先逐域判断再下结论（reasoning-before-answer）。
@@ -124,7 +128,7 @@ export const LlmExtraction = z.object({
         .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
         .nullish()
         .catch(null),
-      confidence: z.coerce.number().min(0).max(1).default(0.9),
+      confidence: conf(0.9),
     })
     .nullish()
     .transform((v) => v ?? { applicable: true, activity: "other" as const, title: "", confidence: 0.5 }),
@@ -132,7 +136,7 @@ export const LlmExtraction = z.object({
   todo: z
     .object({
       applicable: z.coerce.boolean().default(false),
-      confidence: z.coerce.number().min(0).max(1).default(0.9),
+      confidence: conf(0.9),
     })
     .nullish()
     .transform((v) => v ?? { applicable: false, confidence: 0.5 }),
@@ -143,7 +147,7 @@ export const LlmExtraction = z.object({
       amountCents: z.coerce.number().int().nullish(),
       category: z.string().nullish(),
       counterparty: z.string().nullish(),
-      confidence: z.coerce.number().min(0).max(1).default(0.9),
+      confidence: conf(0.9),
     })
     .nullish()
     .transform((v) => v ?? { hasAmount: false, confidence: 0.7 }),
@@ -151,11 +155,18 @@ export const LlmExtraction = z.object({
     .object({
       label: z.string().nullish(),
       score: z.coerce.number().int().min(-100).max(100).nullish(),
-      confidence: z.coerce.number().min(0).max(1).default(0.9),
+      confidence: conf(0.9),
     })
     .nullish()
     .transform((v) => v ?? { label: null, score: null, confidence: 0.6 }),
-  diet: DietDraft.nullish().transform((v) => v ?? { applicable: false, meal: "未知", items: [], totalKcal: null, confidence: 0.5 }),
+  diet: DietDraft.extend({
+      // 模型对非饮食句常输出 meal:null，枚举不收 null → 归一为"未知"
+      meal: DietDraft.shape.meal.nullish().transform((m) => m ?? "未知"),
+      confidence: conf(0.8),
+    })
+    .nullish()
+    .catch(null)
+    .transform((v) => v ?? { applicable: false, meal: "未知" as const, items: [], totalKcal: null, confidence: 0.5 }),
   people: z
     .array(z.object({ name: z.string(), event: z.string().nullish() }))
     .nullish()

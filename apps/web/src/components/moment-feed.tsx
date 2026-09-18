@@ -206,6 +206,18 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
           {m.raw_text}
         </p>
 
+        {/* 后台识别中：动态已上墙，识别产物随后出现 */}
+        {!m.analyzed_at && (
+          <p className="mt-1.5 animate-pulse text-xs text-sky-300/80">🤖 AI 识别中…（日程 / 关系 / 待办 / 收支 / 心情 / 饮食）</p>
+        )}
+
+        {/* 日程冲突降级提示：识别时发现时间重叠，未登记时间轴 */}
+        {m.analyzed_at && m.recognitions?.schedule?.status === "none" && m.recognitions.schedule.reason?.includes("已有日程") && (
+          <p className="mt-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-200/90">
+            ⚠️ 未生成日程：{m.recognitions.schedule.reason}
+          </p>
+        )}
+
         {/* 心情：可改可删 */}
         {m.mood || moodPicker ? (
           <div className="mt-1 text-xs">
