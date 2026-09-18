@@ -8,6 +8,7 @@ import WeekView from "@/components/week-view";
 import MonthView from "@/components/month-view";
 import YearView from "@/components/year-view";
 import BlockEditor, { type BlockDraft } from "@/components/block-editor";
+import DayReviewCard from "./day-review-card";
 import {
   addDays, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
   weekName, ymd, zhDate, zhDuration,
@@ -215,6 +216,7 @@ export default function CalendarPage() {
               <div className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">
                 共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + b.duration_min, 0))}
               </div>
+              <DayReviewCard date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />
             </aside>
           </div>
         )}
