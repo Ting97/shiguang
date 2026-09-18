@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client-api";
-import { CONTACT_GROUPS, GROUP_EMOJI } from "@/lib/social";
+import { CONTACT_GROUPS, GROUP_EMOJI, IMPORTANCE_TIERS, importanceLabel } from "@/lib/social";
 
 export interface ContactDraft {
   id: string;
@@ -11,6 +11,7 @@ export interface ContactDraft {
   group_tag: string;
   birthday: string | null;
   anniversary: string | null;
+  importance?: number;
   notes: string | null;
 }
 
@@ -29,6 +30,7 @@ export default function ContactFormModal({
   const [group, setGroup] = useState(initial?.group_tag ?? "朋友");
   const [birthday, setBirthday] = useState(initial?.birthday ?? "");
   const [anniversary, setAnniversary] = useState(initial?.anniversary ?? "");
+  const [importance, setImportance] = useState<number>(initial?.importance ?? 3);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -84,6 +86,28 @@ export default function ContactFormModal({
             />
             <span className="flex items-center text-[11px] text-slate-500">纪念日（可空）</span>
           </div>
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-[11px] text-slate-500">
+              重要程度
+              <span className="text-slate-400">决定图谱中与你的距离 · 当前：{importanceLabel(importance)}</span>
+            </div>
+            <div className="flex gap-1">
+              {[...IMPORTANCE_TIERS].reverse().map((t) => (
+                <button
+                  key={t.level}
+                  type="button"
+                  onClick={() => setImportance(t.level)}
+                  className={`flex-1 rounded-lg px-1 py-1.5 text-xs transition ${
+                    importance === t.level
+                      ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white"
+                      : "border border-slate-600 bg-slate-900 text-slate-400 hover:bg-slate-800"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <textarea
             value={notes ?? ""}
             onChange={(e) => setNotes(e.target.value)}
@@ -109,6 +133,7 @@ export default function ContactFormModal({
                       group,
                       birthday: birthday || null,
                       anniversary: anniversary || null,
+                      importance,
                       notes,
                     });
                     await onSaved("💾 档案已更新");
@@ -119,6 +144,7 @@ export default function ContactFormModal({
                       group,
                       birthday: birthday || null,
                       anniversary: anniversary || null,
+                      importance,
                       notes,
                     });
                     await onSaved(`✅ 已建档：${name.trim()}`);

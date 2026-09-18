@@ -1,15 +1,17 @@
 /**
- * 人际星型图谱布局（Phase 3 W11）—— 纯函数，无依赖，可单测
- * 我为中心，联系人按分组聚拢成一圈：颜色=分组，半径=亲密度+互动频率，边透明度=互动频率
- * 被 /contacts 图谱视图消费；数据来自 GET /api/contacts
+ * 人际星型图谱布局（Phase 3 W11 + 2026-09-18 五档轨道改造）—— 纯函数，无依赖，可单测
+ * 我为中心：角度按分组聚拢（颜色=分组）；距离按重要程度五档分轨（亲密最近、简单最远）；
+ * 节点半径=亲密度+互动频率，边透明度=互动频率。被 /contacts 图谱视图消费
  */
-import { CONTACT_GROUPS, GROUP_COLOR, type ContactGroup } from "./social";
+import { CONTACT_GROUPS, GROUP_COLOR, IMPORTANCE_TIERS, type ContactGroup } from "./social";
 
 export interface GraphContact {
   id: string;
   name: string;
   group_tag: string;
   intimacy: number;
+  /** 重要程度 1~5（5=亲密…1=简单）；缺省按 3（普通） */
+  importance?: number | string;
   interaction_count: number | string;
   gift_net_cents?: number | string | null;
   last_summary?: string | null;
@@ -28,6 +30,8 @@ export interface GraphNode {
   heat: number;
   intimacy: number;
   count: number;
+  /** 重要程度档位 1~5（5=亲密，决定所在轨道） */
+  tier: number;
 }
 
 export interface StarGraph {
@@ -39,16 +43,19 @@ export interface StarGraph {
   edges: { x2: number; y2: number; color: string; opacity: number }[];
   /** 图例：实际出现的分组（按固定组序） */
   legend: { tag: ContactGroup; color: string; count: number }[];
+  /** 五档轨道参考圈：亲密最近、简单最远 */
+  rings: { r: number; label: string }[];
 }
 
 const DEFAULT_SIZE = 640;
 
 /**
  * 星型布局：
- * - 联系人按固定组序排列（同组相邻），组间按组序整体分片并留空隙；
- * - 组内按互动次数降序再按姓名，保证同一份联系人数据布局稳定（可快照对比）；
- * - 节点半径 r = 14 + 亲密度贡献(0~12) + 互动次数贡献(0~10)，上限 36；
- * - 中心 (cx,cy)，联系人分布半径 = 画布短边/2 - 最大节点半径 - 边距。
+ * - 距离：重要程度五档五条同心轨道，亲密(5)最近、简单(1)最远；未设置按普通(3)；
+ * - 角度：联系人按固定组序排列（同组相邻），组间按组序整体分片并留空隙；
+ *   组内按互动次数降序再按姓名，保证同一份联系人数据布局稳定（可快照对比）；
+ * - 节点半径 r = 14 + 亲密度贡献(0~12) + 互动次数贡献(0~10)，上限 26（避免跨轨遮挡）；
+ * - 中心 (cx,cy)，外圈轨道半径 = 画布短边/2 - 最大节点半径 - 边距。
  */
 export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_SIZE): StarGraph {
   const cx = size / 2;
@@ -60,10 +67,14 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
   const nodeR = (c: GraphContact) => {
     const intimacy = Math.min(100, Math.max(0, Number(c.intimacy) || 0));
     const count = Math.min(10, Number(c.interaction_count) || 0);
-    return Math.min(36, 14 + (intimacy / 100) * 12 + count);
+    return Math.min(26, 14 + (intimacy / 100) * 12 + count);
   };
   const maxR = n ? Math.max(...contacts.map(nodeR)) : 20;
-  const orbit = size / 2 - maxR - 26; // 留出节点自身与画布边距
+  const outer = size / 2 - maxR - 26; // 最外圈（简单档）
+  const inner = outer * 0.4; // 最内圈（亲密档）
+  const ringGap = (outer - inner) / (IMPORTANCE_TIERS.length - 1);
+  /** 重要程度 → 轨道半径：5(亲密)=inner 最近，1(简单)=outer 最远 */
+  const tierRadius = (tier: number) => inner + (5 - tier) * ringGap;
 
   // 分组分片：组序与 CONTACT_GROUPS 一致；组间空隙 = 组隙/组数
   const groupsOrder = CONTACT_GROUPS.filter((g) => contacts.some((c) => normGroup(c.group_tag) === g));
@@ -84,6 +95,8 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
       const r = nodeR(c);
       const count = Number(c.interaction_count) || 0;
       const group = normGroup(c.group_tag);
+      const tier = clampTier(c.importance);
+      const orbit = tierRadius(tier);
       const x = cx + Math.cos(angle) * orbit;
       const y = cy + Math.sin(angle) * orbit;
       nodes.push({
@@ -97,6 +110,7 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
         heat: count / maxCount,
         intimacy: Math.min(100, Math.max(0, Number(c.intimacy) || 0)),
         count,
+        tier,
       });
       edges.push({
         x2: x,
@@ -121,7 +135,15 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
       color: GROUP_COLOR[tag] ?? GROUP_COLOR.其他,
       count: shards[groupsOrder.indexOf(tag)].length,
     })),
+    // 轨道参考圈：从外(简单)到内(亲密)
+    rings: IMPORTANCE_TIERS.map((t) => ({ r: tierRadius(t.level), label: t.label })).reverse(),
   };
+}
+
+/** 重要程度钳制：1~5 整数，其余按 3（普通） */
+function clampTier(v: number | string | undefined): number {
+  const n = Math.round(Number(v));
+  return [1, 2, 3, 4, 5].includes(n) ? n : 3;
 }
 
 function normGroup(tag: string): ContactGroup {

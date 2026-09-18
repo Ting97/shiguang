@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       `select id, name, alias, group_tag,
               to_char(birthday, 'YYYY-MM-DD') as birthday,
               to_char(anniversary, 'YYYY-MM-DD') as anniversary,
-              intimacy, notes, created_at
+              intimacy, importance, notes, created_at
        from contacts where id = $1 and user_id = $2`,
       [id, user.id],
     )
@@ -67,6 +67,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     birthday?: string | null;
     anniversary?: string | null;
     intimacy?: number;
+    importance?: number;
     notes?: string | null;
   };
 
@@ -99,6 +100,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
     vals.push(body.intimacy);
     sets.push(`intimacy = $${vals.length}`);
+  }
+  if (body.importance != null) {
+    if (![1, 2, 3, 4, 5].includes(body.importance)) {
+      return NextResponse.json({ error: "重要程度需为 1~5 的整数" }, { status: 400 });
+    }
+    vals.push(body.importance);
+    sets.push(`importance = $${vals.length}`);
   }
   if (body.notes !== undefined) {
     vals.push(body.notes?.trim() || null);

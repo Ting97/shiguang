@@ -17,6 +17,7 @@ interface Contact {
   birthday: string | null;
   anniversary: string | null;
   intimacy: number;
+  importance: number;
   notes: string | null;
   created_at: string;
   interaction_count: number;
@@ -44,7 +45,7 @@ function relTime(iso: string): string {
 export default function ContactsPage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[] | null>(null);
-  const [group, setGroup] = useState<string>("全部");
+  const [groups, setGroups] = useState<Set<string>>(new Set()); // 多选；空集=全部分组
   const [q, setQ] = useState("");
   const [view, setView] = useState<"list" | "graph">("list");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -64,7 +65,7 @@ export default function ContactsPage() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  const groups = useMemo(() => {
+  const groupChips = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of contacts ?? []) counts.set(c.group_tag, (counts.get(c.group_tag) ?? 0) + 1);
     return ["全部", ...CONTACT_GROUPS.filter((g) => counts.get(g))].map((g) => ({
@@ -77,13 +78,13 @@ export default function ContactsPage() {
     const kw = q.trim().toLowerCase();
     return (contacts ?? []).filter(
       (c) =>
-        (group === "全部" || c.group_tag === group) &&
+        (groups.size === 0 || groups.has(c.group_tag)) &&
         (!kw ||
           c.name.toLowerCase().includes(kw) ||
           (c.alias ?? "").toLowerCase().includes(kw) ||
           (c.notes ?? "").toLowerCase().includes(kw)),
     );
-  }, [contacts, group, q]);
+  }, [contacts, groups, q]);
 
   return (
     <main className="min-h-screen text-slate-100">
@@ -120,19 +121,35 @@ export default function ContactsPage() {
         {/* 分组筛选 + 搜索 + 建档 */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
-            {groups.map((g) => (
-              <button
-                key={g.name}
-                onClick={() => setGroup(g.name)}
-                className={`whitespace-nowrap rounded-full px-3 py-1 text-xs transition ${
-                  group === g.name
-                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-white/5 hover:text-slate-100"
-                }`}
-              >
-                {g.name === "全部" ? "全部" : `${GROUP_EMOJI[g.name] ?? "👤"} ${g.name}`} {g.count}
-              </button>
-            ))}
+            {groupChips.map((g) => {
+              const isAll = g.name === "全部";
+              const selected = isAll ? groups.size === 0 : groups.has(g.name);
+              return (
+                <button
+                  key={g.name}
+                  onClick={() => {
+                    if (isAll) {
+                      setGroups(new Set());
+                      return;
+                    }
+                    setGroups((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(g.name)) next.delete(g.name);
+                      else next.add(g.name);
+                      return next;
+                    });
+                  }}
+                  title={isAll ? "显示全部分组" : "点击加入/移出筛选（可多选）"}
+                  className={`whitespace-nowrap rounded-full px-3 py-1 text-xs transition ${
+                    selected
+                      ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+                      : "border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                  }`}
+                >
+                  {g.name === "全部" ? "全部" : `${GROUP_EMOJI[g.name] ?? "👤"} ${g.name}`} {g.count}
+                </button>
+              );
+            })}
           </div>
           <div className="flex items-center gap-2">
             <input

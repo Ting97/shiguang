@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Nav from "@/components/nav";
 import ContactFormModal from "@/components/contact-form";
 import { api } from "@/lib/client-api";
-import { GROUP_EMOJI, TYPE_EMOJI, birthdayLabel, displaySummary, type InteractionType } from "@/lib/social";
+import { GROUP_EMOJI, TYPE_EMOJI, birthdayLabel, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
 
 interface Contact {
   id: string;
@@ -16,6 +16,7 @@ interface Contact {
   birthday: string | null;
   anniversary: string | null;
   intimacy: number;
+  importance: number;
   notes: string | null;
   created_at: string;
 }
@@ -135,6 +136,9 @@ export default function ContactDetailPage() {
                 {contact.name}
                 {contact.alias && <span className="text-sm font-normal text-slate-500">（{contact.alias}）</span>}
                 <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-normal text-slate-400">{contact.group_tag}</span>
+                <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] font-normal text-sky-300">
+                  {importanceLabel(contact.importance)}
+                </span>
               </h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
                 {bd && (

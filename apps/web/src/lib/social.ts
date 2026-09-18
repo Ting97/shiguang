@@ -6,6 +6,19 @@
 export const CONTACT_GROUPS = ["家人", "朋友", "同事", "同学", "客户", "其他"] as const;
 export type ContactGroup = (typeof CONTACT_GROUPS)[number];
 
+/** 重要程度五档：level 越大越重要（图谱中离中心越近） */
+export const IMPORTANCE_TIERS = [
+  { level: 5, label: "亲密" },
+  { level: 4, label: "重要" },
+  { level: 3, label: "普通" },
+  { level: 2, label: "一般" },
+  { level: 1, label: "简单" },
+] as const;
+export type ImportanceTier = (typeof IMPORTANCE_TIERS)[number]["level"];
+
+export const importanceLabel = (level: number): string =>
+  IMPORTANCE_TIERS.find((t) => t.level === level)?.label ?? "普通";
+
 export const GROUP_EMOJI: Record<string, string> = {
   家人: "❤️",
   朋友: "🤝",

@@ -155,7 +155,8 @@ create table if not exists public.contacts (
   alias       text,                                 -- "老王" 的本名等
   group_tag   text not null default '朋友',          -- 家人/朋友/同事/客户...
   birthday    date,
-  intimacy    int not null default 50,              -- 亲密度 0~100（Phase 3 算法更新）
+  intimacy    int not null default 50,              -- 亲密度 0~100（互动热度，自动累积）
+  importance  smallint not null default 3 check (importance between 1 and 5), -- 重要程度五档：5=亲密 4=重要 3=普通 2=一般 1=简单（手动设定，决定图谱距离）
   notes       text,
   created_at  timestamptz not null default now(),
   unique (user_id, name)

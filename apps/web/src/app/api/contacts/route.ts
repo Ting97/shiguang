@@ -15,7 +15,7 @@ export async function GET() {
     `select c.id, c.name, c.alias, c.group_tag,
             to_char(c.birthday, 'YYYY-MM-DD') as birthday,
             to_char(c.anniversary, 'YYYY-MM-DD') as anniversary,
-            c.intimacy, c.notes, c.created_at,
+            c.intimacy, c.importance, c.notes, c.created_at,
             (select count(*) from interactions i where i.contact_id = c.id) as interaction_count,
             (select i.occurred_at from interactions i where i.contact_id = c.id
               order by i.occurred_at desc nulls last limit 1) as last_at,
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     group?: string;
     birthday?: string | null;
     anniversary?: string | null;
+    importance?: number;
     notes?: string | null;
   };
 
@@ -50,14 +51,15 @@ export async function POST(req: Request) {
   if (!name) return NextResponse.json({ error: "姓名必填" }, { status: 400 });
   if (name.length > 30) return NextResponse.json({ error: "姓名过长" }, { status: 400 });
   const group = body.group && (CONTACT_GROUPS as readonly string[]).includes(body.group) ? body.group : "朋友";
+  const importance = [1, 2, 3, 4, 5].includes(body.importance as number) ? (body.importance as number) : 3;
   const date = (v?: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
   try {
     const created = (
       await pool.query(
-        `insert into contacts (user_id, name, alias, group_tag, birthday, anniversary, notes)
-         values ($1, $2, $3, $4, $5, $6, $7) returning *`,
-        [user.id, name, body.alias?.trim() || null, group, date(body.birthday), date(body.anniversary), body.notes?.trim() || null],
+        `insert into contacts (user_id, name, alias, group_tag, birthday, anniversary, importance, notes)
+         values ($1, $2, $3, $4, $5, $6, $7, $8) returning *`,
+        [user.id, name, body.alias?.trim() || null, group, date(body.birthday), date(body.anniversary), importance, body.notes?.trim() || null],
       )
     ).rows[0];
     return NextResponse.json({ contact: created });
