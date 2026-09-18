@@ -126,3 +126,21 @@ body {
     opacity: 1 !important;
   }
 }
+
+/* 触屏设备（无 hover 能力）下的行内操作按钮常显，否则手机上无法修改/删除 */
+@media (hover: none) {
+  .row-actions {
+    display: flex !important;
+  }
+  .row-actions-hidden {
+    display: block !important;
+  }
+}
+
+/* 触屏下扩大行内操作按钮的触控热区（emoji 按钮太小） */
+@media (hover: none) {
+  .row-actions button,
+  .row-actions a {
+    padding: 6px 8px;
+  }
+}

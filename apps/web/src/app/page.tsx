@@ -559,9 +559,10 @@ export default function Home() {
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <section className="glass rounded-2xl p-5">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-y-1">
             <h2 className="text-sm font-semibold text-slate-300">
-              🕐 今日日程 <span className="ml-1 text-xs text-slate-500">
+              🕐 今日日程{" "}
+              <span className="ml-1 whitespace-nowrap text-xs text-slate-500">
                 {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
               </span>
             </h2>
