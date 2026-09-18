@@ -87,6 +87,27 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks, date]);
 
+  /** 在绝对分钟处打开补录：定位到该时刻所在的 1 小时整点区间（钳进缺口；贴边不足 5 分钟回退缺口末段一小时） */
+  function openSlotAt(absMin: number) {
+    const gap = gaps.find((g) => absMin >= g.s && absMin <= g.e);
+    if (!gap) return;
+    const hourStart = Math.floor(absMin / 60) * 60;
+    let s = Math.max(gap.s, hourStart);
+    let e = Math.min(gap.e, hourStart + 60);
+    if (e - s < 5) {
+      s = Math.max(gap.s, gap.e - 60);
+      e = gap.e;
+    }
+    setDraft({ title: "", start: hmOf(s), end: hmOf(e), activityId: "other" });
+  }
+
+  /** 点击时间轴空白（左右留白条等缺口按钮未覆盖处）→ 同样定位整点区间 */
+  function containerClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (draft || e.target !== e.currentTarget) return; // 只响应裸背景，缺口/日程块有自己的处理
+    const rect = e.currentTarget.getBoundingClientRect();
+    openSlotAt(Math.max(0, Math.min(1439, (e.clientY - rect.top) / PX_PER_MIN)));
+  }
+
   async function submitCreate() {
     if (!draft || !draft.title.trim() || saving) return;
     const [sh, sm] = draft.start.split(":").map(Number);
@@ -105,7 +126,9 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
       {draft && (
         <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-amber-300">补录缺口</span>
+            <span className="text-xs text-amber-300">
+              补录 <span className="tabular-nums">{draft.start}–{draft.end}</span>
+            </span>
             <input
               autoFocus
               value={draft.title}
@@ -153,7 +176,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
       )}
 
       <div ref={containerRef} className="relative max-h-[480px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
-        <div className="relative" style={{ height: `${1440 * PX_PER_MIN}px` }}>
+        <div className="relative" style={{ height: `${1440 * PX_PER_MIN}px` }} onClick={containerClick}>
           {Array.from({ length: 25 }, (_, h) => (
             <div key={h} className="absolute inset-x-0 border-t border-slate-800/70" style={{ top: `${h * 60 * PX_PER_MIN}px` }}>
               <span
@@ -167,8 +190,12 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
           {gaps.map((g, i) => (
             <button
               key={`gap-${i}`}
-              onClick={() => setDraft({ title: "", start: hmOf(g.s), end: hmOf(g.e), activityId: "other" })}
-              title="点击补录这段时间"
+              onClick={(e) => {
+                e.stopPropagation(); // 不冒泡到容器，避免二次计算覆盖
+                const rect = e.currentTarget.getBoundingClientRect();
+                openSlotAt(g.s + (e.clientY - rect.top) / PX_PER_MIN);
+              }}
+              title="点击空白处，按整点定位 1 小时补录"
               className="group absolute right-2 w-[calc(100%-3rem)] rounded border border-dashed border-slate-700/60 text-left transition hover:border-amber-500/60 hover:bg-amber-500/5"
               style={{ top: `${g.s * PX_PER_MIN}px`, height: `${Math.max((g.e - g.s) * PX_PER_MIN - 2, 8)}px` }}
             >
@@ -225,7 +252,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
         </div>
       </div>
       <p className="mt-2 text-[10px] text-slate-600">
-        提示：点击彩色块可修改 · 点击虚线缺口可补录{isToday ? " · 红线为当前时刻" : ""}
+        提示：点击彩色块可修改 · 点击空白处自动定位整点 1 小时补录（表单内可调时间）{isToday ? " · 红线为当前时刻" : ""}
       </p>
     </div>
   );
