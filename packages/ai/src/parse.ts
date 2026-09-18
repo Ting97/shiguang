@@ -19,6 +19,8 @@ export interface ParseOptions {
   defaults?: Partial<Record<(typeof ACTIVITY_IDS)[number], number>>;
   /** 强制使用规则引擎（测试用） */
   forceRules?: boolean;
+  /** LLM 成功响应后回调 token 用量（审计/成本核算用） */
+  onUsage?: (usage: { prompt_tokens: number; completion_tokens: number }) => void;
 }
 
 // ---------- 规则引擎（dry-run） ----------
@@ -127,7 +129,8 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     try {
       const raw = await chat({
         system: EXTRACT_SYSTEM_PROMPT,
-        user: buildExtractUserPrompt(text, now.toISOString()),
+          user: buildExtractUserPrompt(text, now.toISOString()),
+        onUsage: opts.onUsage,
       });
       const parsed = LlmExtraction.safeParse(extractJson(raw));
       if (parsed.success) {

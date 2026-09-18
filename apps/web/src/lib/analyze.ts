@@ -32,17 +32,29 @@ export interface AnalyzeOutcome {
   kind: "todo" | "block" | "moment";
 }
 
-/** 解析审计（docs/06 欠账：引擎/模型/耗时 → audit_logs 成本监控）；失败静默不影响主流程 */
+/** 解析审计（docs/06 欠账：引擎/模型/耗时/token → audit_logs 成本监控）；失败静默不影响主流程 */
 async function writeAudit(
   userId: string,
   entryId: string,
-  fields: { engine: string; model: string | null; durationMs: number; textLen: number; ok: boolean; error?: string },
+  fields: {
+    engine: string;
+    model: string | null;
+    durationMs: number;
+    textLen: number;
+    ok: boolean;
+    error?: string;
+    promptTokens?: number;
+    completionTokens?: number;
+  },
 ) {
   try {
     await pool.query(
-      `insert into audit_logs (user_id, entry_id, stage, model, engine, latency_ms, text_len, ok, error)
-       values ($1,$2,'parse',$3,$4,$5,$6,$7,$8)`,
-      [userId, entryId, fields.model ?? "", fields.engine, fields.durationMs, fields.textLen, fields.ok, fields.error ?? null],
+      `insert into audit_logs (user_id, entry_id, stage, model, engine, latency_ms, text_len, ok, error, prompt_tokens, completion_tokens)
+       values ($1,$2,'parse',$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        userId, entryId, fields.model ?? "", fields.engine, fields.durationMs, fields.textLen,
+        fields.ok, fields.error ?? null, fields.promptTokens ?? 0, fields.completionTokens ?? 0,
+      ],
     );
   } catch (e) {
     console.error("[audit] 写入失败:", e);
@@ -57,9 +69,16 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   const startedAt = Date.now();
   let engine = "rules";
   let model: string | null = null;
+  let promptTokens = 0;
+  let completionTokens = 0;
   const client = await pool.connect();
   try {
-    const r = await parseInput(rawText);
+    const r = await parseInput(rawText, {
+      onUsage: (u) => {
+        promptTokens = u.prompt_tokens;
+        completionTokens = u.completion_tokens;
+      },
+    });
     engine = r.engine;
     if (r.engine === "llm") model = process.env.GLM_MODEL ?? "glm-4.7-flash";
     const pendingDomains: string[] = [];
@@ -154,6 +173,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     await client.query("commit");
     void writeAudit(userId, entryId, {
       engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: true,
+      promptTokens, completionTokens,
     });
     return {
       conflictTitle,
@@ -168,6 +188,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     }
     void writeAudit(userId, entryId, {
       engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: false, error: String(e).slice(0, 300),
+      promptTokens, completionTokens,
     });
     throw e;
   } finally {

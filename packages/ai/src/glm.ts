@@ -10,6 +10,11 @@ export function hasApiKey(): boolean {
   return Boolean(process.env.ZHIPUAI_API_KEY);
 }
 
+export interface ChatUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+}
+
 interface ChatOptions {
   system: string;
   user: string;
@@ -18,6 +23,8 @@ interface ChatOptions {
   timeoutMs?: number;
   /** 思考模式（GLM-4.5+ 混合思考模型有效）；默认关闭——抽取类任务开思考会拖慢响应且推理 token 占用 max_tokens */
   thinking?: boolean;
+  /** 成功响应后回调 token 用量（重试时以最后一次为准），供审计/成本核算 */
+  onUsage?: (usage: ChatUsage) => void;
 }
 
 /** 单轮对话，返回文本内容。timeoutMs 是所有重试的总预算（默认 30s）；429/5xx/超时/网络异常均重试；429 耗尽后降级 GLM_FALLBACK_MODEL */
@@ -59,6 +66,13 @@ export async function chat(opts: ChatOptions): Promise<string> {
         });
         if (res.ok) {
           const json = (await res.json()) as any;
+          const u = json.usage;
+          if (opts.onUsage && u) {
+            opts.onUsage({
+              prompt_tokens: Number(u.prompt_tokens ?? 0),
+              completion_tokens: Number(u.completion_tokens ?? 0),
+            });
+          }
           return json.choices?.[0]?.message?.content ?? "";
         }
         lastErr = new Error(`GLM(${m}) HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
