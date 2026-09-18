@@ -52,6 +52,34 @@ create table if not exists public.invite_codes (
   created_at  timestamptz not null default now()
 );
 
+-- 饮食识别记录（migrations/008）：每动态一条，重识别覆盖
+create table if not exists public.diet_records (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  entry_id   uuid not null references public.entries(id) on delete cascade,
+  meal       text not null default '未知' check (meal in ('早餐','午餐','晚餐','加餐','夜宵','未知')),
+  items      jsonb not null default '[]',  -- [{name, amount?, kcal?}]
+  total_kcal int,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists idx_diet_entry on public.diet_records (entry_id);
+
+-- 五域识别登记簿（migrations/008）：applied/pending/none + 结果快照
+create table if not exists public.entry_recognitions (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  entry_id   uuid not null references public.entries(id) on delete cascade,
+  domain     text not null check (domain in ('schedule','todo','finance','mood','diet')),
+  status     text not null default 'none' check (status in ('applied','pending','none')),
+  result     jsonb not null default '{}',
+  confidence real,
+  engine     text not null default 'llm',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists idx_recog_entry_domain on public.entry_recognitions (entry_id, domain);
+
 -- ---------- 时间模块（P0） ----------
 
 -- 活动分类：预设 8 类 + 用户自定义

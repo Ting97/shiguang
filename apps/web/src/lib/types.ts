@@ -56,4 +56,11 @@ export interface FeedMoment {
     counterparty: string | null;
   }[];
   people: { interactionId: string; name: string; summary: string | null }[];
+  diet: {
+    id: string;
+    meal: string;
+    items: { name: string; amount?: string | null; kcal?: number | null }[] | null;
+    totalKcal: number | null;
+  } | null;
+  recognitions: Partial<Record<string, { status: "applied" | "pending" | "none"; confidence: number }>>;
 }

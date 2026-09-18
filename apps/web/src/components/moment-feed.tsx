@@ -38,6 +38,16 @@ const dayPrefix = (iso: string) => {
 
 const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];
 
+/** 五域识别状态条：域 → 图标/名称 */
+const FIVE_DOMAINS: Array<[string, string, string]> = [
+  ["schedule", "🕒", "日程"],
+  ["todo", "📋", "待办"],
+  ["finance", "💰", "收支"],
+  ["mood", "😊", "心情"],
+  ["diet", "🍽", "饮食"],
+];
+const DOMAIN_LABELS: Record<string, string> = Object.fromEntries(FIVE_DOMAINS.map(([d, , l]) => [d, l]));
+
 /** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区与原日期） */
 function combineHM(originalIso: string, hm: string): string {
   const d = new Date(originalIso);
@@ -109,6 +119,11 @@ function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "删除"
 function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMoment }) {
   const [confirming, setConfirming] = useState(false);
   const [moodPicker, setMoodPicker] = useState(false);
+  const [busyDomain, setBusyDomain] = useState<string | null>(null);
+  // 低置信待确认域（识别登记簿 pending）
+  const pendingDomains = (Object.entries(m.recognitions ?? {}) as [string, { status: string; confidence: number }][])
+    .filter(([, v]) => v.status === "pending")
+    .map(([domain, v]) => ({ domain, confidence: v.confidence }));
   const [editBlock, setEditBlock] = useState<{ id: string; title: string; start: string; end: string; activityId: string } | null>(null);
   const [editTodo, setEditTodo] = useState<{ id: string; title: string; due: string; activityId: string } | null>(null);
   const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
@@ -234,7 +249,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
         ) : null}
 
         {/* AI 识别产物 */}
-        {(m.blocks.length > 0 || m.todos.length > 0 || m.transactions.length > 0 || m.people.length > 0) && (
+        {(m.blocks.length > 0 || m.todos.length > 0 || m.transactions.length > 0 || m.people.length > 0 || m.diet) && (
           <div className="mt-2.5 space-y-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
             {/* ---- 日程块 ---- */}
             {m.blocks.map((b) =>
@@ -480,13 +495,73 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
                 />
               </p>
             )}
+
+            {/* ---- 饮食 ---- */}
+            {m.diet && (
+              <p className="group/row flex items-center gap-x-2 text-slate-400">
+                <span>
+                  🍽 {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
+                  {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}
+                  {m.diet.totalKcal != null ? ` · ≈${m.diet.totalKcal} kcal` : ""}
+                </span>
+              </p>
+            )}
           </div>
         )}
 
-        {/* 纯心情动态：无任何产物时的轻提示 */}
-        {m.blocks.length === 0 && m.todos.length === 0 && m.transactions.length === 0 && m.people.length === 0 && (
-          <p className="mt-2 text-[11px] text-slate-600">✨ 仅记录此刻，未生成日程</p>
+        {/* 待确认的低置信识别 */}
+        {pendingDomains.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {pendingDomains.map((d) => (
+              <div key={d.domain} className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5 px-3 py-1.5 text-[11px] text-amber-200/90">
+                <span>🤔 识别到{DOMAIN_LABELS[d.domain] ?? d.domain}（置信度 {Math.round((d.confidence ?? 0) * 100)}%），确认吗？</span>
+                <button
+                  onClick={() => run(async () => { await api(`/api/entries/${m.id}/confirm`, "POST", { domain: d.domain }); return "✅ 已确认入账"; })}
+                  className="rounded bg-sky-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-sky-500"
+                >
+                  确认
+                </button>
+                <button
+                  onClick={() => run(async () => { await api(`/api/entries/${m.id}/confirm`, "POST", { domain: d.domain, ignore: true }); return "已忽略"; })}
+                  className="rounded px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-200"
+                >
+                  忽略
+                </button>
+              </div>
+            ))}
+          </div>
         )}
+
+        {/* 五域识别状态条：✓已识别 ·未识别 ?待确认；点击图标单独重新识别 */}
+        <div className="mt-2.5 flex items-center gap-1 border-t border-slate-800/60 pt-2">
+          {FIVE_DOMAINS.map(([d, icon]) => {
+            const st = m.recognitions?.[d]?.status;
+            const mark = st === "applied" ? "✓" : st === "pending" ? "?" : "·";
+            const tone = st === "applied" ? "text-emerald-400" : st === "pending" ? "text-amber-300" : "text-slate-600";
+            return (
+              <button
+                key={d}
+                onClick={() =>
+                  run(async () => {
+                    setBusyDomain(d);
+                    try {
+                      const j = await api(`/api/entries/${m.id}/recognize`, "POST", { domain: d });
+                      return j.message ?? "已重新识别";
+                    } finally {
+                      setBusyDomain(null);
+                    }
+                  })
+                }
+                title={`重新识别${DOMAIN_LABELS[d]}`}
+                className={`rounded px-1.5 py-0.5 text-[10px] tabular-nums transition hover:bg-white/5 ${tone} ${busyDomain === d ? "animate-pulse" : ""}`}
+              >
+                {icon}
+                {mark}
+              </button>
+            );
+          })}
+          <span className="ml-auto text-[10px] text-slate-700">点图标重识别该域</span>
+        </div>
       </div>
     </article>
   );

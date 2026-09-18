@@ -44,5 +44,19 @@ export async function GET() {
      where user_id = $1 order by sort_order`,
     [user.id],
   );
-  return NextResponse.json({ todos, doneToday, blocks, activities });
+  // 今日卡路里合计（饮食域：区间与今天有交集的动态的饮食记录）
+  const { rows: kcalRows } = await pool.query(
+    `select coalesce(sum(d.total_kcal), 0)::int as kcal
+     from diet_records d
+     join entries e on e.id = d.entry_id
+     where d.user_id = $1
+       and coalesce(d.total_kcal, 0) > 0
+       and tstzrange(e.created_at - interval '12 hour', e.created_at + interval '12 hour', '[]')
+           && tstzrange(
+             date_trunc('day', now() at time zone $2) at time zone $2,
+             (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2)`,
+    [user.id, TZ],
+  );
+  const todayKcal = kcalRows[0]?.kcal ?? 0;
+  return NextResponse.json({ todos, doneToday, blocks, activities, todayKcal });
 }

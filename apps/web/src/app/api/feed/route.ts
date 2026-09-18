@@ -40,7 +40,13 @@ export async function GET(req: Request) {
          select jsonb_agg(jsonb_build_object('interactionId', i.id, 'name', c.name, 'summary', i.summary))
          from interactions i join contacts c on c.id = i.contact_id
          where i.entry_id = e.id
-       ), '[]') as people
+       ), '[]') as people,
+       (select jsonb_build_object('id', d.id, 'meal', d.meal, 'items', d.items, 'totalKcal', d.total_kcal)
+         from diet_records d where d.entry_id = e.id) as diet,
+       coalesce((
+         select jsonb_object_agg(rg.domain, jsonb_build_object('status', rg.status, 'confidence', rg.confidence))
+         from entry_recognitions rg where rg.entry_id = e.id
+       ), '{}'::jsonb) as recognitions
      from entries e
      where e.user_id = $1
      order by e.created_at desc

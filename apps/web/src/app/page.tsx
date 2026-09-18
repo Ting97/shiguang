@@ -72,6 +72,7 @@ export default function Home() {
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [editingTodo, setEditingTodo] = useState<TodoDraft | null>(null);
   const [view, setView] = useState<"timeline" | "list">("timeline");
+  const [todayKcal, setTodayKcal] = useState(0);
   const [listDraft, setListDraft] = useState<BlockDraftValue | null>(null);
   const [listSaving, setListSaving] = useState(false);
   const listFormRef = useRef<HTMLDivElement>(null);
@@ -91,6 +92,7 @@ export default function Home() {
     setDoneToday(j.doneToday ?? []);
     setBlocks(j.blocks ?? []);
     setActivities(j.activities ?? []);
+    setTodayKcal(j.todayKcal ?? 0);
     const f = await feedRes.json();
     setMoments(f.moments ?? []);
     // W12 提醒横幅：接口失败不打扰主流程
@@ -125,23 +127,32 @@ export default function Home() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       const moodTag = j.result.mood.label ? ` ${moodEmoji(j.result.mood.label)}${j.result.mood.label}` : "";
+      // 五域命中汇总
+      const hits: string[] = [];
+      if (j.kind === "todo" || j.result.intent === "todo") hits.push("📋 待办");
+      else if (j.result.scheduleApplicable) hits.push("🕒 日程");
+      if (j.result.finance?.hasAmount) hits.push("💰 收支");
+      if (j.result.mood?.label) hits.push(`${moodEmoji(j.result.mood.label)} 心情`);
+      if (j.result.diet?.applicable) hits.push(`🍽 饮食`);
+      const pending = (j.pendingDomains ?? []).length > 0 ? ` · ❓ ${(j.pendingDomains as string[]).length} 项待确认` : "";
+      const summary = `已识别：${hits.length ? hits.join(" + ") : "纯动态"}${pending}`;
       if (j.conflict) {
         // AI 识别出日程但与已有时间块冲突：动态已保存，仅未登记时间轴
         setMsg({
           ok: false,
-          text: `⚠️ 已保存为动态，但识别的时间与「${j.conflict.title}」重叠，未登记时间轴 —— 可在下方时间轴补录或调整原日程`,
+          text: `⚠️ ${summary}，但识别的时间与「${j.conflict.title}」重叠，未登记时间轴 —— 可在下方时间轴补录或调整原日程`,
         });
       } else if (j.kind === "todo") {
-        setMsg({ ok: true, text: `📋 已创建待办：${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` });
+        setMsg({ ok: true, text: `📋 ${summary} · ${zhDateTime(j.todo.due_at)} ${j.todo.title}${moodTag}` });
           } else if (j.kind === "moment") {
             setMsg({
               ok: true,
               text: j.conflictMessage
-                ? `✨ 已记录动态（未生成日程：${j.conflictMessage}）`
-                : `✨ 已记录此刻${moodTag}`,
+                ? `✨ ${summary}（未生成日程：${j.conflictMessage}）`
+                : `✨ ${summary}${moodTag}`,
             });
       } else {
-        setMsg({ ok: true, text: `✅ 已记录日程：${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}` });
+        setMsg({ ok: true, text: `✅ ${summary} · ${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}` });
       }
       setText("");
       await load();
@@ -615,6 +626,11 @@ export default function Home() {
               <span className="ml-1 whitespace-nowrap text-xs text-slate-500">
                 {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
               </span>
+              {todayKcal > 0 && (
+                <span className="ml-2 whitespace-nowrap rounded bg-orange-500/10 px-1.5 py-0.5 text-[11px] text-orange-300">
+                  🍽 今日 ≈{todayKcal} kcal
+                </span>
+              )}
             </h2>
             <div className="flex shrink-0 rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
               <button

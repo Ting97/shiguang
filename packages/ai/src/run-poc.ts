@@ -23,7 +23,11 @@ const fmt = (iso: string) => {
   return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-interface Case { id: number; text: string; activity: string; durationMin?: number; period?: string; finance?: any; people?: string[]; future?: boolean }
+interface Case {
+  id: number; text: string; activity: string; durationMin?: number; period?: string;
+  finance?: any; people?: string[]; future?: boolean;
+  diet?: boolean; dietMeal?: string; noSchedule?: boolean; mood?: string;
+}
 
 const durationTolerance = 15; // 分钟容差
 let pass = 0;
@@ -44,8 +48,12 @@ for (const c of set.cases as Case[]) {
     // 未来话术：应生成 TODO（mode=future、intent=todo），时长/金额不参与判定
     checks.todo = r.intent === "todo" && r.time.mode === "future";
   } else {
-    checks.duration =
-      Math.abs(r.time.durationMin - (c.durationMin as number)) <= durationTolerance;
+    if (c.noSchedule) {
+      // 纯感想/非事件话术：不强制建日程
+      checks.noSchedule = r.intent === "status" && !r.scheduleApplicable;
+    } else if (c.durationMin !== undefined) {
+      checks.duration = Math.abs(r.time.durationMin - c.durationMin) <= durationTolerance;
+    }
     checks.finance = c.finance
       ? r.finance.hasAmount &&
         r.finance.amountCents === c.finance.amountCents &&
@@ -54,6 +62,12 @@ for (const c of set.cases as Case[]) {
     checks.people =
       (c.people ?? []).length === r.people.length &&
       (c.people ?? []).every((n) => r.people.some((p) => p.name.includes(n)));
+    if (c.diet !== undefined) {
+      checks.diet = r.diet.applicable === c.diet && (!c.dietMeal || r.diet.meal === c.dietMeal);
+    }
+    if (c.mood !== undefined) {
+      checks.mood = r.mood.label === c.mood;
+    }
   }
 
   const ok = Object.values(checks).every(Boolean);
