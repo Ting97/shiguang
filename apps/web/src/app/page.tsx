@@ -62,9 +62,19 @@ const dueTag = (iso: string | null) => {
   return { text: `${days} 天后`, cls: "text-slate-400" };
 };
 
+const FEED_PAGE_SIZE = 10; // 动态流每页条数，「加载更多」按页追加
+
 export default function Home() {
   const [text, setText] = useState("");
   const [moments, setMoments] = useState<FeedMoment[]>([]);
+  const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
+  const [feedTotal, setFeedTotal] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [query, setQuery] = useState(""); // 生效中的搜索词（输入防抖后）
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [addingTodo, setAddingTodo] = useState(false);
+  const [newTodoTitle, setNewTodoTitle] = useState("");
+  const [newTodoBusy, setNewTodoBusy] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [doneToday, setDoneToday] = useState<Todo[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -81,10 +91,13 @@ export default function Home() {
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { limit?: number; query?: string }) => {
+    // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
+    const lim = opts?.limit ?? feedLimit;
+    const q = opts?.query !== undefined ? opts.query : query;
     const [todayRes, feedRes, reminderRes] = await Promise.all([
       fetch("/api/today"),
-      fetch("/api/feed?limit=50"),
+      fetch(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
       fetch("/api/reminders"),
     ]);
     const j = await todayRes.json();
@@ -95,6 +108,7 @@ export default function Home() {
     setTodayKcal(j.todayKcal ?? 0);
     const f = await feedRes.json();
     setMoments(f.moments ?? []);
+    setFeedTotal(f.total ?? 0);
     // W12 提醒横幅：接口失败不打扰主流程
     try {
       const rj = await reminderRes.json();
@@ -102,11 +116,28 @@ export default function Home() {
     } catch {
       setReminderItems([]);
     }
-  }, []);
+  }, [feedLimit, query]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // 搜索词输入防抖：停顿 400ms 才真正检索
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // 「加载更多」追加一页后 moments 更新，复位按钮加载态
+  useEffect(() => {
+    setLoadingMore(false);
+  }, [moments]);
+
+  function loadMore() {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    setFeedLimit((l) => l + FEED_PAGE_SIZE);
+  }
 
   useEffect(() => {
     if (!msg) return;
@@ -155,7 +186,14 @@ export default function Home() {
         setMsg({ ok: true, text: `✅ ${summary} · ${j.result.time.durationMin} 分钟 · ${j.block.title}${moodTag}` });
       }
       setText("");
-      await load();
+      // 新动态要立即可见：搜索过滤中则清空搜索再刷新
+      if (query || searchInput) {
+        setSearchInput("");
+        setQuery("");
+        await load({ query: "" });
+      } else {
+        await load();
+      }
     } catch (e) {
       setMsg({ ok: false, text: `解析失败：${e instanceof Error ? e.message : e}` });
     } finally {
@@ -307,6 +345,31 @@ export default function Home() {
     await load();
   }
 
+  // ---------- 手动新增待办（不做时间控制，只填标题） ----------
+
+  async function saveNewTodo() {
+    const title = newTodoTitle.trim();
+    if (!title || newTodoBusy) return;
+    setNewTodoBusy(true);
+    try {
+      const r = await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setMsg({ ok: true, text: `📌 已新增待办「${j.todo.title}」` });
+      setNewTodoTitle("");
+      setAddingTodo(false);
+      await load();
+    } catch (e) {
+      setMsg({ ok: false, text: `新增失败：${e instanceof Error ? e.message : e}` });
+    } finally {
+      setNewTodoBusy(false);
+    }
+  }
+
   /** 时间轴缺口补录 */
   async function createBlock(payload: { title: string; startAt: string; endAt: string; activityId: string }) {
     const r = await fetch("/api/blocks", {
@@ -434,26 +497,105 @@ export default function Home() {
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <section className="mb-6">
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">
-            🌱 我的动态 <span className="ml-1 text-xs font-normal text-slate-500">{moments.length} 条 · 悬停卡片可修正识别结果</span>
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <h2 className="text-sm font-semibold text-slate-300">
+              🌱 我的动态{" "}
+              <span className="ml-1 text-xs font-normal text-slate-500">
+                {query
+                  ? `找到 ${feedTotal} 条`
+                  : feedTotal > 0
+                    ? `共 ${feedTotal} 条${feedTotal > moments.length ? ` · 已显示 ${moments.length} 条` : " · 悬停卡片可修正识别"}`
+                    : ""}
+              </span>
+            </h2>
+            <div className="relative w-full sm:w-64">
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchInput("");
+                }}
+                placeholder="🔍 搜索：原文/日程/待办/金额/联系人"
+                className="w-full rounded-xl border border-white/10 bg-slate-900/60 py-1.5 pl-3 pr-8 text-xs outline-none placeholder:text-slate-600 focus:border-sky-500/60"
+              />
+              {searchInput && (
+                <button
+                  onClick={() => setSearchInput("")}
+                  title="清除搜索"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-slate-200"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
           <MomentFeed
             moments={moments}
             activities={activities}
             onRefresh={load}
             notify={(ok, text) => setMsg({ ok, text })}
+            moreCount={Math.max(0, feedTotal - moments.length)}
+            loadingMore={loadingMore}
+            onLoadMore={loadMore}
+            searching={!!query}
+            searchKeyword={query}
           />
         </section>
 
         {/* 待办列表 */}
         <section id="todos" className="glass mb-6 rounded-2xl p-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">
-            📋 待办 <span className="ml-1 text-xs text-slate-500">{todos.length} 项 · 点击圆圈完成</span>
-          </h2>
-          {todos.length === 0 && (
-            <p className="py-4 text-center text-xs text-slate-600">暂无待办 —— 说句带"明天/待会儿"的话试试</p>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-300">
+              📋 待办 <span className="ml-1 text-xs text-slate-500">{todos.length} 项 · 点击圆圈完成</span>
+            </h2>
+            <button
+              onClick={() => setAddingTodo(true)}
+              className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1 text-xs text-sky-300 transition hover:border-sky-500/50"
+            >
+              ＋ 新增
+            </button>
+          </div>
+          {todos.length === 0 && !addingTodo && (
+            <p className="py-4 text-center text-xs text-slate-600">
+              暂无待办 —— 说句带"明天/待会儿"的话，或点右上「＋ 新增」
+            </p>
           )}
           <ul className="space-y-1">
+            {addingTodo && (
+              <li className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-slate-800/60 p-2.5">
+                <span className="text-base">📌</span>
+                <input
+                  autoFocus
+                  value={newTodoTitle}
+                  onChange={(e) => setNewTodoTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) saveNewTodo();
+                    if (e.key === "Escape") {
+                      setAddingTodo(false);
+                      setNewTodoTitle("");
+                    }
+                  }}
+                  placeholder="要做什么？回车保存，不用填时间"
+                  className="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                />
+                <button
+                  onClick={() => {
+                    setAddingTodo(false);
+                    setNewTodoTitle("");
+                  }}
+                  className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={saveNewTodo}
+                  disabled={!newTodoTitle.trim() || newTodoBusy}
+                  className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-50"
+                >
+                  {newTodoBusy ? "保存中…" : "保存"}
+                </button>
+              </li>
+            )}
             {todos.map((t) => {
               const tag = dueTag(t.due_at);
               return editingTodo?.id === t.id ? (

@@ -37,6 +37,7 @@ const dayPrefix = (iso: string) => {
 };
 
 const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];
+const FEED_PAGE_SIZE_HINT = 10; // 超过一页才显示「到底啦」提示
 
 /** 五域识别状态条：域 → 图标/名称 */
 const FIVE_DOMAINS: Array<[string, string, string]> = [
@@ -82,6 +83,13 @@ interface Props {
   activities: Activity[];
   onRefresh: () => Promise<void>;
   notify: (ok: boolean, text: string) => void;
+  /** 还有多少条未展示（>0 显示「加载更多」按钮） */
+  moreCount?: number;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+  /** 搜索模式：空态文案与常规不同 */
+  searching?: boolean;
+  searchKeyword?: string;
 }
 
 /** 行内小操作按钮（编辑/删除），悬停显示 */
@@ -581,7 +589,9 @@ export default function MomentFeed(props: Props) {
   if (props.moments.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-800 py-8 text-center text-xs text-slate-600">
-        还没有动态 —— 随口说一句今天的事、心情或明天的计划试试
+        {props.searching
+          ? `没有找到包含「${props.searchKeyword}」的动态 —— 换个关键词，或点 ✕ 清除搜索`
+          : "还没有动态 —— 随口说一句今天的事、心情或明天的计划试试"}
       </p>
     );
   }
@@ -615,6 +625,23 @@ export default function MomentFeed(props: Props) {
           </div>
         </section>
       ))}
+
+      {/* 分页：每次多加载一页 */}
+      {(props.moreCount ?? 0) > 0 && props.onLoadMore ? (
+        <div className="pt-1 text-center">
+          <button
+            onClick={props.onLoadMore}
+            disabled={props.loadingMore}
+            className="rounded-full border border-white/10 bg-slate-900/60 px-5 py-2 text-xs text-sky-300 transition hover:border-sky-500/50 hover:text-sky-200 disabled:opacity-50"
+          >
+            {props.loadingMore ? "加载中…" : `加载更多（还有 ${props.moreCount} 条）`}
+          </button>
+        </div>
+      ) : (
+        props.moments.length >= FEED_PAGE_SIZE_HINT && (
+          <p className="pt-1 text-center text-[11px] text-slate-700">— 已经到底啦 —</p>
+        )
+      )}
     </div>
   );
 }

@@ -5,15 +5,36 @@ import { getCurrentUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/feed?limit=50 —— 动态流：entries 按记录时刻倒序，聚合 AI 识别出的日程/待办/金额/人物 */
+/**
+ * GET /api/feed?limit=10&offset=0&q=关键字
+ * 动态流：entries 按记录时刻倒序，聚合 AI 识别出的日程/待办/金额/人物/饮食/识别登记簿。
+ * q 非空时按关键字检索：原文 + 识别产物（日程/待办标题、交易类别与对方、联系人、饮食条目）。
+ */
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const url = new URL(req.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50), 1), 200);
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 10), 1), 200);
+  const offset = Math.min(Math.max(Number(url.searchParams.get("offset") ?? 0), 0), 100_000);
+  const q = (url.searchParams.get("q") ?? "").trim();
+
+  // 关键字检索：动态原文命中，或任一识别产物命中（中英文均可，ilike 不区分大小写）
+  const searchSql = q
+    ? `and (
+         e.raw_text ilike $4
+         or exists (select 1 from time_blocks b where b.entry_id = e.id and b.title ilike $4)
+         or exists (select 1 from todos t where t.entry_id = e.id and t.title ilike $4)
+         or exists (select 1 from transactions x where x.entry_id = e.id
+                    and (x.category ilike $4 or x.counterparty ilike $4 or x.note ilike $4))
+         or exists (select 1 from interactions i join contacts c on c.id = i.contact_id
+                    where i.entry_id = e.id and c.name ilike $4)
+         or exists (select 1 from diet_records d where d.entry_id = e.id and d.items::text ilike $4)
+       )`
+    : "";
 
   const { rows } = await pool.query(
     `select e.id, e.raw_text, e.source, e.mood, e.mood_score, e.created_at,
+       count(*) over () as total_count,
        coalesce((
          select jsonb_agg(jsonb_build_object(
            'id', b.id, 'title', b.title, 'startAt', b.start_at, 'endAt', b.end_at,
@@ -48,10 +69,11 @@ export async function GET(req: Request) {
          from entry_recognitions rg where rg.entry_id = e.id
        ), '{}'::jsonb) as recognitions
      from entries e
-     where e.user_id = $1
+     where e.user_id = $1 ${searchSql}
      order by e.created_at desc
-     limit $2`,
-    [user.id, limit],
+     limit $2 offset $3`,
+    q ? [user.id, limit, offset, `%${q}%`] : [user.id, limit, offset],
   );
-  return NextResponse.json({ moments: rows });
+  const total = rows[0] ? Number(rows[0].total_count) : 0;
+  return NextResponse.json({ moments: rows, total });
 }
