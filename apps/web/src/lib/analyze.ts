@@ -32,16 +32,38 @@ export interface AnalyzeOutcome {
   kind: "todo" | "block" | "moment";
 }
 
+/** 解析审计（docs/06 欠账：引擎/模型/耗时 → audit_logs 成本监控）；失败静默不影响主流程 */
+async function writeAudit(
+  userId: string,
+  entryId: string,
+  fields: { engine: string; model: string | null; durationMs: number; textLen: number; ok: boolean; error?: string },
+) {
+  try {
+    await pool.query(
+      `insert into audit_logs (user_id, entry_id, stage, model, engine, latency_ms, text_len, ok, error)
+       values ($1,$2,'parse',$3,$4,$5,$6,$7,$8)`,
+      [userId, entryId, fields.model ?? "", fields.engine, fields.durationMs, fields.textLen, fields.ok, fields.error ?? null],
+    );
+  } catch (e) {
+    console.error("[audit] 写入失败:", e);
+  }
+}
+
 /**
  * 对一条已存在的动态做完整五域识别并落库（发布后后台执行，也被确认/重识别复用）。
  * 心情直接回写 entries；识别结束（成功或失败）由调用方/finally 写 entries.analyzed_at。
  */
 export async function analyzeAndPersist(userId: string, entryId: string, rawText: string): Promise<AnalyzeOutcome> {
-  const r = await parseInput(rawText);
-  const pendingDomains: string[] = [];
-
+  const startedAt = Date.now();
+  let engine = "rules";
+  let model: string | null = null;
   const client = await pool.connect();
   try {
+    const r = await parseInput(rawText);
+    engine = r.engine;
+    if (r.engine === "llm") model = process.env.GLM_MODEL ?? "glm-4.7-flash";
+    const pendingDomains: string[] = [];
+
     await client.query("begin");
 
     // 心情域：置信度足够才回写动态本体
@@ -130,13 +152,23 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     }
 
     await client.query("commit");
+    void writeAudit(userId, entryId, {
+      engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: true,
+    });
     return {
       conflictTitle,
       pendingDomains,
       kind: r.intent === "todo" ? "todo" : r.intent === "schedule" ? "block" : "moment",
     };
   } catch (e) {
-    await client.query("rollback");
+    try {
+      await client.query("rollback");
+    } catch {
+      /* 事务尚未开启（识别阶段失败）时忽略 */
+    }
+    void writeAudit(userId, entryId, {
+      engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: false, error: String(e).slice(0, 300),
+    });
     throw e;
   } finally {
     client.release();
