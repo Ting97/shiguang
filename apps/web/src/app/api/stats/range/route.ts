@@ -19,13 +19,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "from/to 需为合法日期且 from ≤ to" }, { status: 400 });
   }
 
+  // 按天交集钳制：跨天块（如昨晚23:00→今早07:00的睡眠）的时长分摊到它覆盖的每一天，
+  // 与日视图/周视图的交集口径一致（旧实现按开始日归全长，跨天块会整段记在一天）
   const { rows } = await pool.query(
-    `select ((b.start_at at time zone $2))::date::text as date,
+    `select to_char(d.day, 'YYYY-MM-DD') as date,
             b.activity_id,
-            sum(b.duration_min)::int as mins
+            sum(floor(extract(epoch from least((b.end_at at time zone $2), (d.day + interval '1 day'))
+                             - greatest((b.start_at at time zone $2), d.day)) / 60))::int as mins
      from time_blocks b
+     join lateral generate_series(
+            greatest(date_trunc('day', b.start_at at time zone $2), $3::date::timestamp),
+            least(date_trunc('day', b.end_at at time zone $2), $4::date::timestamp),
+            interval '1 day') d(day) on true
      where b.user_id = $1
-       and ((b.start_at at time zone $2)::date) between $3::date and $4::date
+       and least((b.end_at at time zone $2), (d.day + interval '1 day')) > greatest((b.start_at at time zone $2), d.day)
      group by 1, 2`,
     [user.id, TZ, from, to],
   );
