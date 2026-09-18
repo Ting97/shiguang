@@ -6,35 +6,32 @@ import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}$/;
 const TZ = "Asia/Shanghai";
 
-interface WeekReview {
+interface MonthReview {
   summary: string;
   highlights: string[];
   suggestions: string[];
 }
 
 /**
- * POST /api/review/week {date} —— AI 周报（Phase 4 复盘引擎）
- * date 为该周任一天；聚合本周时间/待办/收支/人际/心情事实 → LLM 解读，不落库即时生成。
+ * POST /api/review/month {month} —— AI 月报（Phase 4 复盘引擎）
+ * month 为 YYYY-MM；聚合本月时间/待办/收支/人际/心情事实 → LLM 解读，不落库即时生成。
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { date } = (await req.json().catch(() => ({}))) as { date?: string };
-  if (!date || !DATE_RE.test(date)) {
-    return NextResponse.json({ error: "date 需为 YYYY-MM-DD" }, { status: 400 });
+  const { month } = (await req.json().catch(() => ({}))) as { month?: string };
+  if (!month || !DATE_RE.test(month)) {
+    return NextResponse.json({ error: "month 需为 YYYY-MM" }, { status: 400 });
   }
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
-  // 周一为一周开始
-  const d = new Date(date + "T00:00:00");
-  const daysIntoWeek = (d.getDay() + 6) % 7;
-  const monday = new Date(d.getTime() - daysIntoWeek * 86_400_000);
+  const [y, m] = month.split("-").map(Number);
+  const from = `${month}-01`;
   const localYmd = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-  const from = localYmd(monday);
-  const to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
+  const to = localYmd(new Date(y, m, 0)); // 当月最后一天（本地日历日，避免 toISOString 退一天）
 
   const [timeRows, todoRows, txRows, interactRows, entryRows] = await Promise.all([
     pool.query(
@@ -80,7 +77,7 @@ export async function POST(req: Request) {
   const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
   const timeParts = timeRows.rows.map((r) => `${r.icon}${r.name} ${fmtMin(r.mins)}`);
   const facts = [
-    `周期：${from} 至 ${to}`,
+    `周期：${month}月（${from} 至 ${to}）`,
     `时间投入：${timeParts.length ? timeParts.join("、") : "无"}`,
     `完成待办：${todoRows.rows[0].n} 件`,
     `支出 ¥${(txRows.rows[0].out_cents / 100).toFixed(0)} · 收入 ¥${(txRows.rows[0].in_cents / 100).toFixed(0)}`,
@@ -88,14 +85,14 @@ export async function POST(req: Request) {
     `动态 ${entryRows.rows[0].n} 条（覆盖 ${entryRows.rows[0].days} 天）${entryRows.rows[0].moods.length ? `（心情：${entryRows.rows[0].moods.join("、")}）` : ""}`,
   ];
 
-  const system = `你是个人经营助手「拾光复利」，基于用户一周的**真实记录**写一份简短周报。只依据事实归纳对比，**严禁编造**；语气温和务实，不灌鸡汤。严格输出 JSON：
+  const system = `你是个人经营助手「拾光复利」，基于用户一个月的**真实记录**写一份简短月报。只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。严格输出 JSON：
 {
-  "summary": "这一周的一句话总结（≤60字，突出时间结构和整体状态）",
+  "summary": "这一个月的一句话总结（≤60字，突出时间结构、坚持情况和整体状态）",
   "highlights": ["值得肯定的亮点，最多3条，没有就空数组"],
-  "suggestions": ["下周可改进的具体建议，最多2条，没有依据就空数组"]
+  "suggestions": ["下个月可改进的具体建议，最多2条，没有依据就空数组"]
 }`;
 
-  let review: WeekReview;
+  let review: MonthReview;
   try {
     const raw = await chat({
       system,
@@ -104,18 +101,18 @@ export async function POST(req: Request) {
       maxTokens: 500,
       timeoutMs: 45_000,
     });
-    const parsed = extractJson(raw) as Partial<WeekReview>;
+    const parsed = extractJson(raw) as Partial<MonthReview>;
     const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 50)).filter(Boolean).slice(0, 3) : []);
     review = {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
           ? parsed.summary.trim().slice(0, 90)
-          : "这一周记录还很少，多记几天再来复盘会更有料",
+          : "这个月记录还很少，多记几天再来复盘会更有料",
       highlights: arr(parsed.highlights),
       suggestions: arr(parsed.suggestions),
     };
   } catch (e) {
-    return NextResponse.json({ error: `AI 周报生成失败：${e instanceof Error ? e.message : e}` }, { status: 502 });
+    return NextResponse.json({ error: `AI 月报生成失败：${e instanceof Error ? e.message : e}` }, { status: 502 });
   }
 
   return NextResponse.json({ review, range: { from, to } });

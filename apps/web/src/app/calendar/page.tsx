@@ -10,6 +10,7 @@ import YearView from "@/components/year-view";
 import BlockEditor, { type BlockDraft } from "@/components/block-editor";
 import DayReviewCard from "./day-review-card";
 import WeekReviewCard from "./week-review-card";
+import MonthReviewCard from "./month-review-card";
 import {
   addDays, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
   weekName, ymd, zhDate, zhDuration,
@@ -233,7 +234,10 @@ export default function CalendarPage() {
           </>
         )}
         {!loading && view === "month" && (
+          <>
           <MonthView month={startOfMonth(anchor)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
+          <MonthReviewCard month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+          </>
         )}
         {!loading && view === "year" && (
           <YearView year={anchor.slice(0, 4)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
