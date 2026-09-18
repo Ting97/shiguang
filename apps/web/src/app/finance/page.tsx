@@ -81,6 +81,7 @@ export default function FinancePage() {
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirming, setConfirming] = useState<Tx | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const [editing, setEditing] = useState<Tx | null>(null);
 
   useEffect(() => {
@@ -123,6 +124,20 @@ export default function FinancePage() {
       await load();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  /** 一键全部入账：所有待确认流水记入同一账户（或都不记） */
+  async function confirmAllTx(accountId: string | null) {
+    if (drafts.length === 0) return;
+    try {
+      await Promise.all(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true, accountId })));
+      setConfirmAll(false);
+      setMsg({ ok: true, text: `✅ 已全部入账（${drafts.length} 笔）` });
+      await load();
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      await load();
     }
   }
 
@@ -336,13 +351,41 @@ export default function FinancePage() {
         {/* 草稿确认区 */}
         {drafts.length > 0 && (
           <section id="draft-area" className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
-            <h2 className="mb-3 text-sm font-semibold text-amber-200">
-              📥 待确认流水
-              <span className="ml-2 text-xs font-normal text-amber-200/60">来自动态识别 · 确认后计入报表</span>
-            </h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-amber-200">
+                📥 待确认流水
+                <span className="ml-2 text-xs font-normal text-amber-200/60">来自动态识别 · 确认后计入报表</span>
+              </h2>
+              <button
+                onClick={() => setConfirmAll((v) => !v)}
+                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200 transition hover:bg-amber-500/20"
+              >
+                {confirmAll ? "收起" : "⚡ 全部入账"}
+              </button>
+            </div>
+            {confirmAll && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5 text-xs">
+                <span className="text-slate-300">把这 {drafts.length} 笔全部记入：</span>
+                {ov.accounts.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => confirmAllTx(a.id)}
+                    className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-200 transition hover:bg-sky-600"
+                  >
+                    {a.icon} {a.name}
+                  </button>
+                ))}
+                <button onClick={() => confirmAllTx(null)} className="rounded-full px-3 py-1 text-[11px] text-slate-400 hover:text-sky-300">
+                  不记账户
+                </button>
+                <button onClick={() => setConfirmAll(false)} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">
+                  取消
+                </button>
+              </div>
+            )}
             <ul className="space-y-2">
               {drafts.map((t) => (
-                <li key={t.id} className="rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5">
+                <li key={t.id} className="force-actions group rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5">
                   {confirming?.id === t.id ? (
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="text-slate-300">记入账户：</span>

@@ -144,3 +144,11 @@ body {
     padding: 6px 8px;
   }
 }
+
+/* 待确认流水是需要操作的行：操作按钮在所有设备上常显 */
+.force-actions .row-actions {
+  display: flex !important;
+}
+.force-actions .row-actions-hidden {
+  display: block !important;
+}
