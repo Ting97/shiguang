@@ -4,7 +4,7 @@
  */
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
-const DEFAULT_MODEL = "glm-5.3-flashx";
+const DEFAULT_MODEL = "glm-5.3-flash";
 
 export function hasApiKey(): boolean {
   return Boolean(process.env.ZHIPUAI_API_KEY);
