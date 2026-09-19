@@ -1,0 +1,29 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace = "cn.ting97.shiguang"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "cn.ting97.shiguang"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+            // 侧载分发：直接用 debug 签名出 release 包，后续上架再换正式 keystore
+            signingConfig = signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
