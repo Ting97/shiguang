@@ -133,8 +133,8 @@ export default function BillImport({
   const dupTotal = (preview?.batchDup ?? 0) + (preview?.dbDup ?? 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="glass max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-200">📥 导入支付宝/微信账单</h3>
           <button onClick={onClose} className="rounded px-2 text-slate-500 hover:text-slate-200">✕</button>

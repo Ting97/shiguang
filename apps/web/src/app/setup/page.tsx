@@ -57,7 +57,7 @@ export default function SetupPage() {
           <p className="mt-1 text-xs text-slate-500">首次使用 · 创建管理员账号</p>
         </div>
 
-        <div className="glass rounded-2xl p-6">
+        <div className="glass rounded-2xl p-5">
           <div className="space-y-3">
             <input
               value={nickname}

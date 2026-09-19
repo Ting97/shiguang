@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Nav from "@/components/nav";
+import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
 import { api } from "@/lib/client-api";
@@ -91,7 +92,7 @@ export default function ContactsPage() {
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
         <header className="mb-6 text-center">
-          <h1 className="text-gradient text-4xl font-bold tracking-wide">
+          <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">人际</span>
           </h1>
           <p className="mt-2 text-xs text-slate-500">
@@ -177,13 +178,13 @@ export default function ContactsPage() {
         )}
 
         {contacts === null ? (
-          <p className="py-16 text-center text-xs text-slate-500">加载中…</p>
+          <Skeleton rows={4} className="py-2" />
         ) : contacts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 py-10 text-center text-xs text-slate-600">
+          <p className="empty-state py-10">
             还没有联系人 —— 动态里说「和老王吃饭」，TA 会自动出现在这里
           </p>
         ) : filtered.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 py-10 text-center text-xs text-slate-600">
+          <p className="empty-state py-10">
             没有匹配的联系人
           </p>
         ) : view === "graph" ? (

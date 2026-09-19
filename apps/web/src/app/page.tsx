@@ -185,7 +185,8 @@ export default function Home() {
       setMsg({ ok: false, text: `记录失败：${e instanceof Error ? e.message : e}` });
     } finally {
       setBusy(false);
-      inputRef.current?.focus();
+      // 移动端不回焦输入框（会把视口拽回顶部并重新拉起键盘，打断阅读动态流）
+      if (window.innerWidth >= 640) inputRef.current?.focus();
     }
   }
 
@@ -477,15 +478,7 @@ export default function Home() {
           </div>
         </section>
         {msg && (
-          <div
-            className={`mb-5 rounded-lg border px-3 py-2 text-xs ${
-              msg.ok
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-300"
-            }`}
-          >
-            {msg.text}
-          </div>
+          <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
         )}
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
@@ -635,19 +628,19 @@ export default function Home() {
                   </div>
                 </li>
               ) : (
-                /* ---- 常规待办行 ---- */
-                <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-800/60">
+                /* ---- 常规待办行：移动端自动折两行（标题行 + 时间/操作行） ---- */
+                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-slate-800/60">
                   <button
                     onClick={() => toggleDone(t)}
                     title="点击标记完成"
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-slate-500 text-transparent transition group-hover:border-sky-400 group-hover:text-sky-400/60"
+                    className="tap-lg flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-500 text-transparent transition group-hover:border-sky-400 group-hover:text-sky-400/60"
                   >
                     ✓
                   </button>
                   <span className="text-base">{t.icon ?? "📌"}</span>
-                  <span className="flex-1 truncate text-sm">{t.title}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
                   <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-slate-500">{zhDateTime(t.due_at)}</span>
+                  <span className="hidden shrink-0 text-xs tabular-nums text-slate-500 sm:inline">{zhDateTime(t.due_at)}</span>
                   <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                     <button
                       onClick={() => startTodoEdit(t)}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Nav from "@/components/nav";
+import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import { api } from "@/lib/client-api";
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayLabel, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
@@ -103,7 +104,7 @@ export default function ContactDetailPage() {
       <main className="min-h-screen text-slate-100">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <Nav />
-          <p className="py-16 text-center text-xs text-slate-500">加载中…</p>
+          <Skeleton rows={3} className="py-2" />
         </div>
       </main>
     );
@@ -391,8 +392,8 @@ function InteractionFormModal({
   const [err, setErr] = useState<string | null>(null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="glass w-full max-w-md rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl sm:max-w-md sm:rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-200">补一笔往来 · {contactName}</h3>
           <button onClick={onClose} className="rounded px-2 text-slate-500 hover:text-slate-200">✕</button>

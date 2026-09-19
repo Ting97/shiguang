@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const LINKS = [
   { href: "/", label: "动态" },
@@ -17,6 +17,7 @@ export default function Nav() {
   const [nickname, setNickname] = useState<string | null>(null);
   const [authDisabled, setAuthDisabled] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me").then((r) => {
@@ -32,39 +33,37 @@ export default function Nav() {
     });
   }, []);
 
+  // 移动端横滑时把当前激活项滚入可视区中央（否则访问靠后的模块看不出当前在哪）
+  useEffect(() => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-path="${pathname}"]`);
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [pathname]);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     location.href = "/login";
   }
 
+  const linkCls = (active: boolean) =>
+    `shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-[13px] transition-all duration-200 sm:px-5 sm:py-1.5 sm:text-sm ${
+      active
+        ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
+        : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+    }`;
+
   return (
-    <nav className="sticky top-4 z-40 mb-8 flex items-center justify-between gap-2 rounded-full border border-white/10 bg-slate-900/70 p-1 pl-4 text-sm shadow-lg shadow-slate-950/50 backdrop-blur-xl">
-      <div className="scrollbar-none flex min-w-0 flex-1 justify-start gap-1 overflow-x-auto sm:justify-center">
+    <nav className="sticky top-0 z-40 mb-8 flex items-center justify-between gap-2 rounded-b-2xl border border-t-0 border-white/10 bg-slate-900/80 p-1 pl-3 text-sm shadow-lg shadow-slate-950/50 backdrop-blur-xl safe-top">
+      <div ref={scrollRef} className="scrollbar-none flex min-w-0 flex-1 justify-start gap-1 overflow-x-auto sm:justify-center">
         {LINKS.map((l) => {
           const active = pathname === l.href;
           return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
-                active
-                  ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                  : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
-              }`}
-            >
+            <Link key={l.href} href={l.href} data-path={l.href} className={linkCls(active)}>
               {l.label}
             </Link>
           );
         })}
         {isAdmin && (
-          <Link
-            href="/invites"
-            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] transition-all duration-200 sm:px-5 sm:text-sm ${
-              pathname === "/invites"
-                ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
-            }`}
-          >
+          <Link href="/invites" data-path="/invites" className={linkCls(pathname === "/invites")}>
             邀请
           </Link>
         )}
@@ -74,7 +73,7 @@ export default function Nav() {
           <Link
             href="/profile"
             title="个人设置"
-            className={`max-w-[4.5rem] truncate rounded-full px-2 py-1 transition hover:bg-white/5 hover:text-sky-300 sm:max-w-none ${
+            className={`max-w-[4.5rem] truncate rounded-full px-2 py-1.5 transition hover:bg-white/5 hover:text-sky-300 sm:max-w-none sm:py-1 ${
               pathname === "/profile" ? "text-sky-300" : ""
             }`}
           >
@@ -83,7 +82,7 @@ export default function Nav() {
           <button
             onClick={logout}
             title="退出登录"
-            className="rounded-full px-2 py-1 transition hover:bg-white/5 hover:text-rose-300"
+            className="rounded-full px-2 py-1.5 transition hover:bg-white/5 hover:text-rose-300 sm:py-1"
           >
             ⎋
           </button>

@@ -75,7 +75,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
                     onClick={() => inYear && onPickDay(date)}
                     disabled={!inYear}
                     title={inYear ? `${date} · ${s ? zhDuration(s.totalMin) : "未记录"}` : ""}
-                    className={`h-[11px] w-[11px] rounded-[2px] ${inYear ? "transition hover:ring-1 hover:ring-sky-400" : "opacity-0"} ${isToday ? "ring-1 ring-rose-400" : ""}`}
+                    className={`h-[11px] w-[11px] rounded-[2px] max-sm:relative max-sm:after:absolute max-sm:after:inset-[-3px] ${inYear ? "transition hover:ring-1 hover:ring-sky-400" : "opacity-0"} ${isToday ? "ring-1 ring-rose-400" : ""}`}
                     style={{ backgroundColor: lv >= 0 ? COLORS[lv] : "transparent" }}
                   />
                 );

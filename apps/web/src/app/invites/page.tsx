@@ -81,7 +81,7 @@ export default function InvitesPage() {
     <main className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="text-gradient mb-1 text-2xl font-bold">邀请码管理</h1>
+        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">邀请<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">邀请码管理</span></h1>
         <p className="mb-5 text-xs text-slate-500">
           新用户凭邀请码注册（一码一人）；生成后把码发给对方，对方在登录页点「凭邀请码注册」
         </p>
@@ -110,7 +110,7 @@ export default function InvitesPage() {
                   <option value={0}>不限</option>
                 </select>
               </label>
-              <button onClick={generate} disabled={busy} className="btn-primary rounded-lg px-5 py-1.5 text-sm font-medium">
+              <button onClick={generate} disabled={busy} className="btn-primary rounded-xl px-5 py-1.5 text-sm font-medium">
                 {busy ? "生成中…" : "生成邀请码"}
               </button>
               {msg && <span className="text-xs text-slate-300">{msg}</span>}
@@ -118,7 +118,7 @@ export default function InvitesPage() {
 
             {/* 列表 */}
             {invites.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-800 py-8 text-center text-xs text-slate-600">
+              <p className="empty-state">
                 还没有邀请码 —— 点上方「生成邀请码」创建第一个
               </p>
             ) : (

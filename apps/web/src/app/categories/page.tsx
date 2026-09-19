@@ -74,7 +74,7 @@ export default function CategoriesPage() {
     <main className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="text-gradient mb-1 text-2xl font-bold">活动分类管理</h1>
+        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">分类<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">活动分类管理</span></h1>
         <p className="mb-5 text-xs text-slate-500">
           预设分类不可删除（可改名称/图标/颜色/默认时长）；自定义分类删除后其记录归入「其他」
         </p>
@@ -144,10 +144,10 @@ export default function CategoriesPage() {
                 />
                 <span className="text-[10px] text-slate-500">分钟</span>
                 <button onClick={() => setEditing(null)} className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700">取消</button>
-                <button onClick={save} className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500">保存</button>
+                <button onClick={save} className="btn-inline-save rounded px-3 py-1 text-xs font-medium">保存</button>
               </li>
             ) : (
-              <li key={a.id} className="glass glass-hover flex items-center gap-3 rounded-xl px-3 py-2.5">
+              <li key={a.id} className="glass glass-hover group flex items-center gap-3 rounded-xl px-3 py-2.5">
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: a.color }} />
                 <span className="text-lg">{a.icon}</span>
                 <span className="flex-1 text-sm">

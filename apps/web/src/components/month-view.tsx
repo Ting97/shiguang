@@ -63,13 +63,13 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
               {donut ? (
                 <>
                   <MiniDonut byActivity={s!.byActivity} actMap={actMap} size={30} />
-                  <span className="text-[9px] tabular-nums text-slate-500">
+                  <span className="block truncate text-[9px] tabular-nums text-slate-500">
                     {zhDuration(s!.totalMin)}
                   </span>
                 </>
               ) : (
                 /* 未来日期没有"未记录"义务，仅过去/今天温和提示 */
-                !isFuture && <span className="text-[9px] text-slate-700">未记录</span>
+                !isFuture && <span className="text-[9px] text-slate-600">未记录</span>
               )}
             </button>
           );

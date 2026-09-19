@@ -205,15 +205,8 @@ export default function CalendarPage() {
 
         {!loading && view === "day" && (
           <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-            <div>
-              {editing && (
-                <div className="mb-3">
-                  <BlockEditor draft={editing} activities={activities} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} onDelete={removeEdit} />
-                </div>
-              )}
-              <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} loading={loading} />
-            </div>
-            <aside className="glass rounded-2xl p-4">
+            {/* 移动端把当日结构与 AI 小结排在时间轴前（order-first），不再被 480px 时间轴压在下面 */}
+            <aside className="glass order-first mb-0 rounded-2xl p-4 lg:order-none lg:mb-0">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">当日结构</h2>
               <DayDonut byActivity={dayStat} activities={activities} size={100} thickness={12} />
               <div className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">
@@ -221,6 +214,14 @@ export default function CalendarPage() {
               </div>
               <DayReviewCard date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />
             </aside>
+            <div className="order-last lg:order-none">
+              {editing && (
+                <div className="mb-3">
+                  <BlockEditor draft={editing} activities={activities} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} onDelete={removeEdit} />
+                </div>
+              )}
+              <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} loading={loading} />
+            </div>
           </div>
         )}
         {!loading && view === "week" && (

@@ -37,7 +37,10 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
 
   return (
     <div>
-      <div className="grid grid-cols-7 gap-1.5">
+      {/* 窄屏 7 列挤压不可用：横向滚动 + 每列最小可读宽度，滚动提示渐变 */}
+      <div className="relative">
+        <div className="scrollbar-none overflow-x-auto">
+          <div className="grid min-w-[560px] grid-cols-7 gap-1.5 sm:min-w-0">
         {days.map((d) => {
           const list = byDay.get(d) ?? [];
           const day0 = dayStarts.get(d) ?? 0;
@@ -83,6 +86,8 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
             </button>
           );
         })}
+          </div>
+        </div>
       </div>
 
       {/* 各类合计 */}

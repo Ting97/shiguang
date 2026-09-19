@@ -99,7 +99,7 @@ export default function ProfilePage() {
     <main className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="text-gradient mb-1 text-2xl font-bold">个人设置</h1>
+        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">我的<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">个人设置</span></h1>
         <p className="mb-5 text-xs text-slate-500">个性化你的账号信息</p>
 
         {!me ? (

@@ -104,7 +104,7 @@ export default function LoginPage() {
           <p className="mt-1 text-xs text-slate-500">拾起光阴，记录今日 · {isRegister ? "凭邀请码注册" : "登录后继续"}</p>
         </div>
 
-        <div className="glass rounded-2xl p-6">
+        <div className="glass rounded-2xl p-5">
           {/* 登录方式切换（仅登录态） */}
           {!isRegister && (
             <div className="mb-4 flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">

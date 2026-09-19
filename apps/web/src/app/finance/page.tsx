@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Nav from "@/components/nav";
+import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
 import { TX_CATEGORIES, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
 
@@ -158,7 +159,7 @@ export default function FinancePage() {
       <main className="min-h-screen text-slate-100">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <Nav />
-          <p className="py-16 text-center text-xs text-slate-500">加载中…</p>
+          <Skeleton rows={3} className="py-2" />
         </div>
       </main>
     );
@@ -169,7 +170,7 @@ export default function FinancePage() {
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
         <header className="mb-6 text-center">
-          <h1 className="text-gradient text-4xl font-bold tracking-wide">
+          <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">财务</span>
           </h1>
           <p className="mt-2 text-xs text-slate-500">动态里说的钱都在这里 —— 确认草稿、管账户、看月度结构</p>
@@ -192,17 +193,7 @@ export default function FinancePage() {
           </div>
         </div>
 
-        {msg && (
-          <div
-            className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
-              msg.ok
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-300"
-            }`}
-          >
-            {msg.text}
-          </div>
-        )}
+        {msg && <div className={`msg-banner mb-4 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>}
 
         {/* 草稿提醒 */}
         {drafts.length > 0 && (
@@ -389,7 +380,7 @@ export default function FinancePage() {
             )}
             <ul className="space-y-2">
               {drafts.map((t) => (
-                <li key={t.id} className="force-actions group rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5">
+                <li key={t.id} className="force-actions group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5">
                   {confirming?.id === t.id ? (
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="text-slate-300">记入账户：</span>
@@ -446,7 +437,7 @@ export default function FinancePage() {
                   />
                 </li>
               ) : (
-                <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-800/60">
+                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-slate-800/60">
                   <TxRow tx={t} onEdit={() => setEditing(t)} onDelete={() => removeTx(t)} />
                 </li>
               ),
@@ -521,21 +512,26 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () 
   const compactDay = `${sameYear ? "" : `${String(d.getFullYear()).slice(2)}/`}${d.getMonth() + 1}/${d.getDate()}`;
   return (
     <>
+      {/* 上行：徽章 + 分类/对方/备注 + 金额；窄屏自动折行后下行是 日期+账户+操作 */}
       <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${t.direction === "out" ? "bg-rose-500/15 text-rose-300" : "bg-emerald-500/15 text-emerald-300"}`}>
         {t.direction === "out" ? "支" : "收"}
       </span>
       <span className="w-12 shrink-0 text-[11px] tabular-nums text-slate-500" title={zhDay(t.occurred_at)}>
         {compactDay}
       </span>
-      <span className="flex-1 truncate text-sm">
+      <span className="min-w-0 flex-1 truncate text-sm">
         {t.category}
         {t.counterparty && <span className="text-xs text-slate-500"> · {t.counterparty}</span>}
         {t.note && t.note !== t.category && <span className="text-xs text-slate-500"> · {t.note}</span>}
       </span>
-      {t.account_name && <span className="shrink-0 text-[11px] text-slate-500">{t.account_icon} {t.account_name}</span>}
       <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.direction === "out" ? "text-rose-300" : "text-emerald-300"}`}>
         {t.direction === "out" ? "-" : "+"}¥{yuan(t.amount_cents)}
       </span>
+      {t.account_name && (
+        <span className="row-secondary hidden shrink-0 items-center gap-1 text-[11px] text-slate-500 sm:flex">
+          {t.account_icon} {t.account_name}
+        </span>
+      )}
       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
         {onConfirm && (
           <button onClick={onConfirm} title="确认入账" className="rounded px-1.5 py-0.5 text-xs text-amber-300 hover:bg-slate-700">
@@ -862,14 +858,18 @@ function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel: () =>
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onClick={onClose}>
+    /* 移动端底部弹层（键盘不遮提交钮、拇指可达）；桌面居中卡片 */
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={onClose}
+    >
       <div
-        className="glass w-full max-w-md rounded-2xl p-5"
+        className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
-          <button onClick={onClose} className="rounded px-2 text-slate-500 hover:text-slate-200">✕</button>
+          <button onClick={onClose} className="rounded px-2 py-1 text-slate-500 hover:text-slate-200">✕</button>
         </div>
         {children}
       </div>
