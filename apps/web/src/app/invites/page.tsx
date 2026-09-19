@@ -93,7 +93,23 @@ export default function InvitesPage() {
   }
 
   async function copy(code: string) {
-    await navigator.clipboard.writeText(code);
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      // 剪贴板权限受限（窗口失焦/非安全上下文）→ 降级 execCommand；仍失败则提示手动复制
+      const ta = document.createElement("textarea");
+      ta.value = code;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      if (!ok) {
+        setMsg("❌ 复制失败，请手动选中邀请码复制");
+        return;
+      }
+    }
     setCopied(code);
     setTimeout(() => setCopied(null), 1500);
   }
