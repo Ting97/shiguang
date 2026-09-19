@@ -127,11 +127,15 @@ export function birthdayInfoOf(
   if (c.birthday_cal === "lunar" && c.lunar_month && c.lunar_day) {
     const b = { month: c.lunar_month, day: c.lunar_day, leap: !!c.lunar_leap };
     const next = nextLunarBirthdaySolar(b, today);
+    // 下一次生日可能落在明年（闰月回落/今年已过）：前缀区分「今年/明年」
+    const nextSolar = next
+      ? `${next.getFullYear() === today.getFullYear() ? "今年" : "明年"}${next.getMonth() + 1}月${next.getDate()}日`
+      : null;
     return {
       date: `农历${lunarBirthdayLabel(b)}`,
       countdown: lunarBirthdayCountdown(b, today),
       lunar: true,
-      nextSolar: next ? `${next.getMonth() + 1}月${next.getDate()}日` : null,
+      nextSolar,
     };
   }
   const m = String(c.birthday ?? "").match(/(\d{4})?-?(\d{2})-(\d{2})/);

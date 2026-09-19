@@ -166,7 +166,7 @@ export default function ContactDetailPage() {
                 {bd && (
                   <span>
                     🎂 生日 {bd.date}
-                    {bd.lunar && bd.nextSolar && <span className="text-ink-dim">（今年 {bd.nextSolar}）</span>}
+                    {bd.lunar && bd.nextSolar && <span className="text-ink-dim">（{bd.nextSolar}）</span>}
                     {bd.countdown != null && (
                       <span className="ml-1 text-ai">
                         · {bd.countdown === 0 ? "今天生日" : bd.countdown === 1 ? "明天生日" : `${bd.countdown} 天后生日`}
