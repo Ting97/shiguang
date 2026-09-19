@@ -84,7 +84,7 @@
   --elevated: #f1f5f9;
   --soft: #e2e8f0;
   --strong: #cbd5e1;
-  --scrim: #0f172a;
+  --scrim: #64748b; /* 浅色遮罩改中灰：bg-scrim/70 叠白玻璃不再发暗（深蓝 70% 会把弹层压暗） */
   --wash: rgba(15, 23, 42, 0.045);
 
   --ink: #0f172a;
