@@ -8,6 +8,7 @@ import MomentFeed from "@/components/moment-feed";
 import Reminders from "@/components/reminders";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
+import VoiceButton from "@/components/voice-button";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
 import type { Activity, Block, FeedMoment } from "@/lib/types";
 
@@ -458,8 +459,14 @@ export default function Home() {
             placeholder='记录此刻…（试试"刚跑完步40分钟，心情不错"、"有点累"、"明天下午三点看牙"）'
             className="input-glow w-full resize-none rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
           />
-          <div className="mt-2 flex items-center justify-end sm:justify-between">
-            <span className="hidden text-[11px] text-slate-600 sm:block">Enter 发布 · Shift+Enter 换行</span>
+          <div className="mt-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <VoiceButton
+                onText={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))}
+                onError={(m) => setMsg({ ok: false, text: m })}
+              />
+              <span className="hidden text-[11px] text-slate-600 sm:block">Enter 发布 · Shift+Enter 换行</span>
+            </div>
             <button
               onClick={submit}
               disabled={busy || !text.trim()}

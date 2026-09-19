@@ -115,3 +115,50 @@ export function extractJson(raw: string): unknown {
   if (start === -1) throw new Error("输出中无 JSON");
   return JSON.parse(body.slice(start));
 }
+
+/** ASR 模型名：优先 GLM_ASR_MODEL 环境变量，缺省 glm-asr */
+export function asrModel(): string {
+  return process.env.GLM_ASR_MODEL ?? "glm-asr";
+}
+
+export interface TranscribeOptions {
+  /** 音频二进制 */
+  data: Buffer;
+  /** 文件名（扩展名用于服务端识别格式，如 voice.webm / voice.wav / voice.mp3） */
+  filename: string;
+  /** MIME 类型（如 audio/webm） */
+  contentType?: string;
+  timeoutMs?: number;
+}
+
+/** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本 */
+export async function transcribeAudio(opts: TranscribeOptions): Promise<string> {
+  const key = process.env.ZHIPUAI_API_KEY;
+  if (!key) throw new Error("缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
+  const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
+  const form = new FormData();
+  form.append("model", asrModel());
+  form.append("file", new Blob([new Uint8Array(opts.data)], { type: opts.contentType ?? "audio/webm" }), opts.filename);
+
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 30_000);
+  try {
+    const res = await fetch(`${base}/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+      signal: ctl.signal,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error("GLM-ASR HTTP " + res.status + ": " + text.slice(0, 300));
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch { throw new Error("GLM-ASR 响应非 JSON：" + text.slice(0, 120)); }
+    return String(parsed.text ?? "").trim();
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") throw new Error("GLM-ASR 转写超时");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
