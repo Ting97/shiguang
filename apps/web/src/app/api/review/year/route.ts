@@ -98,7 +98,7 @@ export async function POST(req: Request) {
          (select max(created_at) from entries where user_id = $1 and extract(year from created_at) = $2::int),
          (select max(done_at) from todos where user_id = $1 and status = 'done' and extract(year from done_at) = $2::int),
          (select max(occurred_at) from transactions where user_id = $1 and extract(year from occurred_at) = $2::int),
-         (select max(start_at) from time_blocks where user_id = $1 and extract(year from start_at) = $2::int),
+         (select max(start_at) from time_blocks where user_id = $1 and extract(year from start_at) = $2::int and start_at <= now()),
          (select max(occurred_at) from interactions where user_id = $1 and extract(year from occurred_at) = $2::int)
        ) as latest`,
       [user.id, Number(year)],
