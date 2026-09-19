@@ -96,7 +96,21 @@ export async function POST(req: Request) {
   "suggestions": ["下周可改进的具体建议，最多2条，没有依据就空数组"]
 }`;
 
-  const { review, cached } = await getOrGenerateReview(user.id, "week", from, refresh === true, async () => {
+
+  const latest = (
+    await pool.query(
+      `select greatest(
+         (select max(created_at) from entries where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date),
+         (select max(done_at) from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date),
+         (select max(occurred_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date),
+         (select max(start_at) from time_blocks where user_id = $1 and (start_at at time zone $2)::date between $3::date and $4::date),
+         (select max(occurred_at) from interactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date)
+       ) as latest`,
+      [user.id, TZ, from, to],
+    )
+  ).rows[0].latest;
+
+  const { review, cached } = await getOrGenerateReview(user.id, "week", from, refresh === true, latest ? new Date(latest) : null, async () => {
     const raw = await chat({
       system,
       user: facts.join("\n"),
