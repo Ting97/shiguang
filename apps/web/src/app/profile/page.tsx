@@ -194,6 +194,26 @@ export default function ProfilePage() {
               </div>
               {msgPwd && <p className={`mt-3 text-xs ${msgPwd.ok ? "text-emerald-300" : "text-rose-300"}`}>{msgPwd.text}</p>}
             </section>
+
+            {/* 数据导出（docs/06 P8）：个人数据可携带 */}
+            <section className="glass rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-slate-300">📦 导出我的数据</h2>
+              <p className="mt-1 text-xs text-slate-500">全量备份包含动态、日程、待办、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
+              <div className="mt-3 flex gap-2">
+                <a
+                  href="/api/export?format=json"
+                  className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-sky-300 transition hover:bg-sky-500/20"
+                >
+                  全量备份 (JSON)
+                </a>
+                <a
+                  href="/api/export?format=md"
+                  className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-xs text-slate-300 transition hover:border-sky-500/50"
+                >
+                  动态日记 (Markdown)
+                </a>
+              </div>
+            </section>
           </>
         )}
       </div>
