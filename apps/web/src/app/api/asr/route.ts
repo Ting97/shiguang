@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { hasApiKey, transcribeAudio } from "@shiguangri/ai";
+import { hasApiKey, transcribeAudio, asrModel } from "@shiguangri/ai";
+import { writeAuditRecord } from "@/lib/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,11 +31,24 @@ export async function POST(req: Request) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
+    const startedAt = Date.now();
+    let usage = { prompt_tokens: 0, completion_tokens: 0 };
     const text = await transcribeAudio({
       data: buffer,
       filename: file.name || "voice.webm",
       contentType: file.type || "audio/webm",
       timeoutMs: 45_000,
+      onUsage: (u) => (usage = u),
+    });
+    void writeAuditRecord({
+      userId: user.id,
+      stage: "asr",
+      model: asrModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: text?.length ?? 0,
+      ok: Boolean(text),
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
     });
     if (!text) {
       return NextResponse.json({ error: "没有听清内容，请再试一次" }, { status: 422 });
@@ -42,6 +56,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ text });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    void writeAuditRecord({
+      userId: user.id,
+      stage: "asr",
+      model: asrModel(),
+      ok: false,
+      error: msg.slice(0, 300),
+    });
     // 429 多为资源包不足/限流：对用户友好化（管理员侧去智谱控制台买 GLM-ASR 资源包即可恢复）
     const friendly = msg.includes("429") || msg.includes("1113")
       ? "语音识别服务暂不可用（资源包不足或限流），请稍后重试或使用键盘输入"

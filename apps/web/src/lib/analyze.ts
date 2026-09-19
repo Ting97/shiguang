@@ -2,6 +2,7 @@ import { pool, findOverlap, overlapError } from "@/lib/db";
 import { parseInput } from "@shiguangri/ai";
 import { inferGroupFromContext, inferInteractionType } from "@/lib/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
+import { writeAuditRecord } from "@/lib/audit";
 
 /** 登记簿 upsert：每次识别写一行（entry+domain 唯一） */
 export async function recordRecognition(
@@ -47,18 +48,19 @@ async function writeAudit(
     completionTokens?: number;
   },
 ) {
-  try {
-    await pool.query(
-      `insert into audit_logs (user_id, entry_id, stage, model, engine, latency_ms, text_len, ok, error, prompt_tokens, completion_tokens)
-       values ($1,$2,'parse',$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [
-        userId, entryId, fields.model ?? "", fields.engine, fields.durationMs, fields.textLen,
-        fields.ok, fields.error ?? null, fields.promptTokens ?? 0, fields.completionTokens ?? 0,
-      ],
-    );
-  } catch (e) {
-    console.error("[audit] 写入失败:", e);
-  }
+  await writeAuditRecord({
+    userId,
+    entryId,
+    stage: "parse",
+    engine: fields.engine,
+    model: fields.model,
+    latencyMs: fields.durationMs,
+    textLen: fields.textLen,
+    ok: fields.ok,
+    error: fields.error,
+    promptTokens: fields.promptTokens,
+    completionTokens: fields.completionTokens,
+  });
 }
 
 /**

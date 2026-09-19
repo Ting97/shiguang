@@ -108,13 +108,14 @@ export async function POST(req: Request) {
     )
   ).rows[0].latest;
 
-  const { review, cached, generatedAt } = await getOrGenerateReview(user.id, "day", date, refresh === true, latest ? new Date(latest) : null, async () => {
+  const { review, cached, generatedAt } = await getOrGenerateReview(user.id, "day", date, refresh === true, latest ? new Date(latest) : null, async (capture) => {
     const raw = await chat({
       system,
       user: facts.join("\n"),
       temperature: 0.4,
       maxTokens: 500,
       timeoutMs: 45_000,
+      onUsage: capture,
     });
     const parsed = extractJson(raw) as Partial<DayReview>;
     const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 50)).filter(Boolean).slice(0, 3) : []);

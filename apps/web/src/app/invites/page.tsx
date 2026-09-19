@@ -11,11 +11,34 @@ interface Invite {
   created_at: string;
 }
 
+interface Usage {
+  calls: number;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+interface UsageSelf {
+  all: Usage;
+  d30: Usage;
+}
+
+interface UsageInvitee {
+  id: string;
+  nickname: string;
+  phoneTail: string | null;
+  createdAt: string;
+  all: Usage;
+  d30: Usage;
+}
+
 const zhDate = (iso: string | null) => {
   if (!iso) return "不限";
   const d = new Date(iso);
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 };
+
+const fmtTokens = (n: number) => (n >= 10_000 ? `${(n / 1000).toFixed(1)}k` : n.toLocaleString("zh-CN"));
+const fmtTotal = (u: Usage) => fmtTokens(u.promptTokens + u.completionTokens);
 
 export default function InvitesPage() {
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -24,6 +47,7 @@ export default function InvitesPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [usage, setUsage] = useState<{ self: UsageSelf; invitees: UsageInvitee[] } | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/auth/invites");
@@ -38,6 +62,10 @@ export default function InvitesPage() {
     const j = await r.json();
     setInvites(j.invites ?? []);
     setState("ok");
+    fetch("/api/tokens/usage")
+      .then((r2) => (r2.ok ? r2.json() : null))
+      .then((j2) => setUsage(j2 ? { self: j2.self, invitees: j2.invitees ?? [] } : null))
+      .catch(() => {});
   }, []);
   useEffect(() => {
     load();
@@ -95,6 +123,70 @@ export default function InvitesPage() {
 
         {state === "ok" && (
           <>
+            {/* Token 消耗（管理员视角：自己 + 被邀请人） */}
+            <section className="glass mb-5 rounded-2xl p-4">
+              <h2 className="text-sm font-semibold text-ink">
+                📊 Token 消耗
+                <span className="ml-2 text-[11px] font-normal text-ink-dim">识别 · 复盘 · 语音全阶段；GLM-5.3-flash 走资源包，语音按量计费</span>
+              </h2>
+
+              {!usage ? (
+                <p className="mt-3 text-xs text-ink-dim">消耗数据加载中…</p>
+              ) : (
+                <>
+                  {/* 我的消耗 */}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        ["全部累计", usage.self.all],
+                        ["近 30 天", usage.self.d30],
+                      ] as const
+                    ).map(([label, u]) => (
+                      <div key={label} className="rounded-xl border border-line-soft bg-elevated/60 px-3 py-2.5">
+                        <p className="text-[11px] text-ink-dim">
+                          我的消耗 · {label}
+                          <span className="ml-1 text-ink-faint">（{u.calls} 次调用）</span>
+                        </p>
+                        <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
+                          {fmtTotal(u)} <span className="text-xs font-normal text-ink-mute">tokens</span>
+                        </p>
+                        <p className="text-[10px] tabular-nums text-ink-faint">
+                          输入 {fmtTokens(u.promptTokens)} · 输出 {fmtTokens(u.completionTokens)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 被邀请人消耗 */}
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-[11px] text-ink-dim">被邀请人（{usage.invitees.length} 人）</p>
+                    {usage.invitees.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-line px-3 py-3 text-center text-[11px] text-ink-dim">
+                        还没有通过邀请码注册的用户
+                      </p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {usage.invitees.map((p) => (
+                          <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg px-2 py-1.5 text-xs hover:bg-wash">
+                            <span className="font-medium text-ink">
+                              {p.nickname}
+                              {p.phoneTail && <span className="ml-1 text-[10px] font-normal text-ink-faint">尾号 {p.phoneTail}</span>}
+                            </span>
+                            <span className="text-[10px] text-ink-faint">{zhDate(p.createdAt)} 加入</span>
+                            <span className="ml-auto tabular-nums text-ink-mute">
+                              近 30 天 <span className="tabular-nums text-ink">{fmtTotal(p.d30)}</span> · 累计{" "}
+                              <span className="tabular-nums text-ink">{fmtTotal(p.all)}</span>
+                              <span className="ml-1 text-[10px] text-ink-faint">tokens（{p.all.calls} 次）</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
+
             {/* 生成区 */}
             <div className="glass mb-5 flex flex-wrap items-center gap-3 rounded-2xl p-4">
               <label className="flex items-center gap-2 text-xs text-ink-mute">

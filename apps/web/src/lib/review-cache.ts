@@ -1,4 +1,6 @@
 import { pool } from "@/lib/db";
+import { activeModel } from "@shiguangri/ai";
+import { writeAuditRecord } from "@/lib/audit";
 
 export interface Review {
   summary: string;
@@ -10,6 +12,7 @@ export interface Review {
  * 复盘结果缓存：同一 (kind, period_key) 命中即秒回；refresh=true（用户点「重新生成」）时重调 LLM 并覆写。
  * latestDataAt：该周期内最新一条记录的时间——缓存生成后又有新记录则视为过期，自动重新生成。
  * 生成失败向上抛错由路由处理；缓存读写失败静默降级为直接生成。
+ * generate 接收 capture 回调（传给 glm.chat 的 onUsage），成功/失败均写 stage='review' 审计（token 成本监控）。
  */
 export async function getOrGenerateReview(
   userId: string,
@@ -17,7 +20,7 @@ export async function getOrGenerateReview(
   periodKey: string,
   refresh: boolean,
   latestDataAt: Date | null,
-  generate: () => Promise<Review>,
+  generate: (capture: (usage: { prompt_tokens: number; completion_tokens: number }) => void) => Promise<Review>,
 ): Promise<{ review: Review; cached: boolean; generatedAt: string }> {
   let cachedHit: Review | null = null;
   let cachedAt: Date | null = null;
@@ -40,7 +43,35 @@ export async function getOrGenerateReview(
     console.error("[review-cache] 读取失败:", e);
   }
 
-  const review = await generate();
+  const startedAt = Date.now();
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let review: Review;
+  try {
+    review = await generate((u) => {
+      promptTokens = u.prompt_tokens;
+      completionTokens = u.completion_tokens;
+    });
+  } catch (e) {
+    void writeAuditRecord({
+      userId,
+      stage: "review",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      ok: false,
+      error: String(e).slice(0, 300),
+    });
+    throw e;
+  }
+  void writeAuditRecord({
+    userId,
+    stage: "review",
+    model: activeModel(),
+    latencyMs: Date.now() - startedAt,
+    ok: true,
+    promptTokens,
+    completionTokens,
+  });
 
   try {
     await pool.query(

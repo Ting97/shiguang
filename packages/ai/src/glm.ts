@@ -137,6 +137,11 @@ export function asrModel(): string {
   return process.env.GLM_ASR_MODEL ?? "glm-asr-2512";
 }
 
+/** 当前生效的对话模型名（供审计记录 model 字段，与 chat() 的取值逻辑一致） */
+export function activeModel(): string {
+  return process.env.GLM_MODEL ?? DEFAULT_MODEL;
+}
+
 export interface TranscribeOptions {
   /** 音频二进制 */
   data: Buffer;
@@ -145,6 +150,8 @@ export interface TranscribeOptions {
   /** MIME 类型（如 audio/webm） */
   contentType?: string;
   timeoutMs?: number;
+  /** 成功响应后回调 token 用量（ASR 只计输出，prompt 恒 0），供审计/成本核算 */
+  onUsage?: (usage: ChatUsage) => void;
 }
 
 /** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本 */
@@ -169,6 +176,10 @@ export async function transcribeAudio(opts: TranscribeOptions): Promise<string> 
     if (!res.ok) throw new Error("GLM-ASR HTTP " + res.status + ": " + text.slice(0, 300));
     let parsed: any;
     try { parsed = JSON.parse(text); } catch { throw new Error("GLM-ASR 响应非 JSON：" + text.slice(0, 120)); }
+    // usage 字段各版本不一（tokens / completion_tokens / total_tokens）：有啥取啥，全部记入 completion（ASR 只计输出）
+    const u = parsed.usage;
+    const outTokens = Number(u?.completion_tokens ?? u?.tokens ?? u?.total_tokens ?? 0) || 0;
+    if (opts.onUsage) opts.onUsage({ prompt_tokens: 0, completion_tokens: outTokens });
     return String(parsed.text ?? "").trim();
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") throw new Error("GLM-ASR 转写超时");
