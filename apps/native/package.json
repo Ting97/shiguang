@@ -1,0 +1,17 @@
+{
+  "name": "@shiguangri/native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor 壳（iOS 为主；Android 走 apps/android 原生壳）",
+  "scripts": {
+    "cap:sync": "cap copy",
+    "cap:ios": "cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  }
+}
