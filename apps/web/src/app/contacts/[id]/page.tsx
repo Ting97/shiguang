@@ -174,7 +174,10 @@ export default function ContactDetailPage() {
                     )}
                   </span>
                 )}
-                {contact.anniversary && <span>💞 纪念日 {contact.anniversary.slice(5).replace("-", "月")}日</span>}
+                {contact.anniversary && (() => {
+                  const [, m, d] = contact.anniversary.split("-");
+                  return <span>💞 纪念日 {Number(m)}月{Number(d)}日</span>;
+                })()}
                 <span>📅 {timeline.length} 次往来</span>
                 {money.length > 0 && (
                   <span className="tabular-nums">

@@ -47,7 +47,11 @@ export default function ContactGraph({
     if (drag.current) return;
     const p = posOf(n);
     drag.current = { id: n.id, startClient: { x: e.clientX, y: e.clientY }, origin: p, moved: false };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    try {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      // 合成事件/pointerId 失效时捕获失败可忽略，不应阻断点击导航
+    }
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -73,7 +77,11 @@ export default function ContactGraph({
     const d = drag.current;
     drag.current = null;
     setDraggingId(null);
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
+    try {
+      (e.target as Element).releasePointerCapture?.(e.pointerId);
+    } catch {
+      // 同上：捕获释放失败不应阻断点击导航
+    }
     if (d && !d.moved) onOpen(n.id); // 未拖动 = 点击 → 进 TA 档案
   }
 
