@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 拾光：金色太阳十二星芒（108dp 自适应图标画布，内容控制在中心 66dp 安全区内） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group android:pivotX="54" android:pivotY="54" android:rotation="0">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="30">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="60">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="90">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="120">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="150">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="180">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="210">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="240">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="270">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="300">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="330">
+        <path android:fillColor="#F1C66B" android:pathData="M54,16 L58.2,36 L49.8,36 Z" />
+    </group>
+
+    <path
+        android:fillColor="#F5D08A"
+        android:pathData="M54,54 m-19,0 a19,19 0 1,1 38,0 a19,19 0 1,1 -38,0" />
+    <path
+        android:fillColor="#E8B453"
+        android:pathData="M54,54 m-13,0 a13,13 0 1,1 26,0 a13,13 0 1,1 -26,0" />
+</vector>
