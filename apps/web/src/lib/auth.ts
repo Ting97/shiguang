@@ -5,7 +5,8 @@
  */
 import { cookies, headers } from "next/headers";
 import { pool, DEV_USER_ID } from "./db";
-import { generateSessionToken, hashToken, extractBearerToken } from "./auth-crypto";
+import { generateSessionToken, hashToken } from "./auth-crypto";
+import { extractBearerToken } from "./bearer";
 
 export const SESSION_COOKIE = "shiguang_session";
 const SESSION_TTL_MS = 30 * 86_400_000; // 30 天

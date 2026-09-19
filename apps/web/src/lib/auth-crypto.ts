@@ -35,16 +35,6 @@ export function generateSessionToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-/**
- * 解析 Authorization 头中的 Bearer 会话 token（原生端认证通道）。
- * 仅接受 `Bearer <64位hex>`（generateSessionToken 的形态），其余返回 null。
- */
-export function extractBearerToken(header: string | null | undefined): string | null {
-  if (!header) return null;
-  const m = /^Bearer\s+([0-9a-fA-F]{64})$/i.exec(header.trim());
-  return m ? m[1].toLowerCase() : null;
-}
-
 /** token/验证码入库前的 sha256 */
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");

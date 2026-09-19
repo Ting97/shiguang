@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractBearerToken } from "@/lib/auth-crypto";
+import { extractBearerToken } from "@/lib/bearer";
 import { resolveCors } from "@/lib/cors";
 
 /**
