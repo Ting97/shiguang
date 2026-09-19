@@ -156,8 +156,16 @@ export default function CalendarPage() {
   // range API 已按「区间与当天有交集」返回：跨天块（如昨晚→今早的睡眠）也要显示/统计，
   // 不能再按 start_at 的日期过滤（会把凌晨占用段筛没，导致"看得见的冲突缺口"）
   const dayBlocks = blocks;
+  // 统计口径与月/年视图统一（stats/range 的交集钳制）：跨天块只计落在当天的部分
+  const dayStartMs = new Date(`${anchor}T00:00:00`).getTime();
+  const dayEndMs = dayStartMs + 86_400_000;
+  const dayClampedMin = (b: { start_at: string; end_at: string }) => {
+    const s = new Date(b.start_at).getTime();
+    const e = new Date(b.end_at).getTime();
+    return Math.max(0, Math.round((Math.min(e, dayEndMs) - Math.max(s, dayStartMs)) / 60_000));
+  };
   const dayStat: Record<string, number> = {};
-  for (const b of dayBlocks) dayStat[b.activity_id] = (dayStat[b.activity_id] ?? 0) + b.duration_min;
+  for (const b of dayBlocks) dayStat[b.activity_id] = (dayStat[b.activity_id] ?? 0) + dayClampedMin(b);
   const weekDays = useMemo(() => {
     const from = startOfWeek(anchor);
     return Array.from({ length: 7 }, (_, i) => addDays(from, i));
@@ -210,7 +218,7 @@ export default function CalendarPage() {
               <h2 className="mb-3 text-sm font-semibold text-ink-soft">当日结构</h2>
               <DayDonut byActivity={dayStat} activities={activities} size={100} thickness={12} />
               <div className="mt-4 border-t border-line-soft pt-3 text-xs text-ink-dim">
-                共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + b.duration_min, 0))}
+                共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + dayClampedMin(b), 0))}
               </div>
               <DayReviewCard date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />
             </aside>
