@@ -4,7 +4,7 @@
  */
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
-const DEFAULT_MODEL = "glm-4.7-flash";
+const DEFAULT_MODEL = "glm-5.3-flashx";
 
 export function hasApiKey(): boolean {
   return Boolean(process.env.ZHIPUAI_API_KEY);
@@ -25,6 +25,8 @@ interface ChatOptions {
   thinking?: boolean;
   /** 成功响应后回调 token 用量（重试时以最后一次为准），供审计/成本核算 */
   onUsage?: (usage: ChatUsage) => void;
+  /** 思考强度（仅 GLM-5.3 系列生效，仅支持 low/high/max）；解析类任务默认 low */
+  reasoningEffort?: "low" | "high" | "max";
 }
 
 /** 单轮对话，返回文本内容。timeoutMs 是所有重试的总预算（默认 30s）；429/5xx/超时/网络异常均重试；429 耗尽后降级 GLM_FALLBACK_MODEL */
@@ -45,7 +47,16 @@ export async function chat(opts: ChatOptions): Promise<string> {
   };
   // thinking 字段是智谱扩展：只发给智谱端点，避免换 OpenAI 兼容端点时报未知字段
   if (base.includes("bigmodel.cn")) {
-    body.thinking = { type: opts.thinking ? "enabled" : "disabled" };
+    if (/glm-5\./i.test(model)) {
+      // GLM-5.3 系列始终思考：不支持 thinking.type=disabled（报 1210）。
+      // 官方迁移方案 = thinking enabled + reasoning_effort 控制思考强度（解析类任务用 low）；
+      // 思考会占用输出 token，默认上限提升到 4096 防止 content 被截断。
+      body.thinking = { type: "enabled" };
+      body.reasoning_effort = opts.reasoningEffort ?? "low";
+      if (!opts.maxTokens) body.max_tokens = 4096;
+    } else {
+      body.thinking = { type: opts.thinking ? "enabled" : "disabled" };
+    }
   }
 
   // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）
@@ -73,7 +84,12 @@ export async function chat(opts: ChatOptions): Promise<string> {
               completion_tokens: Number(u.completion_tokens ?? 0),
             });
           }
-          return json.choices?.[0]?.message?.content ?? "";
+          const content = String(json.choices?.[0]?.message?.content ?? "");
+          if (content) return content;
+          // 思考模型兜底：max_tokens 被思考耗尽时 content 可能为空，思考文本里通常已有答案 JSON
+          const reasoning = String(json.choices?.[0]?.message?.reasoning_content ?? "");
+          if (reasoning) return reasoning;
+          return "";
         }
         lastErr = new Error(`GLM(${m}) HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
         if (res.status !== 429 && res.status < 500) throw lastErr; // 参数/鉴权错误重试无意义

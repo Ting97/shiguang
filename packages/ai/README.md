@@ -20,4 +20,4 @@ npm run poc:live  # GLM 实测（根目录 .env 配 ZHIPUAI_API_KEY）
 ```
 
 ## 环境变量
-见根目录 `.env.example`。模型默认 glm-4.7-flash（免费档，混合思考模型——抽取调用已默认关闭思考），可用 GLM_MODEL 覆盖；免费档晚高峰偶发限流(429)，客户端内置指数退避重试 + 自动降级 GLM_FALLBACK_MODEL（默认 glm-4-flash）。
+见根目录 `.env.example`。模型默认 glm-5.3-flashx（GLM-5.3 系列始终思考：不支持 thinking=disabled，客户端自动改发 thinking=enabled + reasoning_effort=low 并提升 max_tokens），可用 GLM_MODEL 覆盖；免费档晚高峰偶发限流(429)，客户端内置指数退避重试 + 自动降级 GLM_FALLBACK_MODEL（默认 glm-4-flash）。
