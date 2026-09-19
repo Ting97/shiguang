@@ -16,6 +16,10 @@ interface Contact {
   alias: string | null;
   group_tag: string;
   birthday: string | null;
+  birthday_cal: string | null;
+  lunar_month: number | null;
+  lunar_day: number | null;
+  lunar_leap: boolean | null;
   anniversary: string | null;
   intimacy: number;
   importance: number;
@@ -192,7 +196,7 @@ export default function ContactsPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {filtered.map((c) => {
-              const bd = birthdayLabel(c.birthday);
+              const bd = birthdayLabel(c);
               return (
                 <Link
                   key={c.id}

@@ -3,12 +3,12 @@
  * 数据源：contacts.birthday / contacts.anniversary（复用 social 的生日倒计时逻辑）+ todos.remind_at
  * 短信等主动消息依赖 SMS 通道，Phase 4 再接（docs/10 §2）
  */
-import { birthdayCountdown } from "./social";
+import { birthdayCountdown, birthdayCountdownOf, type BirthdayFields } from "./social";
 
-export interface ReminderContact {
+export interface ReminderContact extends BirthdayFields {
   id: string;
   name: string;
-  birthday: string | null; // YYYY-MM-DD（SQL 里 to_char，防 pg date 时区偏移）
+  birthday: string | null; // YYYY-MM-DD（SQL 里 to_char，防 pg date 时区偏移）；农历生日时为空
   anniversary: string | null; // YYYY-MM-DD
 }
 
@@ -42,7 +42,7 @@ export function pickReminders(
   const items: ReminderItem[] = [];
 
   for (const c of contacts) {
-    const bd = birthdayCountdown(c.birthday, now);
+    const bd = birthdayCountdownOf(c, now);
     if (bd !== null && bd <= windowDays) {
       items.push({
         key: `bd-${c.id}`,

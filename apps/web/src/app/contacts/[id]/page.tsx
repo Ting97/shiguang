@@ -7,7 +7,7 @@ import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import { api } from "@/lib/client-api";
-import { GROUP_EMOJI, TYPE_EMOJI, birthdayLabel, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
+import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
 
 interface Contact {
   id: string;
@@ -15,6 +15,10 @@ interface Contact {
   alias: string | null;
   group_tag: string;
   birthday: string | null;
+  birthday_cal: string | null;
+  lunar_month: number | null;
+  lunar_day: number | null;
+  lunar_leap: boolean | null;
   anniversary: string | null;
   intimacy: number;
   importance: number;
@@ -120,7 +124,7 @@ export default function ContactDetailPage() {
     );
   }
 
-  const bd = birthdayLabel(contact.birthday);
+  const bd = birthdayInfoOf(contact);
   const giftIn = money.filter((m) => m.direction === "in").reduce((s, m) => s + m.amount_cents, 0);
   const giftOut = money.filter((m) => m.direction === "out").reduce((s, m) => s + m.amount_cents, 0);
 
@@ -162,7 +166,12 @@ export default function ContactDetailPage() {
                 {bd && (
                   <span>
                     🎂 生日 {bd.date}
-                    {bd.countdown && <span className="ml-1 text-pink-300">· {bd.countdown}</span>}
+                    {bd.lunar && bd.nextSolar && <span className="text-slate-500">（今年 {bd.nextSolar}）</span>}
+                    {bd.countdown != null && (
+                      <span className="ml-1 text-pink-300">
+                        · {bd.countdown === 0 ? "今天生日" : bd.countdown === 1 ? "明天生日" : `${bd.countdown} 天后生日`}
+                      </span>
+                    )}
                   </span>
                 )}
                 {contact.anniversary && <span>💞 纪念日 {contact.anniversary.slice(5).replace("-", "月")}日</span>}

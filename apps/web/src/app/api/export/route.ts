@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       [user.id, TZ],
     ),
     pool.query(
-      `select name, alias, group_tag, birthday, anniversary, importance, intimacy, notes
+      `select name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, intimacy, notes
        from contacts where user_id = $1 order by created_at`,
       [user.id],
     ),

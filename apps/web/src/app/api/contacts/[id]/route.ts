@@ -16,6 +16,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     await pool.query(
       `select id, name, alias, group_tag,
               to_char(birthday, 'YYYY-MM-DD') as birthday,
+              birthday_cal, lunar_month, lunar_day, lunar_leap,
               to_char(anniversary, 'YYYY-MM-DD') as anniversary,
               intimacy, importance, notes, created_at, ai_profile, to_char(ai_profile_at, 'YYYY-MM-DD HH24:MI') as ai_profile_at
        from contacts where id = $1 and user_id = $2`,
@@ -65,6 +66,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     alias?: string | null;
     group?: string;
     birthday?: string | null;
+    birthdayCal?: "solar" | "lunar";
+    lunarMonth?: number;
+    lunarDay?: number;
+    lunarLeap?: boolean;
     anniversary?: string | null;
     intimacy?: number;
     importance?: number;
@@ -86,7 +91,35 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     sets.push(`group_tag = $${vals.length}`);
   }
   const date = (v?: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
-  if (body.birthday !== undefined) {
+  // 生日历法整体切换：农历存 lunar_*（birthday 置空）、阳历存 birthday（lunar_* 清空）
+  if (body.birthdayCal !== undefined) {
+    const isLunar = body.birthdayCal === "lunar";
+    if (isLunar) {
+      const lm = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(body.lunarMonth as number) ? (body.lunarMonth as number) : null;
+      const ld = body.lunarDay != null && body.lunarDay >= 1 && body.lunarDay <= 30 ? (body.lunarDay as number) : null;
+      if (!lm || !ld) return NextResponse.json({ error: "农历生日需选择月和日" }, { status: 400 });
+      vals.push("lunar");
+      sets.push(`birthday_cal = $${vals.length}`);
+      vals.push(lm);
+      sets.push(`lunar_month = $${vals.length}`);
+      vals.push(ld);
+      sets.push(`lunar_day = $${vals.length}`);
+      vals.push(!!body.lunarLeap);
+      sets.push(`lunar_leap = $${vals.length}`);
+      vals.push(null);
+      sets.push(`birthday = $${vals.length}`);
+    } else {
+      vals.push("solar");
+      sets.push(`birthday_cal = $${vals.length}`);
+      vals.push(null);
+      sets.push(`lunar_month = $${vals.length}`);
+      vals.push(null);
+      sets.push(`lunar_day = $${vals.length}`);
+      vals.push(false);
+      sets.push(`lunar_leap = $${vals.length}`);
+    }
+  }
+  if (body.birthday !== undefined && body.birthdayCal !== "lunar") {
     vals.push(date(body.birthday));
     sets.push(`birthday = $${vals.length}`);
   }
@@ -118,8 +151,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   try {
     const updated = (
       await pool.query(
-        `update contacts set ${sets.join(", ")}
-         where id = $${vals.length - 1} and user_id = $${vals.length} returning *`,
+        `with upd as (
+           update contacts set ${sets.join(", ")}
+           where id = $${vals.length - 1} and user_id = $${vals.length}
+           returning *
+         )
+         select upd.*, to_char(upd.birthday, 'YYYY-MM-DD') as birthday,
+                to_char(upd.anniversary, 'YYYY-MM-DD') as anniversary
+         from upd`,
         vals,
       )
     ).rows[0];

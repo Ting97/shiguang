@@ -14,6 +14,7 @@ export async function GET() {
   const { rows } = await pool.query(
     `select c.id, c.name, c.alias, c.group_tag,
             to_char(c.birthday, 'YYYY-MM-DD') as birthday,
+            c.birthday_cal, c.lunar_month, c.lunar_day, c.lunar_leap,
             to_char(c.anniversary, 'YYYY-MM-DD') as anniversary,
             c.intimacy, c.importance, c.notes, c.created_at,
             (select count(*) from interactions i where i.contact_id = c.id) as interaction_count,
@@ -42,6 +43,10 @@ export async function POST(req: Request) {
     alias?: string | null;
     group?: string;
     birthday?: string | null;
+    birthdayCal?: "solar" | "lunar";
+    lunarMonth?: number;
+    lunarDay?: number;
+    lunarLeap?: boolean;
     anniversary?: string | null;
     importance?: number;
     notes?: string | null;
@@ -54,12 +59,40 @@ export async function POST(req: Request) {
   const importance = [1, 2, 3, 4, 5].includes(body.importance as number) ? (body.importance as number) : 3;
   const date = (v?: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
+  // 生日历法：农历存 lunar_*（birthday 置空），阳历存 birthday
+  const isLunar = body.birthdayCal === "lunar";
+  const lunarMonth = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(body.lunarMonth as number) ? (body.lunarMonth as number) : null;
+  const lunarDay = body.lunarDay != null && body.lunarDay >= 1 && body.lunarDay <= 30 ? (body.lunarDay as number) : null;
+  if (isLunar && (!lunarMonth || !lunarDay)) {
+    return NextResponse.json({ error: "农历生日需选择月和日" }, { status: 400 });
+  }
+
   try {
+    // with ins 返回：birthday/anniversary 用 to_char 转字符串，防 pg date 被序列化成 UTC ISO 退一天
     const created = (
       await pool.query(
-        `insert into contacts (user_id, name, alias, group_tag, birthday, anniversary, importance, notes)
-         values ($1, $2, $3, $4, $5, $6, $7, $8) returning *`,
-        [user.id, name, body.alias?.trim() || null, group, date(body.birthday), date(body.anniversary), importance, body.notes?.trim() || null],
+        `with ins as (
+           insert into contacts (user_id, name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, notes)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           returning *
+         )
+         select ins.*, to_char(ins.birthday, 'YYYY-MM-DD') as birthday,
+                to_char(ins.anniversary, 'YYYY-MM-DD') as anniversary
+         from ins`,
+        [
+          user.id,
+          name,
+          body.alias?.trim() || null,
+          group,
+          isLunar ? null : date(body.birthday),
+          isLunar ? "lunar" : "solar",
+          isLunar ? lunarMonth : null,
+          isLunar ? lunarDay : null,
+          isLunar ? !!body.lunarLeap : false,
+          date(body.anniversary),
+          importance,
+          body.notes?.trim() || null,
+        ],
       )
     ).rows[0];
     return NextResponse.json({ contact: created });

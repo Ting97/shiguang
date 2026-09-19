@@ -68,8 +68,35 @@ test("生日倒计时：今年未到/已过/今天", () => {
 
 test("生日展示文案：今天/明天/N 天后", () => {
   const today = new Date(2026, 8, 18);
-  assert.deepEqual(birthdayLabel("1995-10-02", today), { date: "10月2日", countdown: "14 天后生日" });
-  assert.deepEqual(birthdayLabel("1995-09-18", today), { date: "9月18日", countdown: "🎂 今天生日" });
-  assert.deepEqual(birthdayLabel("1995-09-19", today), { date: "9月19日", countdown: "明天生日" });
-  assert.equal(birthdayLabel(null, today), null);
+  assert.deepEqual(birthdayLabel({ birthday: "1995-10-02" }, today), { date: "10月2日", countdown: "14 天后生日" });
+  assert.deepEqual(birthdayLabel({ birthday: "1995-09-18" }, today), { date: "9月18日", countdown: "🎂 今天生日" });
+  assert.deepEqual(birthdayLabel({ birthday: "1995-09-19" }, today), { date: "9月19日", countdown: "明天生日" });
+  assert.equal(birthdayLabel({ birthday: null }, today), null);
+});
+
+test("农历生日：换算/倒计时/闰月回落", async () => {
+  const { lunarBirthdayLabel, lunarBirthdayCountdown, nextLunarBirthdaySolar } = await import("../src/lib/lunar.ts");
+  // 2025 农历六月初三 = 公历 2025-06-27（实测 solarlunar）
+  const today1 = new Date(2025, 5, 20); // 2025-06-20
+  const b = { month: 6, day: 3, leap: false };
+  assert.equal(lunarBirthdayLabel(b), "六月初三");
+  assert.equal(nextLunarBirthdaySolar(b, today1)?.toDateString(), new Date(2025, 5, 27).toDateString());
+  assert.equal(lunarBirthdayCountdown(b, today1), 7);
+  // 已过 → 明年（2026 农历六月初三 = 2026-07-16）
+  const today2 = new Date(2025, 6, 1); // 2025-07-01
+  assert.equal(nextLunarBirthdaySolar(b, today2)?.toDateString(), new Date(2026, 6, 16).toDateString());
+  // 闰六月生日：2025 有闰六月（闰六月初三 = 2025-07-27）；2026 无闰六月 → 回落平月
+  const leapB = { month: 6, day: 3, leap: true };
+  assert.equal(lunarBirthdayLabel(leapB), "闰六月初三");
+  const today3 = new Date(2025, 6, 1); // 2025-07-01（平月初三已过）
+  assert.equal(nextLunarBirthdaySolar(leapB, today3)?.toDateString(), new Date(2025, 6, 27).toDateString()); // 闰六月
+  const today4 = new Date(2025, 7, 1); // 2025-08-01（今年闰六月也已过）
+  assert.equal(nextLunarBirthdaySolar(leapB, today4)?.toDateString(), new Date(2026, 6, 16).toDateString()); // 2026 无闰 → 平月六月初三（2026-07-16）
+  // 三十生日在小月按当月最后一天过：2025 腊月是小月（三十不存在）→ 廿九 = 2026-02-16（除夕）
+  const b30 = { month: 12, day: 30, leap: false };
+  const today5 = new Date(2025, 11, 1); // 2025-12-01
+  assert.equal(nextLunarBirthdaySolar(b30, today5)?.toDateString(), new Date(2026, 1, 16).toDateString());
+  // 统一入口（阳历/农历自动区分）：date 带「农历」前缀，countdown 走农历换算
+  const uni = birthdayLabel({ birthday_cal: "lunar", lunar_month: 6, lunar_day: 3 }, today1);
+  assert.deepEqual(uni, { date: "农历六月初三", countdown: "7 天后生日" });
 });

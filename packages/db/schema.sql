@@ -183,6 +183,10 @@ create table if not exists public.contacts (
   alias       text,                                 -- "老王" 的本名等
   group_tag   text not null default '朋友',          -- 家人/朋友/同事/客户...
   birthday    date,
+  birthday_cal text not null default 'solar' check (birthday_cal in ('solar', 'lunar')), -- 生日历法：solar=阳历（birthday） lunar=农历（lunar_*）
+  lunar_month smallint check (lunar_month between 1 and 12), -- 农历月（birthday_cal='lunar' 时生效）
+  lunar_day   smallint check (lunar_day between 1 and 30),   -- 农历日
+  lunar_leap  boolean not null default false,                 -- 是否闰月生日
   intimacy    int not null default 50,              -- 亲密度 0~100（互动热度，自动累积）
   importance  smallint not null default 3 check (importance between 1 and 5), -- 重要程度五档：5=亲密 4=重要 3=普通 2=一般 1=简单（手动设定，决定图谱距离）
   notes       text,

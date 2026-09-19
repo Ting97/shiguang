@@ -18,9 +18,12 @@ export async function GET() {
   const { rows: contacts } = await pool.query(
     `select id, name,
             to_char(birthday, 'YYYY-MM-DD') as birthday,
+            birthday_cal, lunar_month, lunar_day, lunar_leap,
             to_char(anniversary, 'YYYY-MM-DD') as anniversary
      from contacts
-     where user_id = $1 and (birthday is not null or anniversary is not null)`,
+     where user_id = $1
+       and (birthday is not null or anniversary is not null
+            or (birthday_cal = 'lunar' and lunar_month is not null and lunar_day is not null))`,
     [user.id],
   );
   const { rows: todos } = await pool.query(
