@@ -43,3 +43,8 @@ apps/web/out/
 # 发布产物（白名单入库）
 !apps/artifacts/
 !apps/artifacts/*.apk
+
+# Expo 原生工程（prebuild 产物不入库，EAS 云构建）
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.expo/

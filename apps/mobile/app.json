@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "拾光复利",
+    "slug": "shiguangri",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "shiguang",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#020617",
+    "ios": {
+      "bundleIdentifier": "cn.ting97.shiguang",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "语音记账需要使用麦克风录制您的语音，录音仅用于识别生成记账文字。"
+      }
+    },
+    "android": {
+      "package": "cn.ting97.shiguang",
+      "permissions": ["RECORD_AUDIO"],
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1526"
+      }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}
