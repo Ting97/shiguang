@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
+import { getOrGenerateReview } from "@/lib/review-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ interface MonthReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { month } = (await req.json().catch(() => ({}))) as { month?: string };
+  const { month, refresh } = (await req.json().catch(() => ({}))) as { month?: string; refresh?: boolean };
   if (!month || !DATE_RE.test(month)) {
     return NextResponse.json({ error: "month 需为 YYYY-MM" }, { status: 400 });
   }
@@ -92,8 +93,7 @@ export async function POST(req: Request) {
   "suggestions": ["下个月可改进的具体建议，最多2条，没有依据就空数组"]
 }`;
 
-  let review: MonthReview;
-  try {
+  const { review, cached } = await getOrGenerateReview(user.id, "month", month, refresh === true, async () => {
     const raw = await chat({
       system,
       user: facts.join("\n"),
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     });
     const parsed = extractJson(raw) as Partial<MonthReview>;
     const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 50)).filter(Boolean).slice(0, 3) : []);
-    review = {
+    return {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
           ? parsed.summary.trim().slice(0, 90)
@@ -111,9 +111,7 @@ export async function POST(req: Request) {
       highlights: arr(parsed.highlights),
       suggestions: arr(parsed.suggestions),
     };
-  } catch (e) {
-    return NextResponse.json({ error: `AI 月报生成失败：${e instanceof Error ? e.message : e}` }, { status: 502 });
-  }
+  });
 
-  return NextResponse.json({ review, range: { from, to } });
+  return NextResponse.json({ review, cached, range: { from, to } });
 }

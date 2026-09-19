@@ -19,7 +19,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
       const r = await fetch("/api/review/year", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year }),
+        body: JSON.stringify({ year, refresh: review != null }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");

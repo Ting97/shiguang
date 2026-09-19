@@ -19,7 +19,7 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
       const r = await fetch("/api/review/month", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month }),
+        body: JSON.stringify({ month, refresh: review != null }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");

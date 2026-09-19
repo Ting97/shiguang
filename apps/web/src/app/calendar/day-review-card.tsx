@@ -18,7 +18,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
       const r = await fetch("/api/review/day", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date }),
+        body: JSON.stringify({ date, refresh: review != null }), // 已有结果时点「重新生成」才强制刷新
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");

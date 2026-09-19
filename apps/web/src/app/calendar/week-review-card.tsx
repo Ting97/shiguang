@@ -19,7 +19,7 @@ export default function WeekReviewCard({ weekStart, weekEnd, hasRecords, notify 
       const r = await fetch("/api/review/week", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: weekStart }),
+        body: JSON.stringify({ date: weekStart, refresh: review != null }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");

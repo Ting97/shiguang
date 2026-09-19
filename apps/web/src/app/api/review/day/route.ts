@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
+import { getOrGenerateReview } from "@/lib/review-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ interface DayReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { date } = (await req.json().catch(() => ({}))) as { date?: string };
+  const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
   if (!date || !DATE_RE.test(date)) {
     return NextResponse.json({ error: "date 需为 YYYY-MM-DD" }, { status: 400 });
   }
@@ -93,8 +94,7 @@ export async function POST(req: Request) {
   "suggestions": ["明天可改进的具体建议，最多2条，没有依据就空数组"]
 }`;
 
-  let review: DayReview;
-  try {
+  const { review, cached } = await getOrGenerateReview(user.id, "day", date, refresh === true, async () => {
     const raw = await chat({
       system,
       user: facts.join("\n"),
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     });
     const parsed = extractJson(raw) as Partial<DayReview>;
     const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 50)).filter(Boolean).slice(0, 3) : []);
-    review = {
+    return {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
           ? parsed.summary.trim().slice(0, 80)
@@ -112,9 +112,7 @@ export async function POST(req: Request) {
       highlights: arr(parsed.highlights),
       suggestions: arr(parsed.suggestions),
     };
-  } catch (e) {
-    return NextResponse.json({ error: `AI 小结生成失败：${e instanceof Error ? e.message : e}` }, { status: 502 });
-  }
+  });
 
-  return NextResponse.json({ review, facts: { timeParts, todoDone: todoRows.rows[0].n } });
+  return NextResponse.json({ review, cached, facts: { timeParts, todoDone: todoRows.rows[0].n } });
 }
