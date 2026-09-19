@@ -56,9 +56,10 @@ export default function VoiceButton({ onText, onError }: { onText: (text: string
       return;
     }
     try {
-      const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+      // GLM-ASR 不收 webm/opus：统一解码重采样为 16kHz 单声道 WAV 上传
+      const wav = await blobToWav16k(blob);
       const form = new FormData();
-      form.append("file", blob, `voice.${ext}`);
+      form.append("file", wav, "voice.wav");
       const r = await fetch("/api/asr", { method: "POST", body: form });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error ?? `识别失败(${r.status})`);
@@ -95,4 +96,48 @@ export default function VoiceButton({ onText, onError }: { onText: (text: string
       {label}
     </button>
   );
+}
+
+/** 录音 blob → 解码 → 线性重采样 16kHz 单声道 → PCM16 WAV（GLM-ASR 不收 webm/opus，wav 全平台支持） */
+async function blobToWav16k(blob: Blob): Promise<Blob> {
+  const ab = await blob.arrayBuffer();
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new Ctx();
+  const audio = await ctx.decodeAudioData(ab);
+  const targetRate = 16000;
+  const channels = audio.numberOfChannels;
+  const srcLen = audio.length;
+  const outLen = Math.ceil((srcLen * targetRate) / audio.sampleRate);
+  const mono = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const src = Math.min(Math.floor((i * audio.sampleRate) / targetRate), srcLen - 1);
+    let sum = 0;
+    for (let c = 0; c < channels; c++) sum += audio.getChannelData(c)[src] ?? 0;
+    mono[i] = sum / channels;
+  }
+  await ctx.close();
+
+  const pcm = new ArrayBuffer(44 + outLen * 2);
+  const view = new DataView(pcm);
+  const writeStr = (off: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + outLen * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, targetRate, true);
+  view.setUint32(28, targetRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, outLen * 2, true);
+  for (let i = 0; i < outLen; i++) {
+    const v = Math.max(-1, Math.min(1, mono[i]));
+    view.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+  }
+  return new Blob([pcm], { type: "audio/wav" });
 }

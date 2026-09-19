@@ -118,7 +118,7 @@ export function extractJson(raw: string): unknown {
 
 /** ASR 模型名：优先 GLM_ASR_MODEL 环境变量，缺省 glm-asr */
 export function asrModel(): string {
-  return process.env.GLM_ASR_MODEL ?? "glm-asr";
+  return process.env.GLM_ASR_MODEL ?? "glm-asr-2512";
 }
 
 export interface TranscribeOptions {
