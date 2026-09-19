@@ -519,7 +519,6 @@ export default function Home() {
             moments={moments}
             activities={activities}
             onRefresh={load}
-            notify={(ok, text) => setMsg({ ok, text })}
             moreCount={Math.max(0, feedTotal - moments.length)}
             loadingMore={loadingMore}
             onLoadMore={loadMore}

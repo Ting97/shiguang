@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
@@ -83,7 +83,6 @@ interface Props {
   moments: FeedMoment[];
   activities: Activity[];
   onRefresh: () => Promise<void>;
-  notify: (ok: boolean, text: string) => void;
   /** 还有多少条未展示（>0 显示「加载更多」按钮） */
   moreCount?: number;
   loadingMore?: boolean;
@@ -125,11 +124,13 @@ function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "删除"
 }
 
 /** 单条动态卡片：原文 + 心情 + AI 识别产物（日程/待办/金额/人物，均可修改/删除） */
-function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMoment }) {
+function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const [confirming, setConfirming] = useState(false);
   const [moodPicker, setMoodPicker] = useState(false);
   const [busyDomain, setBusyDomain] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // 卡内操作反馈：识别/手动添加/编辑/删除的成功失败都显示在当前卡片内（顶部横幅在长页面上看不见）
+  const [cardMsg, setCardMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 低置信待确认域（识别登记簿 pending）
   const pendingDomains = (Object.entries(m.recognitions ?? {}) as [string, { status: string; confidence: number }][])
     .filter(([, v]) => v.status === "pending")
@@ -148,12 +149,19 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
           ? { icon: "✨", label: "心情" }
           : { icon: "📝", label: "动态" };
 
+  // 卡内消息自动消失：成功 3.5s / 失败 8s（失败停留更久方便看清原因）
+  useEffect(() => {
+    if (!cardMsg) return;
+    const t = setTimeout(() => setCardMsg(null), cardMsg.ok ? 3500 : 8000);
+    return () => clearTimeout(t);
+  }, [cardMsg]);
+
   const run = async (fn: () => Promise<string>) => {
     try {
-      notify(true, await fn());
+      setCardMsg({ ok: true, text: await fn() });
       await onRefresh();
     } catch (e) {
-      notify(false, e instanceof Error ? e.message : String(e));
+      setCardMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -173,10 +181,10 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
   const manualAdd = async (domain: string, payload: Record<string, unknown>) => {
     try {
       const j = await api(`/api/entries/${m.id}/manual`, "POST", { domain, payload });
-      notify(true, j.message ?? "已添加");
+      setCardMsg({ ok: true, text: j.message ?? "已添加" });
       await onRefresh();
     } catch (e) {
-      notify(false, e instanceof Error ? e.message : String(e));
+      setCardMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
       throw e;
     }
   };
@@ -604,6 +612,16 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
           <p className="mt-2 border-t border-line-soft/60 pt-2 text-[10px] text-ink-faint">
             点击动态内容 → 打开识别菜单（AI 识别 / 手动补充六类信息）
           </p>
+        )}
+
+        {/* 卡内操作反馈：识别/手动添加/编辑/删除的结果就地展示（不滚到页面顶部也能看到） */}
+        {cardMsg && (
+          <div
+            role="status"
+            className={`msg-banner mt-2 ${cardMsg.ok ? "msg-banner-ok" : "msg-banner-err"}`}
+          >
+            {cardMsg.text}
+          </div>
         )}
       </div>
     </article>
