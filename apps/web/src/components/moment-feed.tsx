@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
+import EntryMenu from "./entry-menu";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const zhClock = (iso: string) => {
@@ -36,18 +37,18 @@ const dayPrefix = (iso: string) => {
   return Math.round((day(now) - day(d)) / 86_400_000) === 0 ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `;
 };
 
-const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];
-const FEED_PAGE_SIZE_HINT = 10; // 超过一页才显示「到底啦」提示
+export const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];
 
-/** 五域识别状态条：域 → 图标/名称 */
-const FIVE_DOMAINS: Array<[string, string, string]> = [
-  ["schedule", "🕒", "日程"],
-  ["todo", "📋", "待办"],
-  ["finance", "💰", "收支"],
-  ["mood", "😊", "心情"],
-  ["diet", "🍽", "饮食"],
-];
-const DOMAIN_LABELS: Record<string, string> = Object.fromEntries(FIVE_DOMAINS.map(([d, , l]) => [d, l]));
+// 五域/关系域中文名（待确认提示等处使用）
+export const DOMAIN_LABELS: Record<string, string> = {
+  schedule: "日程",
+  todo: "待办",
+  finance: "收支",
+  mood: "心情",
+  diet: "饮食",
+  people: "关系",
+};
+const FEED_PAGE_SIZE_HINT = 10; // 超过一页才显示「到底啦」提示
 
 /** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区与原日期） */
 function combineHM(originalIso: string, hm: string): string {
@@ -128,6 +129,7 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
   const [confirming, setConfirming] = useState(false);
   const [moodPicker, setMoodPicker] = useState(false);
   const [busyDomain, setBusyDomain] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   // 低置信待确认域（识别登记簿 pending）
   const pendingDomains = (Object.entries(m.recognitions ?? {}) as [string, { status: string; confidence: number }][])
     .filter(([, v]) => v.status === "pending")
@@ -152,6 +154,30 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
       await onRefresh();
     } catch (e) {
       notify(false, e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  /** 菜单里点某域：AI 识别该域 */
+  const recognizeDomain = (domain: string) =>
+    run(async () => {
+      setBusyDomain(domain);
+      try {
+        const j = await api(`/api/entries/${m.id}/recognize`, "POST", { domain });
+        return j.message ?? "已重新识别";
+      } finally {
+        setBusyDomain(null);
+      }
+    });
+
+  /** 菜单里手动添加某域产物 */
+  const manualAdd = async (domain: string, payload: Record<string, unknown>) => {
+    try {
+      const j = await api(`/api/entries/${m.id}/manual`, "POST", { domain, payload });
+      notify(true, j.message ?? "已添加");
+      await onRefresh();
+    } catch (e) {
+      notify(false, e instanceof Error ? e.message : String(e));
+      throw e;
     }
   };
 
@@ -201,10 +227,31 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
           )}
         </div>
 
-        {/* 原文 */}
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-100">
+        {/* 原文：点击弹出「识别与补充」菜单 */}
+        <p
+          onClick={() => setMenuOpen((v) => !v)}
+          title="点击打开识别菜单"
+          className="mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-100 transition-colors hover:text-white"
+        >
           {m.raw_text}
         </p>
+
+        {/* 识别与补充菜单浮层（六域：AI 识别 / 手动添加） */}
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+            <div className="absolute right-3 top-12 z-40">
+              <EntryMenu
+                m={m}
+                activities={activities}
+                busyDomain={busyDomain}
+                onAI={recognizeDomain}
+                onManual={manualAdd}
+                onClose={() => setMenuOpen(false)}
+              />
+            </div>
+          </>
+        )}
 
         {/* 后台识别中：动态已上墙，识别产物随后出现 */}
         {!m.analyzed_at && (
@@ -552,36 +599,12 @@ function MomentCard({ m, activities, onRefresh, notify }: Props & { m: FeedMomen
           </div>
         )}
 
-        {/* 五域识别状态条：✓已识别 ·未识别 ?待确认；点击图标单独重新识别 */}
-        <div className="mt-2.5 flex items-center gap-1 border-t border-slate-800/60 pt-2">
-          {FIVE_DOMAINS.map(([d, icon]) => {
-            const st = m.recognitions?.[d]?.status;
-            const mark = st === "applied" ? "✓" : st === "pending" ? "?" : "·";
-            const tone = st === "applied" ? "text-emerald-400" : st === "pending" ? "text-amber-300" : "text-slate-600";
-            return (
-              <button
-                key={d}
-                onClick={() =>
-                  run(async () => {
-                    setBusyDomain(d);
-                    try {
-                      const j = await api(`/api/entries/${m.id}/recognize`, "POST", { domain: d });
-                      return j.message ?? "已重新识别";
-                    } finally {
-                      setBusyDomain(null);
-                    }
-                  })
-                }
-                title={`重新识别${DOMAIN_LABELS[d]}`}
-                className={`rounded px-1.5 py-0.5 text-[10px] tabular-nums transition hover:bg-white/5 ${tone} ${busyDomain === d ? "animate-pulse" : ""}`}
-              >
-                {icon}
-                {mark}
-              </button>
-            );
-          })}
-          <span className="ml-auto hidden text-[10px] text-slate-500 sm:inline">点图标重识别该域</span>
-        </div>
+        {/* 交互提示：点原文打开识别菜单（六域 AI 识别 / 手动补充) */}
+        {!menuOpen && (
+          <p className="mt-2 border-t border-slate-800/60 pt-2 text-[10px] text-slate-600">
+            点击动态内容 → 打开识别菜单（AI 识别 / 手动补充六类信息）
+          </p>
+        )}
       </div>
     </article>
   );

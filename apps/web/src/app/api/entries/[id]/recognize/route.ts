@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { pool, findOverlap, overlapError } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { parseInput, CONFIDENCE_THRESHOLD, DOMAIN_LABELS, type Domain, type ParseResult } from "@shiguangri/ai";
+import { inferInteractionType } from "@/lib/social";
 
 export const runtime = "nodejs";
 
-const VALID: Domain[] = ["schedule", "todo", "finance", "mood", "diet"];
+const VALID = ["schedule", "todo", "finance", "mood", "diet", "people"] as const;
 
 /**
  * POST /api/entries/:id/recognize { domain } —— 单域重新识别（替换式）
@@ -15,9 +16,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await ctx.params;
-  const { domain } = (await req.json().catch(() => ({}))) as { domain?: Domain };
-  if (!domain || !VALID.includes(domain)) {
-    return NextResponse.json({ error: "domain 需为 schedule/todo/finance/mood/diet" }, { status: 400 });
+  const { domain } = (await req.json().catch(() => ({}))) as { domain?: string };
+  if (!domain || !VALID.includes(domain as Domain | "people")) {
+    return NextResponse.json(
+      { error: "domain 需为 schedule/todo/finance/mood/diet/people" },
+      { status: 400 },
+    );
   }
 
   const entry = (
@@ -134,6 +138,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         }
         break;
       }
+      case "people": {
+        // 关系域：删旧往来，按解析结果重建（自动建档）
+        await client.query(`delete from interactions where entry_id = $1 and user_id = $2`, [id, user.id]);
+        let added = 0;
+        for (const p of r.people) {
+          const c = (
+            await client.query(
+              `insert into contacts (user_id, name) values ($1, $2)
+               on conflict (user_id, name) do update set name = excluded.name returning id`,
+              [user.id, p.name],
+            )
+          ).rows[0];
+          const summary = p.event ? (p.event === r.title ? p.event : `${p.event}：${r.title}`) : r.title;
+          await client.query(
+            `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
+             values ($1,$2,$3,$4,$5,$6)`,
+            [user.id, c.id, id, inferInteractionType(p.event), summary, r.time.end],
+          );
+          added++;
+        }
+        applied = added > 0;
+        result = { people: r.people };
+        message = added > 0 ? `👥 关系已更新（${added} 人）` : "未识别出人物，已移除原关联";
+        break;
+      }
     }
 
     await client.query(
@@ -146,7 +175,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     );
 
     await client.query("commit");
-    return NextResponse.json({ ok: true, applied, domain, message: `${DOMAIN_LABELS[domain]}：${message}` });
+    return NextResponse.json({ ok: true, applied, domain, message: `${domain === "people" ? "关系" : DOMAIN_LABELS[domain as Domain]}：${message}` });
   } catch (e) {
     await client.query("rollback");
     return NextResponse.json({ error: String(e) }, { status: 500 });
@@ -155,12 +184,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 }
 
-function confidenceOf(r: ParseResult, domain: Domain): number {
+function confidenceOf(r: ParseResult, domain: string): number {
   switch (domain) {
+    case "people": return 0.9;
+  }
+  switch (domain as Domain) {
     case "schedule": return r.scheduleConfidence;
     case "todo": return r.todoConfidence;
     case "finance": return r.financeConfidence;
     case "mood": return r.mood.confidence;
     case "diet": return r.diet.confidence;
   }
+  return 0.9;
 }
