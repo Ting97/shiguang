@@ -1,0 +1,23 @@
+{
+  "name": "@shiguangri/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@shiguangri/ai": "*",
+    "@shiguangri/shared": "*",
+    "next": "^15.5.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "@types/pg": "^8.23.1"
+  }
+}

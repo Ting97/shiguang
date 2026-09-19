@@ -1,0 +1,29 @@
+{
+  "name": "@shiguangri/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "三端共享：类型/日期农历/纯业务规则/Bearer API client/CORS 策略",
+  "exports": {
+    "./bearer": "./src/bearer.ts",
+    "./cors": "./src/cors.ts",
+    "./client-api": "./src/client-api.ts",
+    "./csv-import": "./src/csv-import.ts",
+    "./date": "./src/date.ts",
+    "./finance": "./src/finance.ts",
+    "./graph": "./src/graph.ts",
+    "./lunar": "./src/lunar.ts",
+    "./mood": "./src/mood.ts",
+    "./reminders": "./src/reminders.ts",
+    "./social": "./src/social.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0"
+  },
+  "dependencies": {
+    "solarlunar": "^3.1.0"
+  }
+}

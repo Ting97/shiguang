@@ -6,8 +6,11 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "npm run dev -w @shiguangri/web",
-    "build": "npm run build -w @shiguangri/web",
-    "test": "npm test -w @shiguangri/ai",
+    "dev:api": "npm run dev -w @shiguangri/api",
+    "build": "npm run build -w @shiguangri/web && npm run build -w @shiguangri/api",
+    "build:web": "npm run build -w @shiguangri/web",
+    "build:api": "npm run build -w @shiguangri/api",
+    "test": "npm test --workspaces --if-present",
     "poc": "npm run poc -w @shiguangri/ai",
     "poc:live": "npm run poc:live -w @shiguangri/ai"
   },
