@@ -18,8 +18,9 @@ export async function getOrGenerateReview(
   refresh: boolean,
   latestDataAt: Date | null,
   generate: () => Promise<Review>,
-): Promise<{ review: Review; cached: boolean }> {
+): Promise<{ review: Review; cached: boolean; generatedAt: string }> {
   let cachedHit: Review | null = null;
+  let cachedAt: Date | null = null;
   let cacheFresh = false;
   try {
     if (!refresh) {
@@ -29,9 +30,10 @@ export async function getOrGenerateReview(
       );
       if (hit.rows[0]) {
         cachedHit = hit.rows[0].review as Review;
+        cachedAt = new Date(hit.rows[0].updated_at);
         // 数据新鲜度：缓存生成后周期内没有新记录才算有效
-        cacheFresh = latestDataAt == null || new Date(hit.rows[0].updated_at) >= new Date(latestDataAt);
-        if (cacheFresh) return { review: cachedHit, cached: true };
+        cacheFresh = latestDataAt == null || cachedAt >= latestDataAt;
+        if (cacheFresh) return { review: cachedHit, cached: true, generatedAt: cachedAt.toISOString() };
       }
     }
   } catch (e) {
@@ -51,5 +53,5 @@ export async function getOrGenerateReview(
   } catch (e) {
     console.error("[review-cache] 写入失败:", e);
   }
-  return { review, cached: false };
+  return { review, cached: false, generatedAt: new Date().toISOString() };
 }

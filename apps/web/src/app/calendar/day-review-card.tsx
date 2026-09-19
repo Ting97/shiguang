@@ -9,6 +9,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
   notify: (e: string | null) => void;
 }) {
   const [review, setReview] = useState<{ summary: string; highlights: string[]; suggestions: string[] } | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function generate() {
@@ -22,6 +23,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");
+      setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e));
@@ -33,7 +35,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
   return (
     <div className="mt-4 border-t border-slate-800 pt-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="shrink-0 text-xs font-semibold text-slate-400">✨ AI 日小结</h3>
+        <h3 className="shrink-0 text-xs font-semibold text-slate-400">✨ AI 日小结{generatedAt && <span className="ml-2 text-[10px] font-normal text-slate-600">生成于 {generatedAt.slice(5, 16).replace("T", " ")}</span>}</h3>
         <button
           onClick={generate}
           disabled={busy || !hasRecords}

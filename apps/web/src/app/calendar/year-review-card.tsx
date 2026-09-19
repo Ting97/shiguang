@@ -10,6 +10,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
   notify: (e: string | null) => void;
 }) {
   const [review, setReview] = useState<{ summary: string; highlights: string[]; suggestions: string[] } | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function generate() {
@@ -23,6 +24,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");
+      setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e));

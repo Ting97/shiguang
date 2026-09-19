@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     )
   ).rows[0].latest;
 
-  const { review, cached } = await getOrGenerateReview(user.id, "day", date, refresh === true, latest ? new Date(latest) : null, async () => {
+  const { review, cached, generatedAt } = await getOrGenerateReview(user.id, "day", date, refresh === true, latest ? new Date(latest) : null, async () => {
     const raw = await chat({
       system,
       user: facts.join("\n"),
@@ -128,5 +128,5 @@ export async function POST(req: Request) {
     };
   });
 
-  return NextResponse.json({ review, cached, facts: { timeParts, todoDone: todoRows.rows[0].n } });
+  return NextResponse.json({ review, cached, generatedAt, facts: { timeParts, todoDone: todoRows.rows[0].n } });
 }
