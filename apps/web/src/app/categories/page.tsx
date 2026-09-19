@@ -92,6 +92,7 @@ export default function CategoriesPage() {
             onChange={(e) => setAdding({ ...adding, name: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && add()}
             placeholder="新分类名称（如：带娃 / 冥想 / 副业）"
+            maxLength={30}
             className="min-w-36 flex-1 rounded border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
           />
           <IconPicker value={adding.icon} onChange={(icon) => setAdding({ ...adding, icon })} />
@@ -125,6 +126,7 @@ export default function CategoriesPage() {
                 <input
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  maxLength={30}
                   className="min-w-24 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                 />
                 <IconPicker value={editing.icon} onChange={(icon) => setEditing({ ...editing, icon })} />
