@@ -36,3 +36,6 @@ apps/android/.cxx/
 *.apk
 *.aab
 !gradle/wrapper/gradle-wrapper.jar
+
+# 静态导出产物
+apps/web/out/
