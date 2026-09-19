@@ -38,6 +38,6 @@ export async function POST(req: Request) {
   }
 
   await pool.query(`update profiles set last_login_at = now() where id = $1`, [user.id]);
-  await createSession(user.id, req.headers.get("user-agent") ?? undefined);
-  return NextResponse.json({ ok: true, user: { id: user.id, nickname: user.nickname } });
+  const token = await createSession(user.id, req.headers.get("user-agent") ?? undefined);
+  return NextResponse.json({ ok: true, token, user: { id: user.id, nickname: user.nickname } });
 }

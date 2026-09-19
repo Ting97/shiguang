@@ -33,6 +33,6 @@ export async function POST(req: Request) {
   );
   if (!rows[0]) return NextResponse.json({ error: "初始化失败" }, { status: 500 });
 
-  await createSession(rows[0].id, req.headers.get("user-agent") ?? undefined);
-  return NextResponse.json({ ok: true, user: rows[0] });
+  const token = await createSession(rows[0].id, req.headers.get("user-agent") ?? undefined);
+  return NextResponse.json({ ok: true, token, user: rows[0] });
 }

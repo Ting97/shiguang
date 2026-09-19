@@ -58,6 +58,6 @@ export async function POST(req: Request) {
   await pool.query(`update invite_codes set used_by = $1, used_at = now() where code = $2`, [
     user.id, inviteCode.trim().toUpperCase(),
   ]);
-  await createSession(user.id, req.headers.get("user-agent") ?? undefined);
-  return NextResponse.json({ ok: true, user });
+  const token = await createSession(user.id, req.headers.get("user-agent") ?? undefined);
+  return NextResponse.json({ ok: true, token, user });
 }
