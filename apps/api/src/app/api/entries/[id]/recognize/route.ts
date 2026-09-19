@@ -3,6 +3,7 @@ import { pool, findOverlap, overlapError } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { parseInput, CONFIDENCE_THRESHOLD, DOMAIN_LABELS, type Domain, type ParseResult } from "@shiguangri/ai";
 import { inferInteractionType } from "@shiguangri/shared/social";
+import { checkAiQuota } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,13 @@ const VALID = ["schedule", "todo", "finance", "mood", "diet", "people"] as const
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const q = await checkAiQuota(user.id);
+  if (!q.allowed) {
+    return NextResponse.json(
+      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限识别`, quota: q },
+      { status: 402 },
+    );
+  }
   const { id } = await ctx.params;
   const { domain } = (await req.json().catch(() => ({}))) as { domain?: string };
   if (!domain || !VALID.includes(domain as Domain | "people")) {

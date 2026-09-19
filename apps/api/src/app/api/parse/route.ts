@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { analyzeAndPersist } from "@/lib/analyze";
+import { checkAiQuota } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,13 @@ export async function POST(req: Request) {
   const { text } = (await req.json()) as { text?: string };
   if (!text?.trim()) {
     return NextResponse.json({ error: "text 必填" }, { status: 400 });
+  }
+  const q = await checkAiQuota(user.id);
+  if (!q.allowed) {
+    return NextResponse.json(
+      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限识别`, quota: q },
+      { status: 402 },
+    );
   }
 
   // 动态本体先落地（不含识别结果），请求即回

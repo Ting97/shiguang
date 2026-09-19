@@ -3,6 +3,7 @@ import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { ruleMood } from "@shiguangri/ai";
 import { analyzeAndPersist } from "@/lib/analyze";
+import { checkAiQuota } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const text = body.raw_text.trim();
     if (!text) return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
     if (text.length > 2000) return NextResponse.json({ error: "动态最长 2000 字" }, { status: 400 });
+    const q = await checkAiQuota(user.id);
+    if (!q.allowed) {
+      return NextResponse.json(
+        { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限识别`, quota: q },
+        { status: 402 },
+      );
+    }
 
     const client = await pool.connect();
     let updated;

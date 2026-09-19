@@ -29,6 +29,7 @@ export default function ProfilePage() {
   const [msgNick, setMsgNick] = useState<{ ok: boolean; text: string } | null>(null);
   const [msgPwd, setMsgPwd] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [quota, setQuota] = useState<{ plan: string; used: number; limit: number | null; planExpiresAt: string | null; isAdmin: boolean } | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me").then(async (r) => {
@@ -40,6 +41,11 @@ export default function ProfilePage() {
       setMe(j);
       setNickname(j.nickname ?? "");
       setSavedNick(j.nickname ?? "");
+    });
+    // 套餐与 AI 用量（30 天窗口）
+    fetch("/api/billing/plan").then(async (r) => {
+      if (!r.ok) return;
+      setQuota(await r.json());
     });
   }, []);
 
@@ -193,6 +199,40 @@ export default function ProfilePage() {
                 </button>
               </div>
               {msgPwd && <p className={`mt-3 text-xs ${msgPwd.ok ? "text-success" : "text-danger"}`}>{msgPwd.text}</p>}
+            </section>
+
+            {/* 套餐与 AI 用量（M3 商业化） */}
+            <section className="glass rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-ink-soft">💎 套餐与 AI 用量</h2>
+              {quota ? (
+                <>
+                  <p className="mt-1 text-xs text-ink-dim">
+                    当前套餐：
+                    <span className={quota.plan === "pro" ? "font-semibold text-amber-400" : "font-semibold text-ink"}>
+                      {quota.plan === "pro" ? "Pro" : "免费版"}
+                    </span>
+                    {quota.planExpiresAt && ` · Pro 有效期至 ${new Date(quota.planExpiresAt).toLocaleDateString("zh-CN")}`}
+                    {quota.isAdmin && " · 管理员不限量"}
+                  </p>
+                  <div className="mt-2.5">
+                    <div className="flex justify-between text-xs text-ink-dim">
+                      <span>近 30 天 AI 识别次数</span>
+                      <span>{quota.used}{quota.limit === null ? "（不限）" : ` / ${quota.limit}`}</span>
+                    </div>
+                    {quota.limit !== null && (
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-elevated">
+                        <div
+                          className={`h-full rounded-full ${quota.used >= quota.limit ? "bg-rose-500" : "bg-sky-500"}`}
+                          style={{ width: `${Math.min(100, (quota.used / quota.limit) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] text-ink-faint">语音速记、AI 识别、复盘均消耗次数；Pro 不限量。支付通道接入前，内测期间联系管理员开通 Pro。</p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-ink-dim">加载中…</p>
+              )}
             </section>
 
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
