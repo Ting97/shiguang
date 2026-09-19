@@ -9,6 +9,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "lucide-react": "^1.47.0",
     "next": "^15.5.0",
     "pg": "^8.23.0",
     "react": "^19.1.0",

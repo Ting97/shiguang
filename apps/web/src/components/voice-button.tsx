@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Mic, Square } from "lucide-react";
 
 /**
  * 语音输入按钮：点击开始录音 → 再点停止 → GLM-ASR 转写 → 回调文本。
@@ -78,8 +79,6 @@ export default function VoiceButton({ onText, onError }: { onText: (text: string
     onError(errMsg);
   }
 
-  const label =
-    state === "transcribing" ? "…" : state === "recording" ? `🎙 ${seconds}s` : "🎙";
   const title = state === "recording" ? "点击停止并识别" : "点击说话";
 
   return (
@@ -93,7 +92,7 @@ export default function VoiceButton({ onText, onError }: { onText: (text: string
           : "border-white/10 bg-slate-900/60 text-slate-400 hover:border-sky-500/50 hover:text-sky-300"
       } ${state === "transcribing" ? "opacity-60" : ""}`}
     >
-      {label}
+      {state === "recording" ? <Square size={12} /> : state === "transcribing" ? <span className="text-[11px]">…</span> : <Mic size={16} />}
     </button>
   );
 }
