@@ -93,17 +93,17 @@ export default function ProfilePage() {
   }
 
   const inputCls =
-    "input-glow w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm outline-none placeholder:text-slate-600";
+    "input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-4 py-2.5 text-sm outline-none placeholder:text-ink-faint";
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">我的<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">个人设置</span></h1>
-        <p className="mb-5 text-xs text-slate-500">个性化你的账号信息</p>
+        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">我的<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">个人设置</span></h1>
+        <p className="mb-5 text-xs text-ink-dim">个性化你的账号信息</p>
 
         {!me ? (
-          <p className="py-10 text-center text-xs text-slate-500">加载中…</p>
+          <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
         ) : (
           <>
             {/* 账号资料 */}
@@ -114,13 +114,13 @@ export default function ProfilePage() {
                 </div>
                 <div className="text-sm">
                   <p className="font-medium">{savedNick || "未设置昵称"}</p>
-                  <p className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                  <p className="mt-0.5 flex items-center gap-2 text-xs text-ink-dim">
                     {me.phone ? (
                       <>
                         {me.phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
                         <span
                           className={`rounded px-1.5 py-0.5 text-[10px] ${
-                            me.phoneVerified ? "bg-emerald-500/10 text-emerald-300" : "bg-slate-800 text-slate-400"
+                            me.phoneVerified ? "bg-emerald-500/10 text-success" : "bg-elevated text-ink-mute"
                           }`}
                         >
                           {me.phoneVerified ? "已验证" : "未验证"}
@@ -130,16 +130,16 @@ export default function ProfilePage() {
                       "未绑定手机号"
                     )}
                     {me.isAdmin && (
-                      <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] text-sky-300">
+                      <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] text-accent">
                         管理员
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-slate-600">加入于 {zhDate(me.createdAt)}</p>
+                  <p className="mt-0.5 text-[10px] text-ink-faint">加入于 {zhDate(me.createdAt)}</p>
                 </div>
               </div>
 
-              <label className="mb-1 block text-xs text-slate-400">昵称</label>
+              <label className="mb-1 block text-xs text-ink-mute">昵称</label>
               <div className="flex gap-2">
                 <input
                   value={nickname}
@@ -156,12 +156,12 @@ export default function ProfilePage() {
                   保存
                 </button>
               </div>
-              {msgNick && <p className={`mt-2 text-xs ${msgNick.ok ? "text-emerald-300" : "text-rose-300"}`}>{msgNick.text}</p>}
+              {msgNick && <p className={`mt-2 text-xs ${msgNick.ok ? "text-success" : "text-danger"}`}>{msgNick.text}</p>}
             </section>
 
             {/* 修改密码 */}
             <section className="glass rounded-2xl p-5">
-              <h2 className="mb-3 text-sm font-semibold text-slate-300">修改密码</h2>
+              <h2 className="mb-3 text-sm font-semibold text-ink-soft">修改密码</h2>
               <div className="space-y-3">
                 <input
                   value={currentPwd}
@@ -192,23 +192,23 @@ export default function ProfilePage() {
                   更新密码
                 </button>
               </div>
-              {msgPwd && <p className={`mt-3 text-xs ${msgPwd.ok ? "text-emerald-300" : "text-rose-300"}`}>{msgPwd.text}</p>}
+              {msgPwd && <p className={`mt-3 text-xs ${msgPwd.ok ? "text-success" : "text-danger"}`}>{msgPwd.text}</p>}
             </section>
 
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-slate-300">📦 导出我的数据</h2>
-              <p className="mt-1 text-xs text-slate-500">全量备份包含动态、日程、待办、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
+              <h2 className="text-sm font-semibold text-ink-soft">📦 导出我的数据</h2>
+              <p className="mt-1 text-xs text-ink-dim">全量备份包含动态、日程、待办、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
               <div className="mt-3 flex gap-2">
                 <a
                   href="/api/export?format=json"
-                  className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-sky-300 transition hover:bg-sky-500/20"
+                  className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-accent transition hover:bg-sky-500/20"
                 >
                   全量备份 (JSON)
                 </a>
                 <a
                   href="/api/export?format=md"
-                  className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-xs text-slate-300 transition hover:border-sky-500/50"
+                  className="rounded-xl border border-line-soft bg-surface/60 px-4 py-2 text-xs text-ink-soft transition hover:border-sky-500/50"
                 >
                   动态日记 (Markdown)
                 </a>

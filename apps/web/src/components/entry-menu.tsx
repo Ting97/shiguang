@@ -41,7 +41,7 @@ function domainState(m: FeedMoment, key: SixKey): "applied" | "none" {
 }
 
 const inputCls =
-  "min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs outline-none focus:border-sky-500";
+  "min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-xs outline-none focus:border-sky-500";
 const btnMini = "shrink-0 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-sky-500";
 
 /** 识别菜单：六域（AI 识别 / 手动添加）。移动端底部弹层，桌面锚定卡片浮层 */
@@ -92,7 +92,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   function manualForm(key: SixKey) {
     const wrap = (label: string, node: React.ReactNode) => (
       <label className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[10px] text-slate-500">{label}</span>
+        <span className="text-[10px] text-ink-dim">{label}</span>
         {node}
       </label>
     );
@@ -158,7 +158,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
                 <button
                   key={w}
                   onClick={() => setMood(w)}
-                  className={`rounded-full px-2.5 py-1.5 text-[11px] ${mood === w ? "bg-sky-600 text-white" : "bg-slate-700/60 text-slate-300 hover:bg-slate-600"}`}
+                  className={`rounded-full px-2.5 py-1.5 text-[11px] ${mood === w ? "bg-sky-600 text-white" : "bg-soft/60 text-ink-soft hover:bg-strong"}`}
                 >
                   {w}
                 </button>
@@ -209,16 +209,16 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   return (
     /* 移动端：底部弹层（拇指可达、不溢出视口）；桌面（sm:）：锚定卡片的浮层 */
     <div
-      className="glass fade-up fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl p-4 safe-bottom sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-2 sm:top-9 sm:max-h-none sm:w-[300px] sm:rounded-xl sm:p-3 sm:shadow-2xl sm:shadow-slate-950/70"
+      className="glass fade-up fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl p-4 safe-bottom sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-2 sm:top-9 sm:max-h-none sm:w-[300px] sm:rounded-xl sm:p-3 sm:shadow-2xl sm:shadow-scrim/70"
       onClick={(e) => e.stopPropagation()}
     >
       {/* 移动端拖拽指示条 */}
-      <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-700 sm:hidden" />
+      <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
       <div className="mb-2 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-          <Sparkles size={13} className="text-purple-300" /> 识别与补充
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
+          <Sparkles size={13} className="text-ai" /> 识别与补充
         </span>
-        <button onClick={onClose} title="关闭" className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-200">
+        <button onClick={onClose} title="关闭" className="rounded p-1 text-ink-dim hover:bg-wash hover:text-ink">
           <X size={14} />
         </button>
       </div>
@@ -228,46 +228,46 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
           const st = domainState(m, key as SixKey);
           const isManual = manualDomain === key;
           return (
-            <div key={key} className={`rounded-lg ${isManual ? "border border-sky-500/40 bg-slate-800/60 p-2" : ""}`}>
-              <div className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-white/5">
+            <div key={key} className={`rounded-lg ${isManual ? "border border-sky-500/40 bg-elevated/60 p-2" : ""}`}>
+              <div className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-wash">
                 <button
                   onClick={() => onAI(key)}
                   disabled={busyDomain === key}
                   title={`AI 识别${label}`}
                   className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                 >
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${st === "applied" ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700/50 text-slate-400"}`}>
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${st === "applied" ? "bg-emerald-500/15 text-success" : "bg-soft/50 text-ink-mute"}`}>
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-100">{label}</span>
-                    <span className="block truncate text-[10px] text-slate-600">{hint}</span>
+                    <span className="block text-xs text-ink">{label}</span>
+                    <span className="block truncate text-[10px] text-ink-faint">{hint}</span>
                   </span>
                   {busyDomain === key ? (
-                    <span className="shrink-0 animate-pulse text-[10px] text-sky-300">识别中…</span>
+                    <span className="shrink-0 animate-pulse text-[10px] text-accent">识别中…</span>
                   ) : st === "applied" ? (
-                    <span className="shrink-0 text-emerald-400"><Check size={14} /></span>
+                    <span className="shrink-0 text-success"><Check size={14} /></span>
                   ) : null}
                 </button>
                 <button
                   onClick={() => openManual(key)}
                   title={`手动添加${label}`}
                   className={`shrink-0 rounded-lg p-1.5 transition ${
-                    isManual ? "bg-sky-600 text-white" : "text-slate-500 hover:bg-white/5 hover:text-sky-300"
+                    isManual ? "bg-sky-600 text-white" : "text-ink-dim hover:bg-wash hover:text-accent"
                   }`}
                 >
                   <PencilLine size={13} />
                 </button>
               </div>
-              {isManual && <div className="mt-1 border-t border-slate-700/60 pt-2">{manualForm(key)}</div>}
+              {isManual && <div className="mt-1 border-t border-line/60 pt-2">{manualForm(key)}</div>}
             </div>
           );
         })}
       </div>
 
-      <p className="mt-2 flex items-center gap-1.5 border-t border-slate-800 pt-2 text-[10px] leading-relaxed text-slate-500">
-        <Sparkles size={10} className="shrink-0 text-purple-300" /> 点行 = AI 识别该类
-        <PencilLine size={10} className="ml-1 shrink-0 text-sky-300" /> 点 ✏️ = 手动补充
+      <p className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-2 text-[10px] leading-relaxed text-ink-dim">
+        <Sparkles size={10} className="shrink-0 text-ai" /> 点行 = AI 识别该类
+        <PencilLine size={10} className="ml-1 shrink-0 text-accent" /> 点 ✏️ = 手动补充
       </p>
     </div>
   );

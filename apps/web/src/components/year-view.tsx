@@ -38,7 +38,8 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
     if (min < 360) return 3;
     return 4;
   };
-  const COLORS = ["#1e293b", "#164e63", "#0e7490", "#0891b2", "#22d3ee"];
+  // 热力图五档色：引用主题令牌（浅色主题自动切换为浅底渐进）
+  const COLORS = ["var(--heat-0)", "var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)"];
 
   // 年度合计
   const totals: Record<string, number> = {};
@@ -54,10 +55,10 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+      <div className="overflow-x-auto rounded-lg border border-line-soft bg-bg/40 p-3">
         <div className="flex gap-[3px]">
           {/* 月份标签 */}
-          <div className="mr-1 flex flex-col justify-between py-[1px] text-[9px] text-slate-600">
+          <div className="mr-1 flex flex-col justify-between py-[1px] text-[9px] text-ink-faint">
             {["1月", "", "", "4月", "", "", "7月", "", "", "10月", "", ""].slice(0, 12).map((m, i) => (
               <span key={i}>{m}</span>
             ))}
@@ -83,7 +84,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
             </div>
           ))}
         </div>
-        <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-slate-500">
+        <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-ink-dim">
           少
           {COLORS.map((c) => (
             <span key={c} className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: c }} />
@@ -94,10 +95,10 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
 
       {/* 年度统计 */}
       {grand > 0 && (
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-          <p className="mb-2 text-xs text-slate-400">
-            {year} 年共记录 <span className="font-semibold text-slate-200">{zhDuration(grand)}</span>
-            <span className="ml-2 text-slate-500">· {recordedDays} 天有记录 · 平均每天 {zhDuration(Math.round(grand / 365))}</span>
+        <div className="mt-4 rounded-lg border border-line-soft bg-bg/40 p-4">
+          <p className="mb-2 text-xs text-ink-mute">
+            {year} 年共记录 <span className="font-semibold text-ink">{zhDuration(grand)}</span>
+            <span className="ml-2 text-ink-dim">· {recordedDays} 天有记录 · 平均每天 {zhDuration(Math.round(grand / 365))}</span>
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {sorted.map(([id, min]) => (
@@ -108,10 +109,10 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
             {sorted.map(([id, min]) => {
               const a = actMap.get(id);
               return (
-                <span key={id} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span key={id} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a?.color }} />
                   {a?.icon} {a?.name}
-                  <span className="tabular-nums text-slate-500">{zhDuration(min)} · {Math.round((min / grand) * 100)}%</span>
+                  <span className="tabular-nums text-ink-dim">{zhDuration(min)} · {Math.round((min / grand) * 100)}%</span>
                 </span>
               );
             })}

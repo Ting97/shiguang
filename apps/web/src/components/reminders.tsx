@@ -22,10 +22,10 @@ export default function Reminders({ items }: { items: ReminderItem[] }) {
   return (
     <section
       aria-label="提醒"
-      className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100"
+      className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-warn"
     >
       <div className="flex items-center gap-2">
-        <span className="shrink-0 font-medium text-amber-300">🔔 提醒</span>
+        <span className="shrink-0 font-medium text-warn">🔔 提醒</span>
         <span className="flex-1" />
         <button
           onClick={() => {
@@ -33,7 +33,7 @@ export default function Reminders({ items }: { items: ReminderItem[] }) {
             setDismissed(true);
           }}
           title="今天不再展示"
-          className="rounded px-1.5 py-0.5 text-[11px] text-amber-200/70 transition hover:bg-amber-500/15 hover:text-amber-100"
+          className="rounded px-1.5 py-0.5 text-[11px] text-warn/70 transition hover:bg-amber-500/15 hover:text-warn"
         >
           知道了 ✕
         </button>
@@ -47,12 +47,12 @@ export default function Reminders({ items }: { items: ReminderItem[] }) {
             {it.contactId ? (
               <Link
                 href={`/contacts/${it.contactId}`}
-                className={it.overdue ? "text-rose-200 underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}
+                className={it.overdue ? "text-danger underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}
               >
                 {it.label}
               </Link>
             ) : (
-              <a href="#todos" className={it.overdue ? "text-rose-200 underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}>
+              <a href="#todos" className={it.overdue ? "text-danger underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}>
                 {it.label}
               </a>
             )}

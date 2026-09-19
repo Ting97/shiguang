@@ -71,24 +71,24 @@ export default function InvitesPage() {
   }
 
   const statusOf = (i: Invite) => {
-    if (i.used_by) return { text: `已使用 · ${i.used_by_name ?? ""}`, cls: "text-slate-500 bg-slate-800" };
+    if (i.used_by) return { text: `已使用 · ${i.used_by_name ?? ""}`, cls: "text-ink-dim bg-elevated" };
     if (i.expires_at && new Date(i.expires_at) < new Date())
-      return { text: "已过期", cls: "text-rose-300 bg-rose-500/10" };
-    return { text: "未使用", cls: "text-emerald-300 bg-emerald-500/10" };
+      return { text: "已过期", cls: "text-danger bg-rose-500/10" };
+    return { text: "未使用", cls: "text-success bg-emerald-500/10" };
   };
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">邀请<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">邀请码管理</span></h1>
-        <p className="mb-5 text-xs text-slate-500">
+        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">邀请<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">邀请码管理</span></h1>
+        <p className="mb-5 text-xs text-ink-dim">
           新用户凭邀请码注册（一码一人）；生成后把码发给对方，对方在登录页点「凭邀请码注册」
         </p>
 
-        {state === "loading" && <p className="py-10 text-center text-xs text-slate-500">加载中…</p>}
+        {state === "loading" && <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>}
         {state === "forbidden" && (
-          <p className="glass rounded-2xl py-10 text-center text-xs text-slate-400">
+          <p className="glass rounded-2xl py-10 text-center text-xs text-ink-mute">
             仅管理员（初始化账号）可管理邀请码
           </p>
         )}
@@ -97,12 +97,12 @@ export default function InvitesPage() {
           <>
             {/* 生成区 */}
             <div className="glass mb-5 flex flex-wrap items-center gap-3 rounded-2xl p-4">
-              <label className="flex items-center gap-2 text-xs text-slate-400">
+              <label className="flex items-center gap-2 text-xs text-ink-mute">
                 有效期
                 <select
                   value={days}
                   onChange={(e) => setDays(Number(e.target.value))}
-                  className="rounded border border-white/10 bg-slate-900 px-2 py-1.5 text-xs outline-none focus:border-sky-500"
+                  className="rounded border border-line-soft bg-surface px-2 py-1.5 text-xs outline-none focus:border-sky-500"
                 >
                   <option value={7}>7 天</option>
                   <option value={30}>30 天</option>
@@ -113,7 +113,7 @@ export default function InvitesPage() {
               <button onClick={generate} disabled={busy} className="btn-primary rounded-xl px-5 py-1.5 text-sm font-medium">
                 {busy ? "生成中…" : "生成邀请码"}
               </button>
-              {msg && <span className="text-xs text-slate-300">{msg}</span>}
+              {msg && <span className="text-xs text-ink-soft">{msg}</span>}
             </div>
 
             {/* 列表 */}
@@ -128,15 +128,15 @@ export default function InvitesPage() {
                   const usable = !i.used_by && !(i.expires_at && new Date(i.expires_at) < new Date());
                   return (
                     <li key={i.code} className="glass glass-hover flex items-center gap-3 rounded-xl px-3 py-2.5">
-                      <span className="flex-1 font-mono text-base tracking-[0.2em] text-slate-100">{i.code}</span>
+                      <span className="flex-1 font-mono text-base tracking-[0.2em] text-ink">{i.code}</span>
                       <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${st.cls}`}>{st.text}</span>
-                      <span className="hidden shrink-0 text-[10px] text-slate-600 sm:inline">
+                      <span className="hidden shrink-0 text-[10px] text-ink-faint sm:inline">
                         {zhDate(i.created_at)} 生成 · 有效至 {zhDate(i.expires_at)}
                       </span>
                       {usable && (
                         <button
                           onClick={() => copy(i.code)}
-                          className="shrink-0 rounded px-2 py-0.5 text-[11px] text-sky-300 transition hover:bg-white/5"
+                          className="shrink-0 rounded px-2 py-0.5 text-[11px] text-accent transition hover:bg-wash"
                         >
                           {copied === i.code ? "✓ 已复制" : "复制"}
                         </button>

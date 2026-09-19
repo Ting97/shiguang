@@ -88,8 +88,8 @@ export default function VoiceButton({ onText, onError }: { onText: (text: string
       title={title}
       className={`shrink-0 rounded-full border px-3 py-2 text-sm transition ${
         state === "recording"
-          ? "animate-pulse border-rose-500/60 bg-rose-500/15 text-rose-300"
-          : "border-white/10 bg-slate-900/60 text-slate-400 hover:border-sky-500/50 hover:text-sky-300"
+          ? "animate-pulse border-rose-500/60 bg-rose-500/15 text-danger"
+          : "border-line-soft bg-surface/60 text-ink-mute hover:border-sky-500/50 hover:text-accent"
       } ${state === "transcribing" ? "opacity-60" : ""}`}
     >
       {state === "recording" ? <Square size={12} /> : state === "transcribing" ? <span className="text-[11px]">…</span> : <Mic size={16} />}

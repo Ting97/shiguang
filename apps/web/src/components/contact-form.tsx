@@ -57,11 +57,11 @@ export default function ContactFormModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl sm:max-w-md sm:rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-200">{initial ? "编辑联系人" : "新建联系人"}</h3>
-          <button onClick={onClose} className="rounded px-2 text-slate-500 hover:text-slate-200">✕</button>
+          <h3 className="text-sm font-semibold text-ink">{initial ? "编辑联系人" : "新建联系人"}</h3>
+          <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
         </div>
         <div className="space-y-2.5">
           <div className="flex gap-2">
@@ -71,20 +71,20 @@ export default function ContactFormModal({
               onChange={(e) => setName(e.target.value)}
               placeholder="姓名（必填）"
               maxLength={30}
-              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+              className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
             />
             <input
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
               placeholder="备注名（如：老王）"
-              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+              className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
             />
           </div>
           <div className="flex gap-2">
             <select
               value={group}
               onChange={(e) => setGroup(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none focus:border-sky-500"
+              className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
             >
               {CONTACT_GROUPS.map((g) => (
                 <option key={g} value={g}>{GROUP_EMOJI[g]} {g}</option>
@@ -95,14 +95,14 @@ export default function ContactFormModal({
               value={anniversary ?? ""}
               onChange={(e) => setAnniversary(e.target.value)}
               title="纪念日（如：结婚纪念日）"
-              className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
+              className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
             />
-            <span className="flex items-center whitespace-nowrap text-[11px] text-slate-500">纪念日</span>
+            <span className="flex items-center whitespace-nowrap text-[11px] text-ink-dim">纪念日</span>
           </div>
           <div>
             <div className="flex gap-2">
               {/* 生日历法切换：阳历=日期选择；农历=月/日选择 + 闰月标记 */}
-              <div className="flex shrink-0 items-center rounded-lg border border-slate-600 bg-slate-900 p-0.5 text-xs">
+              <div className="flex shrink-0 items-center rounded-lg border border-line-strong bg-surface p-0.5 text-xs">
                 {([["solar", "阳历"], ["lunar", "农历"]] as const).map(([v, label]) => (
                   <button
                     key={v}
@@ -111,7 +111,7 @@ export default function ContactFormModal({
                     className={`rounded-md px-2.5 py-1 transition ${
                       bdayCal === v
                         ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white"
-                        : "text-slate-400 hover:text-slate-200"
+                        : "text-ink-mute hover:text-ink"
                     }`}
                   >
                     {label}
@@ -124,7 +124,7 @@ export default function ContactFormModal({
                   value={birthday ?? ""}
                   onChange={(e) => setBirthday(e.target.value)}
                   title="生日（阳历）"
-                  className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
+                  className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
                 />
               ) : (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -132,7 +132,7 @@ export default function ContactFormModal({
                     value={lunarMonth}
                     onChange={(e) => setLunarMonth(Number(e.target.value))}
                     title="农历月"
-                    className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-1.5 py-1.5 text-sm outline-none focus:border-sky-500"
+                    className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-1.5 py-1.5 text-sm outline-none focus:border-sky-500"
                   >
                     {LUNAR_MONTHS.map((m) => (
                       <option key={m} value={m}>{lunarMonthLabel(m)}</option>
@@ -142,13 +142,13 @@ export default function ContactFormModal({
                     value={lunarDay}
                     onChange={(e) => setLunarDay(Number(e.target.value))}
                     title="农历日"
-                    className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-1.5 py-1.5 text-sm outline-none focus:border-sky-500"
+                    className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-1.5 py-1.5 text-sm outline-none focus:border-sky-500"
                   >
                     {LUNAR_DAYS.map((d) => (
                       <option key={d} value={d}>{lunarDayLabel(d)}</option>
                     ))}
                   </select>
-                  <label className="flex shrink-0 items-center gap-1 text-[11px] text-slate-400" title="闰月生日；当年无闰月时按平月过">
+                  <label className="flex shrink-0 items-center gap-1 text-[11px] text-ink-mute" title="闰月生日；当年无闰月时按平月过">
                     <input
                       type="checkbox"
                       checked={lunarLeap}
@@ -160,14 +160,14 @@ export default function ContactFormModal({
                 </div>
               )}
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-ink-dim">
               {bdayCal === "lunar" ? "农历生日每年公历日期不同，会自动换算提醒 · 闰月生日无闰月年份按平月过" : "生日（可空）"}
             </p>
           </div>
           <div>
-            <div className="mb-1 flex items-center gap-2 text-[11px] text-slate-500">
+            <div className="mb-1 flex items-center gap-2 text-[11px] text-ink-dim">
               重要程度
-              <span className="text-slate-400">决定图谱中与你的距离 · 当前：{importanceLabel(importance)}</span>
+              <span className="text-ink-mute">决定图谱中与你的距离 · 当前：{importanceLabel(importance)}</span>
             </div>
             <div className="flex gap-1">
               {[...IMPORTANCE_TIERS].reverse().map((t) => (
@@ -178,7 +178,7 @@ export default function ContactFormModal({
                   className={`flex-1 rounded-lg px-1 py-1.5 text-xs transition ${
                     importance === t.level
                       ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white"
-                      : "border border-slate-600 bg-slate-900 text-slate-400 hover:bg-slate-800"
+                      : "border border-line-strong bg-surface text-ink-mute hover:bg-elevated"
                   }`}
                 >
                   {t.label}
@@ -191,11 +191,11 @@ export default function ContactFormModal({
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="备注：喜好/忌讳/重要的事…"
-            className="w-full resize-none rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+            className="w-full resize-none rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
           />
-          {err && <p className="text-xs text-rose-300">{err}</p>}
+          {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-slate-400 hover:bg-slate-700">
+            <button onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
               取消
             </button>
             <button

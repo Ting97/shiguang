@@ -170,18 +170,18 @@ export default function CalendarPage() {
     `${anchor.slice(0, 4)}年`;
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-6xl px-5 py-8">
         <Nav />
 
         <div className="glass mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
           <div className="flex items-center gap-2">
-            <button onClick={() => shift(-1)} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-slate-800/80">‹</button>
+            <button onClick={() => shift(-1)} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-elevated/80">‹</button>
             <h1 className="text-gradient min-w-44 text-center text-lg font-semibold">{title}</h1>
-            <button onClick={() => shift(1)} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-slate-800/80">›</button>
-            <button onClick={() => setAnchor(todayStr())} className="ml-1 whitespace-nowrap rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/50 hover:bg-slate-800/80">今天</button>
+            <button onClick={() => shift(1)} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-elevated/80">›</button>
+            <button onClick={() => setAnchor(todayStr())} className="ml-1 whitespace-nowrap rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-ink-soft transition hover:border-sky-500/50 hover:bg-elevated/80">今天</button>
           </div>
-          <div className="flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
+          <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs">
             {([["day", "日"], ["week", "周"], ["month", "月"], ["year", "年"]] as [View, string][]).map(([v, label]) => (
               <button
                 key={v}
@@ -189,7 +189,7 @@ export default function CalendarPage() {
                 className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 sm:px-3.5 ${
                   view === v
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                    : "text-ink-mute hover:bg-wash hover:text-ink"
                 }`}
               >
                 {label}
@@ -199,17 +199,17 @@ export default function CalendarPage() {
         </div>
 
         {err && (
-          <div className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{err}</div>
+          <div className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger">{err}</div>
         )}
-        {loading && <p className="py-8 text-center text-xs text-slate-500">加载中…</p>}
+        {loading && <p className="py-8 text-center text-xs text-ink-dim">加载中…</p>}
 
         {!loading && view === "day" && (
           <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
             {/* 移动端把当日结构与 AI 小结排在时间轴前（order-first），不再被 480px 时间轴压在下面 */}
             <aside className="glass order-first mb-0 rounded-2xl p-4 lg:order-none lg:mb-0">
-              <h2 className="mb-3 text-sm font-semibold text-slate-300">当日结构</h2>
+              <h2 className="mb-3 text-sm font-semibold text-ink-soft">当日结构</h2>
               <DayDonut byActivity={dayStat} activities={activities} size={100} thickness={12} />
-              <div className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">
+              <div className="mt-4 border-t border-line-soft pt-3 text-xs text-ink-dim">
                 共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + b.duration_min, 0))}
               </div>
               <DayReviewCard date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />

@@ -31,7 +31,7 @@ export default function DayDonut({ byActivity, activities, size = 120, thickness
   return (
     <div className="flex items-center gap-4">
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1e293b" strokeWidth={thickness} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--chart-track)" strokeWidth={thickness} />
         {segments.map((s) => (
           <circle
             key={s.id}
@@ -47,23 +47,23 @@ export default function DayDonut({ byActivity, activities, size = 120, thickness
         ))}
       </svg>
       <div className="min-w-0 flex-1 space-y-1">
-        {total === 0 && <p className="text-xs text-slate-600">暂无记录</p>}
+        {total === 0 && <p className="text-xs text-ink-faint">暂无记录</p>}
         {segments.slice(0, 5).map((s) => {
           const a = actMap.get(s.id);
           return (
             <div key={s.id} className="flex items-center gap-2 text-xs">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-              <span className="flex-1 truncate text-slate-300">
+              <span className="flex-1 truncate text-ink-soft">
                 {a?.icon ?? "📌"} {a?.name ?? "其他"}
               </span>
-              <span className="shrink-0 tabular-nums text-slate-500">
+              <span className="shrink-0 tabular-nums text-ink-dim">
                 {Math.round((s.min / total) * 100)}%
               </span>
             </div>
           );
         })}
         {segments.length > 5 && (
-          <p className="text-[10px] text-slate-600">等 {segments.length - 5} 类未展示</p>
+          <p className="text-[10px] text-ink-faint">等 {segments.length - 5} 类未展示</p>
         )}
       </div>
     </div>

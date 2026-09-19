@@ -143,12 +143,12 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
         )}
       </div>
 
-      <div ref={containerRef} className="relative max-h-[480px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
+      <div ref={containerRef} className="relative max-h-[480px] overflow-y-auto rounded-lg border border-line-soft bg-bg/40">
         <div className="relative" style={{ height: `${1440 * PX_PER_MIN}px` }} onClick={containerClick}>
           {Array.from({ length: 25 }, (_, h) => (
-            <div key={h} className="absolute inset-x-0 border-t border-slate-800/70" style={{ top: `${h * 60 * PX_PER_MIN}px` }}>
+            <div key={h} className="absolute inset-x-0 border-t border-line-soft/70" style={{ top: `${h * 60 * PX_PER_MIN}px` }}>
               <span
-                className={`absolute -top-2 left-1.5 text-[10px] tabular-nums ${h % 3 === 0 ? "text-slate-400" : "text-slate-600"}`}
+                className={`absolute -top-2 left-1.5 text-[10px] tabular-nums ${h % 3 === 0 ? "text-ink-mute" : "text-ink-faint"}`}
               >
                 {h % 3 === 0 ? `${h}点` : ""}
               </span>
@@ -164,11 +164,11 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
                 openSlotAt(g.s + (e.clientY - rect.top) / PX_PER_MIN);
               }}
               title="点击空白处，按整点定位 1 小时补录"
-              className="group absolute right-2 w-[calc(100%-3rem)] rounded border border-dashed border-slate-700/60 text-left transition hover:border-amber-500/60 hover:bg-amber-500/5"
+              className="group absolute right-2 w-[calc(100%-3rem)] rounded border border-dashed border-line/60 text-left transition hover:border-amber-500/60 hover:bg-amber-500/5"
               style={{ top: `${g.s * PX_PER_MIN}px`, height: `${Math.max((g.e - g.s) * PX_PER_MIN - 2, 8)}px` }}
             >
               {(g.e - g.s) * PX_PER_MIN >= 22 && (
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 text-[10px] text-slate-600 group-hover:text-amber-400/80">
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 text-[10px] text-ink-faint group-hover:text-warn/80">
                   ✦ 未记录 {hmOf(g.s)}–{hmOf(g.e)}（{(g.e - g.s) >= 60 ? `${Math.floor((g.e - g.s) / 60)}小时${(g.e - g.s) % 60 || ""}` : `${g.e - g.s}分钟`}）
                 </span>
               )}
@@ -195,14 +195,14 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
                 {h >= 18 && (
                   <span className="pointer-events-none flex h-full items-center gap-1.5 truncate text-xs">
                     <span>{b.icon}</span>
-                    <span className="truncate font-medium text-slate-200">{b.title}</span>
-                    <span className="shrink-0 tabular-nums text-[10px] text-slate-400">
+                    <span className="truncate font-medium text-ink">{b.title}</span>
+                    <span className="shrink-0 tabular-nums text-[10px] text-ink-mute">
                       {hmOf(s)}–{hmOf(e)}
                     </span>
                   </span>
                 )}
                 {h < 18 && h >= 9 && (
-                  <span className="pointer-events-none flex h-full items-center text-[10px] text-slate-300">{b.icon}</span>
+                  <span className="pointer-events-none flex h-full items-center text-[10px] text-ink-soft">{b.icon}</span>
                 )}
               </button>
             );
@@ -219,7 +219,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
           )}
         </div>
       </div>
-      <p className="mt-2 text-[10px] text-slate-600">
+      <p className="mt-2 text-[10px] text-ink-faint">
         提示：点击彩色块可修改 · 点击空白处自动定位整点 1 小时补录（表单内可调时间）{isToday ? " · 红线为当前时刻" : ""}
       </p>
     </div>

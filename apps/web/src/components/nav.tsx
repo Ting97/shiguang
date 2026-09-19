@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import ThemeToggle from "./theme-toggle";
 
 const LINKS = [
   { href: "/", label: "动态" },
@@ -48,11 +49,11 @@ export default function Nav() {
     `shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-[13px] transition-all duration-200 sm:px-5 sm:py-1.5 sm:text-sm ${
       active
         ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-        : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+        : "text-ink-mute hover:bg-wash hover:text-ink"
     }`;
 
   return (
-    <nav className="sticky top-0 z-40 mb-8 flex items-center justify-between gap-2 rounded-b-2xl border border-t-0 border-white/10 bg-slate-900/80 p-1 pl-3 text-sm shadow-lg shadow-slate-950/50 backdrop-blur-xl safe-top">
+    <nav className="sticky top-0 z-40 mb-8 flex items-center justify-between gap-2 rounded-b-2xl border border-t-0 border-line-soft bg-surface/80 p-1 pl-3 text-sm shadow-lg shadow-scrim/50 backdrop-blur-xl safe-top">
       <div ref={scrollRef} className="scrollbar-none flex min-w-0 flex-1 justify-start gap-1 overflow-x-auto sm:justify-center">
         {LINKS.map((l) => {
           const active = pathname === l.href;
@@ -68,26 +69,29 @@ export default function Nav() {
           </Link>
         )}
       </div>
-      {!authDisabled && nickname && (
-        <span className="flex shrink-0 items-center gap-1.5 pr-2 text-xs text-slate-400">
-          <Link
-            href="/profile"
-            title="个人设置"
-            className={`max-w-[4.5rem] truncate rounded-full px-2 py-1.5 transition hover:bg-white/5 hover:text-sky-300 sm:max-w-none sm:py-1 ${
-              pathname === "/profile" ? "text-sky-300" : ""
-            }`}
-          >
-            {nickname}
-          </Link>
-          <button
-            onClick={logout}
-            title="退出登录"
-            className="rounded-full px-2 py-1.5 transition hover:bg-white/5 hover:text-rose-300 sm:py-1"
-          >
-            ⎋
-          </button>
-        </span>
-      )}
+      <span className="flex shrink-0 items-center gap-1 pr-2">
+        <ThemeToggle />
+        {!authDisabled && nickname && (
+          <span className="flex items-center gap-1.5 text-xs text-ink-mute">
+            <Link
+              href="/profile"
+              title="个人设置"
+              className={`max-w-[4.5rem] truncate rounded-full px-2 py-1.5 transition hover:bg-wash hover:text-accent sm:max-w-none sm:py-1 ${
+                pathname === "/profile" ? "text-accent" : ""
+              }`}
+            >
+              {nickname}
+            </Link>
+            <button
+              onClick={logout}
+              title="退出登录"
+              className="rounded-full px-2 py-1.5 transition hover:bg-wash hover:text-danger sm:py-1"
+            >
+              ⎋
+            </button>
+          </span>
+        )}
+      </span>
     </nav>
   );
 }

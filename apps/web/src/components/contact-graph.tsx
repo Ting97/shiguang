@@ -105,7 +105,7 @@ export default function ContactGraph({
                 cy={g.center.y}
                 r={ring.r}
                 fill="none"
-                stroke="rgba(148,163,184,0.14)"
+                stroke="var(--orbit)"
                 strokeDasharray="3 6"
               />
               <text
@@ -113,7 +113,7 @@ export default function ContactGraph({
                 y={g.center.y - ring.r - 4}
                 textAnchor="middle"
                 fontSize={10}
-                className="fill-slate-500"
+                className="fill-ink-dim"
               >
                 {ring.label}
               </text>
@@ -164,7 +164,7 @@ export default function ContactGraph({
                 <text
                   y={n.r + 15}
                   textAnchor="middle"
-                  className="pointer-events-none select-none fill-slate-300"
+                  className="pointer-events-none select-none fill-ink-soft"
                   fontSize={13}
                 >
                   {n.name.length > 5 ? `${n.name.slice(0, 4)}…` : n.name}
@@ -193,14 +193,14 @@ export default function ContactGraph({
         {/* hover 提示：HTML 覆盖层按 viewBox 百分比定位，随容器缩放 */}
         {hovered && hoveredPos && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+14px)] whitespace-nowrap rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-xl"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+14px)] whitespace-nowrap rounded-lg border border-line bg-surface/95 px-3 py-2 text-xs shadow-xl"
             style={{ left: `${(hoveredPos.x / size) * 100}%`, top: `${(hoveredPos.y / size) * 100}%` }}
           >
-            <p className="font-semibold text-slate-100">
+            <p className="font-semibold text-ink">
               {hovered.name}
-              <span className="ml-1.5 font-normal text-slate-400">{hovered.group}</span>
+              <span className="ml-1.5 font-normal text-ink-mute">{hovered.group}</span>
             </p>
-            <p className="mt-0.5 tabular-nums text-slate-400">
+            <p className="mt-0.5 tabular-nums text-ink-mute">
               亲密度 {hovered.intimacy} · 往来 {hovered.count} 次
             </p>
           </div>
@@ -210,13 +210,13 @@ export default function ContactGraph({
       {/* 分组图例 */}
       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
         {g.legend.map((l) => (
-          <span key={l.tag} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+          <span key={l.tag} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />
             {l.tag}
-            <span className="tabular-nums text-slate-500">{l.count}</span>
+            <span className="tabular-nums text-ink-dim">{l.count}</span>
           </span>
         ))}
-        <span className="text-[11px] text-slate-600">
+        <span className="text-[11px] text-ink-faint">
           距离=重要程度 · 节点大小=亲密度+往来 · 拖动节点可摆位 · 点击看 TA 档案
         </span>
       </div>

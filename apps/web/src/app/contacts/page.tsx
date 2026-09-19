@@ -92,18 +92,18 @@ export default function ContactsPage() {
   }, [contacts, groups, q]);
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
-            拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">人际</span>
+            拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">人际</span>
           </h1>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-ink-dim">
             动态里提到的人都在这里 —— 分组档案、生日提醒、往来时间线
           </p>
           {/* 列表 | 图谱 视图切换 */}
-          <div className="mt-4 inline-flex rounded-full border border-white/10 bg-slate-900/70 p-1 text-xs">
+          <div className="mt-4 inline-flex rounded-full border border-line-soft bg-surface/70 p-1 text-xs">
             {([
               ["list", "📋 列表"],
               ["graph", "🕸 图谱"],
@@ -114,7 +114,7 @@ export default function ContactsPage() {
                 className={`rounded-full px-4 py-1.5 transition-all duration-200 ${
                   view === v
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-slate-400 hover:text-slate-100"
+                    : "text-ink-mute hover:text-ink"
                 }`}
               >
                 {label}
@@ -148,7 +148,7 @@ export default function ContactsPage() {
                   className={`whitespace-nowrap rounded-full px-3 py-1 text-xs transition ${
                     selected
                       ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                      : "border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                      : "border border-line-soft bg-surface/60 text-ink-mute hover:bg-wash hover:text-ink"
                   }`}
                 >
                   {g.name === "全部" ? "全部" : `${GROUP_EMOJI[g.name] ?? "👤"} ${g.name}`} {g.count}
@@ -161,7 +161,7 @@ export default function ContactsPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="搜索姓名/备注…"
-              className="w-36 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs outline-none placeholder:text-slate-600 focus:border-sky-500"
+              className="w-36 rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs outline-none placeholder:text-ink-faint focus:border-sky-500"
             />
             <button onClick={() => setEditing("new")} className="btn-primary whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
               ＋ 建档
@@ -173,8 +173,8 @@ export default function ContactsPage() {
           <div
             className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
               msg.ok
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-success"
+                : "border-rose-500/30 bg-rose-500/10 text-danger"
             }`}
           >
             {msg.text}
@@ -204,32 +204,32 @@ export default function ContactsPage() {
                   className="glass glass-hover group block rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 text-xl">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-gradient-to-br from-elevated to-surface text-xl">
                       {GROUP_EMOJI[c.group_tag] ?? "👤"}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                         <span className="truncate">{c.name}</span>
-                        {c.alias && <span className="truncate text-xs font-normal text-slate-500">（{c.alias}）</span>}
+                        {c.alias && <span className="truncate text-xs font-normal text-ink-dim">（{c.alias}）</span>}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{c.group_tag}</span>
-                        {bd?.countdown && <span className="text-pink-300">{bd.countdown}</span>}
+                      <p className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-dim">
+                        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-ink-mute">{c.group_tag}</span>
+                        {bd?.countdown && <span className="text-ai">{bd.countdown}</span>}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{c.interaction_count} 次</span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">{c.interaction_count} 次</span>
                   </div>
-                  <p className="mt-2.5 truncate text-xs text-slate-400">
+                  <p className="mt-2.5 truncate text-xs text-ink-mute">
                     {c.last_at ? (
                       <>
-                        <span className="text-slate-500">{relTime(c.last_at)}</span> · {displaySummary(c.last_summary) || "往来"}
+                        <span className="text-ink-dim">{relTime(c.last_at)}</span> · {displaySummary(c.last_summary) || "往来"}
                       </>
                     ) : (
-                      <span className="text-slate-600">暂无往来记录</span>
+                      <span className="text-ink-faint">暂无往来记录</span>
                     )}
                   </p>
                   {Number(c.gift_net_cents) !== 0 && (
-                    <p className="mt-1 text-[11px] tabular-nums text-slate-500">
+                    <p className="mt-1 text-[11px] tabular-nums text-ink-dim">
                       人情往来 {Number(c.gift_net_cents) > 0 ? "+" : ""}
                       {`¥${(Math.abs(Number(c.gift_net_cents)) / 100).toFixed(Math.abs(Number(c.gift_net_cents)) % 100 === 0 ? 0 : 2)}`}
                     </p>
@@ -252,7 +252,7 @@ export default function ContactsPage() {
           />
         )}
 
-        <footer className="mt-10 text-center text-[10px] text-slate-600">
+        <footer className="mt-10 text-center text-[10px] text-ink-faint">
           拾光复利 · 人际模块 v2（Phase 3 W9~W11）· 语音提及自动建档
         </footer>
       </div>

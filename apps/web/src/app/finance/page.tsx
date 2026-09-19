@@ -156,7 +156,7 @@ export default function FinancePage() {
 
   if (!ov) {
     return (
-      <main className="min-h-screen text-slate-100">
+      <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <Nav />
           <Skeleton rows={3} className="py-2" />
@@ -166,25 +166,25 @@ export default function FinancePage() {
   }
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
-            拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">财务</span>
+            拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">财务</span>
           </h1>
-          <p className="mt-2 text-xs text-slate-500">动态里说的钱都在这里 —— 确认草稿、管账户、看月度结构</p>
+          <p className="mt-2 text-xs text-ink-dim">动态里说的钱都在这里 —— 确认草稿、管账户、看月度结构</p>
         </header>
 
         {/* 月份导航 + 记一笔（窄屏自动换行，避免按钮溢出） */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={() => setMonth(shiftMonth(month, -1))} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">‹</button>
-            <span className="min-w-24 text-center text-sm font-semibold text-slate-200 tabular-nums">{monthTitle(month)}</span>
-            <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
+            <button onClick={() => setMonth(shiftMonth(month, -1))} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">‹</button>
+            <span className="min-w-24 text-center text-sm font-semibold text-ink tabular-nums">{monthTitle(month)}</span>
+            <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button onClick={() => setImporting(true)} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-300 transition hover:bg-sky-500/20">
+            <button onClick={() => setImporting(true)} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-sky-500/20">
               📥 导入账单
             </button>
             <button onClick={() => setAdding(true)} className="btn-primary whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
@@ -197,9 +197,9 @@ export default function FinancePage() {
 
         {/* 草稿提醒 */}
         {drafts.length > 0 && (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-warn">
             📥 有 <span className="font-bold">{drafts.length}</span> 笔动态识别的流水待确认
-            <button onClick={() => document.getElementById("draft-area")?.scrollIntoView({ behavior: "smooth" })} className="ml-2 underline underline-offset-2 hover:text-amber-100">
+            <button onClick={() => document.getElementById("draft-area")?.scrollIntoView({ behavior: "smooth" })} className="ml-2 underline underline-offset-2 hover:text-warn">
               去确认
             </button>
           </div>
@@ -209,24 +209,24 @@ export default function FinancePage() {
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <p className="text-[11px] text-slate-500">本月支出</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-rose-300">¥{yuan(ov.outCents)}</p>
+              <p className="text-[11px] text-ink-dim">本月支出</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-danger">¥{yuan(ov.outCents)}</p>
               {outDelta != null && (
-                <p className={`mt-0.5 text-[10px] tabular-nums ${outDelta > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                <p className={`mt-0.5 text-[10px] tabular-nums ${outDelta > 0 ? "text-danger" : "text-success"}`}>
                   较上月 {outDelta > 0 ? "+" : ""}{outDelta}%
                 </p>
               )}
             </div>
             <div>
-              <p className="text-[11px] text-slate-500">本月收入</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-emerald-300">¥{yuan(ov.inCents)}</p>
+              <p className="text-[11px] text-ink-dim">本月收入</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-success">¥{yuan(ov.inCents)}</p>
             </div>
             <div>
-              <p className="text-[11px] text-slate-500">结余</p>
-              <p className={`mt-1 text-xl font-bold tabular-nums ${ov.inCents - ov.outCents >= 0 ? "text-sky-300" : "text-rose-300"}`}>
+              <p className="text-[11px] text-ink-dim">结余</p>
+              <p className={`mt-1 text-xl font-bold tabular-nums ${ov.inCents - ov.outCents >= 0 ? "text-accent" : "text-danger"}`}>
                 {fmtMoney(ov.inCents - ov.outCents)}
               </p>
-              {rate != null && <p className="mt-0.5 text-[10px] text-slate-500">储蓄率 {rate}%</p>}
+              {rate != null && <p className="mt-0.5 text-[10px] text-ink-dim">储蓄率 {rate}%</p>}
             </div>
           </div>
 
@@ -234,7 +234,7 @@ export default function FinancePage() {
           <SavingsTrend trend={ov.trend} />
 
           {/* 预算进度 */}
-          <div className="mt-4 border-t border-slate-800 pt-3">
+          <div className="mt-4 border-t border-line-soft pt-3">
             {editingBudget ? (
               <BudgetEditor
                 ov={ov}
@@ -248,18 +248,18 @@ export default function FinancePage() {
             ) : (
               <>
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">
+                  <span className="text-ink-mute">
                     {ov.budget.monthly_limit_cents > 0
                       ? `月度上限 ¥${yuan(ov.budget.monthly_limit_cents)}`
                       : "未设月度上限"}
                   </span>
-                  <button onClick={() => setEditingBudget(true)} className="text-slate-500 hover:text-sky-300">
+                  <button onClick={() => setEditingBudget(true)} className="text-ink-dim hover:text-accent">
                     {ov.budget.monthly_limit_cents > 0 ? "调整" : "设置"}
                   </button>
                 </div>
                 {ov.budget.monthly_limit_cents > 0 && (
                   <>
-                    <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-elevated">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
                           budget.tone === "over"
@@ -272,7 +272,7 @@ export default function FinancePage() {
                       />
                     </div>
                     <p className={`mt-1 text-[10px] tabular-nums ${
-                      budget.tone === "over" ? "text-rose-300" : budget.tone === "warn" ? "text-amber-300" : "text-slate-500"
+                      budget.tone === "over" ? "text-danger" : budget.tone === "warn" ? "text-warn" : "text-ink-dim"
                     }`}>
                       {budget.tone === "over"
                         ? `⚠️ 已超支 ¥${yuan(ov.outCents - ov.budget.monthly_limit_cents)}（${budget.pct}%）`
@@ -288,7 +288,7 @@ export default function FinancePage() {
 
           {/* 分类占比 */}
           {slices.length > 0 && (
-            <div className="mt-4 border-t border-slate-800 pt-3">
+            <div className="mt-4 border-t border-line-soft pt-3">
               <div className="flex h-2.5 w-full overflow-hidden rounded-full">
                 {slices.map((s) => (
                   <div
@@ -303,10 +303,10 @@ export default function FinancePage() {
               </div>
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                 {slices.slice(0, 6).map((s) => (
-                  <span key={s.category} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                  <span key={s.category} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: TX_COLORS[s.category] ?? "#64748b" }} />
                     {s.category}
-                    <span className="tabular-nums text-slate-500">¥{yuan(s.cents)} · {s.pct}%</span>
+                    <span className="tabular-nums text-ink-dim">¥{yuan(s.cents)} · {s.pct}%</span>
                   </span>
                 ))}
               </div>
@@ -317,26 +317,26 @@ export default function FinancePage() {
         {/* 账户 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300">
+            <h2 className="text-sm font-semibold text-ink-soft">
               💳 账户
-              <span className="ml-2 text-xs font-normal text-slate-500">
+              <span className="ml-2 text-xs font-normal text-ink-dim">
                 合计 {fmtMoney(ov.accounts.reduce((s, a) => s + a.balance_cents, 0))}
               </span>
             </h2>
-            <button onClick={() => setManagingAccount(true)} className="text-xs text-slate-400 hover:text-sky-300">
+            <button onClick={() => setManagingAccount(true)} className="text-xs text-ink-mute hover:text-accent">
               管理
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ov.accounts.map((a) => (
-              <div key={a.id} className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2.5 text-center">
+              <div key={a.id} className="rounded-xl border border-line-soft bg-bg/40 px-3 py-2.5 text-center">
                 <p className="text-lg">{a.icon}</p>
-                <p className="truncate text-[11px] text-slate-400">{a.name}</p>
-                <p className="text-sm font-semibold tabular-nums text-slate-200">{fmtMoney(a.balance_cents)}</p>
+                <p className="truncate text-[11px] text-ink-mute">{a.name}</p>
+                <p className="text-sm font-semibold tabular-nums text-ink">{fmtMoney(a.balance_cents)}</p>
               </div>
             ))}
             {ov.accounts.length === 0 && (
-              <p className="col-span-full py-3 text-center text-xs text-slate-600">
+              <p className="col-span-full py-3 text-center text-xs text-ink-faint">
                 还没有账户 —— 点「管理」添加现金/支付宝等
               </p>
             )}
@@ -347,56 +347,56 @@ export default function FinancePage() {
         {drafts.length > 0 && (
           <section id="draft-area" className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-amber-200">
+              <h2 className="text-sm font-semibold text-warn">
                 📥 待确认流水
-                <span className="ml-2 text-xs font-normal text-amber-200/60">来自动态识别 · 确认后计入报表</span>
+                <span className="ml-2 text-xs font-normal text-warn/60">来自动态识别 · 确认后计入报表</span>
               </h2>
               <button
                 onClick={() => setConfirmAll((v) => !v)}
-                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200 transition hover:bg-amber-500/20"
+                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-warn transition hover:bg-amber-500/20"
               >
                 {confirmAll ? "收起" : "⚡ 全部入账"}
               </button>
             </div>
             {confirmAll && (
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5 text-xs">
-                <span className="text-slate-300">把这 {drafts.length} 笔全部记入：</span>
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-bg/50 px-3 py-2.5 text-xs">
+                <span className="text-ink-soft">把这 {drafts.length} 笔全部记入：</span>
                 {ov.accounts.map((a) => (
                   <button
                     key={a.id}
                     onClick={() => confirmAllTx(a.id)}
-                    className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-200 transition hover:bg-sky-600"
+                    className="rounded-full bg-elevated px-3 py-1 text-[11px] text-ink transition hover:bg-sky-600"
                   >
                     {a.icon} {a.name}
                   </button>
                 ))}
-                <button onClick={() => confirmAllTx(null)} className="rounded-full px-3 py-1 text-[11px] text-slate-400 hover:text-sky-300">
+                <button onClick={() => confirmAllTx(null)} className="rounded-full px-3 py-1 text-[11px] text-ink-mute hover:text-accent">
                   不记账户
                 </button>
-                <button onClick={() => setConfirmAll(false)} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">
+                <button onClick={() => setConfirmAll(false)} className="ml-auto text-[11px] text-ink-dim hover:text-ink-soft">
                   取消
                 </button>
               </div>
             )}
             <ul className="space-y-2">
               {drafts.map((t) => (
-                <li key={t.id} className="force-actions group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-500/20 bg-slate-950/50 px-3 py-2.5">
+                <li key={t.id} className="force-actions group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-500/20 bg-bg/50 px-3 py-2.5">
                   {confirming?.id === t.id ? (
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-slate-300">记入账户：</span>
+                      <span className="text-ink-soft">记入账户：</span>
                       {ov.accounts.map((a) => (
                         <button
                           key={a.id}
                           onClick={() => confirmTx(a.id)}
-                          className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-200 transition hover:bg-sky-600"
+                          className="rounded-full bg-elevated px-3 py-1 text-[11px] text-ink transition hover:bg-sky-600"
                         >
                           {a.icon} {a.name}
                         </button>
                       ))}
-                      <button onClick={() => confirmTx(null)} className="rounded-full px-3 py-1 text-[11px] text-slate-400 hover:text-sky-300">
+                      <button onClick={() => confirmTx(null)} className="rounded-full px-3 py-1 text-[11px] text-ink-mute hover:text-accent">
                         不记账户
                       </button>
-                      <button onClick={() => setConfirming(null)} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">
+                      <button onClick={() => setConfirming(null)} className="ml-auto text-[11px] text-ink-dim hover:text-ink-soft">
                         取消
                       </button>
                     </div>
@@ -411,19 +411,19 @@ export default function FinancePage() {
 
         {/* 已确认流水 */}
         <section className="glass rounded-2xl p-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">
+          <h2 className="mb-3 text-sm font-semibold text-ink-soft">
             🧾 流水
-            <span className="ml-2 text-xs font-normal text-slate-500">{confirmed.length} 笔</span>
+            <span className="ml-2 text-xs font-normal text-ink-dim">{confirmed.length} 笔</span>
           </h2>
           {confirmed.length === 0 && (
-            <p className="py-4 text-center text-xs text-slate-600">
+            <p className="py-4 text-center text-xs text-ink-faint">
               本月还没有流水 —— 说句"打车花了30"，或点「＋ 记一笔」
             </p>
           )}
           <ul className="space-y-1">
             {confirmed.map((t) =>
               editing?.id === t.id ? (
-                <li key={t.id} className="rounded-xl border border-sky-500/40 bg-slate-800/60 p-3">
+                <li key={t.id} className="rounded-xl border border-sky-500/40 bg-elevated/60 p-3">
                   <TxForm
                     accounts={ov.accounts}
                     initial={t}
@@ -437,7 +437,7 @@ export default function FinancePage() {
                   />
                 </li>
               ) : (
-                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-slate-800/60">
+                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-elevated/60">
                   <TxRow tx={t} onEdit={() => setEditing(t)} onDelete={() => removeTx(t)} />
                 </li>
               ),
@@ -484,7 +484,7 @@ export default function FinancePage() {
           </Modal>
         )}
 
-        <footer className="mt-10 text-center text-[10px] text-slate-600">
+        <footer className="mt-10 text-center text-[10px] text-ink-faint">
           拾光复利 · 财务模块 v1 · 流水确认后计入月度报表
         </footer>
       </div>
@@ -513,38 +513,38 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () 
   return (
     <>
       {/* 上行：徽章 + 分类/对方/备注 + 金额；窄屏自动折行后下行是 日期+账户+操作 */}
-      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${t.direction === "out" ? "bg-rose-500/15 text-rose-300" : "bg-emerald-500/15 text-emerald-300"}`}>
+      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${t.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
         {t.direction === "out" ? "支" : "收"}
       </span>
-      <span className="w-12 shrink-0 text-[11px] tabular-nums text-slate-500" title={zhDay(t.occurred_at)}>
+      <span className="w-12 shrink-0 text-[11px] tabular-nums text-ink-dim" title={zhDay(t.occurred_at)}>
         {compactDay}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm">
         {t.category}
-        {t.counterparty && <span className="text-xs text-slate-500"> · {t.counterparty}</span>}
-        {t.note && t.note !== t.category && <span className="text-xs text-slate-500"> · {t.note}</span>}
+        {t.counterparty && <span className="text-xs text-ink-dim"> · {t.counterparty}</span>}
+        {t.note && t.note !== t.category && <span className="text-xs text-ink-dim"> · {t.note}</span>}
       </span>
-      <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.direction === "out" ? "text-rose-300" : "text-emerald-300"}`}>
+      <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.direction === "out" ? "text-danger" : "text-success"}`}>
         {t.direction === "out" ? "-" : "+"}¥{yuan(t.amount_cents)}
       </span>
       {t.account_name && (
-        <span className="row-secondary hidden shrink-0 items-center gap-1 text-[11px] text-slate-500 sm:flex">
+        <span className="row-secondary hidden shrink-0 items-center gap-1 text-[11px] text-ink-dim sm:flex">
           {t.account_icon} {t.account_name}
         </span>
       )}
       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
         {onConfirm && (
-          <button onClick={onConfirm} title="确认入账" className="rounded px-1.5 py-0.5 text-xs text-amber-300 hover:bg-slate-700">
+          <button onClick={onConfirm} title="确认入账" className="rounded px-1.5 py-0.5 text-xs text-warn hover:bg-soft">
             ✓
           </button>
         )}
         {onEdit && (
-          <button onClick={onEdit} title="修改" className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300">
+          <button onClick={onEdit} title="修改" className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent">
             ✏️
           </button>
         )}
         {onDelete && (
-          <button onClick={onDelete} title="删除" className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300">
+          <button onClick={onDelete} title="删除" className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger">
             🗑
           </button>
         )}
@@ -590,7 +590,7 @@ function TxForm({
                 ? d === "out"
                   ? "bg-rose-600 text-white"
                   : "bg-emerald-600 text-white"
-                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                : "bg-elevated text-ink-mute hover:bg-soft"
             }`}
           >
             {d === "out" ? "支出" : "收入"}
@@ -598,7 +598,7 @@ function TxForm({
         ))}
       </div>
       <div className="flex gap-2">
-        <span className="flex items-center text-lg text-slate-500">¥</span>
+        <span className="flex items-center text-lg text-ink-dim">¥</span>
         <input
           autoFocus
           type="number"
@@ -607,12 +607,12 @@ function TxForm({
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="金额"
-          className="w-28 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
+          className="w-28 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
         />
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none focus:border-sky-500"
+          className="rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
         >
           {TX_CATEGORIES.map((c) => (
             <option key={c} value={c}>{c}</option>
@@ -623,7 +623,7 @@ function TxForm({
         <select
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none focus:border-sky-500"
+          className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
         >
           <option value="">不记账户</option>
           {accounts.map((a) => (
@@ -634,7 +634,7 @@ function TxForm({
           type="datetime-local"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
+          className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
         />
       </div>
       <div className="flex gap-2">
@@ -643,17 +643,17 @@ function TxForm({
           onChange={(e) => setCounterparty(e.target.value)}
           placeholder="对方（可空）"
           title="和谁有关 —— 填了会关联到 TA 的人情账（如：老王）"
-          className="w-24 shrink-0 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+          className="w-24 shrink-0 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
         />
         <input
           value={note ?? ""}
           onChange={(e) => setNote(e.target.value)}
           placeholder="备注（可空）"
-          className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+          className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
         />
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-slate-400 hover:bg-slate-700">
+        <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
           取消
         </button>
         <button
@@ -697,7 +697,7 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
     <div className="space-y-3">
       <ul className="space-y-1.5">
         {accounts.map((a) => (
-          <li key={a.id} className="group flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2">
+          <li key={a.id} className="group flex items-center gap-2 rounded-lg border border-line-soft bg-bg/40 px-3 py-2">
             <span className="text-lg">{a.icon}</span>
             <span className="flex-1 truncate text-sm">{a.name}</span>
             <input
@@ -712,7 +712,7 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
                   await onChanged();
                 }
               }}
-              className="w-24 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-sky-500"
+              className="w-24 rounded border border-line bg-surface px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-sky-500"
             />
             <button
               title="归档账户（历史流水保留）"
@@ -721,15 +721,15 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
                 await api(`/api/accounts/${a.id}`, "DELETE");
                 await onChanged();
               }}
-              className="row-actions-hidden hidden text-xs text-slate-500 hover:text-rose-300 group-hover:block"
+              className="row-actions-hidden hidden text-xs text-ink-dim hover:text-danger group-hover:block"
             >
               🗑
             </button>
           </li>
         ))}
       </ul>
-      <div className="flex items-center gap-2 border-t border-slate-800 pt-3">
-        <select value={icon} onChange={(e) => setIcon(e.target.value)} className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none">
+      <div className="flex items-center gap-2 border-t border-line-soft pt-3">
+        <select value={icon} onChange={(e) => setIcon(e.target.value)} className="rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none">
           {ICONS.map((i) => (
             <option key={i} value={i}>{i}</option>
           ))}
@@ -738,7 +738,7 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="新账户名（如：招行储蓄卡）"
-          className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+          className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
         />
         <button
           disabled={busy || !name.trim()}
@@ -767,8 +767,8 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
 function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
   const max = Math.max(100, ...trend.map((t) => Math.abs(t.rate ?? 0)));
   return (
-    <div className="mt-4 border-t border-slate-800 pt-3">
-      <p className="mb-2 text-[11px] text-slate-400">📈 储蓄率 · 近 6 个月</p>
+    <div className="mt-4 border-t border-line-soft pt-3">
+      <p className="mb-2 text-[11px] text-ink-mute">📈 储蓄率 · 近 6 个月</p>
       <div className="flex items-end justify-between gap-2">
         {trend.map((t, i) => {
           const isCur = i === trend.length - 1;
@@ -777,7 +777,7 @@ function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
             <div key={t.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
               <span
                 className={`text-[10px] tabular-nums ${
-                  t.rate == null ? "text-slate-600" : t.rate >= 0 ? "text-emerald-300" : "text-rose-300"
+                  t.rate == null ? "text-ink-faint" : t.rate >= 0 ? "text-success" : "text-danger"
                 }`}
               >
                 {t.rate == null ? "—" : `${t.rate}%`}
@@ -786,14 +786,14 @@ function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
                 title={`${t.month}：收入 ¥${yuan(t.inCents)} · 支出 ¥${yuan(t.outCents)}`}
                 className={`w-full rounded-t transition-colors ${
                   t.rate == null
-                    ? "bg-slate-800"
+                    ? "bg-elevated"
                     : t.rate >= 0
                       ? "bg-gradient-to-t from-emerald-600/50 to-emerald-400/80"
                       : "bg-gradient-to-t from-rose-600/50 to-rose-400/80"
                 } ${isCur ? "ring-1 ring-sky-400/60" : ""}`}
                 style={{ height: h }}
               />
-              <span className={`text-[9px] tabular-nums ${isCur ? "text-slate-300" : "text-slate-600"}`}>
+              <span className={`text-[9px] tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
                 {Number(t.month.slice(5))}月
               </span>
             </div>
@@ -812,7 +812,7 @@ function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel: () =>
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
-      <span className="text-slate-400">月度支出上限 ¥</span>
+      <span className="text-ink-mute">月度支出上限 ¥</span>
       <input
         autoFocus
         type="number"
@@ -821,20 +821,20 @@ function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel: () =>
         value={limit}
         onChange={(e) => setLimit(e.target.value)}
         placeholder="0 = 不设上限"
-        className="w-28 rounded border border-slate-600 bg-slate-900 px-2 py-1 tabular-nums outline-none focus:border-sky-500"
+        className="w-28 rounded border border-line-strong bg-surface px-2 py-1 tabular-nums outline-none focus:border-sky-500"
       />
-      <span className="text-slate-400">预警阈值</span>
+      <span className="text-ink-mute">预警阈值</span>
       <select
         value={threshold}
         onChange={(e) => setThreshold(Number(e.target.value))}
-        className="rounded border border-slate-600 bg-slate-900 px-1.5 py-1 outline-none"
+        className="rounded border border-line-strong bg-surface px-1.5 py-1 outline-none"
       >
         {[50, 60, 70, 80, 90].map((t) => (
           <option key={t} value={t}>{t}%</option>
         ))}
       </select>
       <span className="ml-auto flex gap-2">
-        <button onClick={onCancel} className="rounded px-3 py-1 text-slate-400 hover:bg-slate-700">取消</button>
+        <button onClick={onCancel} className="rounded px-3 py-1 text-ink-mute hover:bg-soft">取消</button>
         <button
           disabled={busy}
           onClick={async () => {
@@ -860,7 +860,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   return (
     /* 移动端底部弹层（键盘不遮提交钮、拇指可达）；桌面居中卡片 */
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -868,8 +868,8 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
-          <button onClick={onClose} className="rounded px-2 py-1 text-slate-500 hover:text-slate-200">✕</button>
+          <h3 className="text-sm font-semibold text-ink">{title}</h3>
+          <button onClick={onClose} className="rounded px-2 py-1 text-ink-dim hover:text-ink">✕</button>
         </div>
         {children}
       </div>

@@ -54,12 +54,12 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
           const isToday = d === todayStr();
           return (
             <button key={d} onClick={() => onPickDay(d)} className="group text-left">
-              <div className={`mb-1 rounded px-1 py-0.5 text-center text-[10px] ${isToday ? "bg-sky-600 font-bold" : "bg-slate-800/80 text-slate-400"}`}>
+              <div className={`mb-1 rounded px-1 py-0.5 text-center text-[10px] ${isToday ? "bg-sky-600 font-bold" : "bg-elevated/80 text-ink-mute"}`}>
                 {weekName(d)} {zhDate(d).replace("月", "/").replace("日", "")}
               </div>
-              <div className="relative h-[432px] overflow-hidden rounded border border-slate-800 bg-slate-950/40 group-hover:border-sky-600/50">
+              <div className="relative h-[432px] overflow-hidden rounded border border-line-soft bg-bg/40 group-hover:border-sky-600/50">
                 {Array.from({ length: 25 }, (_, h) => (
-                  <div key={h} className={`absolute inset-x-0 ${h % 6 === 0 ? "border-t border-slate-800/70" : ""}`} style={{ top: `${h * 60 * PX_PER_MIN}px` }} />
+                  <div key={h} className={`absolute inset-x-0 ${h % 6 === 0 ? "border-t border-line-soft/70" : ""}`} style={{ top: `${h * 60 * PX_PER_MIN}px` }} />
                 ))}
                 {list.map((b) => {
                   // 起止都钳到当天 0~1440（跨天块只显示落在当天的部分）
@@ -80,7 +80,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
                   );
                 })}
               </div>
-              <p className="mt-1 text-center text-[10px] tabular-nums text-slate-500">
+              <p className="mt-1 text-center text-[10px] tabular-nums text-ink-dim">
                 {total > 0 ? zhDuration(total) : "—"}
               </p>
             </button>
@@ -93,8 +93,8 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
       {/* 各类合计 */}
       {grand > 0 && (
         <div className="mt-4">
-          <p className="mb-1.5 text-xs text-slate-400">
-            本周共记录 <span className="font-semibold text-slate-200">{zhDuration(grand)}</span>
+          <p className="mb-1.5 text-xs text-ink-mute">
+            本周共记录 <span className="font-semibold text-ink">{zhDuration(grand)}</span>
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {sorted.map(([id, min]) => (
@@ -105,9 +105,9 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
             {sorted.map(([id, min]) => {
               const a = actMap.get(id);
               return (
-                <span key={id} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span key={id} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a?.color }} />
-                  {a?.icon} {a?.name} <span className="tabular-nums text-slate-500">{zhDuration(min)}</span>
+                  {a?.icon} {a?.name} <span className="tabular-nums text-ink-dim">{zhDuration(min)}</span>
                 </span>
               );
             })}

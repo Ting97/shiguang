@@ -1,7 +1,166 @@
 @import "tailwindcss";
 
+/* ---------- 主题令牌 ----------
+   深色 = 默认（:root，值与旧版硬编码完全一致，零回归）；
+   浅色 = [data-theme="light"] 覆写（纯净浅色：白卡片 + 同套品牌色）。
+   data-theme 由 layout 内联脚本在首帧前设置（防闪烁）。 */
+
 :root {
   color-scheme: dark;
+
+  /* 表面层 */
+  --bg: #020617; /* 页面底色 */
+  --surface: #0f172a; /* 卡片/面板（原 bg-slate-900） */
+  --elevated: #1e293b; /* 次级面板/悬停（原 bg-slate-800） */
+  --soft: #334155; /* 软填充（原 bg-slate-700） */
+  --strong: #475569; /* 更强填充/hover（原 bg-slate-600） */
+  --scrim: #020617; /* 弹层遮罩/阴影色 */
+  --wash: rgba(255, 255, 255, 0.05); /* 悬浮薄涂（原 bg-white/5） */
+
+  /* 文字层 */
+  --ink: #f1f5f9; /* 主文字 */
+  --ink-soft: #cbd5e1; /* 正文（原 slate-300） */
+  --ink-mute: #94a3b8; /* 次要文字（原 slate-400） */
+  --ink-dim: #64748b; /* 说明文字（原 slate-500，双色同值） */
+  --ink-faint: #475569; /* 占位/最弱（原 slate-600） */
+
+  /* 边框层 */
+  --line-strong: #475569; /* 表单边框（原 slate-600） */
+  --line: #334155; /* 常规边框（原 slate-700） */
+  --line-soft: #1e293b; /* 弱分隔（原 slate-800 / white-10） */
+
+  /* 语义强调文字 */
+  --accent: #7dd3fc; /* 品牌 sky */
+  --danger: #fda4af; /* rose */
+  --success: #6ee7b7; /* emerald */
+  --warn: #fcd34d; /* amber */
+  --ai: #d8b4fe; /* purple（AI/关系） */
+
+  /* 玻璃卡片 */
+  --glass-bg: rgba(15, 23, 42, 0.55);
+  --glass-bg-mobile: rgba(15, 23, 42, 0.88);
+  --glass-border: rgba(148, 163, 184, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.04);
+  --glass-shadow: rgba(2, 6, 23, 0.4);
+  --glass-hover-border: rgba(148, 163, 184, 0.28);
+  --glass-hover-shadow: rgba(2, 6, 23, 0.55);
+
+  /* 极光背景（三色 radial 光晕透明度） */
+  --aurora-1: rgba(56, 189, 248, 0.13);
+  --aurora-2: rgba(129, 140, 248, 0.09);
+  --aurora-3: rgba(244, 114, 182, 0.06);
+
+  /* 图表 */
+  --heat-0: #1e293b;
+  --heat-1: #164e63;
+  --heat-2: #0e7490;
+  --heat-3: #0891b2;
+  --heat-4: #22d3ee;
+  --chart-track: #1e293b; /* 环形图底轨 */
+  --orbit: rgba(148, 163, 184, 0.14); /* 图谱轨道圈 */
+
+  /* 杂项 */
+  --selection: rgba(56, 189, 248, 0.35);
+  --scrollbar-thumb: rgba(71, 85, 105, 0.5);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.7);
+  --skeleton-1: rgba(30, 41, 59, 0.6);
+  --skeleton-2: rgba(51, 65, 85, 0.6);
+  --empty-border: rgba(51, 65, 85, 0.9);
+  --ghost-bg: rgba(15, 23, 42, 0.6);
+  --ghost-border: rgba(255, 255, 255, 0.1);
+  --ghost-hover-border: rgba(56, 189, 248, 0.5);
+  --ghost-hover-text: #bae6fd;
+  --input-focus-bg: rgba(2, 6, 23, 0.6);
+  --text-gradient-1: #f8fafc;
+  --text-gradient-2: #7dd3fc;
+  --text-gradient-3: #a5b4fc;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --elevated: #f1f5f9;
+  --soft: #e2e8f0;
+  --strong: #cbd5e1;
+  --scrim: #0f172a;
+  --wash: rgba(15, 23, 42, 0.045);
+
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --ink-mute: #475569;
+  --ink-dim: #64748b;
+  --ink-faint: #94a3b8;
+
+  --line-strong: #cbd5e1;
+  --line: #d3dbe4;
+  --line-soft: #e5eaf1;
+
+  --accent: #0369a1;
+  --danger: #be123c;
+  --success: #047857;
+  --warn: #b45309;
+  --ai: #7e22ce;
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-mobile: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.6);
+  --glass-shadow: rgba(15, 23, 42, 0.06);
+  --glass-hover-border: rgba(15, 23, 42, 0.16);
+  --glass-hover-shadow: rgba(15, 23, 42, 0.1);
+
+  --aurora-1: rgba(56, 189, 248, 0.1);
+  --aurora-2: rgba(99, 102, 241, 0.08);
+  --aurora-3: rgba(244, 114, 182, 0.06);
+
+  --heat-0: #e2e8f0;
+  --heat-1: #a5f3fc;
+  --heat-2: #67e8f9;
+  --heat-3: #22d3ee;
+  --heat-4: #0891b2;
+  --chart-track: #e2e8f0;
+  --orbit: rgba(15, 23, 42, 0.08);
+
+  --selection: rgba(56, 189, 248, 0.22);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.6);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.8);
+  --skeleton-1: rgba(226, 232, 240, 0.7);
+  --skeleton-2: rgba(203, 213, 225, 0.9);
+  --empty-border: #cbd5e1;
+  --ghost-bg: rgba(255, 255, 255, 0.65);
+  --ghost-border: rgba(15, 23, 42, 0.1);
+  --ghost-hover-border: rgba(2, 132, 199, 0.5);
+  --ghost-hover-text: #075985;
+  --input-focus-bg: rgba(255, 255, 255, 0.9);
+  --text-gradient-1: #0f172a;
+  --text-gradient-2: #0369a1;
+  --text-gradient-3: #4338ca;
+}
+
+/* 映射为 Tailwind 颜色令牌（inline：工具类直接引用运行时变量，透明度修饰符走 color-mix） */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-soft: var(--soft);
+  --color-strong: var(--strong);
+  --color-scrim: var(--scrim);
+  --color-wash: var(--wash);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-mute: var(--ink-mute);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-line-strong: var(--line-strong);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-ai: var(--ai);
 }
 
 html {
@@ -10,11 +169,11 @@ html {
 
 body {
   /* 深空底色 + 顶部晨光（aurora）：三色 radial 光晕，极低透明度不干扰阅读 */
-  background-color: #020617;
+  background-color: var(--bg);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56, 189, 248, 0.13), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 85% 0%, rgba(129, 140, 248, 0.09), transparent 60%),
-    radial-gradient(ellipse 50% 35% at 12% 5%, rgba(244, 114, 182, 0.06), transparent 60%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--aurora-1), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 0%, var(--aurora-2), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 12% 5%, var(--aurora-3), transparent 60%);
   background-attachment: fixed;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
@@ -28,7 +187,7 @@ body {
 }
 
 ::selection {
-  background: rgba(56, 189, 248, 0.35);
+  background: var(--selection);
 }
 
 /* 柔和滚动条 */
@@ -37,11 +196,11 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.7);
+  background: var(--scrollbar-thumb-hover);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -59,13 +218,13 @@ body {
 
 /* 毛玻璃卡片：层次感 = 半透明底 + 背景模糊 + 高光描边 + 顶部内高光 */
 .glass {
-  background: rgba(15, 23, 42, 0.55);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--glass-border);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 4px 24px rgba(2, 6, 23, 0.4);
+    inset 0 1px 0 var(--glass-highlight),
+    0 4px 24px var(--glass-shadow);
 }
 
 /* 移动端玻璃降级：backdrop-filter 长列表合成开销大，改用近实色（视觉层次靠描边与底色差） */
@@ -73,7 +232,7 @@ body {
   .glass {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(15, 23, 42, 0.88);
+    background: var(--glass-bg-mobile);
   }
 }
 
@@ -81,15 +240,15 @@ body {
   transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 .glass-hover:hover {
-  border-color: rgba(148, 163, 184, 0.28);
+  border-color: var(--glass-hover-border);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 8px 32px rgba(2, 6, 23, 0.55);
+    inset 0 1px 0 var(--glass-highlight),
+    0 8px 32px var(--glass-hover-shadow);
 }
 
 /* 渐变标题字：晨光 */
 .text-gradient {
-  background: linear-gradient(120deg, #f8fafc 30%, #7dd3fc 75%, #a5b4fc 100%);
+  background: linear-gradient(120deg, var(--text-gradient-1) 30%, var(--text-gradient-2) 75%, var(--text-gradient-3) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -97,7 +256,7 @@ body {
 
 /* ---------- 按钮体系 ---------- */
 
-/* 主按钮：sky→indigo 渐变 + 光晕 */
+/* 主按钮：sky→indigo 渐变 + 光晕（双色通用，白字对比充足） */
 .btn-primary {
   background: linear-gradient(135deg, #0ea5e9, #6366f1);
   box-shadow: 0 4px 16px rgba(14, 165, 233, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
@@ -115,26 +274,26 @@ body {
   box-shadow: none;
 }
 
-/* 次要按钮（ghost）：描边 + 深底，主操作旁的次选择 */
+/* 次要按钮（ghost）：描边 + 底色，主操作旁的次选择 */
 .btn-ghost {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(15, 23, 42, 0.6);
-  color: #7dd3fc;
+  border: 1px solid var(--ghost-border);
+  background: var(--ghost-bg);
+  color: var(--accent);
   transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
 }
 .btn-ghost:hover:not(:disabled) {
-  border-color: rgba(56, 189, 248, 0.5);
-  color: #bae6fd;
+  border-color: var(--ghost-hover-border);
+  color: var(--ghost-hover-text);
 }
 .btn-ghost:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-/* 强调 tinted：sky 淡底（导入/下载类中等动作） */
+/* 强调 tinted：sky 淡底（导入/下载类中等动作）；底与描边为品牌色淡染，双色通用 */
 .btn-sky-tinted {
   border: 1px solid rgba(56, 189, 248, 0.4);
   background: rgba(56, 189, 248, 0.1);
-  color: #7dd3fc;
+  color: var(--accent);
   transition: background-color 0.2s ease, transform 0.1s ease;
 }
 .btn-sky-tinted:hover:not(:disabled) {
@@ -148,7 +307,7 @@ body {
 .btn-purple-tinted {
   border: 1px solid rgba(168, 85, 247, 0.4);
   background: rgba(168, 85, 247, 0.1);
-  color: #d8b4fe;
+  color: var(--ai);
   transition: background-color 0.2s ease, transform 0.1s ease;
 }
 .btn-purple-tinted:hover:not(:disabled) {
@@ -161,7 +320,7 @@ body {
   opacity: 0.4;
 }
 
-/* 行内保存小按钮：统一 sky 实底 */
+/* 行内保存小按钮：统一 sky 实底（双色通用） */
 .btn-inline-save {
   background: #0284c7;
   color: #fff;
@@ -183,7 +342,7 @@ body {
 .input-glow:focus {
   border-color: rgba(56, 189, 248, 0.6);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12), 0 0 24px rgba(56, 189, 248, 0.1);
-  background-color: rgba(2, 6, 23, 0.6);
+  background-color: var(--input-focus-bg);
 }
 
 /* iOS Safari 对 font-size <16px 的输入框聚焦时会强制放大页面：
@@ -200,16 +359,16 @@ body {
 
 /* 统一空态：虚线框 + 居中文案 */
 .empty-state {
-  border: 1px dashed rgba(51, 65, 85, 0.9);
+  border: 1px dashed var(--empty-border);
   border-radius: 0.75rem;
   padding: 2.5rem 1rem;
   text-align: center;
   font-size: 0.75rem;
   line-height: 1.6;
-  color: #64748b;
+  color: var(--ink-dim);
 }
 
-/* 统一消息横幅：ok=emerald / err=rose */
+/* 统一消息横幅：ok=emerald / err=rose；底与描边为淡染，双色通用 */
 .msg-banner {
   border-radius: 0.5rem;
   border-width: 1px;
@@ -220,12 +379,12 @@ body {
 .msg-banner-ok {
   border-color: rgba(16, 185, 129, 0.3);
   background: rgba(16, 185, 129, 0.1);
-  color: #6ee7b7;
+  color: var(--success);
 }
 .msg-banner-err {
   border-color: rgba(244, 63, 94, 0.3);
   background: rgba(244, 63, 94, 0.1);
-  color: #fda4af;
+  color: var(--danger);
 }
 
 /* ---------- 动效 ---------- */
@@ -258,9 +417,9 @@ body {
   border-radius: 0.5rem;
   background: linear-gradient(
     90deg,
-    rgba(30, 41, 59, 0.6) 25%,
-    rgba(51, 65, 85, 0.6) 37%,
-    rgba(30, 41, 59, 0.6) 63%
+    var(--skeleton-1) 25%,
+    var(--skeleton-2) 37%,
+    var(--skeleton-1) 63%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;

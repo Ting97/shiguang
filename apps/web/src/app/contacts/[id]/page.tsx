@@ -105,7 +105,7 @@ export default function ContactDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen text-slate-100">
+      <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <Nav />
           <Skeleton rows={3} className="py-2" />
@@ -115,10 +115,10 @@ export default function ContactDetailPage() {
   }
   if (!contact) {
     return (
-      <main className="min-h-screen text-slate-100">
+      <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <Nav />
-          <p className="py-16 text-center text-xs text-slate-500">联系人不存在</p>
+          <p className="py-16 text-center text-xs text-ink-dim">联系人不存在</p>
         </div>
       </main>
     );
@@ -139,36 +139,36 @@ export default function ContactDetailPage() {
   }
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
 
-        <Link href="/contacts" className="mb-4 inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-sky-300">
+        <Link href="/contacts" className="mb-4 inline-flex items-center gap-1 text-xs text-ink-dim transition hover:text-accent">
           ← 返回人际
         </Link>
 
         {/* 档案头卡 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="flex items-start gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 text-2xl">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-line bg-gradient-to-br from-elevated to-surface text-2xl">
               {GROUP_EMOJI[contact.group_tag] ?? "👤"}
             </span>
             <div className="min-w-0 flex-1">
-              <h1 className="flex flex-wrap items-baseline gap-2 text-xl font-bold text-slate-100">
+              <h1 className="flex flex-wrap items-baseline gap-2 text-xl font-bold text-ink">
                 {contact.name}
-                {contact.alias && <span className="text-sm font-normal text-slate-500">（{contact.alias}）</span>}
-                <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-normal text-slate-400">{contact.group_tag}</span>
-                <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] font-normal text-sky-300">
+                {contact.alias && <span className="text-sm font-normal text-ink-dim">（{contact.alias}）</span>}
+                <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-normal text-ink-mute">{contact.group_tag}</span>
+                <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] font-normal text-accent">
                   {importanceLabel(contact.importance)}
                 </span>
               </h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-mute">
                 {bd && (
                   <span>
                     🎂 生日 {bd.date}
-                    {bd.lunar && bd.nextSolar && <span className="text-slate-500">（今年 {bd.nextSolar}）</span>}
+                    {bd.lunar && bd.nextSolar && <span className="text-ink-dim">（今年 {bd.nextSolar}）</span>}
                     {bd.countdown != null && (
-                      <span className="ml-1 text-pink-300">
+                      <span className="ml-1 text-ai">
                         · {bd.countdown === 0 ? "今天生日" : bd.countdown === 1 ? "明天生日" : `${bd.countdown} 天后生日`}
                       </span>
                     )}
@@ -184,21 +184,21 @@ export default function ContactDetailPage() {
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
-              <button onClick={() => setEditing(true)} title="编辑档案" className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300">
+              <button onClick={() => setEditing(true)} title="编辑档案" className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft hover:text-accent">
                 ✏️
               </button>
-              <button onClick={removeContact} title="删除联系人" className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300">
+              <button onClick={removeContact} title="删除联系人" className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft hover:text-danger">
                 🗑
               </button>
             </div>
           </div>
           {/* 亲密度 */}
           <div className="mt-4">
-            <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="mb-1 flex items-center justify-between text-[11px] text-ink-dim">
               <span>亲密度</span>
               <span className="tabular-nums">{contact.intimacy}/100</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-elevated">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-sky-500 to-pink-400 transition-all duration-500"
                 style={{ width: `${contact.intimacy}%` }}
@@ -206,7 +206,7 @@ export default function ContactDetailPage() {
             </div>
           </div>
           {contact.notes && (
-            <p className="mt-3 whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs leading-relaxed text-slate-300">
+            <p className="mt-3 whitespace-pre-wrap rounded-lg border border-line-soft bg-bg/50 px-3 py-2 text-xs leading-relaxed text-ink-soft">
               {contact.notes}
             </p>
           )}
@@ -215,50 +215,50 @@ export default function ContactDetailPage() {
         {/* AI 交往画像（W10）：基于往来记录提炼喜好/忌讳/重要事实 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300">
+            <h2 className="text-sm font-semibold text-ink-soft">
               ✨ AI 交往画像
               {contact.ai_profile_at && (
-                <span className="ml-2 text-[11px] font-normal text-slate-500">提炼于 {contact.ai_profile_at}</span>
+                <span className="ml-2 text-[11px] font-normal text-ink-dim">提炼于 {contact.ai_profile_at}</span>
               )}
             </h2>
             <button
               onClick={runProfile}
               disabled={profiling}
-              className="whitespace-nowrap rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300 transition hover:bg-purple-500/20 disabled:opacity-50"
+              className="whitespace-nowrap rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-ai transition hover:bg-purple-500/20 disabled:opacity-50"
             >
               {profiling ? "提炼中…" : contact.ai_profile ? "重新提炼" : "提炼交往画像"}
             </button>
           </div>
-          {profiling && <p className="mt-3 animate-pulse text-xs text-purple-300/80">正在通读往来记录，总结喜好 / 忌讳 / 值得记住的事…</p>}
+          {profiling && <p className="mt-3 animate-pulse text-xs text-ai/80">正在通读往来记录，总结喜好 / 忌讳 / 值得记住的事…</p>}
           {!profiling && !contact.ai_profile && (
-            <p className="mt-3 text-xs leading-relaxed text-slate-500">
+            <p className="mt-3 text-xs leading-relaxed text-ink-dim">
               让 AI 通读与 TA 的往来记录和人情账，提炼交往风格、喜好与忌讳 —— 见面前扫一眼。
             </p>
           )}
           {!profiling && contact.ai_profile && (
             <div className="mt-3 space-y-2.5">
-              <p className="text-sm leading-relaxed text-slate-200">{contact.ai_profile.summary}</p>
+              <p className="text-sm leading-relaxed text-ink">{contact.ai_profile.summary}</p>
               {contact.ai_profile.likes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-emerald-300/80">💚 喜欢</span>
+                  <span className="text-[11px] text-success/80">💚 喜欢</span>
                   {contact.ai_profile.likes.map((x) => (
-                    <span key={x} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-200">{x}</span>
+                    <span key={x} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-success">{x}</span>
                   ))}
                 </div>
               )}
               {contact.ai_profile.dislikes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-rose-300/80">⚠️ 忌讳</span>
+                  <span className="text-[11px] text-danger/80">⚠️ 忌讳</span>
                   {contact.ai_profile.dislikes.map((x) => (
-                    <span key={x} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-200">{x}</span>
+                    <span key={x} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-danger">{x}</span>
                   ))}
                 </div>
               )}
               {contact.ai_profile.facts.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-sky-300/80">📌 记住</span>
+                  <span className="text-[11px] text-accent/80">📌 记住</span>
                   {contact.ai_profile.facts.map((x) => (
-                    <span key={x} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200">{x}</span>
+                    <span key={x} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-accent">{x}</span>
                   ))}
                 </div>
               )}
@@ -270,8 +270,8 @@ export default function ContactDetailPage() {
           <div
             className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
               msg.ok
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-success"
+                : "border-rose-500/30 bg-rose-500/10 text-danger"
             }`}
           >
             {msg.text}
@@ -281,16 +281,16 @@ export default function ContactDetailPage() {
         {/* 一起经历过的事 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300">
+            <h2 className="text-sm font-semibold text-ink-soft">
               🕐 一起经历过的事
-              <span className="ml-2 text-xs font-normal text-slate-500">来自动态识别 + 手动补记</span>
+              <span className="ml-2 text-xs font-normal text-ink-dim">来自动态识别 + 手动补记</span>
             </h2>
-            <button onClick={() => setAdding(true)} className="whitespace-nowrap rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300 transition hover:bg-sky-500/20">
+            <button onClick={() => setAdding(true)} className="whitespace-nowrap rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
               ＋ 补一笔往来
             </button>
           </div>
           {timeline.length === 0 ? (
-            <p className="py-6 text-center text-xs text-slate-600">
+            <p className="py-6 text-center text-xs text-ink-faint">
               还没有往来记录 —— 动态里提到「{contact.name}」会自动记入，或点右上角补一笔
             </p>
           ) : (
@@ -302,22 +302,22 @@ export default function ContactDetailPage() {
                     {idx < timeline.length - 1 && (
                       <span className="absolute left-[13px] top-7 -bottom-2 w-px bg-gradient-to-b from-sky-500/40 to-indigo-500/10" />
                     )}
-                    <span className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-sm">
+                    <span className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-sm">
                       {TYPE_EMOJI[t.type as InteractionType] ?? "•"}
                     </span>
-                    <div className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+                    <div className="min-w-0 flex-1 rounded-xl border border-line-soft bg-bg/40 px-3 py-2">
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{t.type}</span>
-                        <span className="shrink-0 tabular-nums text-slate-500">{zhDay(when)}</span>
+                        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-ink-mute">{t.type}</span>
+                        <span className="shrink-0 tabular-nums text-ink-dim">{zhDay(when)}</span>
                         {t.tx_amount_cents != null && (
-                          <span className={`shrink-0 tabular-nums ${t.tx_direction === "out" ? "text-rose-300" : "text-emerald-300"}`}>
+                          <span className={`shrink-0 tabular-nums ${t.tx_direction === "out" ? "text-danger" : "text-success"}`}>
                             {t.tx_direction === "out" ? "送出" : "收到"} {yuan(t.tx_amount_cents)}
                           </span>
                         )}
                       </div>
-                      {t.summary && <p className="mt-1 text-sm text-slate-200">{displaySummary(t.summary)}</p>}
+                      {t.summary && <p className="mt-1 text-sm text-ink">{displaySummary(t.summary)}</p>}
                       {t.entry_text && t.entry_text !== t.summary && (
-                        <p className="mt-0.5 truncate text-[11px] text-slate-500">「{t.entry_text}」</p>
+                        <p className="mt-0.5 truncate text-[11px] text-ink-dim">「{t.entry_text}」</p>
                       )}
                     </div>
                   </li>
@@ -330,19 +330,19 @@ export default function ContactDetailPage() {
         {/* 关联人情账 */}
         {money.length > 0 && (
           <section className="glass rounded-2xl p-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-300">
+            <h2 className="mb-3 text-sm font-semibold text-ink-soft">
               💰 关联人情账
-              <span className="ml-2 text-xs font-normal text-slate-500">流水中「对方」为 TA 的人情往来 · 净额 {yuan(giftIn - giftOut)}</span>
+              <span className="ml-2 text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 {yuan(giftIn - giftOut)}</span>
             </h2>
             <ul className="space-y-1">
               {money.map((m) => (
-                <li key={m.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-800/60">
-                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${m.direction === "out" ? "bg-rose-500/15 text-rose-300" : "bg-emerald-500/15 text-emerald-300"}`}>
+                <li key={m.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-elevated/60">
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${m.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
                     {m.direction === "out" ? "送" : "收"}
                   </span>
-                  <span className="flex-1 truncate text-xs text-slate-300">{m.note || m.category}</span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{zhDay(m.occurred_at)}</span>
-                  <span className={`shrink-0 text-sm font-semibold tabular-nums ${m.direction === "out" ? "text-rose-300" : "text-emerald-300"}`}>
+                  <span className="flex-1 truncate text-xs text-ink-soft">{m.note || m.category}</span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">{zhDay(m.occurred_at)}</span>
+                  <span className={`shrink-0 text-sm font-semibold tabular-nums ${m.direction === "out" ? "text-danger" : "text-success"}`}>
                     {m.direction === "out" ? "-" : "+"}
                     {yuan(m.amount_cents)}
                   </span>
@@ -401,18 +401,18 @@ function InteractionFormModal({
   const [err, setErr] = useState<string | null>(null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl sm:max-w-md sm:rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-200">补一笔往来 · {contactName}</h3>
-          <button onClick={onClose} className="rounded px-2 text-slate-500 hover:text-slate-200">✕</button>
+          <h3 className="text-sm font-semibold text-ink">补一笔往来 · {contactName}</h3>
+          <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
         </div>
         <div className="space-y-2.5">
           <div className="flex gap-2">
             <select
               value={type}
               onChange={(e) => setType(e.target.value as InteractionType)}
-              className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none focus:border-sky-500"
+              className="rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
             >
               {(Object.keys(TYPE_EMOJI) as InteractionType[]).map((t) => (
                 <option key={t} value={t}>{TYPE_EMOJI[t]} {t}</option>
@@ -423,18 +423,18 @@ function InteractionFormModal({
               value={when}
               onChange={(e) => setWhen(e.target.value)}
               type="datetime-local"
-              className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
+              className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
             />
           </div>
           <input
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             placeholder="记点什么（如：一起看了场电影）"
-            className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+            className="w-full rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
           />
-          {err && <p className="text-xs text-rose-300">{err}</p>}
+          {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-slate-400 hover:bg-slate-700">
+            <button onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
               取消
             </button>
             <button

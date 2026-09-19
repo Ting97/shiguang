@@ -51,15 +51,15 @@ const zhTime = (iso: string) => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const dueTag = (iso: string | null) => {
-  if (!iso) return { text: "无时间", cls: "text-slate-500" };
+  if (!iso) return { text: "无时间", cls: "text-ink-dim" };
   const d = new Date(iso);
-  if (d < new Date()) return { text: "已过期", cls: "text-rose-400" };
+  if (d < new Date()) return { text: "已过期", cls: "text-danger" };
   // 按日历天比对（当天晚些时候是"今天"而非"明天"）
   const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((dayStart(d) - dayStart(new Date())) / 86400_000);
-  if (days === 0) return { text: "今天", cls: "text-amber-300" };
-  if (days === 1) return { text: "明天", cls: "text-sky-300" };
-  return { text: `${days} 天后`, cls: "text-slate-400" };
+  if (days === 0) return { text: "今天", cls: "text-warn" };
+  if (days === 1) return { text: "明天", cls: "text-accent" };
+  return { text: `${days} 天后`, cls: "text-ink-mute" };
 };
 
 const FEED_PAGE_SIZE = 10; // 动态流每页条数，「加载更多」按页追加
@@ -428,15 +428,15 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-5 sm:py-8">
         <Nav />
         <header className="mb-5 text-center sm:mb-7">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光复利
-            <span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">动态</span>
+            <span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">动态</span>
           </h1>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-ink-dim">
             随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办
           </p>
         </header>
@@ -458,7 +458,7 @@ export default function Home() {
             }}
             rows={2}
             placeholder='记录此刻…（试试"刚跑完步40分钟，心情不错"、"有点累"、"明天下午三点看牙"）'
-            className="input-glow w-full resize-none rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
+            className="input-glow w-full resize-none rounded-xl border border-line-soft bg-surface/60 px-4 py-3 text-sm outline-none placeholder:text-ink-faint"
           />
           <div className="mt-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -466,7 +466,7 @@ export default function Home() {
                 onText={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))}
                 onError={(m) => setMsg({ ok: false, text: m })}
               />
-              <span className="hidden text-[11px] text-slate-600 sm:block">Enter 发布 · Shift+Enter 换行</span>
+              <span className="hidden text-[11px] text-ink-faint sm:block">Enter 发布 · Shift+Enter 换行</span>
             </div>
             <button
               onClick={submit}
@@ -484,9 +484,9 @@ export default function Home() {
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <section className="mb-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <h2 className="text-sm font-semibold text-slate-300">
+            <h2 className="text-sm font-semibold text-ink-soft">
               🌱 我的动态{" "}
-              <span className="ml-1 text-xs font-normal text-slate-500">
+              <span className="ml-1 text-xs font-normal text-ink-dim">
                 {query
                   ? `找到 ${feedTotal} 条`
                   : feedTotal > 0
@@ -502,13 +502,13 @@ export default function Home() {
                   if (e.key === "Escape") setSearchInput("");
                 }}
                 placeholder="🔍 搜索：原文/日程/待办/金额/联系人"
-                className="w-full rounded-xl border border-white/10 bg-slate-900/60 py-1.5 pl-3 pr-8 text-xs outline-none placeholder:text-slate-600 focus:border-sky-500/60"
+                className="w-full rounded-xl border border-line-soft bg-surface/60 py-1.5 pl-3 pr-8 text-xs outline-none placeholder:text-ink-faint focus:border-sky-500/60"
               />
               {searchInput && (
                 <button
                   onClick={() => setSearchInput("")}
                   title="清除搜索"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-slate-200"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-ink-dim hover:text-ink"
                 >
                   ✕
                 </button>
@@ -531,24 +531,24 @@ export default function Home() {
         {/* 待办列表 */}
         <section id="todos" className="glass mb-6 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300">
-              📋 待办 <span className="ml-1 text-xs text-slate-500">{todos.length} 项 · 点击圆圈完成</span>
+            <h2 className="text-sm font-semibold text-ink-soft">
+              📋 待办 <span className="ml-1 text-xs text-ink-dim">{todos.length} 项 · 点击圆圈完成</span>
             </h2>
             <button
               onClick={() => setAddingTodo(true)}
-              className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1 text-xs text-sky-300 transition hover:border-sky-500/50"
+              className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1 text-xs text-accent transition hover:border-sky-500/50"
             >
               ＋ 新增
             </button>
           </div>
           {todos.length === 0 && !addingTodo && (
-            <p className="py-4 text-center text-xs text-slate-600">
+            <p className="py-4 text-center text-xs text-ink-faint">
               暂无待办 —— 说句带"明天/待会儿"的话，或点右上「＋ 新增」
             </p>
           )}
           <ul className="space-y-1">
             {addingTodo && (
-              <li className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-slate-800/60 p-2.5">
+              <li className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5">
                 <span className="text-base">📌</span>
                 <input
                   autoFocus
@@ -562,14 +562,14 @@ export default function Home() {
                     }
                   }}
                   placeholder="要做什么？回车保存，不用填时间"
-                  className="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                  className="min-w-0 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                 />
                 <button
                   onClick={() => {
                     setAddingTodo(false);
                     setNewTodoTitle("");
                   }}
-                  className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                  className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft"
                 >
                   取消
                 </button>
@@ -586,24 +586,24 @@ export default function Home() {
               const tag = dueTag(t.due_at);
               return editingTodo?.id === t.id ? (
                 /* ---- 待办行内编辑器 ---- */
-                <li key={t.id} className="rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+                <li key={t.id} className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       value={editingTodo.title}
                       onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                      className="min-w-32 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                      className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                       placeholder="标题"
                     />
                     <input
                       type="datetime-local"
                       value={editingTodo.due}
                       onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
-                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
                     />
                     <select
                       value={editingTodo.activityId}
                       onChange={(e) => setEditingTodo({ ...editingTodo, activityId: e.target.value })}
-                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                     >
                       {activities.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -615,7 +615,7 @@ export default function Home() {
                   <div className="mt-2 flex justify-end gap-2">
                     <button
                       onClick={() => setEditingTodo(null)}
-                      className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                      className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft"
                     >
                       取消
                     </button>
@@ -629,30 +629,30 @@ export default function Home() {
                 </li>
               ) : (
                 /* ---- 常规待办行：移动端自动折两行（标题行 + 时间/操作行） ---- */
-                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-slate-800/60">
+                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-elevated/60">
                   <button
                     onClick={() => toggleDone(t)}
                     title="点击标记完成"
-                    className="tap-lg flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-500 text-transparent transition group-hover:border-sky-400 group-hover:text-sky-400/60"
+                    className="tap-lg flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-500 text-transparent transition group-hover:border-sky-400 group-hover:text-accent/60"
                   >
                     ✓
                   </button>
                   <span className="text-base">{t.icon ?? "📌"}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
                   <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
-                  <span className="hidden shrink-0 text-xs tabular-nums text-slate-500 sm:inline">{zhDateTime(t.due_at)}</span>
+                  <span className="hidden shrink-0 text-xs tabular-nums text-ink-dim sm:inline">{zhDateTime(t.due_at)}</span>
                   <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                     <button
                       onClick={() => startTodoEdit(t)}
                       title="修改"
-                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => removeTodo(t)}
                       title="删除"
-                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300"
+                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
                     >
                       🗑
                     </button>
@@ -662,31 +662,31 @@ export default function Home() {
             })}
           </ul>
           {doneToday.length > 0 && (
-            <details className="mt-3 border-t border-slate-800 pt-3">
-              <summary className="cursor-pointer text-xs text-slate-500">
+            <details className="mt-3 border-t border-line-soft pt-3">
+              <summary className="cursor-pointer text-xs text-ink-dim">
                 今日已完成 {doneToday.length} 项（可恢复 / 修改 / 删除）
               </summary>
               <ul className="mt-2 space-y-1">
                 {doneToday.map((t) =>
                   editingTodo?.id === t.id ? (
-                    <li key={t.id} className="rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+                    <li key={t.id} className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <input
                           value={editingTodo.title}
                           onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                          className="min-w-32 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                          className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                           placeholder="标题"
                         />
                         <input
                           type="datetime-local"
                           value={editingTodo.due}
                           onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
-                          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
                         />
                         <select
                           value={editingTodo.activityId}
                           onChange={(e) => setEditingTodo({ ...editingTodo, activityId: e.target.value })}
-                          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                         >
                           {activities.map((a) => (
                             <option key={a.id} value={a.id}>
@@ -698,7 +698,7 @@ export default function Home() {
                       <div className="mt-2 flex justify-end gap-2">
                         <button
                           onClick={() => setEditingTodo(null)}
-                          className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                          className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft"
                         >
                           取消
                         </button>
@@ -711,29 +711,29 @@ export default function Home() {
                       </div>
                     </li>
                   ) : (
-                    <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-slate-800/60">
+                    <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-elevated/60">
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
-                      <span className="flex-1 truncate text-xs text-slate-500 line-through">{t.title}</span>
-                      <span className="shrink-0 text-xs text-slate-600">{t.done_at ? zhTime(t.done_at) : ""}</span>
+                      <span className="flex-1 truncate text-xs text-ink-dim line-through">{t.title}</span>
+                      <span className="shrink-0 text-xs text-ink-faint">{t.done_at ? zhTime(t.done_at) : ""}</span>
                       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                         <button
                           onClick={() => restoreTodo(t)}
                           title="恢复为未完成"
-                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-amber-300"
+                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-warn"
                         >
                           ↩️
                         </button>
                         <button
                           onClick={() => startTodoEdit(t)}
                           title="修改"
-                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
                         >
                           ✏️
                         </button>
                         <button
                           onClick={() => removeTodo(t)}
                           title="删除"
-                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300"
+                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
                         >
                           🗑
                         </button>
@@ -749,24 +749,24 @@ export default function Home() {
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <section className="glass rounded-2xl p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-y-1">
-            <h2 className="text-sm font-semibold text-slate-300">
+            <h2 className="text-sm font-semibold text-ink-soft">
               🕐 今日日程{" "}
-              <span className="ml-1 whitespace-nowrap text-xs text-slate-500">
+              <span className="ml-1 whitespace-nowrap text-xs text-ink-dim">
                 {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
               </span>
               {todayKcal > 0 && (
-                <span className="ml-2 whitespace-nowrap rounded bg-orange-500/10 px-1.5 py-0.5 text-[11px] text-orange-300">
+                <span className="ml-2 whitespace-nowrap rounded bg-orange-500/10 px-1.5 py-0.5 text-[11px] text-warn">
                   🍽 今日 ≈{todayKcal} kcal
                 </span>
               )}
             </h2>
-            <div className="flex shrink-0 rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
+            <div className="flex shrink-0 rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs">
               <button
                 onClick={() => setView("timeline")}
                 className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 ${
                   view === "timeline"
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                    : "text-ink-mute hover:bg-wash hover:text-ink"
                 }`}
               >
                 时间轴
@@ -776,7 +776,7 @@ export default function Home() {
                 className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 ${
                   view === "list"
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                    : "text-ink-mute hover:bg-wash hover:text-ink"
                 }`}
               >
                 列表
@@ -786,7 +786,7 @@ export default function Home() {
 
           {view === "timeline" ? (
             <div>
-            <div className="mb-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+            <div className="mb-3 rounded-lg border border-line-soft bg-bg/40 p-3">
               <DayDonut byActivity={todayByActivity} activities={activities} size={90} thickness={12} />
             </div>
             <DayTimeline
@@ -814,13 +814,13 @@ export default function Home() {
               <div className="mb-2 flex justify-end">
                 <button
                   onClick={() => setListDraft(nextFreeSlot())}
-                  className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs text-sky-300 transition hover:border-sky-500/50"
+                  className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-accent transition hover:border-sky-500/50"
                 >
                   ＋ 新增日程
                 </button>
               </div>
               {blocks.length === 0 && (
-                <p className="py-4 text-center text-xs text-slate-600">
+                <p className="py-4 text-center text-xs text-ink-faint">
                   还没有记录 —— 说句"刚做完…"，点「＋ 新增日程」，或去完成一个待办
                 </p>
               )}
@@ -828,31 +828,31 @@ export default function Home() {
             {blocks.map((b) =>
               editing?.id === b.id ? (
                 /* ---- 行内编辑器 ---- */
-                <li key={b.id} className="rounded-lg border border-sky-500/40 bg-slate-800/60 p-3">
+                <li key={b.id} className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       value={editing.title}
                       onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                      className="min-w-32 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                      className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                       placeholder="标题"
                     />
                     <input
                       type="time"
                       value={editing.start}
                       onChange={(e) => setEditing({ ...editing, start: e.target.value })}
-                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
                     />
-                    <span className="text-xs text-slate-500">至</span>
+                    <span className="text-xs text-ink-dim">至</span>
                     <input
                       type="time"
                       value={editing.end}
                       onChange={(e) => setEditing({ ...editing, end: e.target.value })}
-                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
                     />
                     <select
                       value={editing.activityId}
                       onChange={(e) => setEditing({ ...editing, activityId: e.target.value })}
-                      className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                     >
                       {activities.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -864,7 +864,7 @@ export default function Home() {
                   <div className="mt-2 flex justify-end gap-2">
                     <button
                       onClick={() => setEditing(null)}
-                      className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700"
+                      className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft"
                     >
                       取消
                     </button>
@@ -878,26 +878,26 @@ export default function Home() {
                 </li>
               ) : (
                 /* ---- 常规行 ---- */
-                <li key={b.id} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-800/60">
+                <li key={b.id} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-elevated/60">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                  <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                  <span className="shrink-0 text-xs tabular-nums text-ink-mute">
                     {zhTime(b.start_at)}–{zhTime(b.end_at)}
                   </span>
                   <span className="text-base">{b.icon}</span>
                   <span className="flex-1 truncate text-sm">{b.title}</span>
-                  <span className="shrink-0 text-xs text-slate-500">{b.duration_min} 分钟</span>
+                  <span className="shrink-0 text-xs text-ink-dim">{b.duration_min} 分钟</span>
                   <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                     <button
                       onClick={() => startEdit(b)}
                       title="修改"
-                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => removeBlock(b)}
                       title="删除"
-                      className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300"
+                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
                     >
                       🗑
                     </button>
@@ -910,7 +910,7 @@ export default function Home() {
           )}
         </section>
 
-        <footer className="mt-10 text-center text-[10px] text-slate-600">
+        <footer className="mt-10 text-center text-[10px] text-ink-faint">
           拾光复利 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
         </footer>
       </div>

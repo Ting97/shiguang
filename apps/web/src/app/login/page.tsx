@@ -94,26 +94,26 @@ export default function LoginPage() {
   }
 
   const inputCls =
-    "input-glow w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm outline-none placeholder:text-slate-600";
+    "input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-4 py-2.5 text-sm outline-none placeholder:text-ink-faint";
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-5 text-slate-100">
+    <main className="flex min-h-screen items-center justify-center px-5 text-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold">拾光复利</h1>
-          <p className="mt-1 text-xs text-slate-500">拾起光阴，记录今日 · {isRegister ? "凭邀请码注册" : "登录后继续"}</p>
+          <p className="mt-1 text-xs text-ink-dim">拾起光阴，记录今日 · {isRegister ? "凭邀请码注册" : "登录后继续"}</p>
         </div>
 
         <div className="glass rounded-2xl p-5">
           {/* 登录方式切换（仅登录态） */}
           {!isRegister && (
-            <div className="mb-4 flex rounded-full border border-white/10 bg-slate-950/50 p-0.5 text-xs">
+            <div className="mb-4 flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs">
               <button
                 onClick={() => setMode("password")}
                 className={`flex-1 rounded-full px-3 py-1.5 transition-all ${
                   mode === "password"
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white"
-                    : "text-slate-400 hover:text-slate-100"
+                    : "text-ink-mute hover:text-ink"
                 }`}
               >
                 密码登录
@@ -123,7 +123,7 @@ export default function LoginPage() {
                 className={`flex-1 rounded-full px-3 py-1.5 transition-all ${
                   mode === "sms"
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white"
-                    : "text-slate-400 hover:text-slate-100"
+                    : "text-ink-mute hover:text-ink"
                 }`}
               >
                 验证码登录
@@ -154,7 +154,7 @@ export default function LoginPage() {
                 <button
                   onClick={sendCode}
                   disabled={countdown > 0}
-                  className="shrink-0 rounded-xl border border-white/10 bg-slate-800/70 px-3 text-xs text-sky-300 transition hover:border-sky-500/50 disabled:opacity-40"
+                  className="shrink-0 rounded-xl border border-line-soft bg-elevated/70 px-3 text-xs text-accent transition hover:border-sky-500/50 disabled:opacity-40"
                 >
                   {countdown > 0 ? `${countdown}s` : "发送验证码"}
                 </button>
@@ -193,24 +193,24 @@ export default function LoginPage() {
           </div>
 
           {msg && (
-            <p className={`mt-3 text-xs ${msg.ok ? "text-emerald-300" : "text-rose-300"}`}>{msg.text}</p>
+            <p className={`mt-3 text-xs ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>
           )}
 
-          <p className="mt-4 text-center text-[11px] text-slate-500">
+          <p className="mt-4 text-center text-[11px] text-ink-dim">
             {isRegister ? "已有账号？" : "没有账号？"}
             <button
               onClick={() => {
                 setIsRegister(!isRegister);
                 setMsg(null);
               }}
-              className="ml-1 text-sky-300 hover:underline"
+              className="ml-1 text-accent hover:underline"
             >
               {isRegister ? "去登录" : "凭邀请码注册"}
             </button>
           </p>
         </div>
 
-        <p className="mt-6 text-center text-[10px] text-slate-600">个人经营系统 · 钱 · 时间 · 人</p>
+        <p className="mt-6 text-center text-[10px] text-ink-faint">个人经营系统 · 钱 · 时间 · 人</p>
       </div>
     </main>
   );

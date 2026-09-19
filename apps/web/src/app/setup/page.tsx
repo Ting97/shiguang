@@ -47,14 +47,14 @@ export default function SetupPage() {
   }
 
   const inputCls =
-    "input-glow w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm outline-none placeholder:text-slate-600";
+    "input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-4 py-2.5 text-sm outline-none placeholder:text-ink-faint";
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-5 text-slate-100">
+    <main className="flex min-h-screen items-center justify-center px-5 text-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold">拾光复利</h1>
-          <p className="mt-1 text-xs text-slate-500">首次使用 · 创建管理员账号</p>
+          <p className="mt-1 text-xs text-ink-dim">首次使用 · 创建管理员账号</p>
         </div>
 
         <div className="glass rounded-2xl p-5">
@@ -91,8 +91,8 @@ export default function SetupPage() {
               {busy ? "创建中…" : "创建管理员并进入"}
             </button>
           </div>
-          {msg && <p className={`mt-3 text-xs ${msg.ok ? "text-emerald-300" : "text-rose-300"}`}>{msg.text}</p>}
-          <p className="mt-4 text-[11px] leading-relaxed text-slate-600">
+          {msg && <p className={`mt-3 text-xs ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>}
+          <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
             管理员将接管本站全部既有记录；此后其他账号凭管理员生成的邀请码注册，数据互相隔离。
           </p>
         </div>

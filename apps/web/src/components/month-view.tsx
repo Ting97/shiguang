@@ -39,7 +39,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
     <div>
       <div className="grid grid-cols-7 gap-1">
         {["一", "二", "三", "四", "五", "六", "日"].map((w) => (
-          <div key={w} className="pb-1 text-center text-[11px] text-slate-500">
+          <div key={w} className="pb-1 text-center text-[11px] text-ink-dim">
             {w}
           </div>
         ))}
@@ -54,22 +54,22 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
               key={date}
               onClick={() => onPickDay(date)}
               className={`flex h-[74px] flex-col items-center justify-center gap-1 rounded-lg border text-center transition ${
-                isToday ? "border-sky-500 bg-sky-500/10" : "border-slate-800 bg-slate-950/40 hover:border-slate-600"
+                isToday ? "border-sky-500 bg-sky-500/10" : "border-line-soft bg-bg/40 hover:border-line-strong"
               }`}
             >
-              <span className={`text-xs tabular-nums ${isToday ? "font-bold text-sky-300" : "text-slate-400"}`}>
+              <span className={`text-xs tabular-nums ${isToday ? "font-bold text-accent" : "text-ink-mute"}`}>
                 {Number(date.slice(8))}
               </span>
               {donut ? (
                 <>
                   <MiniDonut byActivity={s!.byActivity} actMap={actMap} size={30} />
-                  <span className="block truncate text-[9px] tabular-nums text-slate-500">
+                  <span className="block truncate text-[9px] tabular-nums text-ink-dim">
                     {zhDuration(s!.totalMin)}
                   </span>
                 </>
               ) : (
                 /* 未来日期没有"未记录"义务，仅过去/今天温和提示 */
-                !isFuture && <span className="text-[9px] text-slate-600">未记录</span>
+                !isFuture && <span className="text-[9px] text-ink-faint">未记录</span>
               )}
             </button>
           );
@@ -78,10 +78,10 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
 
       {/* 月度统计 */}
       {grand > 0 && (
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-          <p className="mb-2 text-xs text-slate-400">
-            {m} 月共记录 <span className="font-semibold text-slate-200">{zhDuration(grand)}</span>
-            <span className="ml-2 text-slate-500">· {recordedDays} 天有记录 · 日均 {zhDuration(Math.round(grand / recordedDays))}</span>
+        <div className="mt-4 rounded-lg border border-line-soft bg-bg/40 p-4">
+          <p className="mb-2 text-xs text-ink-mute">
+            {m} 月共记录 <span className="font-semibold text-ink">{zhDuration(grand)}</span>
+            <span className="ml-2 text-ink-dim">· {recordedDays} 天有记录 · 日均 {zhDuration(Math.round(grand / recordedDays))}</span>
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {sorted.map(([id, min]) => (
@@ -92,10 +92,10 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
             {sorted.map(([id, min]) => {
               const a = actMap.get(id);
               return (
-                <span key={id} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span key={id} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a?.color }} />
                   {a?.icon} {a?.name}
-                  <span className="tabular-nums text-slate-500">{zhDuration(min)} · {Math.round((min / grand) * 100)}%</span>
+                  <span className="tabular-nums text-ink-dim">{zhDuration(min)} · {Math.round((min / grand) * 100)}%</span>
                 </span>
               );
             })}

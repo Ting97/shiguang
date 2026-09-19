@@ -71,16 +71,16 @@ export default function CategoriesPage() {
   }
 
   return (
-    <main className="min-h-screen text-slate-100">
+    <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">分类<span className="ml-2 align-middle text-sm font-normal tracking-normal text-slate-500">活动分类管理</span></h1>
-        <p className="mb-5 text-xs text-slate-500">
+        <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">分类<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">活动分类管理</span></h1>
+        <p className="mb-5 text-xs text-ink-dim">
           预设分类不可删除（可改名称/图标/颜色/默认时长）；自定义分类删除后其记录归入「其他」
         </p>
 
         {msg && (
-          <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-rose-500/30 bg-rose-500/10 text-rose-300"}`}>
+          <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"}`}>
             {msg.text}
           </div>
         )}
@@ -92,7 +92,7 @@ export default function CategoriesPage() {
             onChange={(e) => setAdding({ ...adding, name: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && add()}
             placeholder="新分类名称（如：带娃 / 冥想 / 副业）"
-            className="min-w-36 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm outline-none focus:border-sky-500"
+            className="min-w-36 flex-1 rounded border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
           />
           <IconPicker value={adding.icon} onChange={(icon) => setAdding({ ...adding, icon })} />
           <input
@@ -100,7 +100,7 @@ export default function CategoriesPage() {
             value={adding.color}
             onChange={(e) => setAdding({ ...adding, color: e.target.value })}
             title="颜色"
-            className="h-9 w-10 cursor-pointer rounded border border-slate-600 bg-slate-900"
+            className="h-9 w-10 cursor-pointer rounded border border-line-strong bg-surface"
           />
           <input
             type="number"
@@ -109,9 +109,9 @@ export default function CategoriesPage() {
             value={adding.defaultMin}
             onChange={(e) => setAdding({ ...adding, defaultMin: Number(e.target.value) })}
             title="默认时长（分钟）：没说时长时按此记录"
-            className="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm tabular-nums outline-none"
+            className="w-20 rounded border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none"
           />
-          <span className="text-[10px] text-slate-500">分钟</span>
+          <span className="text-[10px] text-ink-dim">分钟</span>
           <button onClick={add} className="btn-primary rounded-lg px-5 py-1.5 text-sm font-medium">
             新增
           </button>
@@ -121,18 +121,18 @@ export default function CategoriesPage() {
         <ul className="space-y-1.5">
           {list.map((a) =>
             editing?.id === a.id ? (
-              <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-500/40 bg-slate-800/60 p-3">
+              <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-500/40 bg-elevated/60 p-3">
                 <input
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                  className="min-w-24 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-sky-500"
+                  className="min-w-24 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                 />
                 <IconPicker value={editing.icon} onChange={(icon) => setEditing({ ...editing, icon })} />
                 <input
                   type="color"
                   value={editing.color}
                   onChange={(e) => setEditing({ ...editing, color: e.target.value })}
-                  className="h-8 w-10 cursor-pointer rounded border border-slate-600 bg-slate-900"
+                  className="h-8 w-10 cursor-pointer rounded border border-line-strong bg-surface"
                 />
                 <input
                   type="number"
@@ -140,10 +140,10 @@ export default function CategoriesPage() {
                   max={720}
                   value={editing.defaultMin}
                   onChange={(e) => setEditing({ ...editing, defaultMin: Number(e.target.value) })}
-                  className="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none"
+                  className="w-20 rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none"
                 />
-                <span className="text-[10px] text-slate-500">分钟</span>
-                <button onClick={() => setEditing(null)} className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700">取消</button>
+                <span className="text-[10px] text-ink-dim">分钟</span>
+                <button onClick={() => setEditing(null)} className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft">取消</button>
                 <button onClick={save} className="btn-inline-save rounded px-3 py-1 text-xs font-medium">保存</button>
               </li>
             ) : (
@@ -152,18 +152,18 @@ export default function CategoriesPage() {
                 <span className="text-lg">{a.icon}</span>
                 <span className="flex-1 text-sm">
                   {a.name}
-                  {a.is_preset && <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">预设</span>}
+                  {a.is_preset && <span className="ml-2 rounded bg-elevated px-1.5 py-0.5 text-[9px] text-ink-dim">预设</span>}
                 </span>
-                <span className="text-xs tabular-nums text-slate-500">默认 {a.default_min} 分钟</span>
+                <span className="text-xs tabular-nums text-ink-dim">默认 {a.default_min} 分钟</span>
                 <span className="row-actions hidden gap-1 group-hover:flex">
                   <button
                     onClick={() => setEditing({ id: a.id, name: a.name, icon: a.icon, color: a.color, defaultMin: a.default_min ?? 30 })}
-                    className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-sky-300"
+                    className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
                   >
                     ✏️
                   </button>
                   {!a.is_preset && (
-                    <button onClick={() => remove(a)} className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-rose-300">
+                    <button onClick={() => remove(a)} className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger">
                       🗑
                     </button>
                   )}

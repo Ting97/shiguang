@@ -22,8 +22,8 @@ export function moodEmoji(label: string | null | undefined): string {
 
 /** 情绪分 → 颜色（积极=琥珀暖色 / 消极=玫瑰 / 无=石墨） */
 export function moodTone(score: number | null | undefined): string {
-  if (score == null) return "text-slate-400";
-  if (score > 0) return "text-amber-300";
-  if (score < 0) return "text-rose-300";
-  return "text-slate-300";
+  if (score == null) return "text-ink-mute";
+  if (score > 0) return "text-warn";
+  if (score < 0) return "text-danger";
+  return "text-ink-soft";
 }

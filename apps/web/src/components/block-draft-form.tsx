@@ -28,7 +28,7 @@ export default function BlockDraftForm({
   return (
     <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-amber-300">
+        <span className="text-xs text-warn">
           补录 <span className="tabular-nums">{value.start}–{value.end}</span>
         </span>
         <input
@@ -37,25 +37,25 @@ export default function BlockDraftForm({
           onChange={(e) => onChange({ ...value, title: e.target.value })}
           onKeyDown={(e) => e.key === "Enter" && onSubmit()}
           placeholder="这段时间在做什么？"
-          className="min-w-28 flex-1 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none focus:border-amber-400"
+          className="min-w-28 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-amber-400"
         />
         <input
           type="time"
           value={value.start}
           onChange={(e) => onChange({ ...value, start: e.target.value })}
-          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none"
+          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none"
         />
-        <span className="text-xs text-slate-500">至</span>
+        <span className="text-xs text-ink-dim">至</span>
         <input
           type="time"
           value={value.end}
           onChange={(e) => onChange({ ...value, end: e.target.value })}
-          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm tabular-nums outline-none"
+          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none"
         />
         <select
           value={value.activityId}
           onChange={(e) => onChange({ ...value, activityId: e.target.value })}
-          className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm outline-none"
+          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none"
         >
           {activities.map((a) => (
             <option key={a.id} value={a.id}>
@@ -63,7 +63,7 @@ export default function BlockDraftForm({
             </option>
           ))}
         </select>
-        <button onClick={onCancel} className="rounded px-3 py-1 text-xs text-slate-400 hover:bg-slate-700">
+        <button onClick={onCancel} className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft">
           取消
         </button>
         <button
