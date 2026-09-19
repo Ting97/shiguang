@@ -83,11 +83,21 @@ export async function GET(req: Request) {
       }
       const clock = localClock(e.created_at);
       const mood = e.mood ? `（心情：${e.mood}）` : "";
-      const dayBlocks = blocks.rows.filter((b) => b.start_at && String(b.start_at).slice(0, 10) === day);
-      void dayBlocks;
       lines.push(`- **${clock}** ${e.raw_text}${mood}`);
+      // 当天日程块（跨天块按交集归属，与日视图口径一致）
+      for (const b of blocks.rows.filter((b) => b.start_at && (localYmd(b.start_at) === day || localYmd(b.end_at) === day))) {
+        const startTime = localClock(b.start_at);
+        const endTime = localClock(b.end_at);
+        lines.push(`  - 🕒 ${b.activity ?? ""} ${b.title}（${startTime}–${endTime}，${b.duration_min} 分钟）`);
+      }
     }
-    lines.push(`\n---\n\n## 分类账\n`);
+    lines.push(`\n---\n\n## 日程（全部时间块）\n`);
+    for (const b of blocks.rows) {
+      lines.push(
+        `- ${localYmd(b.start_at)} ${localClock(b.start_at)}–${localClock(b.end_at)} ${b.activity ?? ""} ${b.title}（${b.duration_min} 分钟）`,
+      );
+    }
+    lines.push(`\n## 分类账\n`);
     for (const t of todos.rows) {
       lines.push(`- [${t.status === "done" ? "x" : " "}] ${t.title}${t.due_at ? `（截止 ${localYmd(t.due_at)}）` : ""}`);
     }
