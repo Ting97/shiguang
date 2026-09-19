@@ -138,6 +138,8 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const [editBlock, setEditBlock] = useState<{ id: string; title: string; start: string; end: string; activityId: string } | null>(null);
   const [editTodo, setEditTodo] = useState<{ id: string; title: string; due: string; activityId: string } | null>(null);
   const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
+  // 原文行内编辑：null=非编辑态；字符串=textarea 当前内容
+  const [editRaw, setEditRaw] = useState<string | null>(null);
 
   const emoji = moodEmoji(m.mood);
   const intent =
@@ -192,6 +194,19 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const del = (message: string, fn: () => Promise<unknown>) =>
     window.confirm(message) ? run(async () => (await fn(), "🗑 已删除")) : undefined;
 
+  /** 保存原文：后端自动清旧产物并全域重识别（秒回），延迟刷新呈现新识别结果 */
+  const saveRaw = () =>
+    run(async () => {
+      const text = editRaw!.trim();
+      if (!text) throw new Error("内容不能为空");
+      await api(`/api/feed/${m.id}`, "PATCH", { raw_text: text });
+      setEditRaw(null);
+      // 识别在后台进行（约数秒）：延迟两次刷新让新产物自动上墙
+      setTimeout(() => void onRefresh(), 6000);
+      setTimeout(() => void onRefresh(), 14000);
+      return "✏️ 已保存，AI 正在重新识别全部信息…";
+    });
+
   return (
     <article className="glass glass-hover group relative mt-0 flex min-w-0 flex-1 gap-3 rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5">
       {/* 头像位：心情 emoji（无心情时用意图图标） */}
@@ -225,24 +240,56 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
               </button>
             </span>
           ) : (
-            <button
-              onClick={() => setConfirming(true)}
-              title="删除这条动态（连同识别出的日程/待办）"
-              className="row-actions-hidden hidden rounded px-1 text-xs text-ink-dim hover:text-danger group-hover:block"
-            >
-              删除
-            </button>
+            <>
+              <button
+                onClick={() => { setEditRaw(m.raw_text); setMenuOpen(false); }}
+                title="编辑原文（保存后自动重新识别）"
+                className="row-actions-hidden hidden rounded px-1 text-xs text-ink-dim hover:text-ink group-hover:block"
+              >
+                编辑
+              </button>
+              <button
+                onClick={() => setConfirming(true)}
+                title="删除这条动态（连同识别出的日程/待办）"
+                className="row-actions-hidden hidden rounded px-1 text-xs text-ink-dim hover:text-danger group-hover:block"
+              >
+                删除
+              </button>
+            </>
           )}
         </div>
 
-        {/* 原文：点击弹出「识别与补充」菜单 */}
-        <p
-          onClick={() => setMenuOpen((v) => !v)}
-          title="点击打开识别菜单"
-          className="mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink transition-colors hover:text-white"
-        >
-          {m.raw_text}
-        </p>
+        {/* 原文：编辑态 textarea；否则点击弹出「识别与补充」菜单 */}
+        {editRaw !== null ? (
+          <div className="mt-1.5">
+            <textarea
+              value={editRaw}
+              onChange={(e) => setEditRaw(e.target.value)}
+              rows={Math.min(6, Math.max(2, editRaw.split("\n").length + 1))}
+              autoFocus
+              className="w-full resize-y rounded-lg border border-line-strong bg-surface px-2.5 py-2 text-[15px] leading-relaxed text-ink outline-none focus:border-sky-500"
+            />
+            <div className="mt-1.5 flex items-center gap-2">
+              <button
+                onClick={saveRaw}
+                className="rounded-md bg-sky-600 px-3 py-1 text-xs font-medium text-white hover:bg-sky-500"
+              >
+                保存并重新识别
+              </button>
+              <button onClick={() => setEditRaw(null)} className="px-1 text-xs text-ink-mute hover:text-ink">
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p
+            onClick={() => setMenuOpen((v) => !v)}
+            title="点击打开识别菜单"
+            className="mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink transition-colors hover:text-white"
+          >
+            {m.raw_text}
+          </p>
+        )}
 
         {/* 识别与补充菜单浮层（六域：AI 识别 / 手动添加） */}
         {menuOpen && (

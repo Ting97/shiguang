@@ -2,15 +2,64 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { ruleMood } from "@shiguangri/ai";
+import { analyzeAndPersist } from "@/lib/analyze";
 
 export const runtime = "nodejs";
 
-/** PATCH /api/feed/:id —— 修正动态的心情（{ mood: 心情词 | null }；null=清除）；情绪分按心情词基准分补全 */
+/**
+ * PATCH /api/feed/:id —— 动态修正
+ * - { mood } 修正心情（原逻辑：null=清除）
+ * - { raw_text } 编辑原文：**替换式自动重识别**——清空旧识别产物 → 置 analyzed_at=null（前端进"识别中"态）
+ *   → 后台 analyzeAndPersist 全域重识别（同发动态），完成自动打 analyzed_at，无需手动逐域触发
+ */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { mood?: string | null };
+  const body = (await req.json().catch(() => ({}))) as { mood?: string | null; raw_text?: string };
+
+  if (body.raw_text !== undefined) {
+    const text = body.raw_text.trim();
+    if (!text) return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
+    if (text.length > 2000) return NextResponse.json({ error: "动态最长 2000 字" }, { status: 400 });
+
+    const client = await pool.connect();
+    let updated;
+    try {
+      await client.query("begin");
+      // 清理旧识别产物（依赖顺序同 DELETE；心情/识别登记簿随 analyze 重写）
+      await client.query(`delete from interactions where entry_id = $1 and user_id = $2`, [id, user.id]);
+      await client.query(`delete from transactions where entry_id = $1 and user_id = $2`, [id, user.id]);
+      await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [id, user.id]);
+      await client.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [id, user.id]);
+      await client.query(`delete from diet_records where entry_id = $1 and user_id = $2`, [id, user.id]);
+      await client.query(`delete from entry_recognitions where entry_id = $1 and user_id = $2`, [id, user.id]);
+      updated = (
+        await client.query(
+          `update entries set raw_text = $1, mood = null, mood_score = null, analyzed_at = null
+           where id = $2 and user_id = $3 returning id, raw_text, analyzed_at`,
+          [text, id, user.id],
+        )
+      ).rows[0];
+      if (!updated) {
+        await client.query("rollback");
+        return NextResponse.json({ error: "动态不存在" }, { status: 404 });
+      }
+      await client.query("commit");
+    } catch (e) {
+      await client.query("rollback");
+      return NextResponse.json({ error: String(e) }, { status: 500 });
+    } finally {
+      client.release();
+    }
+    // 后台全域重识别（同发动态：秒回 + fire-and-forget），成败都打 analyzed_at
+    void analyzeAndPersist(user.id, id, text)
+      .catch((e) => console.error(`[analyze] entry ${id} 编辑重识别失败:`, e))
+      .finally(() =>
+        pool.query(`update entries set analyzed_at = now() where id = $1 and analyzed_at is null`, [id]).catch(() => {}),
+      );
+    return NextResponse.json({ ok: true, entry: updated });
+  }
 
   const label = body.mood?.trim() || null;
   const score = label ? (ruleMood(label)?.score ?? 0) : null;
