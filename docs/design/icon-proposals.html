@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>拾光复利 · 图标方案比对</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a1020;
+    color: #e2e8f0;
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    padding: 36px 44px 48px;
+  }
+  header { margin-bottom: 26px; }
+  header h1 { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+  header h1 em { font-style: normal; color: #7dd3fc; }
+  header p { margin-top: 8px; font-size: 13px; color: #94a3b8; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 18px;
+  }
+  .card {
+    background: #111a30;
+    border: 1px solid #223052;
+    border-radius: 18px;
+    padding: 18px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .num {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 700;
+    color: #7dd3fc;
+    background: rgba(125,211,252,.12);
+    border: 1px solid rgba(125,211,252,.28);
+    padding: 2px 9px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  .tile {
+    position: relative;
+    border-radius: 24%;
+    overflow: hidden;
+    flex: none;
+    display: block;
+  }
+  .tile svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile.dark { background: linear-gradient(140deg, #0f3d64 0%, #081f38 55%, #04101f 100%); }
+  .tile.light {
+    background: linear-gradient(140deg, #ffffff 0%, #e6f2fb 100%);
+    box-shadow: inset 0 0 0 1px rgba(148,163,184,.28);
+  }
+  .big { width: 128px; height: 128px; box-shadow: 0 12px 30px rgba(2,8,23,.55); }
+  .strip { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .s48 { width: 48px; height: 48px; }
+  .s32 { width: 32px; height: 32px; }
+  .s24 { width: 24px; height: 24px; }
+  .s16 { width: 16px; height: 16px; }
+  .name { margin-top: 15px; font-size: 15px; font-weight: 700; }
+  .desc { margin-top: 6px; font-size: 12px; line-height: 1.65; color: #8fa3bf; text-align: center; }
+  footer { margin-top: 26px; font-size: 12px; color: #64748b; }
+</style>
+</head>
+<body>
+
+<!-- ====== 矢量图元定义（每个方案一个 symbol，按需引用任意尺寸） ====== -->
+<svg width="0" height="0" style="position:absolute">
+<defs>
+  <linearGradient id="sun1" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/>
+  </linearGradient>
+  <linearGradient id="curve2" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0" stop-color="#0ea5e9"/><stop offset="1" stop-color="#e0f2fe"/>
+  </linearGradient>
+  <linearGradient id="glyph6" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f0f9ff"/><stop offset="1" stop-color="#38bdf8"/>
+  </linearGradient>
+  <linearGradient id="seal7" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ef5350"/><stop offset="1" stop-color="#b91c1c"/>
+  </linearGradient>
+  <radialGradient id="core5" cx=".38" cy=".35" r=".9">
+    <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#7dd3fc"/>
+  </radialGradient>
+  <linearGradient id="coin9" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fcd34d"/><stop offset="1" stop-color="#f59e0b"/>
+  </linearGradient>
+  <linearGradient id="person10" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#bae6fd"/>
+  </linearGradient>
+
+  <!-- 方案1 拾光弧：旭日跃出地平线 -->
+  <symbol id="mk1" viewBox="0 0 512 512">
+    <circle cx="256" cy="352" r="152" fill="#38bdf8" opacity=".10"/>
+    <g stroke="#fbbf24" stroke-width="16" stroke-linecap="round">
+      <line x1="256" y1="138" x2="256" y2="192"/>
+      <line x1="156" y1="178" x2="194" y2="216"/>
+      <line x1="356" y1="178" x2="318" y2="216"/>
+    </g>
+    <path d="M 146 352 A 110 110 0 0 1 366 352 Z" fill="url(#sun1)"/>
+    <rect x="118" y="344" width="276" height="12" rx="6" fill="#7dd3fc"/>
+  </symbol>
+
+  <!-- 方案2 复利曲线：指数上升收于一点光 -->
+  <symbol id="mk2" viewBox="0 0 512 512">
+    <g stroke="#ffffff" opacity=".07" stroke-width="4">
+      <line x1="96" y1="180" x2="416" y2="180"/>
+      <line x1="96" y1="262" x2="416" y2="262"/>
+      <line x1="96" y1="344" x2="416" y2="344"/>
+    </g>
+    <path d="M104 408 C 250 408 296 380 348 306 C 388 248 404 196 416 128"
+          stroke="url(#curve2)" stroke-width="34" fill="none" stroke-linecap="round"/>
+    <circle cx="416" cy="128" r="52" fill="#38bdf8" opacity=".22"/>
+    <circle cx="416" cy="128" r="26" fill="#fbbf24"/>
+  </symbol>
+
+  <!-- 方案3 三域环：钱·时间·人 相扣 -->
+  <symbol id="mk3" viewBox="0 0 512 512">
+    <g style="mix-blend-mode:screen">
+      <circle cx="198" cy="200" r="96" fill="#fbbf24" fill-opacity=".42" stroke="#fbbf24" stroke-width="12"/>
+      <circle cx="314" cy="200" r="96" fill="#38bdf8" fill-opacity=".42" stroke="#38bdf8" stroke-width="12"/>
+      <circle cx="256" cy="316" r="96" fill="#fb7185" fill-opacity=".42" stroke="#fb7185" stroke-width="12"/>
+    </g>
+    <circle cx="256" cy="236" r="15" fill="#ffffff" opacity=".95"/>
+  </symbol>
+
+  <!-- 方案4 沙漏星尘：时间流金沉淀 -->
+  <symbol id="mk4" viewBox="0 0 512 512">
+    <g fill="#7dd3fc">
+      <rect x="150" y="104" width="212" height="18" rx="9"/>
+      <rect x="150" y="390" width="212" height="18" rx="9"/>
+    </g>
+    <g stroke="#7dd3fc" stroke-width="14" fill="none" stroke-linejoin="round">
+      <path d="M184 130 L328 130 L256 246 Z"/>
+      <path d="M184 382 L328 382 L256 266 Z"/>
+    </g>
+    <g fill="#fbbf24">
+      <path d="M222 132 L290 132 L256 188 Z"/>
+      <circle cx="256" cy="272" r="7"/><circle cx="256" cy="298" r="7"/><circle cx="256" cy="324" r="7"/>
+      <path d="M208 380 L304 380 L256 330 Z"/>
+    </g>
+  </symbol>
+
+  <!-- 方案5 光圈聚光：光圈收拢一点光 -->
+  <symbol id="mk5" viewBox="0 0 512 512">
+    <circle cx="256" cy="256" r="158" fill="none" stroke="#7dd3fc" stroke-width="10" opacity=".3"/>
+    <g stroke="#7dd3fc" stroke-width="20" stroke-linecap="round">
+      <line x1="256" y1="118" x2="352" y2="196"/>
+      <line x1="256" y1="118" x2="352" y2="196" transform="rotate(60 256 256)"/>
+      <line x1="256" y1="118" x2="352" y2="196" transform="rotate(120 256 256)"/>
+      <line x1="256" y1="118" x2="352" y2="196" transform="rotate(180 256 256)"/>
+      <line x1="256" y1="118" x2="352" y2="196" transform="rotate(240 256 256)"/>
+      <line x1="256" y1="118" x2="352" y2="196" transform="rotate(300 256 256)"/>
+    </g>
+    <circle cx="256" cy="256" r="64" fill="#38bdf8" opacity=".18"/>
+    <circle cx="256" cy="256" r="30" fill="url(#core5)"/>
+  </symbol>
+
+  <!-- 方案6 字标·光 -->
+  <symbol id="mk6" viewBox="0 0 512 512">
+    <circle cx="256" cy="256" r="192" fill="#38bdf8" opacity=".10"/>
+    <text x="256" y="262" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="300"
+          font-weight="900" text-anchor="middle" dominant-baseline="central"
+          fill="url(#glyph6)">光</text>
+  </symbol>
+
+  <!-- 方案7 印章·拾 -->
+  <symbol id="mk7" viewBox="0 0 512 512">
+    <rect x="106" y="106" width="300" height="300" rx="56" fill="url(#seal7)"/>
+    <rect x="132" y="132" width="248" height="248" rx="40" fill="none" stroke="#ffffff" stroke-width="8" opacity=".9"/>
+    <text x="256" y="262" font-family="'Microsoft YaHei','PingFang SC',sans-serif" font-size="186"
+          font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#fff7ed">拾</text>
+  </symbol>
+
+  <!-- 方案8 日历峰线：记录即增长 -->
+  <symbol id="mk8" viewBox="0 0 512 512">
+    <rect x="116" y="152" width="280" height="252" rx="36" fill="#38bdf8" fill-opacity=".10" stroke="#7dd3fc" stroke-width="14"/>
+    <rect x="182" y="120" width="18" height="62" rx="9" fill="#7dd3fc"/>
+    <rect x="312" y="120" width="18" height="62" rx="9" fill="#7dd3fc"/>
+    <line x1="116" y1="218" x2="396" y2="218" stroke="#7dd3fc" stroke-width="8" opacity=".45"/>
+    <path d="M150 356 L214 306 L266 332 L358 242" fill="none" stroke="#fbbf24" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="358,242 315.8,254.4 344.7,283.9" fill="#fbbf24"/>
+  </symbol>
+
+  <!-- 方案9 币塔光弧：金币 × 光轨 -->
+  <symbol id="mk9" viewBox="0 0 512 512">
+    <path d="M 92 340 C 150 170 350 140 428 250" fill="none" stroke="#7dd3fc" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="428" cy="250" r="34" fill="#7dd3fc" opacity=".22"/>
+    <circle cx="428" cy="250" r="16" fill="#e0f2fe"/>
+    <g stroke="#92400e" stroke-width="6">
+      <ellipse cx="256" cy="350" rx="100" ry="32" fill="#d97706"/>
+      <ellipse cx="256" cy="308" rx="100" ry="32" fill="url(#coin9)"/>
+      <ellipse cx="256" cy="266" rx="100" ry="32" fill="#d97706"/>
+    </g>
+    <ellipse cx="256" cy="266" rx="70" ry="20" fill="none" stroke="#fde68a" stroke-width="5" opacity=".85"/>
+  </symbol>
+
+  <!-- 方案10 人轨：人居时间轨道中心 -->
+  <symbol id="mk10" viewBox="0 0 512 512">
+    <ellipse cx="256" cy="266" rx="192" ry="80" fill="none" stroke="#38bdf8" stroke-width="12" opacity=".3" transform="rotate(-16 256 266)"/>
+    <circle cx="256" cy="206" r="54" fill="url(#person10)"/>
+    <path d="M166 356 C166 296 200 278 256 278 C312 278 346 296 346 356 Z" fill="url(#person10)"/>
+    <ellipse cx="256" cy="266" rx="192" ry="80" fill="none" stroke="#38bdf8" stroke-width="10" opacity=".85" transform="rotate(-16 256 266)"/>
+    <circle cx="383" cy="176" r="16" fill="#fbbf24"/>
+  </symbol>
+</defs>
+</svg>
+
+<header>
+  <h1><em>拾光复利</em> · 图标方案比对</h1>
+  <p>10 个方向 · 均为手写矢量 SVG，可无损输出 favicon / PWA / 分享封面 / 登录页 Logo · 每张含深色主题大图 + 浅色适配 + 48/32/24/16 缩小可读性测试</p>
+</header>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="num">方案 1</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk1"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk1"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk1"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk1"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk1"/></svg></div>
+    </div>
+    <div class="name">拾光弧 · 破晓</div>
+    <div class="desc">旭日跃出地平线，「拾起光阴」最直观的意象；暖金日光 + 品牌天蓝地平线</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 2</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk2"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk2"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk2"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk2"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk2"/></svg></div>
+    </div>
+    <div class="name">复利曲线 · 上升</div>
+    <div class="desc">指数增长曲线收于一点金光，直接呼应「复利」；小尺寸下曲线依然清晰</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 3</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk3"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk3"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk3"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk3"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk3"/></svg></div>
+    </div>
+    <div class="name">三域环 · 融合</div>
+    <div class="desc">金=钱、蓝=时间、玫=人，三环相扣交叠生白——「钱·时间·人」三域合一</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 4</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk4"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk4"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk4"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk4"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk4"/></svg></div>
+    </div>
+    <div class="name">沙漏星尘 · 沉淀</div>
+    <div class="desc">沙漏中时间流金、沉淀成塔——光阴换来复利，叙事感最强的一枚</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 5</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk5"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk5"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk5"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk5"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk5"/></svg></div>
+    </div>
+    <div class="name">光圈聚光 · 拾取</div>
+    <div class="desc">六叶光圈收拢光线于一点——「拾光」的机械美学，科技感最足</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 6</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk6"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk6"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk6"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk6"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk6"/></svg></div>
+    </div>
+    <div class="name">字标 · 光</div>
+    <div class="desc">「光」字粗圆渐变字标，中文识别度最高，浅色主题下同样成立</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 7</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk7"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk7"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk7"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk7"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk7"/></svg></div>
+    </div>
+    <div class="name">印章 · 拾</div>
+    <div class="desc">朱砂印章「拾」，东方篆印质感；在一片蓝色产品里识别度与记忆点最强</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 8</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk8"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk8"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk8"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk8"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk8"/></svg></div>
+    </div>
+    <div class="name">日历峰线 · 记录</div>
+    <div class="desc">日历格上的上扬折线——「记录即增长」，最贴合产品功能本身</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 9</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk9"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk9"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk9"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk9"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk9"/></svg></div>
+    </div>
+    <div class="name">币塔光弧 · 复利</div>
+    <div class="desc">金币堆叠、光轨掠过——钱与时间的复合，最「财富感」的一枚</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 10</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#mk10"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#mk10"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#mk10"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#mk10"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#mk10"/></svg></div>
+    </div>
+    <div class="name">人轨 · 中心</div>
+    <div class="desc">人居中、时间轨道环绕而行——「个人经营系统」以人为本的表达</div>
+  </div>
+
+</div>
+
+<footer>拾光复利 shiguangri · 图标提案 · 2026-09-19 · 选中后交付：favicon.ico + icon.svg（浏览器标签）+ apple-touch/PWA 192/512 + 登录页与分享封面用横版组合</footer>
+
+</body>
+</html>

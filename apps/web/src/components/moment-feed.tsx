@@ -5,6 +5,7 @@ import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
 import EntryMenu from "./entry-menu";
+import { PencilLine, Trash2 } from "lucide-react";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const zhClock = (iso: string) => {
@@ -140,6 +141,8 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
   // 原文行内编辑：null=非编辑态；字符串=textarea 当前内容
   const [editRaw, setEditRaw] = useState<string | null>(null);
+  // 卡片操作菜单（编辑/删除）开关
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const emoji = moodEmoji(m.mood);
   const intent =
@@ -240,22 +243,36 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
               </button>
             </span>
           ) : (
-            <>
-              <button
-                onClick={() => { setEditRaw(m.raw_text); setMenuOpen(false); }}
-                title="编辑原文（保存后自动重新识别）"
-                className="row-actions-hidden hidden rounded px-1 text-xs text-ink-dim hover:text-ink group-hover:block"
-              >
-                编辑
-              </button>
-              <button
-                onClick={() => setConfirming(true)}
-                title="删除这条动态（连同识别出的日程/待办）"
-                className="row-actions-hidden hidden rounded px-1 text-xs text-ink-dim hover:text-danger group-hover:block"
-              >
-                删除
-              </button>
-            </>
+            editRaw === null && (
+              <>
+                <button
+                  onClick={() => { setActionsOpen((v) => !v); setMenuOpen(false); }}
+                  title="更多操作"
+                  className="row-actions-hidden hidden rounded px-1.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
+                >
+                  ⋯
+                </button>
+                {actionsOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setActionsOpen(false)} />
+                    <div className="absolute right-3 top-8 z-40 w-32 overflow-hidden rounded-xl border border-line-soft bg-elevated shadow-lg">
+                      <button
+                        onClick={() => { setActionsOpen(false); setEditRaw(m.raw_text); setMenuOpen(false); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink transition hover:bg-wash"
+                      >
+                        <PencilLine size={14} /> 编辑
+                      </button>
+                      <button
+                        onClick={() => { setActionsOpen(false); setConfirming(true); }}
+                        className="flex w-full items-center gap-2 border-t border-line-soft px-3 py-2 text-xs text-danger transition hover:bg-wash"
+                      >
+                        <Trash2 size={14} /> 删除
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )
           )}
         </div>
 
