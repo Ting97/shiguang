@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -12,6 +13,8 @@ export default function LoginPage() {
   const [smsCode, setSmsCode] = useState("");
   const [invite, setInvite] = useState("");
   const [nickname, setNickname] = useState(""); // 注册必填
+  const [password2, setPassword2] = useState(""); // 注册：确认密码
+  const [showPwd, setShowPwd] = useState(false); // 明文切换
   const [countdown, setCountdown] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -65,6 +68,9 @@ export default function LoginPage() {
     setBusy(true);
     setMsg(null);
     try {
+      if (isRegister && password !== password2) {
+        throw new Error("两次输入的密码不一致");
+      }
       let r: Response;
       if (isRegister) {
         r = await fetch("/api/auth/register", {
@@ -168,13 +174,23 @@ export default function LoginPage() {
                 </button>
               </div>
             ) : (
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                placeholder="密码"
-                className={inputCls}
-              />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPwd ? "text" : "password"}
+                  placeholder="密码"
+                  className={`${inputCls} pr-11`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  title={showPwd ? "隐藏密码" : "查看明文"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-dim transition hover:text-ink"
+                >
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             )}
 
             {isRegister && (
@@ -186,13 +202,37 @@ export default function LoginPage() {
                   placeholder="昵称（必填）"
                   className={inputCls}
                 />
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                  placeholder="设置密码（至少 8 位）"
-                  className={inputCls}
-                />
+                <div className="relative">
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    type={showPwd ? "text" : "password"}
+                    placeholder="设置密码（至少 8 位）"
+                    className={`${inputCls} pr-11`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd((v) => !v)}
+                    title={showPwd ? "隐藏密码" : "查看明文"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-dim transition hover:text-ink"
+                  >
+                    {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    value={password2}
+                    onChange={(e) => setPassword2(e.target.value)}
+                    type={showPwd ? "text" : "password"}
+                    placeholder="确认密码"
+                    className={`${inputCls} pr-11`}
+                  />
+                  {password2 && (
+                    <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${password2 === password ? "text-success" : "text-danger"}`}>
+                      {password2 === password ? "✓ 一致" : "✗ 不一致"}
+                    </span>
+                  )}
+                </div>
                 <input
                   value={invite}
                   onChange={(e) => setInvite(e.target.value.toUpperCase())}
