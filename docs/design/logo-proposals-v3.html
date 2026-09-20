@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>拾光 · Logo 提案 v3</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #070b18; color: #e2e8f0; font-family: "Microsoft YaHei", system-ui, sans-serif; }
+  .concept { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 40px; border-bottom: 1px solid #131c33; }
+  .tag { font-size: 13px; letter-spacing: 4px; color: #64748b; }
+  h2 { font-size: 26px; font-weight: 700; color: #f8fafc; }
+  h2 b { color: #f1c66b; }
+  .desc { max-width: 560px; text-align: center; font-size: 14px; line-height: 1.9; color: #94a3b8; }
+  .icon { width: 240px; height: 240px; border-radius: 56px; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(148,163,184,.14); }
+  .lockup { display: flex; align-items: center; gap: 18px; background: rgba(148,163,184,.06); border: 1px solid rgba(148,163,184,.12); border-radius: 24px; padding: 16px 28px; }
+  .lockup .mini { width: 72px; height: 72px; border-radius: 18px; overflow: hidden; }
+  .wordmark { font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #f8fafc; }
+  .tagline { font-size: 12px; letter-spacing: 3px; color: #64748b; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ============ A 拾起一束光 ============ -->
+<div class="concept">
+  <div class="tag">方案 A</div>
+  <h2>拾起一束光 <b>· 光束入怀</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="aBg" cx="30%" cy="18%" r="120%">
+        <stop offset="0%" stop-color="#1a2554"/><stop offset="45%" stop-color="#0d1740"/><stop offset="100%" stop-color="#05081a"/>
+      </radialGradient>
+      <linearGradient id="aBeam" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#fff7e0"/><stop offset="45%" stop-color="#f1c66b"/><stop offset="100%" stop-color="#e8a33d"/>
+      </linearGradient>
+      <linearGradient id="aBowl" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#f1c66b"/>
+      </linearGradient>
+      <filter id="aGlow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#aBg)"/>
+    <g filter="url(#aGlow)">
+      <path d="M186 44 C 150 60, 108 84, 96 132" fill="none" stroke="url(#aBeam)" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="186" cy="44" r="9" fill="#fff7e0"/>
+    </g>
+    <circle cx="150" cy="72" r="3.2" fill="#f1c66b" opacity=".9"/>
+    <circle cx="122" cy="96" r="2.6" fill="#f1c66b" opacity=".7"/>
+    <circle cx="108" cy="118" r="2.2" fill="#f1c66b" opacity=".55"/>
+    <path d="M56 138 A 62 62 0 0 0 184 138" fill="none" stroke="url(#aBowl)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M56 138 A 62 62 0 0 0 184 138" fill="none" stroke="#0b1226" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 26" opacity=".9"/>
+    <circle cx="120" cy="150" r="12" fill="#f1c66b" filter="url(#aGlow)"/>
+    <circle cx="120" cy="150" r="5" fill="#fff7e0"/>
+  </svg></div>
+  <div class="lockup">
+    <div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#aBg)"/><path d="M186 44 C 150 60, 108 84, 96 132" fill="none" stroke="url(#aBeam)" stroke-width="10" stroke-linecap="round"/><circle cx="186" cy="44" r="9" fill="#fff7e0"/><path d="M56 138 A 62 62 0 0 0 184 138" fill="none" stroke="url(#aBowl)" stroke-width="10" stroke-linecap="round"/><circle cx="120" cy="150" r="12" fill="#f1c66b"/></svg></div>
+    <div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div>
+  </div>
+  <p class="desc">一道光从天际弯折而下，落入承光的弧怀——「拾起光阴」最直白的图形叙事。弧线暗含表盘刻度，光点即被记下的瞬间。名字即 logo，故事感与独占性最强。</p>
+</div>
+
+<!-- ============ B 日出日晷 ============ -->
+<div class="concept">
+  <div class="tag">方案 B</div>
+  <h2>太阳即钟 <b>· 日出日晷</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="bBg" cx="50%" cy="30%" r="130%">
+        <stop offset="0%" stop-color="#16204a"/><stop offset="55%" stop-color="#0c1538"/><stop offset="100%" stop-color="#05081a"/>
+      </radialGradient>
+      <linearGradient id="bSun" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ffe9b0"/><stop offset="55%" stop-color="#f1c66b"/><stop offset="100%" stop-color="#e8953d"/>
+      </linearGradient>
+      <filter id="bGlow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#bBg)"/>
+    <g stroke="#33415f" stroke-width="3" stroke-linecap="round">
+      <line x1="120" y1="38" x2="120" y2="52"/><line x1="58" y1="64" x2="68" y2="74"/><line x1="182" y1="64" x2="172" y2="74"/>
+      <line x1="38" y1="126" x2="52" y2="126"/><line x1="188" y1="126" x2="202" y2="126"/>
+    </g>
+    <g filter="url(#bGlow)"><circle cx="120" cy="128" r="46" fill="url(#bSun)"/></g>
+    <line x1="120" y1="128" x2="120" y2="94" stroke="#0b1226" stroke-width="6" stroke-linecap="round"/>
+    <line x1="120" y1="128" x2="146" y2="140" stroke="#0b1226" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="120" cy="128" r="5" fill="#0b1226"/>
+    <line x1="40" y1="176" x2="200" y2="176" stroke="#38bdf8" stroke-width="6" stroke-linecap="round" opacity=".85"/>
+    <line x1="66" y1="192" x2="174" y2="192" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" opacity=".35"/>
+  </svg></div>
+  <div class="lockup">
+    <div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#bBg)"/><circle cx="120" cy="128" r="46" fill="url(#bSun)"/><line x1="120" y1="128" x2="120" y2="94" stroke="#0b1226" stroke-width="6" stroke-linecap="round"/><line x1="120" y1="128" x2="146" y2="140" stroke="#0b1226" stroke-width="6" stroke-linecap="round"/><line x1="40" y1="176" x2="200" y2="176" stroke="#38bdf8" stroke-width="6" stroke-linecap="round" opacity=".85"/></svg></div>
+    <div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div>
+  </div>
+  <p class="desc">现有太阳资产的进化：把太阳画成钟面，指针指向「此刻」——记录的是时间，太阳即钟。地平线的两道蓝光暗示日记的日出与收尾。直白易认，延续性最好。</p>
+</div>
+
+<!-- ============ C AI 星芒捕获 ============ -->
+<div class="concept">
+  <div class="tag">方案 C</div>
+  <h2>AI 星芒 <b>· 一句话被拾起</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="cBg" cx="50%" cy="24%" r="130%">
+        <stop offset="0%" stop-color="#1b1f4e"/><stop offset="52%" stop-color="#101538"/><stop offset="100%" stop-color="#060919"/>
+      </radialGradient>
+      <linearGradient id="cStar" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ffe9b0"/><stop offset="42%" stop-color="#f1c66b"/><stop offset="72%" stop-color="#7dd3fc"/><stop offset="100%" stop-color="#b7a4ff"/>
+      </linearGradient>
+      <filter id="cGlow" x="-70%" y="-70%" width="240%" height="240%">
+        <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#cBg)"/>
+    <path d="M120 52 C 126 92, 132 100, 168 108 C 132 116, 126 124, 120 164 C 114 124, 108 116, 72 108 C 108 100, 114 92, 120 52 Z" fill="url(#cStar)" filter="url(#cGlow)"/>
+    <path d="M172 58 C 174 70, 177 73, 188 75 C 177 77, 174 80, 172 92 C 170 80, 167 77, 156 75 C 167 73, 170 70, 172 58 Z" fill="#ffe9b0" opacity=".95"/>
+    <path d="M58 168 A 70 70 0 0 0 182 168" fill="none" stroke="#7dd3fc" stroke-width="8" stroke-linecap="round" opacity=".9"/>
+    <g stroke="#33415f" stroke-width="3" stroke-linecap="round">
+      <line x1="72" y1="188" x2="76" y2="182"/><line x1="120" y1="196" x2="120" y2="189"/><line x1="168" y1="188" x2="164" y2="182"/>
+    </g>
+  </svg></div>
+  <div class="lockup">
+    <div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#cBg)"/><path d="M120 52 C 126 92, 132 100, 168 108 C 132 116, 126 124, 120 164 C 114 124, 108 116, 72 108 C 108 100, 114 92, 120 52 Z" fill="url(#cStar)"/><path d="M58 168 A 70 70 0 0 0 182 168" fill="none" stroke="#7dd3fc" stroke-width="8" stroke-linecap="round" opacity=".9"/></svg></div>
+    <div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div>
+  </div>
+  <p class="desc">四芒星光点被下方弧线稳稳托起——一句话说出口，AI 把它拾起、点亮成结构化的记录。星芒是当代 AI 产品的通用语汇，弧线是「拾」的手势，也是表盘的下沿。</p>
+</div>
+
+<!-- ============ D 「拾」字金印 ============ -->
+<div class="concept">
+  <div class="tag">方案 D</div>
+  <h2>「拾」字金印 <b>· 字标本位</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="dBg" cx="50%" cy="30%" r="130%">
+        <stop offset="0%" stop-color="#1a2148"/><stop offset="55%" stop-color="#0d1536"/><stop offset="100%" stop-color="#060919"/>
+      </radialGradient>
+      <linearGradient id="dSeal" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#f6d789"/><stop offset="55%" stop-color="#f1c66b"/><stop offset="100%" stop-color="#d99a33"/>
+      </linearGradient>
+      <filter id="dGlow" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#dBg)"/>
+    <rect x="52" y="52" width="136" height="136" rx="30" fill="url(#dSeal)" filter="url(#dGlow)"/>
+    <rect x="62" y="62" width="116" height="116" rx="24" fill="none" stroke="#0b1226" stroke-width="3" opacity=".35"/>
+    <text x="120" y="126" text-anchor="middle" dominant-baseline="central" font-family="KaiTi, STKaiti, 'Noto Serif SC', serif" font-size="86" font-weight="700" fill="#0b1226">拾</text>
+    <circle cx="172" cy="70" r="7" fill="#fff7e0" filter="url(#dGlow)"/>
+  </svg></div>
+  <div class="lockup">
+    <div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#dBg)"/><rect x="52" y="52" width="136" height="136" rx="30" fill="url(#dSeal)"/><text x="120" y="126" text-anchor="middle" dominant-baseline="central" font-family="KaiTi, STKaiti, serif" font-size="86" font-weight="700" fill="#0b1226">拾</text></svg></div>
+    <div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div>
+  </div>
+  <p class="desc">字标本位：一枚金色「拾」字印——拾起光阴的凭证，也是记账人的私章。彩蛋在字里：「拾」的「合」部藏着「日」，日即太阳即光阴。中文产品里识别度与传播性最高，气质沉稳古典。</p>
+</div>
+
+<!-- ============ E 掌心托光 ============ -->
+<div class="concept">
+  <div class="tag">方案 E</div>
+  <h2>掌心托光 <b>· 温柔收藏</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="eBg" cx="50%" cy="26%" r="130%"><stop offset="0%" stop-color="#1c2550"/><stop offset="55%" stop-color="#0e1738"/><stop offset="100%" stop-color="#060919"/></radialGradient>
+      <radialGradient id="eOrb" cx="38%" cy="32%" r="80%"><stop offset="0%" stop-color="#fff7e0"/><stop offset="55%" stop-color="#f1c66b"/><stop offset="100%" stop-color="#e8953d"/></radialGradient>
+      <filter id="eGlow" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#eBg)"/>
+    <circle cx="120" cy="104" r="34" fill="url(#eOrb)" filter="url(#eGlow)"/>
+    <circle cx="108" cy="92" r="9" fill="#fff7e0" opacity=".8"/>
+    <path d="M54 150 C 74 186, 166 186, 186 150" fill="none" stroke="#f1c66b" stroke-width="11" stroke-linecap="round"/>
+    <path d="M62 158 C 84 170, 104 173, 120 173 C 136 173, 156 170, 178 158" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity=".75"/>
+    <g stroke="#33415f" stroke-width="3" stroke-linecap="round"><line x1="120" y1="196" x2="120" y2="204"/><line x1="84" y1="192" x2="86" y2="199"/><line x1="156" y1="192" x2="154" y2="199"/></g>
+  </svg></div>
+  <div class="lockup"><div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#eBg)"/><circle cx="120" cy="104" r="34" fill="url(#eOrb)"/><path d="M54 150 C 74 186, 166 186, 186 150" fill="none" stroke="#f1c66b" stroke-width="11" stroke-linecap="round"/><path d="M62 158 C 84 170, 104 173, 120 173 C 136 173, 156 170, 178 158" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity=".75"/></svg></div><div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div></div>
+  <p class="desc">掌心向上，光球稳稳悬于手心——「拾」的手势，把光阴温柔捧住。双层弧线是手的轮廓也是微笑曲线，亲和力最强的一案。</p>
+</div>
+
+<!-- ============ F 日记本光升 ============ -->
+<div class="concept">
+  <div class="tag">方案 F</div>
+  <h2>翻开日记 <b>· 光自纸上生</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <linearGradient id="fBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#17204a"/><stop offset="100%" stop-color="#060919"/></linearGradient>
+      <linearGradient id="fPage" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8edf8"/><stop offset="100%" stop-color="#aebad4"/></linearGradient>
+      <filter id="fGlow" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#fBg)"/>
+    <path d="M48 168 C 76 150, 104 150, 120 162 C 136 150, 164 150, 192 168 L 192 186 C 164 172, 136 172, 120 182 C 104 172, 76 172, 48 186 Z" fill="url(#fPage)"/>
+    <path d="M48 168 C 76 150, 104 150, 120 162 L 120 182 C 104 172, 76 172, 48 186 Z" fill="#f7f9ff" opacity=".55"/>
+    <circle cx="120" cy="112" r="22" fill="#f1c66b" filter="url(#fGlow)"/>
+    <circle cx="120" cy="112" r="9" fill="#fff7e0"/>
+    <path d="M120 62 C 122 76, 126 82, 138 88 C 126 94, 122 100, 120 114 C 118 100, 114 94, 102 88 C 114 82, 118 76, 120 62 Z" fill="#ffe9b0" opacity=".9"/>
+  </svg></div>
+  <div class="lockup"><div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#fBg)"/><path d="M48 168 C 76 150, 104 150, 120 162 C 136 150, 164 150, 192 168 L 192 186 C 164 172, 136 172, 120 182 C 104 172, 76 172, 48 186 Z" fill="url(#fPage)"/><circle cx="120" cy="112" r="22" fill="#f1c66b"/></svg></div><div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div></div>
+  <p class="desc">翻开的一页日记，太阳与星芒自纸面升起——「记录今日，光从纸上生」。日记本品类符号最明确，一眼即懂这是记录工具。</p>
+</div>
+
+<!-- ============ G 时间光轨 ============ -->
+<div class="concept">
+  <div class="tag">方案 G</div>
+  <h2>时间光轨 <b>· 圆环记录</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="gBg" cx="50%" cy="28%" r="130%"><stop offset="0%" stop-color="#1a2150"/><stop offset="55%" stop-color="#0d1538"/><stop offset="100%" stop-color="#060919"/></radialGradient>
+      <linearGradient id="gRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#38bdf8"/><stop offset="55%" stop-color="#7dd3fc"/><stop offset="100%" stop-color="#f1c66b"/></linearGradient>
+      <filter id="gGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#gBg)"/>
+    <circle cx="120" cy="120" r="66" fill="none" stroke="#1c2a52" stroke-width="12"/>
+    <path d="M120 54 A 66 66 0 0 1 182 132" fill="none" stroke="url(#gRing)" stroke-width="12" stroke-linecap="round" filter="url(#gGlow)"/>
+    <circle cx="120" cy="54" r="12" fill="#f1c66b" filter="url(#gGlow)"/>
+    <circle cx="120" cy="54" r="5" fill="#fff7e0"/>
+    <g stroke="#33415f" stroke-width="3" stroke-linecap="round"><line x1="120" y1="196" x2="120" y2="186"/><line x1="44" y1="120" x2="54" y2="120"/><line x1="196" y1="120" x2="186" y2="120"/></g>
+    <circle cx="120" cy="120" r="7" fill="#7dd3fc"/>
+  </svg></div>
+  <div class="lockup"><div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#gBg)"/><circle cx="120" cy="120" r="66" fill="none" stroke="#1c2a52" stroke-width="12"/><path d="M120 54 A 66 66 0 0 1 182 132" fill="none" stroke="url(#gRing)" stroke-width="12" stroke-linecap="round"/><circle cx="120" cy="54" r="12" fill="#f1c66b"/></svg></div><div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div></div>
+  <p class="desc">表盘环上的光点正走到「今天」的刻度——每一天都是环上的一段光轨。极简几何，小尺寸（状态栏/水印）识别度最高。</p>
+</div>
+
+<!-- ============ H SG 光迹字标 ============ -->
+<div class="concept">
+  <div class="tag">方案 H</div>
+  <h2>SG 光迹 <b>· 字母 monogram</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="hBg" cx="50%" cy="26%" r="130%"><stop offset="0%" stop-color="#1b2148"/><stop offset="55%" stop-color="#0d1536"/><stop offset="100%" stop-color="#060919"/></radialGradient>
+      <linearGradient id="hStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f1c66b"/><stop offset="60%" stop-color="#7dd3fc"/><stop offset="100%" stop-color="#38bdf8"/></linearGradient>
+      <filter id="hGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#hBg)"/>
+    <path d="M158 76 C 146 60, 108 58, 96 76 C 84 94, 100 106, 122 112 C 148 119, 162 132, 148 152 C 134 170, 100 168, 86 150" fill="none" stroke="url(#hStroke)" stroke-width="13" stroke-linecap="round" filter="url(#hGlow)"/>
+    <path d="M158 150 C 178 140, 186 118, 182 96" fill="none" stroke="url(#hStroke)" stroke-width="13" stroke-linecap="round" opacity=".55"/>
+    <circle cx="182" cy="88" r="8" fill="#fff7e0" filter="url(#hGlow)"/>
+  </svg></div>
+  <div class="lockup"><div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#hBg)"/><path d="M158 76 C 146 60, 108 58, 96 76 C 84 94, 100 106, 122 112 C 148 119, 162 132, 148 152 C 134 170, 100 168, 86 150" fill="none" stroke="url(#hStroke)" stroke-width="13" stroke-linecap="round"/><circle cx="182" cy="88" r="8" fill="#fff7e0"/></svg></div><div><div class="wordmark">拾光 ShíGuāng</div><div class="tagline">MONEY · TIME · PEOPLE</div></div></div>
+  <p class="desc">拾光拼音首字母 S+G 连写成一道光迹，尾端化作升起的金星——最国际化的 monogram 方案，出海与极客审美友好。</p>
+</div>
+
+<!-- ============ I 棱镜色散（v2 精修） ============ -->
+<div class="concept">
+  <div class="tag">方案 I</div>
+  <h2>棱镜拾光 <b>· 色散</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="iBg" cx="50%" cy="26%" r="130%"><stop offset="0%" stop-color="#141c44"/><stop offset="55%" stop-color="#0c1332"/><stop offset="100%" stop-color="#060919"/></radialGradient>
+      <linearGradient id="iIn" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fff7e0"/><stop offset="100%" stop-color="#f1c66b"/></linearGradient>
+      <filter id="iGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#iBg)"/>
+    <line x1="34" y1="86" x2="104" y2="120" stroke="url(#iIn)" stroke-width="9" stroke-linecap="round" filter="url(#iGlow)"/>
+    <circle cx="36" cy="84" r="8" fill="#fff7e0"/>
+    <path d="M104 96 L 146 168 L 62 168 Z" fill="rgba(125,211,252,.14)" stroke="#7dd3fc" stroke-width="4" stroke-linejoin="round" opacity=".92"/>
+    <g stroke-width="6" stroke-linecap="round" opacity=".95">
+      <line x1="146" y1="168" x2="206" y2="132" stroke="#f472b6"/>
+      <line x1="146" y1="168" x2="204" y2="146" stroke="#b7a4ff"/>
+      <line x1="146" y1="168" x2="202" y2="160" stroke="#7dd3fc"/>
+      <line x1="146" y1="168" x2="200" y2="174" stroke="#86efac"/>
+    </g>
+  </svg></div>
+  <div class="lockup"><div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#iBg)"/><line x1="34" y1="86" x2="104" y2="120" stroke="url(#iIn)" stroke-width="9" stroke-linecap="round"/><path d="M104 96 L 146 168 L 62 168 Z" fill="rgba(125,211,252,.14)" stroke="#7dd3fc" stroke-width="4" stroke-linejoin="round"/><line x1="146" y1="168" x2="206" y2="132" stroke="#f472b6" stroke-width="6" stroke-linecap="round"/><line x1="146" y1="168" x2="202" y2="160" stroke="#7dd3fc" stroke-width="6" stroke-linecap="round"/></svg></div><div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div></div>
+  <p class="desc">一句话是白光，穿过拾光这枚棱镜色散为时间/心情/金钱/人际的彩虹谱——AI 结构化的光学隐喻（上轮 v2 最受欢迎方案的精修版）。</p>
+</div>
+
+<!-- ============ J 光沙漏·复利 ============ -->
+<div class="concept">
+  <div class="tag">方案 J</div>
+  <h2>光沙漏 <b>· 复利累积</b></h2>
+  <div class="icon"><svg viewBox="0 0 240 240" width="240" height="240">
+    <defs>
+      <radialGradient id="jBg" cx="50%" cy="26%" r="130%"><stop offset="0%" stop-color="#1a2350"/><stop offset="55%" stop-color="#0e1636"/><stop offset="100%" stop-color="#060919"/></radialGradient>
+      <filter id="jGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="240" height="240" fill="url(#jBg)"/>
+    <path d="M76 56 L 164 56 C 164 96, 132 106, 120 120 C 108 106, 76 96, 76 56 Z" fill="none" stroke="#7dd3fc" stroke-width="8" stroke-linejoin="round" opacity=".9"/>
+    <path d="M76 184 L 164 184 C 164 144, 132 134, 120 120 C 108 134, 76 144, 76 184 Z" fill="none" stroke="#f1c66b" stroke-width="8" stroke-linejoin="round" opacity=".95"/>
+    <circle cx="120" cy="84" r="10" fill="#fff7e0" filter="url(#jGlow)"/>
+    <circle cx="120" cy="132" r="5" fill="#ffe9b0"/>
+    <path d="M96 168 C 104 158, 136 158, 144 168 C 138 178, 102 178, 96 168 Z" fill="#f1c66b" filter="url(#jGlow)"/>
+  </svg></div>
+  <div class="lockup"><div class="mini"><svg viewBox="0 0 240 240" width="72" height="72"><rect width="240" height="240" fill="url(#jBg)"/><path d="M76 56 L 164 56 C 164 96, 132 106, 120 120 C 108 106, 76 96, 76 56 Z" fill="none" stroke="#7dd3fc" stroke-width="8" stroke-linejoin="round" opacity=".9"/><path d="M76 184 L 164 184 C 164 144, 132 134, 120 120 C 108 134, 76 144, 76 184 Z" fill="none" stroke="#f1c66b" stroke-width="8" stroke-linejoin="round"/><path d="M96 168 C 104 158, 136 158, 144 168 C 138 178, 102 178, 96 168 Z" fill="#f1c66b"/></svg></div><div><div class="wordmark">拾光</div><div class="tagline">钱 · 时间 · 人</div></div></div>
+  <p class="desc">沙漏上半是蓝的时间，光沙滴落、下半堆成金色的累积——「时光复利」的产品哲学图形化（名字虽改为拾光，复利仍是产品灵魂）。</p>
+</div>
+
+</body>
+</html>
+
