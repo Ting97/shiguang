@@ -5,7 +5,7 @@
 | 文件 | 端 | 版本 | 说明 |
 |---|---|---|---|
 | `shiguang-android-v1.1.1.apk` | Android | v1.1.1 | 原生 WebView 壳（[apps/android](../android)），debug 签名可侧载直装，34KB。v1.1.1 修复 Android 14+ 启动闪退（registerReceiver 需声明导出标志），已在 API 35 模拟器实机验证启动+页面加载 |
-| `shiguang-expo-native-v1.0.0.apk` | Android | v1.0.0 | **Expo 原生应用**（[apps/mobile](../mobile)），EAS 云构建（preview/侧载），66MB。原生渲染 UI + SecureStore + 原生录音；JS 层支持 EAS Update OTA 热更 |
+| `shiguang-expo-native-v1.1.0.apk` | Android | v1.1.0 | **Expo 原生应用**（[apps/mobile](../mobile)），EAS 云构建（preview/侧载），66MB。原生渲染 UI + SecureStore + 原生录音；JS 层支持 EAS Update OTA 热更。v1.1.0 修复首屏黑屏（双 React 实例导致 useState of null 崩溃）：根 package-lock.json 入库（EAS workspace 在根跑 npm ci）+ metro react 解析根/子回退，已在 API 35 模拟器验证登录页正常渲染、无 JS 异常 |
 
 ## 重建方式
 
