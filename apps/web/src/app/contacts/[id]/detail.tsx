@@ -58,7 +58,11 @@ const zhDay = (iso: string) => {
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
 export function ContactDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  // 静态导出壳页的水合参数是构建期占位 "__shell__"（硬加载详情 URL 时），此时从真实地址解析 id
+  const params = useParams<{ id: string }>();
+  const id = !params.id || params.id === "__shell__"
+    ? (typeof window !== "undefined" ? window.location.pathname.split("/").filter(Boolean)[1] ?? "" : "")
+    : params.id;
   const router = useRouter();
   const [contact, setContact] = useState<Contact | null>(null);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -393,7 +397,10 @@ function InteractionFormModal({
   onClose: () => void;
   onSaved: (text: string) => Promise<void>;
 }) {
-  const { id } = useParams<{ id: string }>();
+  const params2 = useParams<{ id: string }>();
+  const id = !params2.id || params2.id === "__shell__"
+    ? (typeof window !== "undefined" ? window.location.pathname.split("/").filter(Boolean)[1] ?? "" : "")
+    : params2.id;
   const [type, setType] = useState<InteractionType>("见面");
   const [summary, setSummary] = useState("");
   const [when, setWhen] = useState(() => {
