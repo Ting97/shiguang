@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>拾光 · Logo 十案总览</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #070b18; color: #e2e8f0; font-family: "Microsoft YaHei", system-ui, sans-serif; padding: 28px; }
+  h1 { font-size: 20px; text-align: center; color: #f8fafc; margin-bottom: 6px; }
+  h1 em { color: #f1c66b; font-style: normal; }
+  .sub { text-align: center; font-size: 12px; color: #64748b; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 22px 18px; max-width: 1000px; margin: 0 auto; }
+  .cell { text-align: center; }
+  .cell .ic { width: 100%; aspect-ratio: 1; border-radius: 22%; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(148,163,184,.14); }
+  .cell .ic svg { width: 100%; height: 100%; display: block; }
+  .cell .lab { margin-top: 8px; font-size: 13px; color: #cbd5e1; }
+  .cell .lab b { color: #f1c66b; margin-right: 4px; }
+  .cell .kw { font-size: 11px; color: #64748b; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <h1><em>拾光</em> · Logo 十案总览</h1>
+  <div class="sub">深蓝底 · 琥珀金 · 全矢量 —— 选定后交付 favicon / PWA 192·512 / Android 自适应图标 / 登录页组合</div>
+  <div class="grid" id="grid"></div>
+<script>
+fetch('logo-proposals-v3.html').then(r => r.text()).then(t => {
+  const doc = new DOMParser().parseFromString(t, 'text/html');
+  const meta = {
+    A: ['光束入怀', '故事叙事 · 独占性'],
+    B: ['太阳即钟', '品类直白 · 延续性'],
+    C: ['AI 星芒', 'AI 原生 · 年轻'],
+    D: ['拾字金印', '中文本位 · 古典'],
+    E: ['掌心托光', '亲和 · 温柔'],
+    F: ['日记光升', '日记品类 · 一眼懂'],
+    G: ['时间光轨', '极简几何 · 小尺寸'],
+    H: ['SG 光迹', '国际 monogram'],
+    I: ['棱镜色散', 'AI 结构化隐喻'],
+    J: ['光沙漏', '复利累积'],
+  };
+  const concepts = [...doc.querySelectorAll('.concept')];
+  const grid = document.getElementById('grid');
+  concepts.forEach((c, i) => {
+    const key = Object.keys(meta)[i];
+    const svg = c.querySelector('.icon svg');
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const ic = document.createElement('div');
+    ic.className = 'ic';
+    ic.appendChild(svg.cloneNode(true));
+    const lab = document.createElement('div');
+    lab.className = 'lab';
+    lab.innerHTML = '<b>' + key + '</b>' + meta[key][0];
+    const kw = document.createElement('div');
+    kw.className = 'kw';
+    kw.textContent = meta[key][1];
+    cell.append(ic, lab, kw);
+    grid.appendChild(cell);
+  });
+});
+</script>
+</body>
+</html>
