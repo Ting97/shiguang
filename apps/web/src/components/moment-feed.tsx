@@ -6,6 +6,7 @@ import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
 import EntryMenu from "./entry-menu";
 import { PencilLine, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const zhClock = (iso: string) => {
@@ -155,8 +156,10 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
   // 原文行内编辑：null=非编辑态；字符串=textarea 当前内容
   const [editRaw, setEditRaw] = useState<string | null>(null);
-  // 卡片操作菜单（编辑/删除）开关
+  // 卡片操作菜单（编辑/删除）开关 + 桌面端锚定坐标
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [actionsPos, setActionsPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const emoji = moodEmoji(m.mood);
   const intent =
@@ -260,31 +263,41 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
             editRaw === null && (
               <>
                 <button
-                  onClick={() => { setActionsOpen((v) => !v); setMenuOpen(false); }}
+                  onClick={(e) => {
+                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setActionsPos({ top: Math.min(r.bottom + 4, window.innerHeight - 100), left: Math.max(8, r.right - 128) });
+                    setActionsOpen((v) => !v);
+                    setMenuOpen(false);
+                  }}
                   title="更多操作"
                   className="row-actions-hidden hidden rounded px-1.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
                 >
                   ⋯
                 </button>
-                {actionsOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setActionsOpen(false)} />
-                    <div className="absolute right-3 top-8 z-40 w-32 overflow-hidden rounded-xl border border-line-soft bg-elevated shadow-lg">
-                      <button
-                        onClick={() => { setActionsOpen(false); setEditRaw(m.raw_text); setMenuOpen(false); }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink transition hover:bg-wash"
+                {actionsOpen &&
+                  createPortal(
+                    <>
+                      <div className="fixed inset-0 z-[60]" onClick={() => setActionsOpen(false)} />
+                      <div
+                        className="fixed z-[60] w-32 overflow-hidden rounded-xl border border-line-soft bg-elevated shadow-lg"
+                        style={{ top: actionsPos?.top, left: actionsPos?.left }}
                       >
-                        <PencilLine size={14} /> 编辑
-                      </button>
-                      <button
-                        onClick={() => { setActionsOpen(false); setConfirming(true); }}
-                        className="flex w-full items-center gap-2 border-t border-line-soft px-3 py-2 text-xs text-danger transition hover:bg-wash"
-                      >
-                        <Trash2 size={14} /> 删除
-                      </button>
-                    </div>
-                  </>
-                )}
+                        <button
+                          onClick={() => { setActionsOpen(false); setEditRaw(m.raw_text); setMenuOpen(false); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink transition hover:bg-wash"
+                        >
+                          <PencilLine size={14} /> 编辑
+                        </button>
+                        <button
+                          onClick={() => { setActionsOpen(false); setConfirming(true); }}
+                          className="flex w-full items-center gap-2 border-t border-line-soft px-3 py-2 text-xs text-danger transition hover:bg-wash"
+                        >
+                          <Trash2 size={14} /> 删除
+                        </button>
+                      </div>
+                    </>,
+                    document.body,
+                  )}
               </>
             )
           )}
@@ -322,11 +335,11 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
           </p>
         )}
 
-        {/* 识别与补充菜单浮层（六域：AI 识别 / 手动添加） */}
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-3 top-12 z-40">
+        {/* 识别与补充菜单：portal 渲染到 body——卡片 hover 位移会让 fixed 遮罩失效、后续卡片盖住菜单 */}
+        {menuOpen &&
+          createPortal(
+            <>
+              <div className="fixed inset-0 z-[60]" onClick={() => setMenuOpen(false)} />
               <EntryMenu
                 m={m}
                 activities={activities}
@@ -334,10 +347,11 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 onAI={recognizeDomain}
                 onManual={manualAdd}
                 onClose={() => setMenuOpen(false)}
+                desktopPos={menuPos}
               />
-            </div>
-          </>
-        )}
+            </>,
+            document.body,
+          )}
 
         {/* 后台识别中：动态已上墙，识别产物随后出现 */}
         {!m.analyzed_at && (

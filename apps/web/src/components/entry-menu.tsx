@@ -45,7 +45,7 @@ const inputCls =
 const btnMini = "shrink-0 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-sky-500";
 
 /** 识别菜单：六域（AI 识别 / 手动添加）。移动端底部弹层，桌面锚定卡片浮层 */
-export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, onClose }: Props) {
+export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, onClose, desktopPos }: Props & { desktopPos?: { top: number; left: number } | null }) {
   const [manualDomain, setManualDomain] = useState<SixKey | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -209,7 +209,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   return (
     /* 移动端：底部弹层（拇指可达、不溢出视口）；桌面（sm:）：锚定卡片的浮层 */
     <div
-      className="glass fade-up fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl p-4 safe-bottom sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-2 sm:top-9 sm:max-h-none sm:w-[300px] sm:rounded-xl sm:p-3 sm:shadow-2xl sm:shadow-scrim/70"
+      className="fade-up fixed inset-x-0 bottom-0 z-[60] max-h-[85dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-4 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:max-h-none sm:w-[300px] sm:rounded-xl sm:p-3"
+      style={desktopPos ? { top: desktopPos.top, left: desktopPos.left } : undefined}
       onClick={(e) => e.stopPropagation()}
     >
       {/* 移动端拖拽指示条 */}
