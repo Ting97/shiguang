@@ -54,6 +54,8 @@ export async function getOrGenerateReview(
       completionTokens += u.completion_tokens;
     });
   } catch (e) {
+    // 次数门禁拒绝不是 AI 调用：不写审计（免占免费额度），直接抛给路由转 403
+    if ((e as { gate?: boolean }).gate === true) throw e;
     void writeAuditRecord({
       userId,
       stage: "review",

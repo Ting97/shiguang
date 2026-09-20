@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
+import { pool, DEV_USER_ID } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
+import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
 import {
   BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
   blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, todoDoneLines, withCap,
@@ -28,12 +29,14 @@ interface WeekReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const q = await checkAiQuota(user.id);
-  if (!q.allowed) {
-    return NextResponse.json(
-      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
-      { status: 402 },
-    );
+  if (user.id !== DEV_USER_ID) {
+    const q = await checkAiQuota(user.id);
+    if (!q.allowed) {
+      return NextResponse.json(
+        { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
+        { status: 402 },
+      );
+    }
   }
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
   if (!date || !DATE_RE.test(date)) {
@@ -229,6 +232,7 @@ export async function POST(req: Request) {
   let result;
   try {
     result = await getOrGenerateReview(user.id, "week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      await acquireGeneration(user.id, "week", from, latest ? new Date(latest) : null);
       const parsed = await chatReviewJson<Partial<WeekReview>>({
         system,
         user: userPrompt,
@@ -236,17 +240,19 @@ export async function POST(req: Request) {
         timeoutMs: 45_000,
         onUsage: capture,
       });
-    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
-    return {
-      summary:
-        typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 150)
-          : "这一周记录还很少，多记几天再来复盘会更有料",
-      highlights: arr(parsed.highlights, 3),
-      suggestions: arr(parsed.suggestions, 2),
-    };
+      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
+      await consumeGeneration(user.id, "week", from);
+      return {
+        summary:
+          typeof parsed.summary === "string" && parsed.summary.trim()
+            ? parsed.summary.trim().slice(0, 150)
+            : "这一周记录还很少，多记几天再来复盘会更有料",
+        highlights: arr(parsed.highlights, 3),
+        suggestions: arr(parsed.suggestions, 2),
+      };
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof ReviewGateError) return NextResponse.json({ error: e.message }, { status: 403 });
     return NextResponse.json({ error: "AI 解读失败，请稍后重试" }, { status: 502 });
   }
   const { review, cached, generatedAt } = result;

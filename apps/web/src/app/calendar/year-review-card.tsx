@@ -1,19 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useCachedReview } from "./use-cached-review";
 
-/** AI 年报（Phase 4 复盘引擎）：聚合本年真实记录 → LLM 解读；不落库，点按钮即时生成 */
+/** AI 年报（review v3）：挂载时展示上次持久化的小结；点按钮生成/重新生成；分节长文渲染 */
 export default function YearReviewCard({ year, hasRecords, notify }: {
   year: string; // YYYY
-  
+
   hasRecords: boolean;
   notify: (e: string | null) => void;
 }) {
+  const cached = useCachedReview("year", year);
   const [review, setReview] = useState<{
     summary: string; sections?: { title: string; text: string }[]; highlights: string[]; suggestions: string[];
   } | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const shown = review ?? cached;
 
   async function generate() {
     if (busy) return;
@@ -22,7 +26,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
       const r = await fetch("/api/review/year", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, refresh: review != null }),
+        body: JSON.stringify({ year, refresh: shown != null }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "生成失败");
@@ -45,36 +49,36 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
         <button
           onClick={generate}
           disabled={busy || !hasRecords}
-          title={hasRecords ? "基于本周真实记录生成" : "本年还没有记录"}
+          title={hasRecords ? "基于本年真实记录生成" : "本年还没有记录"}
           className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs text-ai transition hover:bg-purple-500/20 disabled:opacity-40"
         >
-          {busy ? "解读中…" : review ? "重新生成" : "生成本年小结"}
+          {busy ? "解读中…" : shown ? "重新生成" : "生成本年小结"}
         </button>
       </div>
       {busy && <p className="mt-3 animate-pulse text-xs text-ai/80">正在通读本年的时间/待办/收支/人际…</p>}
-      {!busy && !review && !hasRecords && <p className="mt-3 text-xs text-ink-faint">本周还没有记录</p>}
-      {!busy && !review && hasRecords && (
-        <p className="mt-3 text-xs text-ink-faint">让 AI 通读本周的时间投入/待办/收支/人际，总结这一年</p>
+      {!busy && !shown && !hasRecords && <p className="mt-3 text-xs text-ink-faint">本年还没有记录</p>}
+      {!busy && !shown && hasRecords && (
+        <p className="mt-3 text-xs text-ink-faint">让 AI 通读本年的时间投入/待办/收支/人际，总结这一年</p>
       )}
-      {!busy && review && (
+      {!busy && shown && (
         <div className="mt-3 space-y-2">
-          <p className="text-sm leading-relaxed text-ink">{review.summary}</p>
-          {review.sections?.map((s) => (
+          <p className="text-sm leading-relaxed text-ink">{shown.summary}</p>
+          {(shown.sections ?? []).map((s) => (
             <div key={s.title}>
               <h3 className="text-xs font-semibold text-ink-soft">▎{s.title}</h3>
               <p className="mt-0.5 text-xs leading-relaxed text-ink-mute">{s.text}</p>
             </div>
           ))}
-          {review.highlights.length > 0 && (
+          {(shown.highlights ?? []).length > 0 && (
             <ul className="space-y-1">
-              {review.highlights.map((h) => (
+              {shown.highlights.map((h) => (
                 <li key={h} className="flex gap-1.5 text-xs text-success/90"><span className="shrink-0">💚</span><span>{h}</span></li>
               ))}
             </ul>
           )}
-          {review.suggestions.length > 0 && (
+          {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
-              {review.suggestions.map((sg) => (
+              {shown.suggestions.map((sg) => (
                 <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="shrink-0">💡</span><span>{sg}</span></li>
               ))}
             </ul>

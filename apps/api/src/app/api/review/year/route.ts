@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
+import { pool, DEV_USER_ID } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
+import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
 import {
   BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
   blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, sampleEntryRows, todoDoneLines, withCap,
@@ -29,12 +30,14 @@ interface YearReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const q = await checkAiQuota(user.id);
-  if (!q.allowed) {
-    return NextResponse.json(
-      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
-      { status: 402 },
-    );
+  if (user.id !== DEV_USER_ID) {
+    const q = await checkAiQuota(user.id);
+    if (!q.allowed) {
+      return NextResponse.json(
+        { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
+        { status: 402 },
+      );
+    }
   }
   const { year, refresh } = (await req.json().catch(() => ({}))) as { year?: string; refresh?: boolean };
   if (!year || !YEAR_RE.test(year)) {
@@ -227,6 +230,7 @@ export async function POST(req: Request) {
   let result;
   try {
     result = await getOrGenerateReview(user.id, "year", year, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      await acquireGeneration(user.id, "year", year, latest ? new Date(latest) : null);
       const parsed = await chatReviewJson<Partial<YearReview>>({
         system,
         user: userPrompt,
@@ -241,17 +245,19 @@ export async function POST(req: Request) {
           .slice(0, 5)
           .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 300) }))
       : [];
-    return {
-      summary:
-        typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 220)
-          : "这一年记录还很少，多记几天再来复盘会更有料",
-      sections,
-      highlights: arr(parsed.highlights, 5),
-      suggestions: arr(parsed.suggestions, 3),
-    };
+      await consumeGeneration(user.id, "year", year);
+      return {
+        summary:
+          typeof parsed.summary === "string" && parsed.summary.trim()
+            ? parsed.summary.trim().slice(0, 220)
+            : "这一年记录还很少，多记几天再来复盘会更有料",
+        sections,
+        highlights: arr(parsed.highlights, 5),
+        suggestions: arr(parsed.suggestions, 3),
+      };
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof ReviewGateError) return NextResponse.json({ error: e.message }, { status: 403 });
     return NextResponse.json({ error: "AI 解读失败，请稍后重试" }, { status: 502 });
   }
   const { review, cached, generatedAt } = result;
