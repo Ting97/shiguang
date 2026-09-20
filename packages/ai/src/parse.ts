@@ -11,7 +11,7 @@
 import { chat, extractJson, hasApiKey, isQuotaTripped, GlmError } from "./glm";
 import { EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS, buildExtractUserPrompt, buildRepairUserPrompt } from "./prompt";
 import {
-  LlmExtraction, ParseResult, FullExtractionV2, domainExtractionV2, ACTIVITY_IDS,
+  ParseResult, FullExtractionV2, domainExtractionV2, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
 } from "./schema";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment } from "./time-infer";
@@ -189,7 +189,7 @@ function assembleExtraction(data: unknown, domain: string | undefined): LlmExtra
   const neutralFinance = { hasAmount: false, direction: null, amountCents: null, category: null, counterparty: null, confidence: 0.9 };
   const neutralMood = { label: null, score: null, confidence: 0.9 };
   const neutralDiet = { applicable: false, meal: "未知" as const, items: [], totalKcal: null, confidence: 0.9 };
-  if (!domain) return LlmExtraction.parse(data); // 全量：宽松入口归一（内部已严格校验过）
+  if (!domain) return data as unknown as LlmExtractionT; // 全量：v2 已严格校验，直接装配（不再过旧宽松 schema——会误抛）
   return {
     reasoning: {},
     schedule: domain === "schedule" ? (d.schedule as LlmExtractionT["schedule"]) : neutralSchedule,
@@ -263,7 +263,8 @@ function mapAiResult(ext: LlmExtractionT, now: Date, engine: "llm" | "llm-repair
     },
     finance: {
       hasAmount: ext.finance.hasAmount,
-      direction: ext.finance.direction ?? null,
+      // 输出层形状归一：无金额时方向落 "out"（v2 允许 AI 给 null；语义仍以 hasAmount 为准）
+      direction: ext.finance.direction ?? "out",
       amountCents: ext.finance.amountCents != null ? Math.abs(ext.finance.amountCents) : null,
       category: ext.finance.category ?? null,
       counterparty: ext.finance.counterparty ?? null,
