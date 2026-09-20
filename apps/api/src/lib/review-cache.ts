@@ -49,8 +49,9 @@ export async function getOrGenerateReview(
   let review: Review;
   try {
     review = await generate((u) => {
-      promptTokens = u.prompt_tokens;
-      completionTokens = u.completion_tokens;
+      // 历史消耗口径：多轮调用逐次累加，不取最后一次
+      promptTokens += u.prompt_tokens;
+      completionTokens += u.completion_tokens;
     });
   } catch (e) {
     void writeAuditRecord({

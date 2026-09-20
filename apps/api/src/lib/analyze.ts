@@ -77,8 +77,9 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   try {
     const r = await parseInput(rawText, {
       onUsage: (u) => {
-        promptTokens = u.prompt_tokens;
-        completionTokens = u.completion_tokens;
+        // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
+        promptTokens += u.prompt_tokens;
+        completionTokens += u.completion_tokens;
       },
     });
     engine = r.engine;

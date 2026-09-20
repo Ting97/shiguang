@@ -40,16 +40,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!entry) return NextResponse.json({ error: "动态不存在" }, { status: 404 });
 
   const t0 = Date.now();
+  let promptTokens = 0;
+  let completionTokens = 0;
   const r: ParseResult = await parseInput(entry.raw_text, {
     domain, // 单域专属提示词：只判本域，更准更省
     onUsage: (u) => {
-      void writeAuditRecord({
-        userId: user.id, entryId: id, stage: "parse",
-        model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "llm",
-        latencyMs: Date.now() - t0, ok: true,
-        promptTokens: u.prompt_tokens, completionTokens: u.completion_tokens,
-      }).catch(() => {});
+      // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
+      promptTokens += u.prompt_tokens;
+      completionTokens += u.completion_tokens;
     },
+  });
+  // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型
+  void writeAuditRecord({
+    userId: user.id, entryId: id, stage: "parse",
+    model: r.engine !== "rules" || promptTokens > 0 ? process.env.GLM_MODEL ?? "glm-5.3-flash" : null,
+    engine: r.engine,
+    latencyMs: Date.now() - t0, ok: true,
+    promptTokens, completionTokens,
   });
   const client = await pool.connect();
   try {
