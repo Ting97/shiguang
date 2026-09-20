@@ -68,7 +68,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         const conflict = await findOverlap(user.id, r.time.start, r.time.end);
         if (conflict) {
           await client.query("rollback");
-          return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });
+          return NextResponse.json(
+          { error: overlapError(conflict, { title: r.title, start: r.time.start, end: r.time.end }), conflict },
+          { status: 409 },
+        );
         }
         await client.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [id, user.id]);
         const block = (

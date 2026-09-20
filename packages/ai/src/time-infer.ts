@@ -90,9 +90,11 @@ export function detectDayRef(text: string, now: Date): number | null {
 /** 话术中的钟点："三点"/"15:30"/"7点半"/"6.30"(配合 period 换算 12/24h) */
 export function parseClock(text: string, period: PeriodHint | null): { hour: number; minute: number } | null {
   const m = text.match(
-    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时]\s*(半|\d{1,2})?\s*分?|[.:：](\d{2}))/,
+    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时](?!点)\s*(半|\d{1,2})?\s*分?|[.:：](\d{2}))/,
   );
   if (!m) return null;
+  // 叠字守卫：中文数字叠字（"一一"）非数字；单字（一/三）与阿拉伯数字（11/22）合法
+  if (m[1].length > 1 && !/^[0-9]+$/.test(m[1]) && [...m[1]].every((c) => c === m[1][0])) return null;
   const n = cnToNumber(m[1]);
   if (n === null || n > 23) return null;
   let hour = n;

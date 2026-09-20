@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange } from "../src/time-infer.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
 
@@ -182,4 +182,17 @@ test("跨天区间'晚上10.30到6.30' → 当晚22:30至次日06:30", () => {
   assert.equal(tb.end.getDate(), 21);
   assert.equal(tb.end.getHours(), 6);
   assert.equal(tb.durationMin, 480);
+});
+
+// —— 回归3：叠字假钟点（"一点点"被解析成 1 点导致饮食记录误撞日程） ——
+
+test("parseClock：'一点点'类叠字不是钟点", () => {
+  assert.equal(parseClock("今天喝了两杯黑咖啡两杯豆浆和一点点香芋条", null), null);
+  assert.equal(parseClock("一点点香芋条", null), null);
+});
+
+test("parseClock：真实钟点不受影响（一点/十一点半/6.30）", () => {
+  assert.equal(parseClock("凌晨一点睡觉", null)?.hour, 1);
+  assert.equal(parseClock("十一点半吃饭", null)?.hour, 11);
+  assert.equal(parseClock("6.30", null)?.minute, 30);
 });

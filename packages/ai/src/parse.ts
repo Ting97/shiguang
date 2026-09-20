@@ -9,7 +9,7 @@ import {
   LlmExtraction, ParseResult, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
 } from "./schema";
-import { inferTimeBlock, detectPeriod, detectFuture } from "./time-infer";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange } from "./time-infer";
 import { parseAmountCents, parseDuration } from "./duration";
 import { ruleMood } from "./mood-rules";
 
@@ -177,7 +177,16 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   // （explicit/relative 都可能是显式钟点区间的产物——"9:10到9:30"无时长词时 mode=relative）
   const ongoing = !future && (tb.mode === "explicit" || tb.mode === "relative") && tb.start <= now && now < tb.end;
   // 显式起止区间本身就是"具体的事"的最强信号（如"工作准备"无活动词也不该判成纯感想）
-  const scheduleApplicable = !future && (ext.schedule.applicable || ongoing);
+  // 弱锚点防御：无显式钟点/时段/时长/未来信号/刚…标记时，日程锚只能落到默认回顾点或当下——
+  // 这类多为饮食/感受类流水账（GLM 偶发误判 applicable），强制降级为纯动态
+  const hasExplicitTime =
+    parseClockRange(text, ext.schedule.periodHint ?? null) !== null ||
+    /\d{1,2}\s*[点时]/.test(text) ||
+    detectPeriod(text) !== null ||
+    detectFuture(text) !== null ||
+    parseDuration(text) !== null ||
+    /刚(刚)?|完(了|成)/.test(text);
+  const scheduleApplicable = !future && (ext.schedule.applicable || ongoing) && hasExplicitTime;
   const intent: ParseResultT["intent"] = future ? "todo" : scheduleApplicable ? "schedule" : "status";
 
   // 心情：LLM 词优先；score 缺失时按规则基准分补全
@@ -185,7 +194,10 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   const moodScore = moodLabel ? (ext.mood.score ?? ruleMood(moodLabel)?.score ?? 0) : null;
 
   // 饮食归一：过滤空名条目；totalKcal 缺失时按已知项合计
-  const dietItems = ext.diet.items.filter((it) => it.name?.trim());
+  // 饮食名过滤：整句/句子片段被误当食物名时丢弃（如"今天喝了两杯黑咖啡两杯豆"）
+  const dietItems = ext.diet.items.filter(
+    (it) => it.name?.trim() && !/^(今天|今日|刚才|刚刚|我|现在)/.test(it.name.trim()) && it.name.trim().length <= 16,
+  );
   const knownKcal = dietItems.reduce((s, it) => s + (it.kcal ?? 0), 0);
   const totalKcal = ext.diet.totalKcal ?? (knownKcal > 0 ? knownKcal : null);
 

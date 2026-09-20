@@ -104,7 +104,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       if (conflict) {
         // 冲突降级为纯动态（保留心情/金额/人物草稿），原因写登记簿供卡片展示
         conflictTitle = conflict.title;
-        await recordRecognition(client, userId, entryId, "schedule", "none", { reason: overlapError(conflict) }, r.scheduleConfidence, r.engine);
+        await recordRecognition(client, userId, entryId, "schedule", "none", { reason: overlapError(conflict, { title: r.title, start: r.time.start, end: r.time.end }) }, r.scheduleConfidence, r.engine);
         await recordRecognition(client, userId, entryId, "finance", r.finance.hasAmount ? (r.financeConfidence >= CONFIDENCE_THRESHOLD ? "applied" : "pending") : "none", r.finance, r.financeConfidence, r.engine);
         if (r.finance.hasAmount && r.financeConfidence >= CONFIDENCE_THRESHOLD) {
           await insertTransaction(client, userId, entryId, r, rawText);
