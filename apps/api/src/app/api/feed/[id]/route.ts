@@ -98,6 +98,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     await client.query(`delete from transactions where entry_id = $1 and user_id = $2`, [id, user.id]);
     await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [id, user.id]);
     await client.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [id, user.id]);
+    await client.query(`delete from diet_records where entry_id = $1 and user_id = $2`, [id, user.id]);
+    await client.query(`delete from entry_recognitions where entry_id = $1 and user_id = $2`, [id, user.id]);
     const { rowCount } = await client.query(
       `delete from entries where id = $1 and user_id = $2`, // voice_logs 级联删除
       [id, user.id],

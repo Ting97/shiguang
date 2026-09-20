@@ -712,11 +712,23 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
             {/* ---- 饮食 ---- */}
             {m.diet && (
               <p className="group/row flex items-center gap-x-2 text-ink-mute">
-                <span>
+                <span className="min-w-0 flex-1">
                   🍽 {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
                   {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}
                   {m.diet.totalKcal != null ? ` · ≈${m.diet.totalKcal} kcal` : ""}
                 </span>
+                <button
+                  onClick={() =>
+                    del("删除这条饮食记录？", async () => {
+                      await api(`/api/entries/${m.id}/diet`, "DELETE");
+                      return "🗑 已删除饮食记录";
+                    })
+                  }
+                  title="删除饮食记录"
+                  className="row-actions-hidden hidden shrink-0 rounded px-1 text-xs text-ink-dim hover:text-danger group-hover/row:block"
+                >
+                  🗑
+                </button>
               </p>
             )}
           </div>
