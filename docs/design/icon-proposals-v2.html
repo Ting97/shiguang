@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>拾光复利 · 图标方案比对 v2（科技感）</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #070b18;
+    color: #e2e8f0;
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    padding: 36px 44px 48px;
+  }
+  header { margin-bottom: 26px; }
+  header h1 { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+  header h1 em { font-style: normal; color: #7dd3fc; }
+  header p { margin-top: 8px; font-size: 13px; color: #94a3b8; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  .card {
+    background: #0e1630;
+    border: 1px solid #212f56;
+    border-radius: 18px;
+    padding: 18px 16px 16px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .num {
+    align-self: flex-start; font-size: 11px; font-weight: 700; color: #7dd3fc;
+    background: rgba(125,211,252,.12); border: 1px solid rgba(125,211,252,.28);
+    padding: 2px 9px; border-radius: 999px; margin-bottom: 14px;
+  }
+  .tile { position: relative; border-radius: 24%; overflow: hidden; flex: none; display: block; }
+  .tile svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile.dark {
+    background: radial-gradient(130% 130% at 26% 16%, #20305e 0%, #0d1740 44%, #070c22 78%, #05081a 100%);
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,.22),
+      inset 0 0 0 1px rgba(148,163,184,.14),
+      0 12px 30px rgba(2,8,23,.55);
+  }
+  .tile.light {
+    background: radial-gradient(130% 130% at 26% 16%, #ffffff 0%, #e9f2fd 100%);
+    box-shadow: inset 0 0 0 1px rgba(148,163,184,.3);
+  }
+  .big { width: 128px; height: 128px; }
+  .strip { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .s48 { width: 48px; height: 48px; }
+  .s32 { width: 32px; height: 32px; }
+  .s24 { width: 24px; height: 24px; }
+  .s16 { width: 16px; height: 16px; }
+  .name { margin-top: 15px; font-size: 15px; font-weight: 700; }
+  .desc { margin-top: 6px; font-size: 12px; line-height: 1.65; color: #8fa3bf; text-align: center; }
+  .ref { margin-top: 4px; font-size: 11px; color: #5b6f92; text-align: center; }
+  footer { margin-top: 26px; font-size: 12px; color: #64748b; }
+</style>
+</head>
+<body>
+
+<!-- ====== v2 科技感设计系统：虹彩渐变 + 辉光 + 暗玻璃 ====== -->
+<svg width="0" height="0" style="position:absolute">
+<defs>
+  <linearGradient id="gAurora" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#60a5fa"/><stop offset=".5" stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/>
+  </linearGradient>
+  <linearGradient id="gVio" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/>
+  </linearGradient>
+  <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/>
+  </linearGradient>
+  <radialGradient id="gCore" cx=".38" cy=".35" r=".95">
+    <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#7dd3fc"/><stop offset="1" stop-color="#38bdf8"/>
+  </radialGradient>
+  <radialGradient id="gOrb" cx=".35" cy=".3" r="1">
+    <stop offset="0" stop-color="#33427c"/><stop offset=".55" stop-color="#141d46"/><stop offset="1" stop-color="#0a0f2e"/>
+  </radialGradient>
+  <filter id="bS" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6"/></filter>
+  <filter id="bM" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="12"/></filter>
+  <filter id="bL" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="24"/></filter>
+
+  <!-- 1 棱镜拾光：金光穿棱镜色散为光谱 -->
+  <symbol id="p1" viewBox="0 0 512 512">
+    <path d="M 48 292 L 162 289" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" filter="url(#bM)" opacity=".5"/>
+    <path d="M 48 292 L 162 289" stroke="url(#gGold)" stroke-width="11" stroke-linecap="round"/>
+    <path d="M 252 140 L 404 382 L 100 382 Z" fill="#818cf8" fill-opacity=".08" stroke="url(#gVio)" stroke-width="13" stroke-linejoin="round"/>
+    <g stroke-linecap="round">
+      <path d="M 352 298 L 478 196" stroke="#22d3ee" stroke-width="20" filter="url(#bS)" opacity=".45"/>
+      <path d="M 352 298 L 478 196" stroke="#22d3ee" stroke-width="10"/>
+      <path d="M 353 300 L 480 292" stroke="#818cf8" stroke-width="20" filter="url(#bS)" opacity=".45"/>
+      <path d="M 353 300 L 480 292" stroke="#818cf8" stroke-width="10"/>
+      <path d="M 352 302 L 474 392" stroke="#f472b6" stroke-width="20" filter="url(#bS)" opacity=".45"/>
+      <path d="M 352 302 L 474 392" stroke="#f472b6" stroke-width="10"/>
+    </g>
+    <circle cx="162" cy="289" r="18" fill="#fde68a" filter="url(#bS)" opacity=".6"/>
+    <circle cx="162" cy="289" r="8" fill="#fffbeb"/>
+  </symbol>
+
+  <!-- 2 辉光轨道：暗玻璃球体 + 边缘光 + 卫星 -->
+  <symbol id="p2" viewBox="0 0 512 512">
+    <circle cx="256" cy="256" r="150" fill="#6d28d9" opacity=".28" filter="url(#bL)"/>
+    <ellipse cx="256" cy="262" rx="186" ry="62" fill="none" stroke="url(#gAurora)" stroke-width="7" opacity=".3" transform="rotate(-14 256 262)"/>
+    <circle cx="256" cy="256" r="118" fill="url(#gOrb)"/>
+    <ellipse cx="300" cy="220" rx="46" ry="34" fill="#22d3ee" opacity=".3" filter="url(#bM)"/>
+    <path d="M 296 145 A 118 118 0 0 1 324 353" fill="none" stroke="url(#gVio)" stroke-width="16" stroke-linecap="round" filter="url(#bS)" opacity=".8"/>
+    <path d="M 296 145 A 118 118 0 0 1 324 353" fill="none" stroke="url(#gVio)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M 180 346 A 118 118 0 0 1 180 166" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity=".16"/>
+    <ellipse cx="256" cy="262" rx="186" ry="62" fill="none" stroke="url(#gAurora)" stroke-width="7" opacity=".9" transform="rotate(-14 256 262)"/>
+    <circle cx="405" cy="193" r="20" fill="#f59e0b" filter="url(#bS)" opacity=".6"/>
+    <circle cx="405" cy="193" r="12" fill="url(#gGold)"/>
+  </symbol>
+
+  <!-- 3 AI 星芒：四角星芒 + 辅星 -->
+  <symbol id="p3" viewBox="0 0 512 512">
+    <circle cx="252" cy="266" r="148" fill="#7c3aed" opacity=".2" filter="url(#bL)"/>
+    <path d="M 0 -140 C 14 -54 54 -14 140 0 C 54 14 14 54 0 140 C -14 54 -54 14 -140 0 C -54 -14 -14 -54 0 -140 Z"
+          transform="translate(252,266)" fill="#818cf8" opacity=".55" filter="url(#bM)"/>
+    <path d="M 0 -140 C 14 -54 54 -14 140 0 C 54 14 14 54 0 140 C -14 54 -54 14 -140 0 C -54 -14 -14 -54 0 -140 Z"
+          transform="translate(252,266)" fill="url(#gVio)"/>
+    <path d="M 0 -140 C 14 -54 54 -14 140 0 C 54 14 14 54 0 140 C -14 54 -54 14 -140 0 C -54 -14 -14 -54 0 -140 Z"
+          transform="translate(392,124) scale(.34)" fill="url(#gGold)"/>
+  </symbol>
+
+  <!-- 4 光子彗尾：光速上扬 + 粒子尾流 -->
+  <symbol id="p4" viewBox="0 0 512 512">
+    <path d="M 104 404 C 230 398 306 336 358 240 C 388 186 404 148 412 108" fill="none" stroke="#38bdf8" stroke-width="44" filter="url(#bM)" opacity=".4"/>
+    <path d="M 104 404 C 230 398 306 336 358 240 C 388 186 404 148 412 108" fill="none" stroke="url(#gAurora)" stroke-width="24" stroke-linecap="round"/>
+    <circle cx="330" cy="272" r="8" fill="#22d3ee" opacity=".85"/>
+    <circle cx="272" cy="324" r="6" fill="#60a5fa" opacity=".7"/>
+    <circle cx="206" cy="368" r="4.5" fill="#60a5fa" opacity=".55"/>
+    <circle cx="412" cy="108" r="44" fill="#22d3ee" filter="url(#bM)" opacity=".55"/>
+    <circle cx="412" cy="108" r="20" fill="url(#gCore)"/>
+  </symbol>
+
+  <!-- 5 渐变柱线：上升柱 + 趋势线 -->
+  <symbol id="p5" viewBox="0 0 512 512">
+    <line x1="104" y1="404" x2="432" y2="404" stroke="#ffffff" opacity=".1" stroke-width="5" stroke-linecap="round"/>
+    <rect x="118" y="322" width="52" height="74" rx="26" fill="url(#gVio)" opacity=".45"/>
+    <rect x="198" y="266" width="52" height="130" rx="26" fill="url(#gVio)" opacity=".62"/>
+    <rect x="278" y="206" width="52" height="190" rx="26" fill="url(#gVio)" opacity=".8"/>
+    <rect x="358" y="132" width="52" height="264" rx="26" fill="url(#gVio)"/>
+    <path d="M 144 310 L 224 254 L 304 194 L 384 122" fill="none" stroke="#22d3ee" stroke-width="22" filter="url(#bS)" opacity=".5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 144 310 L 224 254 L 304 194 L 384 122" fill="none" stroke="#f8fafc" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="384" cy="122" r="24" fill="#22d3ee" filter="url(#bS)" opacity=".55"/>
+    <circle cx="384" cy="122" r="11" fill="#ffffff"/>
+  </symbol>
+
+  <!-- 6 玻璃层叠：复利层层累积 -->
+  <symbol id="p6" viewBox="0 0 512 512">
+    <polygon points="256,280 392,344 256,408 120,344" fill="#38bdf8" fill-opacity=".16" stroke="#38bdf8" stroke-opacity=".5" stroke-width="6" stroke-linejoin="round"/>
+    <polygon points="256,208 392,272 256,336 120,272" fill="#818cf8" fill-opacity=".3" stroke="#818cf8" stroke-opacity=".7" stroke-width="7" stroke-linejoin="round"/>
+    <polygon points="256,136 392,200 256,264 120,200" fill="url(#gVio)" fill-opacity=".95" stroke="url(#gVio)" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M 0 -140 C 14 -54 54 -14 140 0 C 54 14 14 54 0 140 C -14 54 -54 14 -140 0 C -54 -14 -14 -54 0 -140 Z"
+          transform="translate(398,102) scale(.2)" fill="url(#gGold)"/>
+  </symbol>
+
+  <!-- 7 同心脉冲：金核向外扩散 -->
+  <symbol id="p7" viewBox="0 0 512 512">
+    <circle cx="256" cy="256" r="44" fill="#f59e0b" filter="url(#bM)" opacity=".5"/>
+    <path d="M 293 192 A 74 74 0 1 1 182 256" fill="none" stroke="url(#gVio)" stroke-width="13" stroke-linecap="round" opacity=".95"/>
+    <path d="M 341 171 A 120 120 0 1 1 140 287" fill="none" stroke="url(#gVio)" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+    <path d="M 406 186 A 166 166 0 1 1 112 339" fill="none" stroke="url(#gVio)" stroke-width="8" stroke-linecap="round" opacity=".3"/>
+    <circle cx="406" cy="186" r="9" fill="#22d3ee"/>
+    <circle cx="256" cy="256" r="22" fill="url(#gCore)"/>
+  </symbol>
+
+  <!-- 8 无限环：利滚利循环 -->
+  <symbol id="p8" viewBox="0 0 512 512">
+    <path d="M 126 256 C 126 188 246 188 256 256 C 266 324 386 324 386 256 C 386 188 266 188 256 256 C 246 324 126 324 126 256 Z"
+          fill="none" stroke="#818cf8" stroke-width="40" filter="url(#bM)" opacity=".35"/>
+    <path d="M 126 256 C 126 188 246 188 256 256 C 266 324 386 324 386 256 C 386 188 266 188 256 256 C 246 324 126 324 126 256 Z"
+          fill="none" stroke="url(#gAurora)" stroke-width="21" stroke-linecap="round"/>
+    <circle cx="256" cy="256" r="26" fill="#f59e0b" filter="url(#bS)" opacity=".5"/>
+    <circle cx="256" cy="256" r="14" fill="url(#gGold)"/>
+    <path d="M 0 -140 C 14 -54 54 -14 140 0 C 54 14 14 54 0 140 C -14 54 -54 14 -140 0 C -54 -14 -14 -54 0 -140 Z"
+          transform="translate(416,130) scale(.22)" fill="url(#gGold)"/>
+  </symbol>
+
+  <!-- 9 六边形光核：金光存入科技核心 -->
+  <symbol id="p9" viewBox="0 0 512 512">
+    <circle cx="256" cy="256" r="150" fill="#7c3aed" opacity=".22" filter="url(#bL)"/>
+    <path d="M 256 104 L 388 180 L 388 332 L 256 408 L 124 332 L 124 180 Z" fill="#38bdf8" fill-opacity=".07" stroke="url(#gVio)" stroke-width="13" stroke-linejoin="round"/>
+    <g fill="#22d3ee" opacity=".9">
+      <circle cx="256" cy="104" r="7"/><circle cx="388" cy="180" r="7"/><circle cx="388" cy="332" r="7"/>
+      <circle cx="256" cy="408" r="7"/><circle cx="124" cy="332" r="7"/><circle cx="124" cy="180" r="7"/>
+    </g>
+    <circle cx="256" cy="256" r="80" fill="#f59e0b" filter="url(#bM)" opacity=".4"/>
+    <circle cx="256" cy="256" r="78" fill="none" stroke="#fde68a" stroke-width="4" opacity=".3"/>
+    <circle cx="256" cy="256" r="46" fill="url(#gGold)"/>
+  </symbol>
+
+  <!-- 10 星轨表盘：渐变表盘 + 金色指针 -->
+  <symbol id="p10" viewBox="0 0 512 512">
+    <circle cx="256" cy="256" r="138" fill="none" stroke="#818cf8" stroke-width="26" filter="url(#bM)" opacity=".4"/>
+    <circle cx="256" cy="256" r="138" fill="none" stroke="url(#gVio)" stroke-width="15"/>
+    <path d="M 256 118 A 138 138 0 0 1 386 303" fill="none" stroke="#22d3ee" stroke-width="15" stroke-linecap="round" filter="url(#bS)" opacity=".9"/>
+    <g stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity=".5">
+      <line x1="368" y1="256" x2="382" y2="256"/>
+      <line x1="256" y1="368" x2="256" y2="382"/>
+      <line x1="144" y1="256" x2="130" y2="256"/>
+      <line x1="256" y1="144" x2="256" y2="130"/>
+    </g>
+    <line x1="256" y1="256" x2="346" y2="193" stroke="#f59e0b" stroke-width="20" stroke-linecap="round" filter="url(#bS)" opacity=".5"/>
+    <line x1="256" y1="256" x2="346" y2="193" stroke="url(#gGold)" stroke-width="13" stroke-linecap="round"/>
+    <circle cx="256" cy="256" r="16" fill="url(#gCore)" stroke="#ffffff" stroke-opacity=".2" stroke-width="3"/>
+  </symbol>
+</defs>
+</svg>
+
+<header>
+  <h1><em>拾光复利</em> · 图标方案比对 v2 · 科技感</h1>
+  <p>设计语言调研：ChatGPT / Gemini / Apple Intelligence 的「AI 光感」（辉光 orb · 星芒 · 色散渐变）× Linear / Raycast 的「暗玻璃 + 虹彩渐变」× Stripe / Meta 的几何极简 × iOS Liquid Glass 质感 · 统一蓝→青→紫虹彩谱 + 金色点睛（光/钱）</p>
+</header>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="num">方案 1</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p1"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p1"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p1"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p1"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p1"/></svg></div>
+    </div>
+    <div class="name">棱镜拾光 · 色散</div>
+    <div class="desc">一束金光穿过棱镜，色散为蓝紫粉光谱——「拾起光阴」的光学表达</div>
+    <div class="ref">参考：Apple Intelligence 光感 / 平克·弗洛伊德棱镜的科技化</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 2</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p2"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p2"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p2"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p2"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p2"/></svg></div>
+    </div>
+    <div class="name">辉光轨道 · 玻璃球</div>
+    <div class="desc">暗玻璃球体、边缘渐变光、卫星轨道环绕——最「AI 时代」的 orb 语言</div>
+    <div class="ref">参考：Apple Intelligence / Siri 边缘光 / Gemini orb</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 3</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p3"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p3"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p3"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p3"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p3"/></svg></div>
+    </div>
+    <div class="name">AI 星芒 · Spark</div>
+    <div class="desc">虹彩四角星芒 + 金色辅星，全球 AI 产品的通用符号，最「AI 原生」</div>
+    <div class="ref">参考：Gemini / Notion AI / 腾讯元宝（2024 年 100+ 产品采用）</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 4</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p4"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p4"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p4"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p4"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p4"/></svg></div>
+    </div>
+    <div class="name">光子彗尾 · 速率</div>
+    <div class="desc">光迹拖尾急速上扬、粒子散落——复利曲线的速度感版本</div>
+    <div class="ref">参考：Stripe 增长曲线 / 速度感光效</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 5</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p5"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p5"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p5"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p5"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p5"/></svg></div>
+    </div>
+    <div class="name">渐变柱线 · 增长</div>
+    <div class="desc">虹彩上升柱 + 白色趋势线，数据增长的最通用科技符号</div>
+    <div class="ref">参考：Linear / Vercel Analytics 数据美学</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 6</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p6"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p6"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p6"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p6"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p6"/></svg></div>
+    </div>
+    <div class="name">玻璃层叠 · 累积</div>
+    <div class="desc">三层玻璃菱面向上堆叠、顶部金光闪烁——复利=层层累积</div>
+    <div class="ref">参考：Stripe / Notion 层叠几何</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 7</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p7"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p7"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p7"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p7"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p7"/></svg></div>
+    </div>
+    <div class="name">同心脉冲 · 扩散</div>
+    <div class="desc">金核向外发出三重渐变弧波——复利的扩散效应，雷达般精准</div>
+    <div class="ref">参考：声波涟漪 / 雷达脉冲 UI</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 8</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p8"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p8"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p8"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p8"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p8"/></svg></div>
+    </div>
+    <div class="name">无限环 · 循环</div>
+    <div class="desc">虹彩无限环，交点处金光流转——利滚利、循环复投</div>
+    <div class="ref">参考：Meta / 无限符号的渐变化</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 9</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p9"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p9"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p9"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p9"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p9"/></svg></div>
+    </div>
+    <div class="name">六边形光核 · 存储</div>
+    <div class="desc">紫虹六边形围合金光核心——拾到的光存入科技核心持续增值</div>
+    <div class="ref">参考：能量核心 / Web3 六边形美学</div>
+  </div>
+
+  <div class="card">
+    <div class="num">方案 10</div>
+    <div class="tile dark big"><svg viewBox="0 0 512 512"><use href="#p10"/></svg></div>
+    <div class="strip">
+      <div class="tile light s48"><svg viewBox="0 0 512 512"><use href="#p10"/></svg></div>
+      <div class="tile dark s32"><svg viewBox="0 0 512 512"><use href="#p10"/></svg></div>
+      <div class="tile dark s24"><svg viewBox="0 0 512 512"><use href="#p10"/></svg></div>
+      <div class="tile dark s16"><svg viewBox="0 0 512 512"><use href="#p10"/></svg></div>
+    </div>
+    <div class="name">星轨表盘 · 时间</div>
+    <div class="desc">渐变表盘 + 高亮进度弧 + 金色指针——经营时间的仪器感</div>
+    <div class="ref">参考：Nothing OS 表盘 / 极简腕表 UI</div>
+  </div>
+
+</div>
+
+<footer>拾光复利 shiguangri · 图标提案 v2（科技感）· 2026-09-19 · 选中后交付：favicon.ico + icon.svg + apple-touch/PWA 192/512 + 登录页与分享封面横版组合 · 全部手写矢量，可无损缩放</footer>
+
+</body>
+</html>
