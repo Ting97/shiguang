@@ -77,7 +77,8 @@ export async function GET() {
     [user.id],
   );
   const byModel = modelRows.map((r) => ({
-    model: r.model,
+    // 纯离线规则兜底（未调用 LLM）的审计行没有模型名，显示成可读标签而不是空白
+    model: r.model || "(离线规则·无模型)",
     all: { calls: Number(r.calls), promptTokens: Number(r.prompt), completionTokens: Number(r.completion) },
     d30: { calls: Number(r.calls_30d), promptTokens: Number(r.prompt_30d), completionTokens: Number(r.completion_30d) },
   }));

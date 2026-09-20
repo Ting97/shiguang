@@ -83,7 +83,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     });
     engine = r.engine;
     if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
-    if (r.engine !== "rules") model = process.env.GLM_MODEL ?? "glm-5.3-flash";
+    // 规则兜底但 LLM 已被调用过（如输出不合格重问后仍失败）时也记模型名：token 消耗要如实归属
+    if (r.engine !== "rules" || promptTokens > 0) model = process.env.GLM_MODEL ?? "glm-5.3-flash";
     const pendingDomains: string[] = [];
 
     await client.query("begin");
