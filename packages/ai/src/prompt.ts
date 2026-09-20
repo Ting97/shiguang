@@ -16,9 +16,12 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 - confidence：时段时长都明确给 0.95+；只有动作靠猜时段给 0.6~0.8；拿不准是否算"事"给 <0.6
 
 ### 2. todo 待办（未来才做的计划）
-- 适用：「明天下午三点看牙」「待会儿倒垃圾」「下周三要开会」「打算/准备/记得去做…」
-- 不适用：「刚跑完步」（已发生）、「我经常跑步」（习惯陈述非具体计划）
-- 注意：未来计划 → todo.applicable=true 且 schedule.applicable=false，但 schedule 的 activity/title/periodHint/时长仍要照填（供待办使用）
+- **先对照用户话术里的时间与「当前时间」再判**：
+  - 钟点/时段已经过去（哪怕话术带「准备/计划」等字样）→ 这是**已发生的事**，todo.applicable=false、schedule.applicable=true。例：当前 11:50 说「今天9:10到9:30工作准备+喝水」→ schedule✓ todo✗（"工作准备"的"准备"是名词，不是"准备去做"）
+  - 正在做还没做完（开始已过、结束未到）→ schedule✓，系统会自动生成收尾待办，todo.applicable 仍为 false
+  - 还没到点的计划 → todo.applicable=true 且 schedule.applicable=false，但 schedule 的 activity/title/periodHint/时长仍要照填（供待办使用）
+- 适用：「明天下午三点看牙」「待会儿倒垃圾」「下周三要开会」「打算/准备去做/记得去做…」（动词性的"计划去做"）
+- 不适用：「刚跑完步」（已发生）、「我经常跑步」（习惯陈述非具体计划）、「准备工作/工作准备/工作计划」（"准备/计划"是名词）
 
 ### 3. finance 收支（提到钱）
 - 适用：「花了260」「随了600块礼」「退款到账50」

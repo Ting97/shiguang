@@ -47,7 +47,7 @@ export interface FeedMoment {
     icon: string;
     color: string;
   }[];
-  todos: { id: string; title: string; dueAt: string | null; status: string; activityId: string | null }[];
+  todos: { id: string; title: string; dueAt: string | null; startAt?: string | null; status: string; activityId: string | null }[];
   transactions: {
     id: string;
     amountCents: number;

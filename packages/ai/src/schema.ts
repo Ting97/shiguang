@@ -78,6 +78,8 @@ export const ParseResult = z.object({
   time: TimeBlock,
   /** 派生意图：todo=有待办｜schedule=有日程｜status=纯动态（两域都不适用） */
   intent: z.enum(["schedule", "todo", "status"]),
+  /** 进行中：显式起止区间横跨当下（已开始未结束）→ 落日程块之外再生成收尾待办 */
+  ongoing: z.boolean().default(false),
   /** 日程域是否命中（独立判定，不再强制） */
   scheduleApplicable: z.boolean().default(true),
   scheduleConfidence: z.coerce.number().min(0).max(1).default(0.9),

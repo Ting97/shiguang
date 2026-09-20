@@ -14,6 +14,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     undone?: boolean;
     title?: string;
     dueAt?: string | null; // ISO；null=清除时间
+    startAt?: string | null; // ISO；null=清除起始（区间待办用）
     activityId?: string;
   };
 
@@ -110,6 +111,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     vals.push(body.dueAt); // null 允许，清除时间
     sets.push(`due_at = $${vals.length}::timestamptz`);
     sets.push(`remind_at = ($${vals.length}::timestamptz - interval '15 minutes')`);
+  }
+  if (body.startAt !== undefined) {
+    vals.push(body.startAt); // null 允许，清除起始
+    sets.push(`start_at = $${vals.length}::timestamptz`);
   }
   if (body.activityId != null) { vals.push(body.activityId); sets.push(`activity_id = $${vals.length}`); }
   if (sets.length === 0) {

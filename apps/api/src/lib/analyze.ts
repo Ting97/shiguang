@@ -127,17 +127,19 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     }
 
     // ---- 待办域 ----
-    if (r.intent === "todo") {
-      if (r.todoConfidence >= CONFIDENCE_THRESHOLD) {
-        const remind = new Date(new Date(r.time.start).getTime() - 15 * 60_000);
+    // 进行中（已开始未结束）的显式区间：日程块照落，再补一条收尾待办（起始=区间起点，到期=区间终点）
+    if (r.intent === "todo" || r.ongoing) {
+      if (r.ongoing || r.todoConfidence >= CONFIDENCE_THRESHOLD) {
+        const dueAt = r.ongoing ? r.time.end : r.time.start;
+        const remind = new Date(new Date(dueAt).getTime() - 15 * 60_000);
         const todo = (
           await client.query(
-            `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source)
-             values ($1,$2,$3,$4,$5,$6,'keyboard') returning *`,
-            [userId, entryId, r.title, r.activity, r.time.start, remind.toISOString()],
+            `insert into todos (user_id, entry_id, title, activity_id, start_at, due_at, remind_at, source)
+             values ($1,$2,$3,$4,$5,$6,$7,'keyboard') returning *`,
+            [userId, entryId, r.title, r.activity, r.time.start, dueAt, remind.toISOString()],
           )
         ).rows[0];
-        await recordRecognition(client, userId, entryId, "todo", "applied", { todoId: todo.id, title: r.title, dueAt: r.time.start }, r.todoConfidence, r.engine);
+        await recordRecognition(client, userId, entryId, "todo", "applied", { todoId: todo.id, title: r.title, dueAt, startAt: r.time.start, ongoing: r.ongoing }, r.todoConfidence, r.engine);
       } else {
         pendingDomains.push("todo");
       }

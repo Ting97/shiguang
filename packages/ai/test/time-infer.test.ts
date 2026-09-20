@@ -66,6 +66,23 @@ test("未来检测（含'一会儿'语境回归）", () => {
   assert.equal(detectFuture("刚跑完步"), null);
 });
 
+test("未来检测收紧：名词性「准备/计划」不算未来（线上回归：'工作准备'曾被拐成待办）", () => {
+  assert.equal(detectFuture("今天9:10到9:30工作准备+喝水"), null);
+  assert.equal(detectFuture("准备工作做完了"), null);
+  assert.equal(detectFuture("写完工作计划了"), null);
+  assert.equal(detectFuture("热身准备活动"), null);
+});
+
+test("未来检测收紧：动词性「计划/准备」仍是未来", () => {
+  assert.equal(detectFuture("准备去开会"), "soon");
+  assert.equal(detectFuture("准备要健身了"), "soon");
+  assert.equal(detectFuture("计划着去健身"), "soon");
+  assert.equal(detectFuture("计划着下周旅行"), "nextWeek"); // 显式日期词优先
+  assert.equal(detectFuture("记得交房租"), "soon");
+  assert.equal(detectFuture("要交季度报告"), "soon");
+  assert.equal(detectFuture("得去一趟银行"), "soon");
+});
+
 test("明天+钟点 → 未来计划（明天15:00，不受当前钳制）", () => {
   const tb = inferTimeBlock("明天下午三点去看牙医", NOW, 60);
   assert.equal(tb.mode, "future");

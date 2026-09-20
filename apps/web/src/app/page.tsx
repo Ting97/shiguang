@@ -16,6 +16,7 @@ interface Todo {
   id: string;
   title: string;
   due_at: string | null;
+  start_at?: string | null;
   status: string;
   done_at: string | null;
   activity_id: string | null;
@@ -33,6 +34,7 @@ interface BlockDraft {
 interface TodoDraft {
   id: string;
   title: string;
+  start: string; // datetime-local 值，空串=无起始（区间待办用）
   due: string; // datetime-local 值 YYYY-MM-DDTHH:MM，空串=无时间
   activityId: string;
 }
@@ -60,6 +62,17 @@ const dueTag = (iso: string | null) => {
   if (days === 0) return { text: "今天", cls: "text-warn" };
   if (days === 1) return { text: "明天", cls: "text-accent" };
   return { text: `${days} 天后`, cls: "text-ink-mute" };
+};
+/** 待办时间：有起始且与到期同日 →「9:10–9:30」区间；否则单时刻 */
+const todoTimeText = (t: Todo) => {
+  if (t.start_at && t.due_at) {
+    const a = new Date(t.start_at);
+    const b = new Date(t.due_at);
+    if (a.toDateString() === b.toDateString() && b.getTime() !== a.getTime()) {
+      return `${zhTime(t.start_at)}–${zhTime(t.due_at)}`;
+    }
+  }
+  return zhDateTime(t.due_at);
 };
 
 const FEED_PAGE_SIZE = 10; // 动态流每页条数，「加载更多」按页追加
@@ -279,7 +292,13 @@ export default function Home() {
   };
 
   function startTodoEdit(t: Todo) {
-    setEditingTodo({ id: t.id, title: t.title, due: isoToLocalInput(t.due_at), activityId: t.activity_id ?? "other" });
+    setEditingTodo({
+      id: t.id,
+      title: t.title,
+      start: isoToLocalInput(t.start_at ?? null),
+      due: isoToLocalInput(t.due_at),
+      activityId: t.activity_id ?? "other",
+    });
   }
 
   async function saveTodoEdit() {
@@ -292,6 +311,7 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: editingTodo.title.trim(),
+        startAt: localInputToIso(editingTodo.start),
         dueAt: localInputToIso(editingTodo.due),
         activityId: editingTodo.activityId,
       }),
@@ -595,8 +615,16 @@ export default function Home() {
                     />
                     <input
                       type="datetime-local"
+                      value={editingTodo.start}
+                      onChange={(e) => setEditingTodo({ ...editingTodo, start: e.target.value })}
+                      title="开始时间（可清空）"
+                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                    />
+                    <input
+                      type="datetime-local"
                       value={editingTodo.due}
                       onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
+                      title="到期时间"
                       className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
                     />
                     <select
@@ -639,7 +667,7 @@ export default function Home() {
                   <span className="text-base">{t.icon ?? "📌"}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
                   <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
-                  <span className="hidden shrink-0 text-xs tabular-nums text-ink-dim sm:inline">{zhDateTime(t.due_at)}</span>
+                  <span className="hidden shrink-0 text-xs tabular-nums text-ink-dim sm:inline">{todoTimeText(t)}</span>
                   <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
                     <button
                       onClick={() => startTodoEdit(t)}

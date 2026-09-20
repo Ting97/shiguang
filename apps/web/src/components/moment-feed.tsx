@@ -30,6 +30,20 @@ export const zhRecordTime = (iso: string) => {
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
+/** 待办时间标签：有起始时间且与到期同日 →「9:10–9:30」区间；否则退回单时刻 */
+function todoTimeLabel(startAt: string | null | undefined, dueAt: string | null): string | null {
+  if (!dueAt) return null;
+  if (startAt) {
+    const a = new Date(startAt);
+    const b = new Date(dueAt);
+    const sameDay =
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (sameDay && b.getTime() !== a.getTime()) return `${zhClock(startAt)}–${zhClock(dueAt)}`;
+  }
+  const t = zhRecordTime(dueAt);
+  return `${t.day} ${t.clock}`;
+}
+
 /** 跨天时间块的日期前缀：非今天 →「9月17日 」（避免凌晨记录的"昨天下午"被误读为今天） */
 const dayPrefix = (iso: string) => {
   const d = new Date(iso);
@@ -137,7 +151,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
     .filter(([, v]) => v.status === "pending")
     .map(([domain, v]) => ({ domain, confidence: v.confidence }));
   const [editBlock, setEditBlock] = useState<{ id: string; title: string; start: string; end: string; activityId: string } | null>(null);
-  const [editTodo, setEditTodo] = useState<{ id: string; title: string; due: string; activityId: string } | null>(null);
+  const [editTodo, setEditTodo] = useState<{ id: string; title: string; start: string; due: string; activityId: string } | null>(null);
   const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
   // 原文行内编辑：null=非编辑态；字符串=textarea 当前内容
   const [editRaw, setEditRaw] = useState<string | null>(null);
@@ -484,9 +498,17 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                   />
                   <input
                     type="datetime-local"
+                    value={editTodo.start}
+                    onChange={(e) => setEditTodo({ ...editTodo, start: e.target.value })}
+                    className="rounded border border-line-strong bg-surface px-1.5 py-1 text-xs tabular-nums outline-none focus:border-sky-500"
+                    title="开始时间（可清空）"
+                  />
+                  <input
+                    type="datetime-local"
                     value={editTodo.due}
                     onChange={(e) => setEditTodo({ ...editTodo, due: e.target.value })}
                     className="rounded border border-line-strong bg-surface px-1.5 py-1 text-xs tabular-nums outline-none focus:border-sky-500"
+                    title="到期时间"
                   />
                   <select
                     value={editTodo.activityId}
@@ -505,6 +527,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                           if (!editTodo.title.trim()) throw new Error("标题不能为空");
                           await api(`/api/todos/${td.id}`, "PATCH", {
                             title: editTodo.title.trim(),
+                            startAt: localInputToIso(editTodo.start),
                             dueAt: localInputToIso(editTodo.due),
                             activityId: editTodo.activityId,
                           });
@@ -522,7 +545,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 <p key={td.id} className="group/row flex items-center gap-x-2">
                   <span className="truncate">📋 待办：{td.title}</span>
                   <span className="shrink-0 text-ink-mute">
-                    {td.dueAt ? `${zhRecordTime(td.dueAt).day} ${zhClock(td.dueAt)}` : "未定时间"}
+                    {todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}
                   </span>
                   {td.status === "done" && <span className="shrink-0 text-success">已完成</span>}
                   <RowAction
@@ -530,6 +553,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                       setEditTodo({
                         id: td.id,
                         title: td.title,
+                        start: isoToLocalInput(td.startAt ?? null),
                         due: isoToLocalInput(td.dueAt),
                         activityId: activities.some((a) => a.id === td.activityId) ? td.activityId! : activities[0]?.id ?? "",
                       })

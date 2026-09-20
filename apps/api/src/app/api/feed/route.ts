@@ -46,7 +46,7 @@ export async function GET(req: Request) {
        ), '[]') as blocks,
        coalesce((
          select jsonb_agg(jsonb_build_object(
-           'id', t.id, 'title', t.title, 'dueAt', t.due_at, 'status', t.status, 'activityId', t.activity_id
+           'id', t.id, 'title', t.title, 'dueAt', t.due_at, 'startAt', t.start_at, 'status', t.status, 'activityId', t.activity_id
          ) order by t.created_at)
          from todos t where t.entry_id = e.id
        ), '[]') as todos,

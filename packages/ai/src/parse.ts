@@ -167,12 +167,18 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
 
   // 意图派生：todo（未来话术）> schedule（日程域命中）> status（纯动态）
+  // 已发生/未来的判定以 AI 为主（prompt 已给当前时间与判定反例）；detectFuture 收紧后只兜显式未来词
+  // （明天/待会儿），裸词"准备/计划"不再一票否决 AI 的补记判定
   const future = ext.todo.applicable || detectFuture(text) !== null;
-  const scheduleApplicable = !future && ext.schedule.applicable;
-  const intent: ParseResultT["intent"] = future ? "todo" : scheduleApplicable ? "schedule" : "status";
 
   // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制；status → 时间无意义，仅留档
   const tb = inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);
+  // 进行中：起止区间横跨当下（已开始未结束）→ 落日程块之外再生成收尾待办
+  // （explicit/relative 都可能是显式钟点区间的产物——"9:10到9:30"无时长词时 mode=relative）
+  const ongoing = !future && (tb.mode === "explicit" || tb.mode === "relative") && tb.start <= now && now < tb.end;
+  // 显式起止区间本身就是"具体的事"的最强信号（如"工作准备"无活动词也不该判成纯感想）
+  const scheduleApplicable = !future && (ext.schedule.applicable || ongoing);
+  const intent: ParseResultT["intent"] = future ? "todo" : scheduleApplicable ? "schedule" : "status";
 
   // 心情：LLM 词优先；score 缺失时按规则基准分补全
   const moodLabel = (ext.mood.label ?? "").trim() || null;
@@ -194,6 +200,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
       confidence,
     },
     intent,
+    ongoing,
     scheduleApplicable,
     scheduleConfidence: ext.schedule.confidence,
     todoConfidence: ext.todo.confidence,

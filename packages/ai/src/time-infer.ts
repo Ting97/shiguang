@@ -58,7 +58,9 @@ export function detectFuture(text: string): FutureHint | null {
   if (/待会|等会|等一下|晚点|稍后/.test(text)) return "soon";
   // "一会儿"仅在未来语境算（"过一会儿再去"）；"刚做了一会儿拉伸"是过去
   if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
-  if (/(计划|打算|准备|要去|得去|记得|要去办|要交|要开)/.test(text)) return "soon";
+  // 计划/准备只认动词性用法（"准备去开会"是未来，"工作准备/准备工作"是名词），
+  // 裸词会误伤补记（如"今天9:10到9:30工作准备+喝水"被拐进未来分支），已交给 LLM 结合当前时间判定
+  if (/(计划[着去要下]|打算|准备[去要下]|记得|要[去办交开]|得去)/.test(text)) return "soon";
   return null;
 }
 

@@ -143,6 +143,7 @@ create table if not exists public.todos (
   title        text not null,
   activity_id  text references public.activities(id),
   due_at       timestamptz,                          -- 计划时间（解析引擎给出）
+  start_at     timestamptz,                          -- 起始时间（进行中收尾待办/带区间计划；migrations/016）
   remind_at    timestamptz,                          -- 提醒时间（默认 due_at 前 15 分钟）
   status       text not null default 'pending' check (status in ('pending','done','skipped','expired')),
   source       text not null default 'voice' check (source in ('voice','keyboard','manual')),

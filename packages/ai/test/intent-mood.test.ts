@@ -45,6 +45,49 @@ test("未来话术带情绪 → todo 且带心情（future 优先）", async () 
   assert.ok((r.mood.score ?? 0) < 0);
 });
 
+// ---------- 已发生 / 进行中 / 未来：结合当前时间判定 ----------
+
+test("已过时段补记 → schedule（线上回归：'工作准备'曾被'准备'误判成待办）", async () => {
+  // 15:00 补记早上的时段；话术无活动词也无时长词，但显式起止区间本身是"具体的事"
+  const r = await parse("今天9:10到9:30工作准备+喝水");
+  assert.notEqual(r.intent, "todo");
+  assert.equal(r.ongoing, false);
+  const s = new Date(r.time.start);
+  const e = new Date(r.time.end);
+  assert.equal(`${s.getHours()}:${s.getMinutes()}`, "9:10");
+  assert.equal(`${e.getHours()}:${e.getMinutes()}`, "9:30");
+});
+
+test("带活动词的已过区间 → schedule 且时间精确", async () => {
+  const r = await parse("今天9:10到9:30跑了步");
+  assert.equal(r.intent, "schedule");
+  assert.equal(r.ongoing, false);
+  const s = new Date(r.time.start);
+  assert.equal(`${s.getHours()}:${s.getMinutes()}`, "9:10");
+});
+
+test("进行中（已开始未结束）→ schedule + ongoing（上层补收尾待办）", async () => {
+  const r = await parse("今天14:30到15:30开会");
+  assert.equal(r.intent, "schedule");
+  assert.equal(r.ongoing, true);
+  const s = new Date(r.time.start);
+  const e = new Date(r.time.end);
+  assert.equal(`${s.getHours()}:${s.getMinutes()}`, "14:30");
+  assert.equal(`${e.getHours()}:${e.getMinutes()}`, "15:30");
+});
+
+test("进行中的话术无活动词 → 显式区间兜底为 schedule", async () => {
+  const r = await parse("今天14:30到15:30工作准备+喝水");
+  assert.equal(r.intent, "schedule");
+  assert.equal(r.ongoing, true);
+});
+
+test("未开始的未来话术 → todo 且 ongoing=false", async () => {
+  const r = await parse("准备去开会");
+  assert.equal(r.intent, "todo");
+  assert.equal(r.ongoing, false);
+});
+
 test("做事不带情绪 → mood 为空", async () => {
   const r = await parse("晚上刷了会儿抖音");
   assert.equal(r.intent, "schedule");
