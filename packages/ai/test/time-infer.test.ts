@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange, anchorRangeToToday, hasExplicitDayRef } from "../src/time-infer.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
 
@@ -195,4 +195,52 @@ test("parseClock：真实钟点不受影响（一点/十一点半/6.30）", () =
   assert.equal(parseClock("凌晨一点睡觉", null)?.hour, 1);
   assert.equal(parseClock("十一点半吃饭", null)?.hour, 11);
   assert.equal(parseClock("6.30", null)?.minute, 30);
+});
+
+// —— 回归4：AI 区间日期锚定（线上事故：17:22 说"下午2点到6点"被模型写成 9/21） ——
+
+const T920 = new Date(2026, 8, 20, 17, 22); // 2026-09-20 17:22 本地
+const mk = (day: number, h: number) => ({ start: new Date(2026, 8, day, h, 0), end: new Date(2026, 8, day, h + 4, 0) });
+
+test("hasExplicitDayRef：日期词识别", () => {
+  assert.equal(hasExplicitDayRef("明天下午三点去看牙医"), true);
+  assert.equal(hasExplicitDayRef("昨天下午2点到6点在写代码"), true);
+  assert.equal(hasExplicitDayRef("上周三上午开会"), true);
+  assert.equal(hasExplicitDayRef("9月18日打卡"), true);
+  assert.equal(hasExplicitDayRef("下午2点到6点一直在打磨项目"), false);
+});
+
+test("锚定：AI 给了明天（无日期词）→ 平移回今天，钟点保留", () => {
+  const r = anchorRangeToToday(mk(21, 14), "下午2点到6点，一直在打磨项目，都进行了微调", T920);
+  assert.equal(r.start.getDate(), 20);
+  assert.equal(r.start.getHours(), 14);
+  assert.equal(r.end.getDate(), 20);
+  assert.equal(r.end.getHours(), 18);
+});
+
+test("锚定：AI 给了昨天（无日期词、白天）→ 归今天", () => {
+  const r = anchorRangeToToday(mk(19, 14), "下午2点到6点在写代码", T920);
+  assert.equal(r.start.getDate(), 20);
+});
+
+test("锚定：凌晨 0-5 点补记昨天的区间 → 保留昨天", () => {
+  const r = anchorRangeToToday(mk(19, 14), "下午2点到6点在写代码", new Date(2026, 8, 20, 2, 0));
+  assert.equal(r.start.getDate(), 19);
+});
+
+test("锚定：话术有日期词 → 信任 AI 不动", () => {
+  const r = anchorRangeToToday(mk(21, 14), "明天下午2点到6点开会", T920);
+  assert.equal(r.start.getDate(), 21);
+  const r2 = anchorRangeToToday(mk(19, 14), "昨天下午2点到6点在写代码", T920);
+  assert.equal(r2.start.getDate(), 19);
+});
+
+test("锚定：未来话术（无日期词但有'要去'）→ 不动", () => {
+  const r = anchorRangeToToday(mk(21, 14), "下午2点到6点要去开会", T920);
+  assert.equal(r.start.getDate(), 21);
+});
+
+test("锚定：AI 已给今天 → 原样返回", () => {
+  const r = anchorRangeToToday(mk(20, 14), "下午2点到6点在写代码", T920);
+  assert.equal(r.start.getDate(), 20);
 });

@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
+import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
+import { checkAiQuota } from "@/lib/quota";
+import {
+  BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
+  blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, todoDoneLines, withCap,
+} from "@/lib/review-input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +28,13 @@ interface WeekReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const q = await checkAiQuota(user.id);
+  if (!q.allowed) {
+    return NextResponse.json(
+      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
+      { status: 402 },
+    );
+  }
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
   if (!date || !DATE_RE.test(date)) {
     return NextResponse.json({ error: "date 需为 YYYY-MM-DD" }, { status: 400 });
@@ -37,7 +49,7 @@ export async function POST(req: Request) {
   const from = localYmd(monday);
   const to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
 
-  const [timeRows, todoRows, txRows, interactRows, entryRows, dayTimeRows, dayEntryRows, dayTxRows] = await Promise.all([
+  const [timeRows, todoRows, txRows, interactRows, entryRows, dayTimeRows, dayEntryRows, dayTxRows, rawEntryRows, blockRows, todoListRows] = await Promise.all([
     pool.query(
       `select a.name, a.icon,
               sum(floor(extract(epoch from least((b.end_at at time zone $2), ($4::date + 1))
@@ -103,6 +115,27 @@ export async function POST(req: Request) {
        group by 1`,
       [user.id, TZ, from, to],
     ),
+    // ---- 原始明细（v3：动态原文+发布时间+心情 / 日程块 / 完成待办）----
+    pool.query(
+      `select raw_text, mood, mood_score, created_at from entries
+       where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
+       order by created_at`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select b.title, b.start_at, b.end_at, a.icon, a.name
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       where b.user_id = $1
+         and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
+       order by b.start_at`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select title, done_at from todos
+       where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date
+       order by done_at`,
+      [user.id, TZ, from, to],
+    ),
   ]);
 
   const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
@@ -142,12 +175,27 @@ export async function POST(req: Request) {
     ...dayLines,
   ];
 
-  const system = `你是个人经营助手「拾光复利」，基于用户一周的**真实记录**（含每日明细）写一份周报。只依据事实归纳对比，**严禁编造**；语气温和务实，不灌鸡汤。可引用具体某天的表现做对比。严格输出 JSON：
+  const system = `你是个人经营助手「拾光复利」，为用户做**每周复盘**。输入是该用户本周的全部真实记录：原始动态（含发布时间与心情标注）、每日明细、日程块、完成待办、聚合统计，可能还有各日小结。请依次判断：
+1. 本周心情状况与起伏（结合心情标注与原文语气，可指出具体哪天低落/高涨）；
+2. 主要时间花销去了哪里、节奏如何；
+3. 总结这一周，说出做得好的地方，给出下周可改进的建议。
+只依据事实归纳对比，**严禁编造**；语气温和务实，不灌鸡汤。全文 200 字左右。严格输出 JSON：
 {
-  "summary": "这一周的总结（≤80字，突出时间结构、节奏变化和整体状态）",
-  "highlights": ["值得肯定的亮点，最多3条，可引用具体某天"],
-  "suggestions": ["下周可改进的具体建议，最多2条，没有依据就空数组"]
+  "summary": "本周总结，≤120字，突出心情起伏与时间结构",
+  "highlights": ["做得好的地方，最多3条，每条≤24字，可引用具体某天"],
+  "suggestions": ["下周可改进的建议，最多2条，每条≤24字，没有依据就空数组"]
 }`;
+
+  // ---- 小结链（已有日小结才带）+ 画像注入 ----
+  const chainLines = await fetchChainSummaries(
+    user.id,
+    "week",
+    Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(monday.getTime() + i * 86_400_000);
+      return { key: localYmd(day), label: `${WD[i]}(${Number(localYmd(day).slice(5, 7))}/${Number(localYmd(day).slice(8, 10))})` };
+    }),
+  );
+  const profileBlock = await loadProfileBlock(user.id);
 
 
   const latest = (
@@ -163,26 +211,45 @@ export async function POST(req: Request) {
     )
   ).rows[0].latest;
 
-  const { review, cached, generatedAt } = await getOrGenerateReview(user.id, "week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
-    const raw = await chat({
-      system,
-      user: facts.join("\n"),
-      temperature: 0.4,
-      maxTokens: 800,
-      timeoutMs: 45_000,
-      onUsage: capture,
-    });
-    const parsed = extractJson(raw) as Partial<WeekReview>;
-    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 60)).filter(Boolean).slice(0, n) : []);
+  // ---- 原始明细文本块 ----
+  const detailText = [
+    ["原始动态（时间 原文 心情）：", ...withCap(entryLines(rawEntryRows.rows), ENTRY_CAPS.week, "条动态")].join("\n"),
+    ["日程块：", ...withCap(blockLines(blockRows.rows), BLOCK_CAPS.week, "个日程")].join("\n") || "日程块：无",
+    ["完成待办：", ...withCap(todoDoneLines(todoListRows.rows), TODO_CAPS.week, "条待办")].join("\n") || "完成待办：无",
+  ].join("\n\n");
+  const userPrompt = [
+    facts.join("\n"),
+    chainLines.length ? "本周各日小结：\n" + chainLines.join("\n") : null,
+    detailText,
+    profileBlock ? `该用户的已知画像（供理解参考，不要复述）：\n${profileBlock}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  let result;
+  try {
+    result = await getOrGenerateReview(user.id, "week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      const parsed = await chatReviewJson<Partial<WeekReview>>({
+        system,
+        user: userPrompt,
+        maxTokens: 1300,
+        timeoutMs: 45_000,
+        onUsage: capture,
+      });
+    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
     return {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 110)
+          ? parsed.summary.trim().slice(0, 150)
           : "这一周记录还很少，多记几天再来复盘会更有料",
       highlights: arr(parsed.highlights, 3),
       suggestions: arr(parsed.suggestions, 2),
     };
-  });
+    });
+  } catch {
+    return NextResponse.json({ error: "AI 解读失败，请稍后重试" }, { status: 502 });
+  }
+  const { review, cached, generatedAt } = result;
 
   return NextResponse.json({ review, cached, generatedAt, range: { from, to } });
 }

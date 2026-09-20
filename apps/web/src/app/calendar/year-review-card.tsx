@@ -9,7 +9,9 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
   hasRecords: boolean;
   notify: (e: string | null) => void;
 }) {
-  const [review, setReview] = useState<{ summary: string; highlights: string[]; suggestions: string[] } | null>(null);
+  const [review, setReview] = useState<{
+    summary: string; sections?: { title: string; text: string }[]; highlights: string[]; suggestions: string[];
+  } | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -57,6 +59,12 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
       {!busy && review && (
         <div className="mt-3 space-y-2">
           <p className="text-sm leading-relaxed text-ink">{review.summary}</p>
+          {review.sections?.map((s) => (
+            <div key={s.title}>
+              <h3 className="text-xs font-semibold text-ink-soft">▎{s.title}</h3>
+              <p className="mt-0.5 text-xs leading-relaxed text-ink-mute">{s.text}</p>
+            </div>
+          ))}
           {review.highlights.length > 0 && (
             <ul className="space-y-1">
               {review.highlights.map((h) => (

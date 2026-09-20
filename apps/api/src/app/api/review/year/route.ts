@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
+import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
+import { checkAiQuota } from "@/lib/quota";
+import {
+  BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
+  blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, sampleEntryRows, todoDoneLines, withCap,
+} from "@/lib/review-input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +17,7 @@ const TZ = "Asia/Shanghai";
 
 interface YearReview {
   summary: string;
+  sections?: { title: string; text: string }[];
   highlights: string[];
   suggestions: string[];
 }
@@ -23,6 +29,13 @@ interface YearReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const q = await checkAiQuota(user.id);
+  if (!q.allowed) {
+    return NextResponse.json(
+      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
+      { status: 402 },
+    );
+  }
   const { year, refresh } = (await req.json().catch(() => ({}))) as { year?: string; refresh?: boolean };
   if (!year || !YEAR_RE.test(year)) {
     return NextResponse.json({ error: "year 需为 YYYY" }, { status: 400 });
@@ -32,7 +45,7 @@ export async function POST(req: Request) {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
 
-  const [timeRows, todoRows, txRows, interactRows, entryRows, mmTimeRows, mmEntryRows, mmTxRows] = await Promise.all([
+  const [timeRows, todoRows, txRows, interactRows, entryRows, mmTimeRows, mmEntryRows, mmTxRows, rawEntryRows, blockRows, todoListRows] = await Promise.all([
     pool.query(
       `select a.name, a.icon,
               sum(floor(extract(epoch from least((b.end_at at time zone $2), ($4::date + 1))
@@ -100,6 +113,27 @@ export async function POST(req: Request) {
        group by 1`,
       [user.id, TZ, from, to],
     ),
+    // ---- 原始明细（v3：全年动态取心情强度优先抽样 / 日程块 / 完成待办）----
+    pool.query(
+      `select raw_text, mood, mood_score, created_at from entries
+       where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
+       order by created_at`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select b.title, b.start_at, b.end_at, a.icon, a.name
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       where b.user_id = $1
+         and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
+       order by b.start_at`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select title, done_at from todos
+       where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date
+       order by done_at`,
+      [user.id, TZ, from, to],
+    ),
   ]);
 
   const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
@@ -135,12 +169,25 @@ export async function POST(req: Request) {
     ...monthLines,
   ];
 
-  const system = `你是个人经营助手「拾光复利」，基于用户一年的**真实记录**（含逐月轨迹）写一份年报。只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。请梳理全年节奏与成长轨迹。严格输出 JSON：
+  const system = `你是个人经营助手「拾光复利」，为用户做**年度复盘**。输入是该用户全年的真实记录：逐月轨迹、代表性原始动态（含发布时间与心情标注）、日程块、完成待办、聚合统计，可能还有各月月报。请依次判断：
+1. 全年心情旅程（结合心情标注与原文语气，指出低谷与高光时段）；
+2. 主要时间花销与全年节奏变化；
+3. 写出年度总结、做得好的地方、明年可改进的方向。
+只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。全文 1000 字左右。sections 分 4-5 节（如 全年节奏/心情旅程/坚持与习惯/财务与人际/成长轨迹），每节 title≤8字、text≤220字。严格输出 JSON：
 {
-  "summary": "这一年的总结（≤150字，突出全年时间结构、坚持情况和成长轨迹）",
-  "highlights": ["值得肯定的亮点，最多5条"],
-  "suggestions": ["明年可改进的具体建议，最多3条，没有依据就空数组"]
+  "summary": "年度总述，≤150字，突出全年节奏与成长轨迹",
+  "sections": [ { "title": "全年节奏", "text": "该节展开" } ],
+  "highlights": ["做得好的地方，最多5条，每条≤36字"],
+  "suggestions": ["明年可改进的建议，最多3条，每条≤36字，没有依据就空数组"]
 }`;
+
+  // ---- 小结链（已有月报才带）+ 画像注入 ----
+  const chainLines = await fetchChainSummaries(
+    user.id,
+    "year",
+    Array.from({ length: 12 }, (_, i) => ({ key: `${year}-${String(i + 1).padStart(2, "0")}`, label: `${i + 1}月` })),
+  );
+  const profileBlock = await loadProfileBlock(user.id);
 
 
   const latest = (
@@ -156,26 +203,58 @@ export async function POST(req: Request) {
     )
   ).rows[0].latest;
 
-  const { review, cached, generatedAt } = await getOrGenerateReview(user.id, "year", year, refresh === true, latest ? new Date(latest) : null, async (capture) => {
-    const raw = await chat({
-      system,
-      user: facts.join("\n"),
-      temperature: 0.4,
-      maxTokens: 1400,
-      timeoutMs: 45_000,
-      onUsage: capture,
-    });
-    const parsed = extractJson(raw) as Partial<YearReview>;
-    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 80)).filter(Boolean).slice(0, n) : []);
+  // ---- 原始明细文本块（全年动态抽样：心情强度优先、按月均匀）----
+  const sampled = sampleEntryRows(rawEntryRows.rows, ENTRY_CAPS.year);
+  const totalEntries = rawEntryRows.rows.length;
+  const entryBlock = [
+    ...entryLines(sampled),
+    ...(totalEntries > sampled.length ? [`（全年共 ${totalEntries} 条动态，以上为代表性抽样 ${sampled.length} 条）`] : []),
+  ].join("\n");
+  const detailText = [
+    ["代表性原始动态（时间 原文 心情）：", entryBlock].join("\n"),
+    ["日程块：", ...withCap(blockLines(blockRows.rows), BLOCK_CAPS.year, "个日程")].join("\n") || "日程块：无",
+    ["完成待办：", ...withCap(todoDoneLines(todoListRows.rows), TODO_CAPS.year, "条待办")].join("\n") || "完成待办：无",
+  ].join("\n\n");
+  const userPrompt = [
+    facts.join("\n"),
+    chainLines.length ? "全年各月月报小结：\n" + chainLines.join("\n") : null,
+    detailText,
+    profileBlock ? `该用户的已知画像（供理解参考，不要复述）：\n${profileBlock}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  let result;
+  try {
+    result = await getOrGenerateReview(user.id, "year", year, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      const parsed = await chatReviewJson<Partial<YearReview>>({
+        system,
+        user: userPrompt,
+        maxTokens: 4000,
+        timeoutMs: 90_000,
+        onUsage: capture,
+      });
+    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 48)).filter(Boolean).slice(0, n) : []);
+    const sections = Array.isArray(parsed.sections)
+      ? parsed.sections
+          .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
+          .slice(0, 5)
+          .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 300) }))
+      : [];
     return {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 200)
+          ? parsed.summary.trim().slice(0, 220)
           : "这一年记录还很少，多记几天再来复盘会更有料",
+      sections,
       highlights: arr(parsed.highlights, 5),
       suggestions: arr(parsed.suggestions, 3),
     };
-  });
+    });
+  } catch {
+    return NextResponse.json({ error: "AI 解读失败，请稍后重试" }, { status: 502 });
+  }
+  const { review, cached, generatedAt } = result;
 
   return NextResponse.json({ review, cached, generatedAt, range: { from, to } });
 }

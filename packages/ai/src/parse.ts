@@ -14,7 +14,7 @@ import {
   ParseResult, FullExtractionV2, domainExtractionV2, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
 } from "./schema";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment } from "./time-infer";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment, anchorRangeToToday, anchorMomentToToday } from "./time-infer";
 import { parseAmountCents, parseDuration } from "./duration";
 import { ruleMood } from "./mood-rules";
 
@@ -203,10 +203,17 @@ function assembleExtraction(data: unknown, domain: string | undefined): LlmExtra
 }
 
 /** AI 结果 → ParseResult：确定性后处理（校验/换算），无规则语义 */
-function mapAiResult(ext: LlmExtractionT, now: Date, engine: "llm" | "llm-repaired"): ParseResultT {
+function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm" | "llm-repaired"): ParseResultT {
   const future = ext.todo.applicable; // AI 判定即最终判定
-  const range = resolveExplicitRange(ext.schedule.start ?? null, ext.schedule.end ?? null, now);
-  const due = resolveMoment(ext.todo.due ?? null, now);
+  // 日期锚定：话术无日期词时模型偶发把当天区间挪到明天（17:22 说"下午2点到6点"→次日），
+  // 按用户规则「没写哪一天都按当天算」整天平移回今天（凌晨补记昨天除外）
+  const rangeRaw = resolveExplicitRange(ext.schedule.start ?? null, ext.schedule.end ?? null, now);
+  const range = rangeRaw ? anchorRangeToToday(rangeRaw, text, now) : null;
+  if (rangeRaw && range && rangeRaw.start.getTime() !== range.start.getTime()) {
+    console.warn(`[ai] 区间日期锚定：${rangeRaw.start.toISOString()} → ${range.start.toISOString()}（话术无日期词）`);
+  }
+  const dueRaw = resolveMoment(ext.todo.due ?? null, now);
+  const due = dueRaw ? anchorMomentToToday(dueRaw, text, now) : null;
 
   // 日程时刻：AI 区间为准；applicable 但区间不合法（超幅等，schema 已保证可解析）→ 该域降级为不适用并留痕
   let scheduleApplicable = !future && ext.schedule.applicable;
@@ -364,7 +371,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
 
   try {
     const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage);
-    return mapAiResult(ext, now, engine);
+    return mapAiResult(ext, text, now, engine);
   } catch (e) {
     // 灾难降级：GLM 不可用（网络/超时/额度/鉴权）或重问后输出仍不合格 → 规则引擎接管，打卡入口永不失败
     const reason = e instanceof GlmError ? e.kind : String(e).slice(0, 120);

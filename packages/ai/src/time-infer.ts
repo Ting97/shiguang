@@ -159,6 +159,42 @@ function atHour(base: Date, hour: number, minute = 0): Date {
   return d;
 }
 
+// ---------- 日期锚定（用户规则：话术没写具体是哪一天 → 一律按当天） ----------
+
+/** 话术是否显式提到某个日期（今天/昨天/明天/周X/上周/下周/2026-09-20/9月20日…） */
+const EXPLICIT_DAY_RE =
+  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号])/;
+
+export function hasExplicitDayRef(text: string): boolean {
+  return EXPLICIT_DAY_RE.test(text);
+}
+
+/** 北京时间日序号（不依赖运行时区）：两时刻的日序号差 = 相隔整天数 */
+function cstDayIdx(d: Date): number {
+  return Math.floor((d.getTime() + 8 * 3600_000) / 86400_000);
+}
+function cstHour(d: Date): number {
+  return new Date(d.getTime() + 8 * 3600_000).getUTCHours();
+}
+
+/**
+ * AI 区间硬锚定到"今天"：话术无任何日期词且非未来话术时，模型偶发把当天区间
+ * 挪到明天/昨天（如 17:22 说"下午2点到6点"被写成次日）——按整天平移保钟点。
+ * 例外：凌晨（0-5 点）补记白天的区间归昨天，与提示词规则一致。
+ */
+export function anchorRangeToToday<T extends { start: Date; end: Date }>(range: T, text: string, now: Date): T {
+  if (hasExplicitDayRef(text) || detectFuture(text) !== null) return range;
+  const diff = cstDayIdx(now) - cstDayIdx(range.start);
+  if (diff === 0 || (diff === 1 && cstHour(now) < 5)) return range;
+  const shift = diff * 86400_000;
+  return { ...range, start: new Date(range.start.getTime() + shift), end: new Date(range.end.getTime() + shift) };
+}
+
+/** AI 单时刻（todo.due）同款锚定 */
+export function anchorMomentToToday(moment: Date, text: string, now: Date): Date {
+  return anchorRangeToToday({ start: moment, end: moment }, text, now).start;
+}
+
 /** 计算未来计划时刻（不钳制） */
 function inferFuture(
   text: string, now: Date, defaultMin: number, future: FutureHint,
