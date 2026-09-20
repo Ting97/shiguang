@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "拾光复利 —— 个人经营系统：钱 · 时间 · 人",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev -w @shiguangri/web",
     "dev:api": "npm run dev -w @shiguangri/api",
@@ -16,5 +19,13 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }
