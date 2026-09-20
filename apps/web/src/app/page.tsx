@@ -485,8 +485,9 @@ export default function Home() {
               <VoiceButton
                 onText={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))}
                 onError={(m) => setMsg({ ok: false, text: m })}
+                onHint={(m) => setMsg({ ok: true, text: m })}
               />
-              <span className="hidden text-[11px] text-ink-faint sm:block">Enter 发布 · Shift+Enter 换行</span>
+              <span className="hidden text-[11px] text-ink-faint sm:block">🎤 按住说话 · Enter 发布</span>
             </div>
             <button
               onClick={submit}
