@@ -101,7 +101,7 @@ async function smtpSend(email: string, code: string): Promise<void> {
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to: email,
-    subject: "拾光复利 · 登录验证码",
+    subject: "拾光 · 登录验证码",
     text: `你的验证码是 ${code}，10 分钟内有效。若非本人操作请忽略本邮件。`,
   });
 }

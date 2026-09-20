@@ -97,7 +97,7 @@ export default function ContactsPage() {
         <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
-            拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">人际</span>
+            拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">人际</span>
           </h1>
           <p className="mt-2 text-xs text-ink-dim">
             动态里提到的人都在这里 —— 分组档案、生日提醒、往来时间线
@@ -253,7 +253,7 @@ export default function ContactsPage() {
         )}
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
-          拾光复利 · 人际模块 v2（Phase 3 W9~W11）· 语音提及自动建档
+          拾光 · 人际模块 v2（Phase 3 W9~W11）· 语音提及自动建档
         </footer>
       </div>
     </main>

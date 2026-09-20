@@ -453,7 +453,7 @@ export default function Home() {
         <Nav />
         <header className="mb-5 text-center sm:mb-7">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
-            拾光复利
+            拾光
             <span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">动态</span>
           </h1>
           <p className="mt-2 text-xs text-ink-dim">
@@ -939,7 +939,7 @@ export default function Home() {
         </section>
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
-          拾光复利 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
+          拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
         </footer>
       </div>
     </main>

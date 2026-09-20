@@ -53,7 +53,7 @@ export default function SetupPage() {
     <main className="flex min-h-screen items-center justify-center px-5 text-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-gradient text-3xl font-bold">拾光复利</h1>
+          <h1 className="text-gradient text-3xl font-bold">拾光</h1>
           <p className="mt-1 text-xs text-ink-dim">首次使用 · 创建管理员账号</p>
         </div>
 

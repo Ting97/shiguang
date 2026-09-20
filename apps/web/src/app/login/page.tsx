@@ -116,7 +116,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-5 text-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-gradient text-3xl font-bold">拾光复利</h1>
+          <h1 className="text-gradient text-3xl font-bold">拾光</h1>
           <p className="mt-1 text-xs text-ink-dim">拾起光阴，记录今日 · {isRegister ? "凭邀请码注册" : "登录后继续"}</p>
         </div>
 

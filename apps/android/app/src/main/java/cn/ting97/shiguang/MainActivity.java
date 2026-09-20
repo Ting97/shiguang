@@ -34,7 +34,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /**
- * 「拾光复利」WebView 壳：加载线上 https://shiguang.ting97.cn，无任何后端改动。
+ * 「拾光」WebView 壳：加载线上 https://shiguang.ting97.cn，无任何后端改动。
  *
  * 兼容点：
  * 1. 麦克风（语音记账 getUserMedia/MediaRecorder）—— RECORD_AUDIO 运行时权限 + onPermissionRequest 授权
@@ -240,7 +240,7 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         title.setPadding(0, dp(20), 0, dp(6));
         TextView sub = new TextView(this);
-        sub.setText("拾光复利需要联网使用，请检查网络后重试");
+        sub.setText("拾光需要联网使用，请检查网络后重试");
         sub.setTextColor(Color.parseColor("#94a3b8"));
         sub.setTextSize(14);
         sub.setGravity(Gravity.CENTER);

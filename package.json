@@ -2,7 +2,7 @@
   "name": "shiguangri",
   "version": "0.1.0",
   "private": true,
-  "description": "拾光复利 —— 个人经营系统：钱 · 时间 · 人",
+  "description": "拾光 —— 个人经营系统：钱 · 时间 · 人",
   "workspaces": [
     "apps/*",
     "packages/*"

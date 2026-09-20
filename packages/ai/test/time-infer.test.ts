@@ -116,7 +116,7 @@ const MORNING = new Date(2026, 8, 20, 7, 17); // 2026-09-20（周日）07:17
 const DEEP_NIGHT = new Date(2026, 8, 20, 2, 0); // 2026-09-20（周日）凌晨 02:00
 
 test("清早记录'早上…'（锚点8点尚未来到）→ 必须落在今天，不得回退到昨天", () => {
-  const tb = inferTimeBlock("早上醒来6.30-7.30，对拾光复利进行了部署调研", MORNING, 60, "morning");
+  const tb = inferTimeBlock("早上醒来6.30-7.30，对拾光进行了部署调研", MORNING, 60, "morning");
   assert.equal(tb.start.getFullYear(), 2026);
   assert.equal(tb.start.getMonth(), 8);
   assert.equal(tb.start.getDate(), 20, `应落今天9/20，实际${tb.start.toISOString()}`);
@@ -155,7 +155,7 @@ test("显式区间'7点半到8点半'→ 今天 07:30-08:30，不做当下收拢
 });
 
 test("点号区间'6.30-7.30'清早记录 → 今天 06:30-07:30（结尾略超记录时刻也保留）", () => {
-  const tb = inferTimeBlock("早上醒来6.30-7.30，对拾光复利进行了部署调研", new Date(2026, 8, 20, 7, 17), 60, "morning");
+  const tb = inferTimeBlock("早上醒来6.30-7.30，对拾光进行了部署调研", new Date(2026, 8, 20, 7, 17), 60, "morning");
   assert.equal(`${tb.start.getHours()}:${String(tb.start.getMinutes()).padStart(2, "0")}`, "6:30");
   assert.equal(`${tb.end.getHours()}:${String(tb.end.getMinutes()).padStart(2, "0")}`, "7:30");
   assert.equal(tb.start.getDate(), 20);

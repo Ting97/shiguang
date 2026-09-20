@@ -1,4 +1,4 @@
-# 拾光复利 · Android 壳（WebView）
+# 拾光 · Android 壳（WebView）
 
 将线上 `https://shiguang.ting97.cn` 打包成安卓 APK 的**原生 WebView 壳**：单 Activity 纯 Java、零第三方依赖、APK 仅 34KB。Web 端与服务端**零改动**。
 

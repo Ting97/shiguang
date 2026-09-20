@@ -6,7 +6,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "cn.ting97.shiguang",
-  appName: "拾光复利",
+  appName: "拾光",
   webDir: "www",
   server: {
     url: "https://shiguang.ting97.cn",

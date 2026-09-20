@@ -69,7 +69,7 @@ export async function GET(req: Request) {
 
   if (format === "md") {
     const lines: string[] = [
-      `# 拾光复利 · 动态日记`,
+      `# 拾光 · 动态日记`,
       ``,
       `> 导出时间：${new Date().toLocaleString("zh-CN")} · 共 ${entries.rows.length} 条动态`,
       ``,

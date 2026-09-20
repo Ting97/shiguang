@@ -2,7 +2,7 @@ import { ACTIVITY_NAMES } from "./schema";
 
 // ============ 全量模式（发动态/编辑重识别）：一次调用五域联合 ============
 
-export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引擎。用户像发朋友圈一样随口说一句话。请对这句话做**五个独立判断**，严格输出 JSON。你是唯一的判断者——输出会被直接落库，没有规则引擎替你纠错，请严格按下方标准判定。
+export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。用户像发朋友圈一样随口说一句话。请对这句话做**五个独立判断**，严格输出 JSON。你是唯一的判断者——输出会被直接落库，没有规则引擎替你纠错，请严格按下方标准判定。
 
 ## 判定总则（最重要）
 - 五个域互相独立：一句话可以同时命中任意多个域，也可以一个都不命中。
@@ -104,7 +104,7 @@ export function buildRepairUserPrompt(base: string, badOutput: string, issues: s
 // ============ 单域模式（识别菜单点某域重识别）：只判本域，注意力集中更准更省 ============
 
 export const DOMAIN_PROMPTS: Record<string, string> = {
-  schedule: `你是"拾光复利"App 的日程识别引擎。判断这句话是否发生了/正在做某件具体的"事"，只输出 schedule 域 JSON。
+  schedule: `你是"拾光"App 的日程识别引擎。判断这句话是否发生了/正在做某件具体的"事"，只输出 schedule 域 JSON。
 
 ## 判定标准
 - applicable=true：有具体动作——「刚跑完步」「下午开了三小时会」「7点半到8点半通勤」「中午和小李吃饭」
@@ -119,7 +119,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 「今天喝了两杯咖啡」→ {"reasoning":"饮食摄入非日程","schedule":{"applicable":false,"activity":"other","title":"","start":null,"end":null,"durationMin":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","schedule":{上述结构}}`,
-  todo: `你是"拾光复利"App 的待办识别引擎。判断这句话是否包含未来才做的计划，只输出 todo 域 JSON。
+  todo: `你是"拾光"App 的待办识别引擎。判断这句话是否包含未来才做的计划，只输出 todo 域 JSON。
 
 ## 判定标准
 - 先对照「当前时间」：钟点已过（"今天9:10到9:30工作准备"现在11:50）→ 已发生的事，false
@@ -132,7 +132,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 「刚跑完步」→ {"reasoning":"已发生","todo":{"applicable":false,"due":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","todo":{上述结构}}`,
-  finance: `你是"拾光复利"App 的收支识别引擎。判断这句话是否提到具体金额的收支，只输出 finance 域 JSON。
+  finance: `你是"拾光"App 的收支识别引擎。判断这句话是否提到具体金额的收支，只输出 finance 域 JSON。
 
 ## 判定标准
 - true：「花了260」「随了600块礼」「退款到账50」「午饭28」
@@ -145,7 +145,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 「今天好省钱」→ {"reasoning":"无具体金额","finance":{"hasAmount":false,"direction":null,"amountCents":null,"category":null,"counterparty":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","finance":{上述结构}}`,
-  mood: `你是"拾光复利"App 的心情识别引擎。判断这句话是否带情绪色彩，只输出 mood 域 JSON。
+  mood: `你是"拾光"App 的心情识别引擎。判断这句话是否带情绪色彩，只输出 mood 域 JSON。
 
 ## 判定标准
 - true：「挺开心的」「累死了」「好焦虑」「吃得满足」——情绪可能藏在动作里
@@ -157,7 +157,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 「下午开了个会」→ {"reasoning":"无情绪词","mood":{"label":null,"score":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","mood":{上述结构}}`,
-  diet: `你是"拾光复利"App 的饮食识别引擎。判断这句话是否提到吃了/喝了具体食物饮品，只输出 diet 域 JSON。
+  diet: `你是"拾光"App 的饮食识别引擎。判断这句话是否提到吃了/喝了具体食物饮品，只输出 diet 域 JSON。
 
 ## 判定标准
 - true：「一碗牛肉面」「喝了杯奶茶」「两杯黑咖啡和一点点香芋条」
@@ -171,7 +171,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 「刚开完会」→ {"reasoning":"无食物","diet":{"applicable":false,"meal":"未知","items":[],"totalKcal":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","diet":{上述结构}}`,
-  people: `你是"拾光复利"App 的人物识别引擎。找出这句话提到的具体人物，只输出 people 数组。
+  people: `你是"拾光"App 的人物识别引擎。找出这句话提到的具体人物，只输出 people 数组。
 
 ## 判定标准
 - 提取具体人名/称谓：老王、小李、张老师、同事小陈

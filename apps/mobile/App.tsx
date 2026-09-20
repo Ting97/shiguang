@@ -56,7 +56,7 @@ function Login({ onOk }: { onOk: () => void }) {
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar style="light" />
       <Text style={s.logo}>☀️</Text>
-      <Text style={s.title}>拾光复利</Text>
+      <Text style={s.title}>拾光</Text>
       <Text style={s.sub}>钱 · 时间 · 人，一句话记下来</Text>
       <TextInput
         style={s.input} placeholder="手机号 / 邮箱" placeholderTextColor={C.dim}
@@ -185,7 +185,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
     <View style={s.root}>
       <StatusBar style="light" />
       <View style={s.header}>
-        <Text style={s.headerTitle}>拾光复利</Text>
+        <Text style={s.headerTitle}>拾光</Text>
         <Pressable onPress={onLogout}><Text style={s.logout}>退出</Text></Pressable>
       </View>
       {msg && <Text style={[s.banner, { color: msg.ok ? C.ok : C.danger }]}>{msg.text}</Text>}

@@ -171,7 +171,7 @@ export default function FinancePage() {
         <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
-            拾光复利<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">财务</span>
+            拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">财务</span>
           </h1>
           <p className="mt-2 text-xs text-ink-dim">动态里说的钱都在这里 —— 确认草稿、管账户、看月度结构</p>
         </header>
@@ -485,7 +485,7 @@ export default function FinancePage() {
         )}
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
-          拾光复利 · 财务模块 v1 · 流水确认后计入月度报表
+          拾光 · 财务模块 v1 · 流水确认后计入月度报表
         </footer>
       </div>
     </main>
