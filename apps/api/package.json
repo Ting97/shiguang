@@ -12,12 +12,14 @@
     "@shiguangri/ai": "*",
     "@shiguangri/shared": "*",
     "next": "^15.5.0",
+    "nodemailer": "^10.0.10",
     "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.19.0",
-    "typescript": "^5.8.0",
-    "@types/pg": "^8.23.1"
+    "typescript": "^5.8.0"
   }
 }

@@ -59,8 +59,8 @@ function Login({ onOk }: { onOk: () => void }) {
       <Text style={s.title}>拾光复利</Text>
       <Text style={s.sub}>钱 · 时间 · 人，一句话记下来</Text>
       <TextInput
-        style={s.input} placeholder="手机号" placeholderTextColor={C.dim}
-        keyboardType="phone-pad" maxLength={11} value={phone} onChangeText={setPhone}
+        style={s.input} placeholder="手机号 / 邮箱" placeholderTextColor={C.dim}
+        autoCapitalize="none" keyboardType="email-address" value={phone} onChangeText={setPhone}
       />
       <TextInput
         style={s.input} placeholder="密码" placeholderTextColor={C.dim}

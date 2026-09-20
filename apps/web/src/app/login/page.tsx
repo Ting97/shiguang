@@ -7,7 +7,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export default function LoginPage() {
   const [mode, setMode] = useState<"password" | "sms">("password"); // 登录方式：密码/验证码
   const [isRegister, setIsRegister] = useState(false);
-  const [phone, setPhone] = useState("");
+  const [account, setAccount] = useState(""); // 手机号或邮箱（含 @ 自动识别）
   const [password, setPassword] = useState("");
   const [smsCode, setSmsCode] = useState("");
   const [invite, setInvite] = useState("");
@@ -36,14 +36,15 @@ export default function LoginPage() {
   }
 
   async function sendCode() {
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      setMsg({ ok: false, text: "请先填写正确的手机号" });
+    const isEmail = account.includes("@");
+    if (isEmail ? !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(account) : !/^1[3-9]\d{9}$/.test(account)) {
+      setMsg({ ok: false, text: isEmail ? "请先填写正确的邮箱地址" : "请先填写正确的手机号" });
       return;
     }
-    const r = await fetch("/api/auth/sms/send", {
+    const r = await fetch(isEmail ? "/api/auth/email/send" : "/api/auth/sms/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, purpose: "login" }),
+      body: JSON.stringify(isEmail ? { email: account, purpose: "login" } : { phone: account, purpose: "login" }),
     });
     const j = await r.json();
     if (r.ok) {
@@ -68,19 +69,27 @@ export default function LoginPage() {
         r = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone, password, smsCode: smsCode || undefined, inviteCode: invite }),
+          body: JSON.stringify(
+            account.includes("@")
+              ? { email: account, password, emailCode: smsCode || undefined, inviteCode: invite }
+              : { phone: account, password, smsCode: smsCode || undefined, inviteCode: invite },
+          ),
         });
       } else if (mode === "password") {
         r = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone, password }),
+          body: JSON.stringify(
+            account.includes("@") ? { email: account, password } : { phone: account, password },
+          ),
         });
       } else {
         r = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone, smsCode }),
+          body: JSON.stringify(
+            account.includes("@") ? { email: account, emailCode: smsCode } : { phone: account, smsCode },
+          ),
         });
       }
       const j = await r.json();
@@ -133,11 +142,9 @@ export default function LoginPage() {
 
           <div className="space-y-3">
             <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              maxLength={11}
-              inputMode="numeric"
-              placeholder="手机号"
+              value={account}
+              onChange={(e) => setAccount(e.target.value.trim())}
+              placeholder="手机号 / 邮箱"
               className={inputCls}
             />
 
@@ -148,7 +155,7 @@ export default function LoginPage() {
                   onChange={(e) => setSmsCode(e.target.value)}
                   maxLength={6}
                   inputMode="numeric"
-                  placeholder={isRegister ? "验证码（通道未开通可留空）" : "6 位验证码"}
+                  placeholder={isRegister ? "邮箱/短信验证码（未开通可留空）" : "6 位验证码"}
                   className={`${inputCls} flex-1`}
                 />
                 <button

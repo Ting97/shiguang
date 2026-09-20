@@ -85,8 +85,10 @@ export interface Moment {
   transactions: { id: string; amount_cents: number; direction: string }[];
 }
 
-export async function login(phone: string, password: string): Promise<void> {
-  await apiPost("/api/auth/login", { phone, password });
+/** 账号登录：含 @ 视为邮箱，否则手机号 */
+export async function login(account: string, password: string): Promise<void> {
+  const body = account.includes("@") ? { email: account, password } : { phone: account, password };
+  await apiPost("/api/auth/login", body);
 }
 
 export async function loadFeed(): Promise<Moment[]> {
