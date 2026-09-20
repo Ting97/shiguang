@@ -23,6 +23,20 @@ const PERIOD_ANCHORS: Record<Exclude<PeriodHint, "now">, number> = {
   morning: 8, noon: 12, afternoon: 14, evening: 19, night: 22, lateNight: 1,
 };
 
+/** 时段 → 常识时间窗 [起, 止)（止可 >24 表示跨午夜）；用于判断"现在是否正处于该时段" */
+const PERIOD_SPAN: Record<Exclude<PeriodHint, "now">, [number, number]> = {
+  morning: [5, 12], noon: [11, 15], afternoon: [12, 18],
+  evening: [17, 24], night: [21, 26], lateNight: [0, 6],
+};
+
+/** 现在是否处于该时段的常识窗口内（跨午夜窗口折返判断） */
+function periodOngoing(period: Exclude<PeriodHint, "now">, now: Date): boolean {
+  const [ws, we] = PERIOD_SPAN[period];
+  const h = now.getHours();
+  if (we <= 24) return h >= ws && h < we;
+  return h >= ws || h < we - 24; // 跨午夜：night [21,26) → 21..23 或 0..1
+}
+
 const PERIOD_WORDS: Array<[RegExp, Exclude<PeriodHint, "now">]> = [
   [/凌晨|清晨/, "lateNight"],
   [/早上|早晨|上午/, "morning"],
@@ -174,7 +188,11 @@ export function inferTimeBlock(
   // 1) 有相对时段 → 锚点起 + 时长
   if (period && period !== "now") {
     let anchor = atHour(now, PERIOD_ANCHORS[period]);
-    if (anchor > now) anchor = new Date(anchor.getTime() - 24 * 3600_000); // 过去语境视为昨天
+    if (anchor > now && !periodOngoing(period, now)) {
+      // 过去语境且锚点在今天尚未到来、且当下不在该时段窗口内 → 归昨天
+      // （15:00 说"晚上刷了抖音"=昨晚；而 07:17 说"早上醒来…"时段正在进行，保留今天）
+      anchor = new Date(anchor.getTime() - 24 * 3600_000);
+    }
     let end = new Date(anchor.getTime() + dur * 60_000);
     [anchor, end] = clampToNow(anchor, end);
     return { mode: duration ? "explicit" : "relative", start: anchor, end, durationMin: dur };

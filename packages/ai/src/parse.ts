@@ -115,6 +115,13 @@ function ruleExtract(text: string): LlmExtractionT {
   };
 }
 
+/** GLM 提示词用北京时间墙钟：toISOString 是 UTC，北京 00:00–08:00 间的记录会让模型把"今天"算成前一天 */
+function toCstWallClock(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  const c = new Date(d.getTime() + 8 * 3600_000);
+  return `${c.getFullYear()}-${p(c.getMonth() + 1)}-${p(c.getDate())} ${p(c.getHours())}:${p(c.getMinutes())}（北京时间）`;
+}
+
 // ---------- 主入口 ----------
 
 export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
@@ -129,7 +136,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     try {
       const raw = await chat({
         system: EXTRACT_SYSTEM_PROMPT,
-          user: buildExtractUserPrompt(text, now.toISOString()),
+          user: buildExtractUserPrompt(text, toCstWallClock(now)),
         onUsage: opts.onUsage,
       });
       const parsed = LlmExtraction.safeParse(extractJson(raw));

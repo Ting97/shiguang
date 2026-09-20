@@ -92,3 +92,34 @@ test("LLM 强制未来但无日期词 → 按 soon 处理", () => {
   assert.equal(tb.mode, "future");
   assert.ok(tb.start.getTime() > NOW.getTime());
 });
+
+// —— 回归：跨日日程误回退（线上 2026-09-20 早上7:17 记"早上醒来6.30-7.30"被归到前一天） ——
+
+const MORNING = new Date(2026, 8, 20, 7, 17); // 2026-09-20（周日）07:17
+const DEEP_NIGHT = new Date(2026, 8, 20, 2, 0); // 2026-09-20（周日）凌晨 02:00
+
+test("清早记录'早上…'（锚点8点尚未来到）→ 必须落在今天，不得回退到昨天", () => {
+  const tb = inferTimeBlock("早上醒来6.30-7.30，对拾光复利进行了部署调研", MORNING, 60, "morning");
+  assert.equal(tb.start.getFullYear(), 2026);
+  assert.equal(tb.start.getMonth(), 8);
+  assert.equal(tb.start.getDate(), 20, `应落今天9/20，实际${tb.start.toISOString()}`);
+  assert.ok(tb.end <= MORNING, "结尾不得晚于现在（clampToNow）");
+});
+
+test("清早无钟点的'早上…'同样保留今天", () => {
+  const tb = inferTimeBlock("早上跑了五公里", MORNING, 60, "morning");
+  assert.equal(tb.start.getDate(), 20);
+  assert.equal(tb.end.getDate(), 20);
+});
+
+test("凌晨记录'晚上…'仍回退到昨晚（保留原正确行为）", () => {
+  const tb = inferTimeBlock("晚上看了电影", DEEP_NIGHT, 120, "evening");
+  assert.equal(tb.start.getDate(), 19, "应回退到 9/19 晚上");
+  assert.equal(tb.start.getHours(), 19);
+});
+
+test("白天记录已过的时段 → 保持今天（原行为不变）", () => {
+  const tb = inferTimeBlock("早上开了个会", NOW, 60, "morning"); // 15:00 说早上的事
+  assert.equal(tb.start.getDate(), 17);
+  assert.equal(tb.start.getHours(), 8);
+});
