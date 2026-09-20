@@ -62,7 +62,7 @@ export interface FeedMoment {
     items: { name: string; amount?: string | null; kcal?: number | null }[] | null;
     totalKcal: number | null;
   } | null;
-  recognitions: Partial<Record<string, { status: "applied" | "pending" | "none"; confidence: number; reason?: string | null; reasonDismissed?: boolean }>>;
+  recognitions: Partial<Record<string, { status: "applied" | "pending" | "none"; confidence: number; reason?: string | null; reasonDismissed?: boolean; engine?: string | null }>>;
   /** 五域识别完成时间；为空 = 仍在后台识别（卡片显示「AI 识别中」） */
   analyzed_at: string | null;
 }

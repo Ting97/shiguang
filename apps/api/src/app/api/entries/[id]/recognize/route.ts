@@ -37,7 +37,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   ).rows[0];
   if (!entry) return NextResponse.json({ error: "动态不存在" }, { status: 404 });
 
-  const r: ParseResult = await parseInput(entry.raw_text);
+  const r: ParseResult = await parseInput(entry.raw_text, { domain }); // 单域专属提示词：只判本域，更准更省
   const client = await pool.connect();
   try {
     await client.query("begin");

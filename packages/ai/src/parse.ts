@@ -1,12 +1,17 @@
 /**
- * 解析管线：一句话 → 五域独立结构化结果
- * 双引擎：LLM（有 API Key）+ 规则引擎（dry-run 兜底/离线/单测）
- * 时间戳始终由确定性引擎计算（inferTimeBlock），不让模型编时间
+ * 解析管线 v2：AI 完全自主识别，规则引擎降级为灾难兜底
+ *
+ * 双模式：
+ * - 全量（发动态/编辑）：一次 GLM 调用五域联合（FullExtractionV2）
+ * - 单域（识别菜单重识别）：该域专属提示词（DOMAIN_PROMPTS + domainExtractionV2），只出本域
+ *
+ * 规则引擎仅在四类灾难场景接管：无 Key / chat 抛错（含额度熔断）/ 重问后仍 schema 不合格 / forceRules（测试）。
+ * 成功路径不做任何规则语义干预——仅保留确定性后处理（时间合法性校验、区间→时长换算、ongoing 推导、kcal 求和）。
  */
-import { chat, extractJson, hasApiKey } from "./glm";
-import { EXTRACT_SYSTEM_PROMPT, buildExtractUserPrompt } from "./prompt";
+import { chat, extractJson, hasApiKey, isQuotaTripped, GlmError } from "./glm";
+import { EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS, buildExtractUserPrompt, buildRepairUserPrompt } from "./prompt";
 import {
-  LlmExtraction, ParseResult, ACTIVITY_IDS,
+  LlmExtraction, ParseResult, FullExtractionV2, domainExtractionV2, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
 } from "./schema";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment } from "./time-infer";
@@ -15,15 +20,20 @@ import { ruleMood } from "./mood-rules";
 
 export interface ParseOptions {
   now?: Date;
-  /** 类别默认时长表（activityId → 分钟）；缺省 30 */
+  /** 类别默认时长表（activityId → 分钟）；仅规则兜底路径使用 */
   defaults?: Partial<Record<(typeof ACTIVITY_IDS)[number], number>>;
   /** 强制使用规则引擎（测试用） */
   forceRules?: boolean;
+  /** 单域模式：只识别该域（schedule/todo/finance/mood/diet/people） */
+  domain?: string;
   /** LLM 成功响应后回调 token 用量（审计/成本核算用） */
   onUsage?: (usage: { prompt_tokens: number; completion_tokens: number }) => void;
 }
 
-// ---------- 规则引擎（dry-run） ----------
+/** 单域识别的合法域 */
+const DOMAIN_MODES = ["schedule", "todo", "finance", "mood", "diet", "people"] as const;
+
+// ---------- 规则引擎（灾难兜底，原样保留） ----------
 
 const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["schedule"]["activity"]]> = [
   [/午睡|睡觉|补觉/, "sleep"],
@@ -122,14 +132,14 @@ function toCstWallClock(d: Date): string {
   return `${c.getFullYear()}-${p(c.getMonth() + 1)}-${p(c.getDate())} ${p(c.getHours())}:${p(c.getMinutes())}（北京时间）`;
 }
 
-/** 从原话确定性恢复饮食条目（GLM 整句当 name 时的兜底）："今天喝了两杯黑咖啡两杯豆浆和一点点香芋条" → 黑咖啡/豆浆/香芋条 */
-export function recoverDietItemsFromText(text: string): { name: string; amount: string | null; kcal: number | null }[] | null {
+/** 从原话确定性恢复饮食条目（规则路径整句当 name 时的兜底）：已不再用于 AI 路径（v2 schema 直接校验拒绝） */
+export function recoverDietItemsFromText(text: string): { name: string | null; amount: string | null; kcal: number | null }[] | null {
   let t = text.trim()
     .replace(/^(今天|今日|刚才|刚刚|现在|早上|中午|晚上)/, "")
     .replace(/^(喝了|吃了|喝|吃|点了|点了)/, "")
     .replace(/^(了)/, "");
   if (t === text) return null; // 没去掉任何时间/动词前缀 → 不像饮食流水账，放弃恢复
-  const items: { name: string; amount: string | null; kcal: number | null }[] = [];
+  const items: { name: string | null; amount: string | null; kcal: number | null }[] = [];
   for (const rawPart of t.split(/和|及|还有|，|,|、/)) {
     const seg = rawPart.trim().replace(/^一点点/, "").replace(/([0-9一二两三四五六七八九十半]+)(杯|碗|瓶|罐|份|个|根|块|片|包|盒|盘|颗)/g, "、");
     for (const piece of seg.split("、")) {
@@ -142,78 +152,148 @@ export function recoverDietItemsFromText(text: string): { name: string; amount: 
   return items.length >= 1 ? items : null;
 }
 
-// ---------- 主入口 ----------
+// ---------- AI 路径（v2 主干） ----------
 
-export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
-  const now = opts.now ?? new Date();
-  now.setSeconds(0, 0); // 时间对齐到整分钟：时间轴记录到分即可
-  const useLlm = !opts.forceRules && hasApiKey();
+/** AI 调用与校验：失败时抛错（由 parseInput 决定降级）；输出不合格自动带错误清单重问一次 */
+async function aiExtract(
+  text: string,
+  domain: string | undefined,
+  now: Date,
+  onUsage?: ParseOptions["onUsage"],
+): Promise<{ ext: LlmExtractionT; engine: "llm" | "llm-repaired" }> {
+  const system = domain ? DOMAIN_PROMPTS[domain] : EXTRACT_SYSTEM_PROMPT;
+  const schema = domain ? domainExtractionV2(domain) : FullExtractionV2;
+  const base = buildExtractUserPrompt(text, toCstWallClock(now));
 
-  let ext: LlmExtractionT;
-  let confidence: number;
-
-  if (useLlm) {
-    try {
-      const raw = await chat({
-        system: EXTRACT_SYSTEM_PROMPT,
-          user: buildExtractUserPrompt(text, toCstWallClock(now)),
-        onUsage: opts.onUsage,
-      });
-      const parsed = LlmExtraction.safeParse(extractJson(raw));
-      if (parsed.success) {
-        ext = parsed.data;
-        confidence = 0.9;
-      } else {
-        console.warn("[ai] LLM 输出未通过校验，规则兜底：", parsed.error.issues.slice(0, 3));
-        ext = ruleExtract(text);
-        confidence = 0.5;
-      }
-    } catch (e) {
-      // LLM 调用失败（限流/超时/断网/输出无 JSON）：规则兜底，打卡入口永不因此失败
-      console.warn("[ai] LLM 调用失败，规则兜底：", String(e).slice(0, 200));
-      ext = ruleExtract(text);
-      confidence = 0.4;
+  let raw = await chat({ system, user: base, onUsage });
+  let parsed = schema.safeParse(extractJson(raw));
+  if (!parsed.success) {
+    // 一次自修复重问：把校验错误清单反馈给模型（仅畸形输出多花一次调用）
+    const issues = parsed.error.issues.slice(0, 6).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+    console.warn(`[ai] 输出未通过校验，重问：${issues.join("；").slice(0, 200)}`);
+    raw = await chat({ system, user: buildRepairUserPrompt(base, raw, issues), onUsage });
+    parsed = schema.safeParse(extractJson(raw));
+    if (!parsed.success) {
+      throw new GlmError("badOutput", `重问后仍不合格：${parsed.error.issues.slice(0, 3).map((i) => i.message).join("；")}`);
     }
-  } else {
-    ext = ruleExtract(text);
-    confidence = 0.5;
+    return { ext: assembleExtraction(parsed.data, domain), engine: "llm-repaired" };
   }
+  return { ext: assembleExtraction(parsed.data, domain), engine: "llm" };
+}
 
-  // 时长：LLM 抽取优先，回退到话术再解析，最后类别默认
+/** 把全量/单域的 v2 校验结果拼装回统一 Extraction 形状（单域模式其余域为中性"不适用"） */
+function assembleExtraction(data: unknown, domain: string | undefined): LlmExtractionT {
+  const d = data as Record<string, unknown>;
+  const neutralSchedule = { applicable: false, activity: "other" as const, title: "", durationMin: null, periodHint: null, confidence: 0.9 };
+  const neutralTodo = { applicable: false, due: null, confidence: 0.9 };
+  const neutralFinance = { hasAmount: false, direction: null, amountCents: null, category: null, counterparty: null, confidence: 0.9 };
+  const neutralMood = { label: null, score: null, confidence: 0.9 };
+  const neutralDiet = { applicable: false, meal: "未知" as const, items: [], totalKcal: null, confidence: 0.9 };
+  if (!domain) return LlmExtraction.parse(data); // 全量：宽松入口归一（内部已严格校验过）
+  return {
+    reasoning: {},
+    schedule: domain === "schedule" ? (d.schedule as LlmExtractionT["schedule"]) : neutralSchedule,
+    todo: domain === "todo" ? (d.todo as LlmExtractionT["todo"]) : neutralTodo,
+    finance: domain === "finance" ? (d.finance as LlmExtractionT["finance"]) : neutralFinance,
+    mood: domain === "mood" ? (d.mood as LlmExtractionT["mood"]) : neutralMood,
+    diet: domain === "diet" ? (d.diet as LlmExtractionT["diet"]) : neutralDiet,
+    people: domain === "people" ? ((d.people ?? []) as LlmExtractionT["people"]) : [],
+    ambiguity: null,
+  };
+}
+
+/** AI 结果 → ParseResult：确定性后处理（校验/换算），无规则语义 */
+function mapAiResult(ext: LlmExtractionT, now: Date, engine: "llm" | "llm-repaired"): ParseResultT {
+  const future = ext.todo.applicable; // AI 判定即最终判定
+  const range = resolveExplicitRange(ext.schedule.start ?? null, ext.schedule.end ?? null, now);
+  const due = resolveMoment(ext.todo.due ?? null, now);
+
+  // 日程时刻：AI 区间为准；applicable 但区间不合法（超幅等，schema 已保证可解析）→ 该域降级为不适用并留痕
+  let scheduleApplicable = !future && ext.schedule.applicable;
+  if (scheduleApplicable && !range) {
+    console.warn("[ai] schedule.applicable 但起止不合法，域降级：", ext.schedule.start, ext.schedule.end);
+    scheduleApplicable = false;
+  }
+  const intent: ParseResultT["intent"] = future ? "todo" : scheduleApplicable ? "schedule" : "status";
+
+  // 时间块（中性占位：非日程非待办时仅留档）
+  let tb: { mode: "explicit" | "future" | "default"; start: Date; end: Date; durationMin: number };
+  if (future && due) {
+    tb = { mode: "future", start: due, end: due, durationMin: ext.schedule.durationMin ?? 30 };
+  } else if (range) {
+    tb = {
+      mode: "explicit",
+      start: range.start,
+      end: range.end,
+      durationMin: ext.schedule.durationMin ?? Math.round((range.end.getTime() - range.start.getTime()) / 60_000),
+    };
+  } else {
+    tb = { mode: "default", start: new Date(now.getTime() - 30 * 60_000), end: now, durationMin: 30 };
+  }
+  // 进行中：AI 区间横跨当下（已开始未结束）→ 落日程块之外再生成收尾待办
+  const ongoing = !future && scheduleApplicable && tb.mode === "explicit" && tb.start <= now && now < tb.end;
+
+  const dietItems = ext.diet.items.filter((it) => it.name?.trim());
+  const knownKcal = dietItems.reduce((s, it) => s + (it.kcal ?? 0), 0);
+  const moodLabel = (ext.mood.label ?? "").trim() || null;
+
+  return ParseResult.parse({
+    activity: ext.schedule.activity,
+    title: ext.schedule.title?.trim(),
+    time: {
+      mode: tb.mode,
+      start: tb.start.toISOString(),
+      end: tb.end.toISOString(),
+      durationMin: Math.max(1, tb.durationMin),
+      confidence: engine === "llm" ? 0.9 : 0.85,
+    },
+    intent,
+    ongoing,
+    scheduleApplicable,
+    scheduleConfidence: ext.schedule.confidence,
+    todoConfidence: ext.todo.confidence,
+    financeConfidence: ext.finance.confidence,
+    mood: { label: moodLabel, score: ext.mood.score ?? null, confidence: ext.mood.confidence },
+    diet: {
+      applicable: ext.diet.applicable && dietItems.length > 0,
+      meal: ext.diet.meal,
+      items: dietItems,
+      totalKcal: ext.diet.totalKcal ?? (knownKcal > 0 ? knownKcal : null),
+      confidence: ext.diet.confidence,
+    },
+    finance: {
+      hasAmount: ext.finance.hasAmount,
+      direction: ext.finance.direction ?? null,
+      amountCents: ext.finance.amountCents != null ? Math.abs(ext.finance.amountCents) : null,
+      category: ext.finance.category ?? null,
+      counterparty: ext.finance.counterparty ?? null,
+    },
+    people: ext.people,
+    ambiguity: ext.ambiguity ?? null,
+    engine,
+    fallbackReason: null,
+  });
+}
+
+// ---------- 规则路径（原 v1 管线，灾难兜底时使用） ----------
+
+function rulesPipeline(
+  text: string,
+  now: Date,
+  opts: ParseOptions,
+  fallbackReason: string,
+): ParseResultT {
+  const ext = ruleExtract(text);
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
   const durationFromText = parseDuration(text);
   const durationMin = ext.schedule.durationMin ?? durationFromText ?? defaults[ext.schedule.activity];
-  // 防御：过滤模型输出的占位人名（"省略"/"无"/空）
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
-
-  // 意图派生：todo（未来话术）> schedule（日程域命中）> status（纯动态）
-  // 已发生/未来的判定以 AI 为主（prompt 已给当前时间与判定反例）；detectFuture 收紧后只兜显式未来词
-  // （明天/待会儿），裸词"准备/计划"不再一票否决 AI 的补记判定
   const future = ext.todo.applicable || detectFuture(text) !== null;
-
-  // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制；status → 时间无意义，仅留档
-  // AI 直推起止优先（最强显式信号）；缺失/非法回退规则引擎推断
-  const glmRange = resolveExplicitRange(ext.schedule.start ?? null, ext.schedule.end ?? null, now);
-  const todoDue = resolveMoment(ext.todo.due ?? null, now);
-  let tb = glmRange
-    ? {
-        mode: "explicit" as const,
-        start: glmRange.start,
-        end: glmRange.end,
-        durationMin: Math.round((glmRange.end.getTime() - glmRange.start.getTime()) / 60_000),
-      }
-    : inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);
-  if (future && todoDue) {
-    tb = { mode: "future", start: todoDue, end: todoDue, durationMin };
-  }
-  // 进行中：起止区间横跨当下（已开始未结束）→ 落日程块之外再生成收尾待办
-  // （explicit/relative 都可能是显式钟点区间的产物——"9:10到9:30"无时长词时 mode=relative）
+  const tb = inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);
   const ongoing = !future && (tb.mode === "explicit" || tb.mode === "relative") && tb.start <= now && now < tb.end;
-  // 显式起止区间本身就是"具体的事"的最强信号（如"工作准备"无活动词也不该判成纯感想）
-  // 弱锚点防御：无显式钟点/时段/时长/未来信号/刚…标记时，日程锚只能落到默认回顾点或当下——
-  // 这类多为饮食/感受类流水账（GLM 偶发误判 applicable），强制降级为纯动态
+  // v1 同款弱锚点防御：无显式时间信号的 applicable 多为误报（饮食/感想），否决；
+  // 显式区间横跨当下（ongoing）是最强"具体的事"信号，救回
   const hasExplicitTime =
-    glmRange !== null ||
     parseClockRange(text, ext.schedule.periodHint ?? null) !== null ||
     /\d{1,2}\s*[点时]/.test(text) ||
     detectPeriod(text) !== null ||
@@ -222,23 +302,9 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     /刚(刚)?|完(了|成)/.test(text);
   const scheduleApplicable = !future && (ext.schedule.applicable || ongoing) && hasExplicitTime;
   const intent: ParseResultT["intent"] = future ? "todo" : scheduleApplicable ? "schedule" : "status";
-
-  // 心情：LLM 词优先；score 缺失时按规则基准分补全
   const moodLabel = (ext.mood.label ?? "").trim() || null;
   const moodScore = moodLabel ? (ext.mood.score ?? ruleMood(moodLabel)?.score ?? 0) : null;
-
-  // 饮食归一：过滤空名条目；totalKcal 缺失时按已知项合计
-  // 饮食名过滤：整句/句子片段被误当食物名时丢弃（如"今天喝了两杯黑咖啡两杯豆"）
-  let dietItems = ext.diet.items.filter(
-    (it) => it.name?.trim() && !/^(今天|今日|刚才|刚刚|我|现在)/.test(it.name.trim()) && it.name.trim().length <= 16,
-  );
-  // GLM 拆分失败（整句当条目被滤空）→ 从原话确定性恢复：去时间词/动词 → 按连词拆分 → 去数量词
-  if (dietItems.length === 0 && ext.diet.applicable) {
-    const recovered = recoverDietItemsFromText(text);
-    if (recovered) dietItems = recovered;
-  }
-  const knownKcal = dietItems.reduce((s, it) => s + (it.kcal ?? 0), 0);
-  const totalKcal = ext.diet.totalKcal ?? (knownKcal > 0 ? knownKcal : null);
+  const dietItems = ext.diet.items.filter((it) => it.name?.trim());
 
   return ParseResult.parse({
     activity: ext.schedule.activity,
@@ -248,7 +314,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
       start: tb.start.toISOString(),
       end: tb.end.toISOString(),
       durationMin: tb.durationMin,
-      confidence,
+      confidence: 0.4,
     },
     intent,
     ongoing,
@@ -256,28 +322,52 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     scheduleConfidence: ext.schedule.confidence,
     todoConfidence: ext.todo.confidence,
     financeConfidence: ext.finance.confidence ?? 0.8,
-    mood: {
-      label: moodLabel,
-      score: moodScore,
-      confidence: ext.mood.confidence ?? 0.8,
-    },
+    mood: { label: moodLabel, score: moodScore, confidence: ext.mood.confidence ?? 0.7 },
     diet: {
       applicable: ext.diet.applicable && dietItems.length > 0,
       meal: ext.diet.meal,
       items: dietItems,
-      totalKcal,
+      totalKcal: ext.diet.totalKcal ?? null,
       confidence: ext.diet.confidence,
     },
     finance: {
       hasAmount: ext.finance.hasAmount,
-      // 方向以模型给的 direction 为准；缺失时默认支出（随口记账多为花销），金额恒为正
       direction: ext.finance.direction ?? "out",
-      amountCents: Math.abs(ext.finance.amountCents ?? 0) || null,
+      amountCents: ext.finance.amountCents != null ? Math.abs(ext.finance.amountCents) : null,
       category: ext.finance.category ?? null,
       counterparty: ext.finance.counterparty ?? null,
     },
     people,
     ambiguity: ext.ambiguity ?? null,
-    engine: useLlm ? "llm" : "rules",
+    engine: "rules",
+    fallbackReason,
   });
+}
+
+// ---------- 主入口 ----------
+
+export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
+  const now = opts.now ?? new Date();
+  now.setSeconds(0, 0); // 时间对齐到整分钟：时间轴记录到分即可
+  const domain = opts.domain && (DOMAIN_MODES as readonly string[]).includes(opts.domain) ? opts.domain : undefined;
+
+  const canLlm = !opts.forceRules && hasApiKey() && !isQuotaTripped();
+  if (!canLlm) {
+    const reason = opts.forceRules
+      ? "force-rules"
+      : isQuotaTripped()
+        ? "quota-breaker（额度熔断中）"
+        : "no-api-key";
+    return rulesPipeline(text, now, opts, reason);
+  }
+
+  try {
+    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage);
+    return mapAiResult(ext, now, engine);
+  } catch (e) {
+    // 灾难降级：GLM 不可用（网络/超时/额度/鉴权）或重问后输出仍不合格 → 规则引擎接管，打卡入口永不失败
+    const reason = e instanceof GlmError ? e.kind : String(e).slice(0, 120);
+    console.warn(`[ai] LLM 失败（${reason}），规则兜底：`, String(e).slice(0, 200));
+    return rulesPipeline(text, now, opts, reason);
+  }
 }

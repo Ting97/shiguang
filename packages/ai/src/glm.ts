@@ -10,6 +10,41 @@ export function hasApiKey(): boolean {
   return Boolean(process.env.ZHIPUAI_API_KEY);
 }
 
+/** GLM 失败分类：上层据此决定降级策略（quota 触发熔断，其余正常降级规则引擎） */
+export type GlmErrorKind = "quota" | "auth" | "rate" | "server" | "network" | "timeout" | "badOutput";
+
+export class GlmError extends Error {
+  kind: GlmErrorKind;
+  constructor(kind: GlmErrorKind, message: string) {
+    super(message);
+    this.name = "GlmError";
+    this.kind = kind;
+  }
+}
+
+/** 从智谱响应体/错误串解析业务错误码 → 失败分类（1113 资源包耗尽、1302 余额不足、1002/401 鉴权…） */
+export function classifyGlmFailure(status: number | null, bodyText: string): GlmErrorKind {
+  const code = bodyText.match(/"code"\s*:\s*"?(\d{3,4})"?/)?.[1] ?? "";
+  if (["1113", "1302", "1301"].includes(code)) return "quota"; // 资源包用尽/欠费/并发超限
+  if (code === "429" || status === 429) return "rate";
+  if (["1000", "1001", "1002", "1003", "1005", "1006", "401"].includes(code) || status === 401 || status === 403) return "auth";
+  if (status !== null && status >= 500) return "server";
+  return "network";
+}
+
+// ---- 额度熔断：quota 类失败后 5 分钟内直接走规则，避免反复请求已欠费接口 ----
+let quotaTrippedAt = 0;
+const QUOTA_COOLDOWN_MS = 5 * 60_000;
+
+/** 额度熔断是否生效中 */
+export function isQuotaTripped(): boolean {
+  return quotaTrippedAt > 0 && Date.now() - quotaTrippedAt < QUOTA_COOLDOWN_MS;
+}
+
+export function tripQuotaBreaker(): void {
+  quotaTrippedAt = Date.now();
+}
+
 export interface ChatUsage {
   prompt_tokens: number;
   completion_tokens: number;
@@ -32,7 +67,7 @@ interface ChatOptions {
 /** 单轮对话，返回文本内容。timeoutMs 是所有重试的总预算（默认 30s）；429/5xx/超时/网络异常均重试；429 耗尽后降级 GLM_FALLBACK_MODEL */
 export async function chat(opts: ChatOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY;
-  if (!key) throw new Error("缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
+  if (!key) throw new GlmError("auth", "缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
   const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
   const model = process.env.GLM_MODEL ?? DEFAULT_MODEL;
   const fallback = process.env.GLM_FALLBACK_MODEL || "glm-4-flash";
@@ -62,7 +97,7 @@ export async function chat(opts: ChatOptions): Promise<string> {
   // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）
   async function chatOnce(m: string, deadline: number): Promise<string> {
     const maxAttempts = 5;
-    let lastErr: unknown = new Error(`GLM(${m}) 未响应`);
+    let lastErr: Error = new Error(`GLM(${m}) 未响应`);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const remainMs = deadline - Date.now();
       if (remainMs <= 0) break;
@@ -91,15 +126,18 @@ export async function chat(opts: ChatOptions): Promise<string> {
           if (reasoning) return reasoning;
           return "";
         }
-        lastErr = new Error(`GLM(${m}) HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
-        if (res.status !== 429 && res.status < 500) throw lastErr; // 参数/鉴权错误重试无意义
+        const errBody = (await res.text()).slice(0, 300);
+        const httpErr = new GlmError(classifyGlmFailure(res.status, errBody), `GLM(${m}) HTTP ${res.status}: ${errBody}`);
+        lastErr = httpErr;
+        if (httpErr.kind !== "rate" && httpErr.kind !== "server") throw httpErr; // 参数/鉴权/额度错误重试无意义
       } catch (e) {
+        if (e instanceof GlmError) throw e;
         if (e instanceof Error && e.name === "AbortError") {
           // 总预算内的等待已耗尽（挂起的连接被掐断）——继续重试只会再超时
-          lastErr = new Error(`GLM(${m}) 响应超时（预算耗尽）`);
+          lastErr = new GlmError("timeout", `GLM(${m}) 响应超时（预算耗尽）`);
           break;
         }
-        lastErr = e; // 网络瞬断等其他异常：可重试
+        lastErr = e instanceof Error ? e : new GlmError("network", String(e)); // 网络瞬断等其他异常：可重试
       } finally {
         clearTimeout(timer);
       }
@@ -115,6 +153,7 @@ export async function chat(opts: ChatOptions): Promise<string> {
   try {
     return await chatOnce(model, deadline);
   } catch (e) {
+    if (e instanceof GlmError && e.kind === "quota") tripQuotaBreaker();
     if (fallback && fallback !== model && String(e).includes("HTTP 429") && deadline - Date.now() > 5_000) {
       console.warn(`[ai] ${model} 持续限流，降级 ${fallback} 兜底`);
       return await chatOnce(fallback, deadline);
@@ -157,7 +196,7 @@ export interface TranscribeOptions {
 /** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本 */
 export async function transcribeAudio(opts: TranscribeOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY;
-  if (!key) throw new Error("缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
+  if (!key) throw new GlmError("auth", "缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
   const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
   const form = new FormData();
   form.append("model", asrModel());

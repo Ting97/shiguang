@@ -241,6 +241,14 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
             {intent.icon} {intent.label}
           </span>
           {m.source === "voice" && <span title="语音输入">🎙</span>}
+          {(Object.values(m.recognitions ?? {}) as { engine?: string | null }[]).some((v) => v.engine === "rules") && (
+            <span
+              title="AI 暂不可用（额度/网络），本次由离线规则识别，点击原文可重识别"
+              className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-warn/80"
+            >
+              ⚠ 离线识别
+            </span>
+          )}
           <span className="flex-1" />
           {confirming ? (
             <span className="flex items-center gap-1">

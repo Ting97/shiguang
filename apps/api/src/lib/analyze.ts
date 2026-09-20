@@ -82,7 +82,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       },
     });
     engine = r.engine;
-    if (r.engine === "llm") model = process.env.GLM_MODEL ?? "glm-4.7-flash";
+    if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
+    if (r.engine !== "rules") model = process.env.GLM_MODEL ?? "glm-5.3-flash";
     const pendingDomains: string[] = [];
 
     await client.query("begin");

@@ -94,15 +94,163 @@ export const ParseResult = z.object({
   finance: FinanceDraft.default({ hasAmount: false }),
   people: z.array(PersonDraft).default([]),
   ambiguity: z.string().nullish(),
-  /** dry-run（规则引擎）还是 LLM 产出 */
-  engine: z.enum(["llm", "rules"]),
+  /** dry-run（规则引擎）还是 LLM 产出；llm-repaired = 输出不合格经一次重问修复 */
+  engine: z.enum(["llm", "llm-repaired", "rules"]),
+  /** 灾难降级原因（engine=rules 时有值）：quota/auth/network/timeout/schema… 供日志与排查 */
+  fallbackReason: z.string().nullish(),
 });
 
 export type ParseResult = z.infer<typeof ParseResult>;
 
-/** 模型 confidence 容错：null/缺失给默认值（z.coerce 会把 null 强转成 0，必须先 nullish 短路） */
+/** 模型 confidence 容错：null/缺失给默认值（z.coerce 会把 null 强转成 0，必须先 nullish 短路）——仅规则兜底路径使用 */
 const conf = (d: number) =>
   z.coerce.number().min(0).max(1).nullish().transform((v) => v ?? d);
+
+// ============ v2 严格域契约（AI-first）：漏答即不合格 → 触发一次修复重问 ============
+
+/** 北京时间本地时刻串 "YYYY-MM-DDTHH:MM"（或完整 ISO）——非空即需可被 Date 解析 */
+const localMoment = z
+  .string()
+  .min(1)
+  .refine((s) => !isNaN(new Date(s).getTime()), { message: "时刻须为可解析的 YYYY-MM-DDTHH:MM" });
+
+/** 严格日程域：applicable=true → start/end 必填且 end 晚于 start */
+export const ScheduleDraftV2 = z
+  .object({
+    applicable: z.coerce.boolean(),
+    activity: ActivityId,
+    title: z.string().max(30),
+    start: localMoment.nullish(),
+    end: localMoment.nullish(),
+    durationMin: z.coerce.number().int().positive().nullish(),
+    periodHint: z
+      .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
+      .nullish()
+      .catch(null),
+    confidence: z.coerce.number().min(0).max(1),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.applicable) return;
+    if (!v.start || !v.end) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "schedule.applicable=true 时 start/end 必填" });
+      return;
+    }
+    if (new Date(v.end).getTime() <= new Date(v.start).getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "schedule.end 必须晚于 start" });
+    }
+    if (!v.title.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "schedule.applicable=true 时 title 必填" });
+    }
+  });
+
+/** 严格待办域：applicable=true → due 必填 */
+export const TodoDraftV2 = z
+  .object({
+    applicable: z.coerce.boolean(),
+    due: localMoment.nullish(),
+    confidence: z.coerce.number().min(0).max(1),
+  })
+  .superRefine((v, ctx) => {
+    if (v.applicable && !v.due) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "todo.applicable=true 时 due 必填" });
+    }
+  });
+
+/** 严格收支域：hasAmount=true → 金额与方向必填 */
+export const FinanceDraftV2 = z
+  .object({
+    hasAmount: z.coerce.boolean(),
+    direction: z.enum(["out", "in"]).nullish(),
+    amountCents: z.coerce.number().int().nullish(),
+    category: z.string().nullish(),
+    counterparty: z.string().nullish(),
+    confidence: z.coerce.number().min(0).max(1),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.hasAmount) return;
+    if (v.amountCents == null || v.amountCents <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "finance.hasAmount=true 时 amountCents 必填（正数，分）" });
+    }
+    if (!v.direction) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "finance.hasAmount=true 时 direction 必填（out/in）" });
+    }
+  });
+
+/** 严格心情域：有 label → score 必填 */
+export const MoodDraftV2 = z
+  .object({
+    label: z.string().nullish(),
+    score: z.coerce.number().int().min(-100).max(100).nullish(),
+    confidence: z.coerce.number().min(0).max(1),
+  })
+  .superRefine((v, ctx) => {
+    if (v.label && v.score == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "mood.label 非空时 score 必填" });
+    }
+  });
+
+/** 严格饮食域：条目名 2-16 字、禁止整句片段 */
+export const DietItemV2 = z.object({
+  name: z
+    .string()
+    .min(2)
+    .max(16)
+    .refine((n) => !/^(今天|今日|刚才|刚刚|我|现在)/.test(n.trim()), { message: "items[].name 不能是句子片段" }),
+  amount: z.string().nullish(),
+  kcal: z.coerce.number().int().positive().nullish(),
+});
+export const DietDraftV2 = z
+  .object({
+    applicable: z.coerce.boolean(),
+    meal: z.enum(["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"]).nullish().transform((m) => m ?? "未知"),
+    items: z.array(DietItemV2).default([]),
+    totalKcal: z.coerce.number().int().nullish(),
+    confidence: z.coerce.number().min(0).max(1),
+  })
+  .superRefine((v, ctx) => {
+    if (v.applicable && v.items.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "diet.applicable=true 时 items 不能为空" });
+    }
+  });
+
+export const PersonDraftV2 = z.object({
+  name: z.string().min(1).refine((n) => !/^(省略|无|没有|null|none)$/i.test(n.trim()), { message: "people[].name 不能是占位词" }),
+  event: z.string().nullish(),
+});
+
+/** 全量抽取（发动态/编辑）：五域 + 人物，全部必答（不适用给 applicable=false） */
+export const FullExtractionV2 = z.object({
+  reasoning: z
+    .object({
+      schedule: z.string().nullish().catch(null),
+      todo: z.string().nullish().catch(null),
+      finance: z.string().nullish().catch(null),
+      mood: z.string().nullish().catch(null),
+      diet: z.string().nullish().catch(null),
+    })
+    .nullish()
+    .transform((v) => v ?? {}),
+  schedule: ScheduleDraftV2,
+  todo: TodoDraftV2,
+  finance: FinanceDraftV2,
+  mood: MoodDraftV2,
+  diet: DietDraftV2,
+  people: z.array(PersonDraftV2).default([]),
+  ambiguity: z.string().nullish().catch(null),
+});
+
+/** 单域抽取（识别菜单点某域）：只校验目标域，其余字段忽略 */
+export function domainExtractionV2(domain: string): z.ZodTypeAny {
+  switch (domain) {
+    case "schedule": return z.object({ reasoning: z.string().nullish(), schedule: ScheduleDraftV2 });
+    case "todo": return z.object({ reasoning: z.string().nullish(), todo: TodoDraftV2 });
+    case "finance": return z.object({ reasoning: z.string().nullish(), finance: FinanceDraftV2 });
+    case "mood": return z.object({ reasoning: z.string().nullish(), mood: MoodDraftV2 });
+    case "diet": return z.object({ reasoning: z.string().nullish(), diet: DietDraftV2 });
+    case "people": return z.object({ reasoning: z.string().nullish(), people: z.array(PersonDraftV2).default([]) });
+    default: throw new Error(`未知域: ${domain}`);
+  }
+}
 
 /**
  * LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳）；数值宽容（模型偶发输出字符串数字）。
