@@ -347,7 +347,13 @@ public class MainActivity extends Activity {
                 Toast.makeText(context, "下载完成，可在系统「下载」中查看", Toast.LENGTH_SHORT).show();
             }
         };
-        registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        // Android 14+（targetSdk 34+）强制：动态注册必须声明导出标志，否则 SecurityException 闪退
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(downloadReceiver, filter);
+        }
     }
 
     private void unregisterDownloadCompleteReceiver() {

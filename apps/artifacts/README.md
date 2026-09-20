@@ -4,7 +4,7 @@
 
 | 文件 | 端 | 版本 | 说明 |
 |---|---|---|---|
-| `shiguang-android-v1.1.0.apk` | Android | v1.1.0-m1 | 原生 WebView 壳（[apps/android](../android)），debug 签名可侧载直装，33KB |
+| `shiguang-android-v1.1.1.apk` | Android | v1.1.1 | 原生 WebView 壳（[apps/android](../android)），debug 签名可侧载直装，34KB。v1.1.1 修复 Android 14+ 启动闪退（registerReceiver 需声明导出标志），已在 API 35 模拟器实机验证启动+页面加载 |
 
 ## 重建方式
 
