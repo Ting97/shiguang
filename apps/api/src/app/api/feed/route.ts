@@ -66,7 +66,8 @@ export async function GET(req: Request) {
          from diet_records d where d.entry_id = e.id) as diet,
        coalesce((
          select jsonb_object_agg(rg.domain, jsonb_build_object(
-           'status', rg.status, 'confidence', rg.confidence, 'reason', rg.result->>'reason', 'engine', rg.engine))
+           'status', rg.status, 'confidence', rg.confidence, 'reason', rg.result->>'reason', 'engine', rg.engine,
+           'reasonDismissed', coalesce(rg.result->>'reasonDismissed', 'false')::boolean))
          from entry_recognitions rg where rg.entry_id = e.id
        ), '{}'::jsonb) as recognitions
      from entries e

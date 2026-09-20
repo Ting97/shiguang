@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><defs>
+    <radialGradient id="bg" cx="30%" cy="18%" r="120%"><stop offset="0%" stop-color="#1a2554"/><stop offset="45%" stop-color="#0d1740"/><stop offset="100%" stop-color="#05081a"/></radialGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff7e0"/><stop offset="45%" stop-color="#f1c66b"/><stop offset="100%" stop-color="#e8a33d"/></linearGradient>
+    <linearGradient id="bowl" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#f1c66b"/></linearGradient>
+</defs><rect width="240" height="240" fill="url(#bg)"/><g transform="translate(120 120) scale(0.78) translate(-120 -120)">
+    <path d="M186 44 C 150 60, 108 84, 96 132" fill="none" stroke="url(#beam)" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="186" cy="44" r="9" fill="#fff7e0"/>
+    <circle cx="150" cy="72" r="3.2" fill="#f1c66b" opacity=".9"/>
+    <circle cx="122" cy="96" r="2.6" fill="#f1c66b" opacity=".7"/>
+    <circle cx="108" cy="118" r="2.2" fill="#f1c66b" opacity=".55"/>
+    <path d="M56 138 A 62 62 0 0 0 184 138" fill="none" stroke="url(#bowl)" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="120" cy="150" r="12" fill="#f1c66b"/>
+    <circle cx="120" cy="150" r="5" fill="#fff7e0"/>
+</g></svg>

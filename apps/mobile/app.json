@@ -2,7 +2,7 @@
   "expo": {
     "name": "拾光",
     "slug": "shiguangri",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "scheme": "shiguang",
     "userInterfaceStyle": "dark",
@@ -21,9 +21,11 @@
         "RECORD_AUDIO"
       ],
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-foreground.png",
         "backgroundColor": "#0B1526"
       },
-      "versionCode": 3
+      "versionCode": 4,
+      "icon": "./assets/icon.png"
     },
     "plugins": [
       "expo-secure-store"
@@ -39,6 +41,12 @@
     },
     "updates": {
       "url": "https://u.expo.dev/c69d63f8-7b93-44d9-9d27-39a340797949"
+    },
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#05081a",
+      "image": "./assets/icon.png",
+      "resizeMode": "contain"
     }
   }
 }

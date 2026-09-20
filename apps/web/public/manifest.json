@@ -1,0 +1,14 @@
+{
+  "name": "拾光",
+  "short_name": "拾光",
+  "description": "钱 · 时间 · 人，一句话记下来",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05081a",
+  "theme_color": "#0B1526",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

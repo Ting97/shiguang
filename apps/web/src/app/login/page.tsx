@@ -116,6 +116,28 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-5 text-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
+          {/* 品牌 logo：一束光落入承光弧（拾起光阴） */}
+          <svg viewBox="0 0 240 240" className="mx-auto mb-2 h-20 w-20 drop-shadow-[0_10px_30px_rgba(241,198,107,.25)]" aria-hidden>
+            <defs>
+              <radialGradient id="lg-bg" cx="30%" cy="18%" r="120%">
+                <stop offset="0%" stopColor="#1a2554" /><stop offset="45%" stopColor="#0d1740" /><stop offset="100%" stopColor="#05081a" />
+              </radialGradient>
+              <linearGradient id="lg-beam" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#fff7e0" /><stop offset="45%" stopColor="#f1c66b" /><stop offset="100%" stopColor="#e8a33d" />
+              </linearGradient>
+              <linearGradient id="lg-bowl" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#38bdf8" /><stop offset="100%" stopColor="#f1c66b" />
+              </linearGradient>
+            </defs>
+            <rect width="240" height="240" rx="56" fill="url(#lg-bg)" />
+            <path d="M186 44 C 150 60, 108 84, 96 132" fill="none" stroke="url(#lg-beam)" strokeWidth="10" strokeLinecap="round" />
+            <circle cx="186" cy="44" r="9" fill="#fff7e0" />
+            <circle cx="150" cy="72" r="3.2" fill="#f1c66b" opacity=".9" />
+            <circle cx="122" cy="96" r="2.6" fill="#f1c66b" opacity=".7" />
+            <path d="M56 138 A 62 62 0 0 0 184 138" fill="none" stroke="url(#lg-bowl)" strokeWidth="10" strokeLinecap="round" />
+            <circle cx="120" cy="150" r="12" fill="#f1c66b" />
+            <circle cx="120" cy="150" r="5" fill="#fff7e0" />
+          </svg>
           <h1 className="text-gradient text-3xl font-bold">拾光</h1>
           <p className="mt-1 text-xs text-ink-dim">拾起光阴，记录今日 · {isRegister ? "凭邀请码注册" : "登录后继续"}</p>
         </div>

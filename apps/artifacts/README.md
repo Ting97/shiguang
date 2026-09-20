@@ -4,8 +4,8 @@
 
 | 文件 | 端 | 版本 | 说明 |
 |---|---|---|---|
-| `shiguang-android-v1.1.2.apk` | Android | v1.1.2 | 原生 WebView 壳（[apps/android](../android)），debug 签名可侧载直装，34KB。v1.1.1 修复 Android 14+ 启动闪退；v1.1.2 产品名更名「拾光」（应用名+断网提示），已在 API 35 模拟器实机验证启动+页面加载 |
-| `shiguang-expo-native-v1.1.1.apk` | Android | v1.1.1 | **Expo 原生应用**（[apps/mobile](../mobile)），EAS 云构建（preview/侧载），66MB。原生渲染 UI + SecureStore + 原生录音；JS 层支持 EAS Update OTA 热更。v1.1.0 修复首屏黑屏（双 React 实例崩溃：根 package-lock.json 入库 + metro react 解析回退）；v1.1.1 产品名更名「拾光」。均在 API 35 模拟器验证登录页正常渲染、无 JS 异常 |
+| `shiguang-android-v1.1.3.apk` | Android | v1.1.3 | 原生 WebView 壳（[apps/android](../android)），debug 签名可侧载直装。v1.1.1 修复启动闪退；v1.1.2 更名「拾光」；v1.1.3 全新品牌图标「拾起一束光」（自适应图标），已在 API 35 模拟器验证启动器图标+页面加载 |
+| `shiguang-expo-native-v1.1.2.apk` | Android | v1.1.2 | **Expo 原生应用**（[apps/mobile](../mobile)），EAS 云构建（preview/侧载），66MB。原生渲染 UI + SecureStore + 原生录音；JS 层支持 EAS Update OTA 热更。v1.1.0 修复首屏黑屏；v1.1.1 更名「拾光」；v1.1.2 全新品牌图标「拾起一束光」（应用图标+自适应前景+启动屏）。已在 API 35 模拟器验证图标与渲染 |
 
 ## 重建方式
 

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><body>exporting...
+<script>
+(async () => {
+  const jobs = [
+    ['icon-full.svg', 192, 'icon-192.png'],
+    ['icon-full.svg', 512, 'icon-512.png'],
+    ['icon-full.svg', 1024, 'expo-icon-1024.png'],
+    ['icon-maskable.svg', 512, 'icon-maskable-512.png'],
+    ['icon-foreground.svg', 1024, 'adaptive-foreground-1024.png'],
+  ];
+  const out = [];
+  for (const [src, size, name] of jobs) {
+    const svgText = await (await fetch(src)).text();
+    const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+    const xml = new XMLSerializer().serializeToString(doc.documentElement);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml); });
+    const cv = document.createElement('canvas');
+    cv.width = size; cv.height = size;
+    cv.getContext('2d').drawImage(img, 0, 0, size, size);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    const resp = await fetch('/save?name=' + name, { method: 'POST', body: blob });
+    out.push(name + ':' + (resp.ok ? 'ok' : resp.status));
+    document.body.textContent = out.join(' ');
+  }
+  document.body.textContent = 'DONE ' + out.join(' ');
+})();
+</script>
+</body>
+</html>
