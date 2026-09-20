@@ -26,6 +26,8 @@ export interface ParseOptions {
   forceRules?: boolean;
   /** 单域模式：只识别该域（schedule/todo/finance/mood/diet/people） */
   domain?: string;
+  /** 用户已有联系人名单（人物识别时对齐称呼，避免重复建档） */
+  contactNames?: string[];
   /** LLM 成功响应后回调 token 用量（审计/成本核算用） */
   onUsage?: (usage: { prompt_tokens: number; completion_tokens: number }) => void;
 }
@@ -160,10 +162,11 @@ async function aiExtract(
   domain: string | undefined,
   now: Date,
   onUsage?: ParseOptions["onUsage"],
+  contactNames?: string[],
 ): Promise<{ ext: LlmExtractionT; engine: "llm" | "llm-repaired" }> {
   const system = domain ? DOMAIN_PROMPTS[domain] : EXTRACT_SYSTEM_PROMPT;
   const schema = domain ? domainExtractionV2(domain) : FullExtractionV2;
-  const base = buildExtractUserPrompt(text, toCstWallClock(now));
+  const base = buildExtractUserPrompt(text, toCstWallClock(now), contactNames);
 
   let raw = await chat({ system, user: base, onUsage });
   let parsed = schema.safeParse(extractJson(raw));
@@ -370,7 +373,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   }
 
   try {
-    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage);
+    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage, opts.contactNames);
     return mapAiResult(ext, text, now, engine);
   } catch (e) {
     // 灾难降级：GLM 不可用（网络/超时/额度/鉴权）或重问后输出仍不合格 → 规则引擎接管，打卡入口永不失败

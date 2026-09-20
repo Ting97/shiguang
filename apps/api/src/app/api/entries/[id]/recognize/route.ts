@@ -5,6 +5,7 @@ import { parseInput, CONFIDENCE_THRESHOLD, DOMAIN_LABELS, type Domain, type Pars
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/lib/quota";
 import { writeAuditRecord } from "@/lib/audit";
+import { listContactNames } from "@/lib/analyze";
 
 export const runtime = "nodejs";
 
@@ -42,8 +43,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const t0 = Date.now();
   let promptTokens = 0;
   let completionTokens = 0;
+  const contactNames = domain === "people" ? await listContactNames(user.id) : undefined;
   const r: ParseResult = await parseInput(entry.raw_text, {
     domain, // 单域专属提示词：只判本域，更准更省
+    contactNames,
     onUsage: (u) => {
       // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
       promptTokens += u.prompt_tokens;
@@ -170,22 +173,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         break;
       }
       case "people": {
-        // 关系域：删旧往来，按解析结果重建（自动建档）
+        // 关系域：删旧往来，按解析结果重建（精确名/别名命中已有联系人则复用，避免称呼变体重建档）
         await client.query(`delete from interactions where entry_id = $1 and user_id = $2`, [id, user.id]);
         let added = 0;
         for (const p of r.people) {
-          const c = (
-            await client.query(
-              `insert into contacts (user_id, name) values ($1, $2)
-               on conflict (user_id, name) do update set name = excluded.name returning id`,
-              [user.id, p.name],
-            )
-          ).rows[0];
+          const hit = await client.query(
+            `select id from contacts where user_id = $1 and (name = $2 or alias = $2) limit 1`,
+            [user.id, p.name],
+          );
+          const contactId = hit.rows[0]
+            ? hit.rows[0].id
+            : (
+                await client.query(
+                  `insert into contacts (user_id, name) values ($1, $2)
+                   on conflict (user_id, name) do update set name = excluded.name returning id`,
+                  [user.id, p.name],
+                )
+              ).rows[0].id;
           const summary = p.event ? (p.event === r.title ? p.event : `${p.event}：${r.title}`) : r.title;
           await client.query(
             `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
              values ($1,$2,$3,$4,$5,$6)`,
-            [user.id, c.id, id, inferInteractionType(p.event), summary, r.time.end],
+            [user.id, contactId, id, inferInteractionType(p.event), summary, r.time.end],
           );
           added++;
         }

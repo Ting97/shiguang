@@ -49,7 +49,9 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 - 不适用：「喝了口水」（白水不计）、「买了瓶水」
 
 ### people 人物
-- 话术中提到的具体人物（老王/爸妈/同事小李）+ event（吃饭/送礼/通话/帮忙…，没有就 null）；没有人输出 []（禁止"省略"）
+- 话术中提到的具体人物（老王/同事小李）+ event（吃饭/送礼/通话/帮忙…，没有就 null）；没有人输出 []（禁止"省略"）
+- **合称必须拆成多个人，一人一条**：「爸妈/父母/二老」→「爸爸」+「妈妈」两条；「老爸老妈」→「老爸」+「老妈」；「公婆/岳父岳母」→「公公」+「婆婆」；只提一位（爸/妈/老妈/老爸）就输出一条；拆分后名字跟随话术风格
+- **人物对齐用户已有联系人**（用户消息会给出名单）：话术中的人物若是名单中某人的称呼变体（如 爸/老爸/父亲→「爸爸」，妈/母亲→「妈妈」，老李/李哥→「李哥」），name 必须用**已有联系人的名字原文**；名单里确实没有的才按话术风格命名
 
 ## 金标准示例（对照学习）
 1. 「今天有点累」→ 各域 false，mood:{label:"疲惫",score:-40,confidence:0.95}，people:[]
@@ -57,6 +59,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 3. 「7点半到8点半 通勤+读书」→ 仅 schedule:{applicable:true,activity:"commute",title:"通勤读书",start:"今天07:30",end:"今天08:30",durationMin:60,confidence:0.95}
 4. 「明天下午三点看牙」→ 仅 todo:{applicable:true,due:"明天15:00",confidence:0.95}（schedule=false 但 title="看牙" activity="other" 照填供待办展示）
 5. 「中午和小李吃饭花了260，吃得挺开心」→ schedule:{applicable:true,activity:"social",title:"和小李吃饭",start/end=今天中午合理区间,confidence:0.8} + finance:{hasAmount:true,direction:"out",amountCents:26000,category:"餐饮",counterparty:"小李",confidence:0.9} + mood:{label:"开心",score:60,confidence:0.9} + people:[{name:"小李",event:"吃饭"}] + diet 按实际食物
+6. 「晚上陪爸妈吃饭」→ schedule:{applicable:true,activity:"social",title:"陪爸妈吃饭",start/end=今晚合理区间,confidence:0.85} + people:[{name:"爸爸",event:"吃饭"},{name:"妈妈",event:"吃饭"}]（**爸妈拆成两条**）
 
 ## 输出 JSON（reasoning 最先输出，先想后答）
 {
@@ -85,11 +88,12 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 1. 组合句各域独立命中。
 2. 只输出 JSON，不要解释。`;
 
-export function buildExtractUserPrompt(text: string, nowCst: string): string {
+export function buildExtractUserPrompt(text: string, nowCst: string, contactNames?: string[]): string {
   const catList = (Object.keys(ACTIVITY_NAMES) as (keyof typeof ACTIVITY_NAMES)[])
     .map((k) => `${k}=${ACTIVITY_NAMES[k]}`)
     .join("、");
-  return `当前时间：${nowCst}\n分类对照：${catList}\n用户的话：「${text}」`;
+  const contacts = contactNames?.length ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}` : "";
+  return `当前时间：${nowCst}\n分类对照：${catList}${contacts}\n用户的话：「${text}」`;
 }
 
 /** 修复重问：把上次输出与校验错误清单拼进消息，让模型自查修正（结构化输出修复） */
@@ -170,12 +174,17 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
   people: `你是"拾光复利"App 的人物识别引擎。找出这句话提到的具体人物，只输出 people 数组。
 
 ## 判定标准
-- 提取具体人名/称谓：老王、小李、爸妈、张老师、同事小陈
+- 提取具体人名/称谓：老王、小李、张老师、同事小陈
+- **合称必须拆成多条，一个人一条**：「爸妈/父母/二老」→「爸爸」+「妈妈」两条；「老爸老妈」→「老爸」+「老妈」；「公婆/岳父岳母」→「公公」+「婆婆」；只提一位（爸/妈/老妈/老爸）就输出一条
+- **人物对齐用户已有联系人**（用户消息会给出名单）：话术人物若是名单中某人的称呼变体（爸/老爸/父亲→「爸爸」，妈/母亲→「妈妈」，老李/李哥→「李哥」等），name 必须用**名单里的名字原文**；名单确实没有的才按话术风格命名
 - event 描述关系动作：吃饭/送礼/通话/帮忙/见面/请客…（话术没有就 null）
 - 没有人物输出 []；禁止输出"省略/无"等占位词
 
-## 示例
-「中午和小李吃饭花了260」→ {"reasoning":"有具体人物和动作","people":[{"name":"小李","event":"吃饭"}]}
+## 示例（用户已有联系人：老爸、老妈、张阿姨）
+「中午和小李吃饭花了260」→ {"reasoning":"名单里没有小李，按话术命名","people":[{"name":"小李","event":"吃饭"}]}
+「晚上陪爸妈吃了顿饭」→ {"reasoning":"爸妈拆两条并对齐已有称呼","people":[{"name":"老爸","event":"吃饭"},{"name":"老妈","event":"吃饭"}]}
+「给老妈打了个电话」→ {"reasoning":"妈对齐已有联系人老妈","people":[{"name":"老妈","event":"通话"}]}
+「陪张阿姨逛街了」→ {"reasoning":"对齐已有联系人","people":[{"name":"张阿姨","event":"见面"}]}
 「今天好累」→ {"reasoning":"无人物","people":[]}
 
 只输出 JSON：{"reasoning":"一句话","people":[...]}`,

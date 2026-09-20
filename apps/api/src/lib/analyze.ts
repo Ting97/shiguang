@@ -33,6 +33,20 @@ export interface AnalyzeOutcome {
   kind: "todo" | "block" | "moment";
 }
 
+/** 用户已有联系人名单（按最近往来排序，人物识别时供 AI 对齐称呼，封顶 100 人控制 token） */
+export async function listContactNames(userId: string): Promise<string[]> {
+  const { rows } = await pool.query(
+    `select c.name from contacts c
+     left join (select contact_id, max(occurred_at) as last_at from interactions where user_id = $1 group by contact_id) i
+       on i.contact_id = c.id
+     where c.user_id = $1
+     order by i.last_at desc nulls last, c.created_at desc
+     limit 100`,
+    [userId],
+  );
+  return rows.map((r) => r.name).filter(Boolean);
+}
+
 /** 解析审计（docs/06 欠账：引擎/模型/耗时/token → audit_logs 成本监控）；失败静默不影响主流程 */
 async function writeAudit(
   userId: string,
@@ -75,7 +89,9 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   let completionTokens = 0;
   const client = await pool.connect();
   try {
+    const contactNames = await listContactNames(userId);
     const r = await parseInput(rawText, {
+      contactNames,
       onUsage: (u) => {
         // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
         promptTokens += u.prompt_tokens;
@@ -226,7 +242,7 @@ async function insertTransaction(
   );
 }
 
-/** 人际草稿：动态提到的人自动建档 + 记往来 */
+/** 人际草稿：动态提到的人自动建档 + 记往来（精确名/别名命中已有联系人则复用，避免称呼变体重建档） */
 async function persistPeople(
   client: import("pg").PoolClient,
   userId: string,
@@ -234,18 +250,28 @@ async function persistPeople(
   r: import("@shiguangri/ai").ParseResult,
 ) {
   for (const p of r.people) {
-    const c = (
-      await client.query(
-        `insert into contacts (user_id, name) values ($1, $2)
-         on conflict (user_id, name) do update set name = excluded.name returning id`,
-        [userId, p.name],
-      )
-    ).rows[0];
+    // 先精确名/别名匹配（如识别出"王建军"而已有联系人"老王"的别名为它）
+    const hit = await client.query(
+      `select id, name from contacts where user_id = $1 and (name = $2 or alias = $2) limit 1`,
+      [userId, p.name],
+    );
+    let contactId: string;
+    if (hit.rows[0]) {
+      contactId = hit.rows[0].id;
+    } else {
+      contactId = (
+        await client.query(
+          `insert into contacts (user_id, name) values ($1, $2)
+           on conflict (user_id, name) do update set name = excluded.name returning id`,
+          [userId, p.name],
+        )
+      ).rows[0].id;
+    }
     const summary = p.event ? (p.event === r.title ? p.event : `${p.event}：${r.title}`) : r.title;
     await client.query(
       `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
        values ($1,$2,$3,$4,$5,$6)`,
-      [userId, c.id, entryId, inferInteractionType(p.event), summary, r.time.end],
+      [userId, contactId, entryId, inferInteractionType(p.event), summary, r.time.end],
     );
   }
 }
