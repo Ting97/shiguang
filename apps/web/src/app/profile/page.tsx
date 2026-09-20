@@ -30,6 +30,30 @@ export default function ProfilePage() {
   const [msgPwd, setMsgPwd] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState<{ plan: string; used: number; limit: number | null; planExpiresAt: string | null; isAdmin: boolean } | null>(null);
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+
+  interface AdminUser {
+    id: string;
+    nickname: string | null;
+    phone: string | null;
+    plan: string;
+    planExpiresAt: string | null;
+    used30d: number;
+  }
+
+  const loadUsers = () => {
+    fetch("/api/billing/users").then(async (r) => setUsers(r.ok ? await r.json().then((j) => j.users) : null));
+  };
+
+  async function adminSetPlan(userId: string, plan: "free" | "pro") {
+    await fetch("/api/billing/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, plan, months: 12 }),
+    });
+    loadUsers();
+    fetch("/api/billing/plan").then(async (r) => r.ok && setQuota(await r.json())); // 同步刷新自己的额度条
+  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(async (r) => {
@@ -45,7 +69,9 @@ export default function ProfilePage() {
     // 套餐与 AI 用量（30 天窗口）
     fetch("/api/billing/plan").then(async (r) => {
       if (!r.ok) return;
-      setQuota(await r.json());
+      const j = await r.json();
+      setQuota(j);
+      if (j.isAdmin) loadUsers();
     });
   }, []);
 
@@ -232,6 +258,40 @@ export default function ProfilePage() {
                 </>
               ) : (
                 <p className="mt-1 text-xs text-ink-dim">加载中…</p>
+              )}
+              {/* 管理员：给用户发放/取消 Pro */}
+              {quota?.isAdmin && users && (
+                <div className="mt-4 border-t border-line-soft pt-3">
+                  <p className="text-xs font-medium text-ink-soft">👤 用户套餐管理（管理员）</p>
+                  <ul className="mt-2 space-y-2">
+                    {users.map((u) => (
+                      <li key={u.id} className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="min-w-0 flex-1 truncate text-ink">
+                          {u.nickname ?? "未命名"}
+                          <span className="ml-1.5 text-ink-faint">{u.phone ?? ""}</span>
+                        </span>
+                        <span className={u.plan === "pro" ? "font-medium text-amber-400" : "text-ink-mute"}>
+                          {u.plan === "pro" ? "Pro" : "免费"}·30天{u.used30d}次
+                        </span>
+                        {u.plan === "pro" ? (
+                          <button
+                            onClick={() => adminSetPlan(u.id, "free")}
+                            className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1 text-[11px] text-ink-soft transition hover:border-rose-500/50"
+                          >
+                            取消Pro
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => adminSetPlan(u.id, "pro")}
+                            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-warn transition hover:bg-amber-500/20"
+                          >
+                            升级Pro(1年)
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </section>
 
