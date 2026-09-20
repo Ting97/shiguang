@@ -6,14 +6,33 @@ import { getQuota } from "@/lib/quota";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/billing/plan —— 当前用户套餐与 AI 用量（30 天窗口） */
+/** GET /api/billing/plan —— 当前用户套餐与 AI 用量（30 天窗口）+ 自己的按模型 token 明细 */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const quota = await getQuota(user.id);
+  const { rows } = await pool.query(
+    `select model,
+            count(*)::int as calls,
+            coalesce(sum(prompt_tokens), 0)::bigint as prompt,
+            coalesce(sum(completion_tokens), 0)::bigint as completion,
+            count(*) filter (where created_at > now() - interval '30 days')::int as calls_30d,
+            coalesce(sum(prompt_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as prompt_30d,
+            coalesce(sum(completion_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as completion_30d
+     from audit_logs where user_id = $1
+     group by model
+     order by sum(prompt_tokens) + sum(completion_tokens) desc`,
+    [user.id],
+  );
+  const byModel = rows.map((r) => ({
+    model: r.model,
+    all: { calls: Number(r.calls), promptTokens: Number(r.prompt), completionTokens: Number(r.completion) },
+    d30: { calls: Number(r.calls_30d), promptTokens: Number(r.prompt_30d), completionTokens: Number(r.completion_30d) },
+  }));
   return NextResponse.json({
     isAdmin: user.id === DEV_USER_ID,
     ...quota,
+    byModel,
   });
 }
 

@@ -29,7 +29,14 @@ export default function ProfilePage() {
   const [msgNick, setMsgNick] = useState<{ ok: boolean; text: string } | null>(null);
   const [msgPwd, setMsgPwd] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [quota, setQuota] = useState<{ plan: string; used: number; limit: number | null; planExpiresAt: string | null; isAdmin: boolean } | null>(null);
+  const [quota, setQuota] = useState<{
+    plan: string;
+    used: number;
+    limit: number | null;
+    planExpiresAt: string | null;
+    isAdmin: boolean;
+    byModel?: { model: string; all: { calls: number; promptTokens: number; completionTokens: number }; d30: { calls: number } }[];
+  } | null>(null);
   const [users, setUsers] = useState<AdminUser[] | null>(null);
 
   interface AdminUser {
@@ -254,6 +261,19 @@ export default function ProfilePage() {
                       </div>
                     )}
                   </div>
+                  {quota.byModel && quota.byModel.length > 0 && (
+                    <ul className="mt-2.5 space-y-0.5">
+                      {quota.byModel.map((m) => (
+                        <li key={m.model} className="flex items-center gap-2 text-[11px] tabular-nums text-ink-mute">
+                          <span className="font-medium text-ink-soft">{m.model}</span>
+                          <span className="ml-auto">
+                            近30天 {m.d30.calls} 次 · 累计 {m.all.calls} 次 /{" "}
+                            {(m.all.promptTokens + m.all.completionTokens).toLocaleString("zh-CN")} tokens
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p className="mt-2 text-[11px] text-ink-faint">语音速记、AI 识别、复盘均消耗次数；Pro 不限量。支付通道接入前，内测期间联系管理员开通 Pro。</p>
                 </>
               ) : (

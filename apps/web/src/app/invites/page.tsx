@@ -31,6 +31,12 @@ interface UsageInvitee {
   d30: Usage;
 }
 
+interface UsageByModel {
+  model: string;
+  all: Usage;
+  d30: Usage;
+}
+
 const zhDate = (iso: string | null) => {
   if (!iso) return "不限";
   const d = new Date(iso);
@@ -47,7 +53,7 @@ export default function InvitesPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [usage, setUsage] = useState<{ self: UsageSelf; invitees: UsageInvitee[] } | null>(null);
+  const [usage, setUsage] = useState<{ self: UsageSelf; invitees: UsageInvitee[]; byModel?: UsageByModel[] } | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/auth/invites");
@@ -64,7 +70,7 @@ export default function InvitesPage() {
     setState("ok");
     fetch("/api/tokens/usage")
       .then((r2) => (r2.ok ? r2.json() : null))
-      .then((j2) => setUsage(j2 ? { self: j2.self, invitees: j2.invitees ?? [] } : null))
+      .then((j2) => setUsage(j2 ? { self: j2.self, invitees: j2.invitees ?? [], byModel: j2.byModel ?? [] } : null))
       .catch(() => {});
   }, []);
   useEffect(() => {
@@ -172,6 +178,40 @@ export default function InvitesPage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* 按模型统计 */}
+                  {usage.byModel && usage.byModel.length > 0 && (
+                    <div className="mt-3">
+                      <p className="mb-1.5 text-[11px] text-ink-dim">按模型统计（自己 + 被邀请人）</p>
+                      <div className="overflow-hidden rounded-xl border border-line-soft">
+                        <table className="w-full text-left text-[11px] tabular-nums">
+                          <thead className="bg-elevated/60 text-ink-dim">
+                            <tr>
+                              <th className="px-2.5 py-1.5 font-medium">模型</th>
+                              <th className="px-2 py-1.5 font-medium">全部调用</th>
+                              <th className="px-2 py-1.5 font-medium">全部 tokens</th>
+                              <th className="px-2 py-1.5 font-medium">30 天调用</th>
+                              <th className="px-2 py-1.5 font-medium">30 天 tokens</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {usage.byModel.map((m) => (
+                              <tr key={m.model} className="border-t border-line-soft">
+                                <td className="px-2.5 py-1.5 font-medium text-ink">{m.model}</td>
+                                <td className="px-2 py-1.5 text-ink-mute">{m.all.calls}</td>
+                                <td className="px-2 py-1.5 text-ink">{fmtTotal(m.all)}</td>
+                                <td className="px-2 py-1.5 text-ink-mute">{m.d30.calls}</td>
+                                <td className="px-2 py-1.5 text-ink">{fmtTotal(m.d30)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="mt-1 text-[10px] text-ink-faint">
+                        tokens = 输入 + 输出；明细可按 stage（asr/parse/review/chat）在 audit_logs 表中进一步追溯
+                      </p>
+                    </div>
+                  )}
 
                   {/* 被邀请人消耗 */}
                   <div className="mt-3">

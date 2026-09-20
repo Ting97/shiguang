@@ -61,5 +61,26 @@ export async function GET() {
     d30: { calls: Number(r.calls_30d), promptTokens: Number(r.prompt_30d), completionTokens: Number(r.completion_30d) },
   }));
 
-  return NextResponse.json({ self, invitees });
+  const { rows: modelRows } = await pool.query(
+    `select model,
+            count(*)::int as calls,
+            coalesce(sum(prompt_tokens), 0)::bigint as prompt,
+            coalesce(sum(completion_tokens), 0)::bigint as completion,
+            count(*) filter (where created_at > now() - interval '30 days')::int as calls_30d,
+            coalesce(sum(prompt_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as prompt_30d,
+            coalesce(sum(completion_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as completion_30d
+     from audit_logs
+     where user_id = $1
+        or user_id in (select used_by from invite_codes where created_by = $1 and used_by is not null)
+     group by model
+     order by sum(prompt_tokens) + sum(completion_tokens) desc`,
+    [user.id],
+  );
+  const byModel = modelRows.map((r) => ({
+    model: r.model,
+    all: { calls: Number(r.calls), promptTokens: Number(r.prompt), completionTokens: Number(r.completion) },
+    d30: { calls: Number(r.calls_30d), promptTokens: Number(r.prompt_30d), completionTokens: Number(r.completion_30d) },
+  }));
+
+  return NextResponse.json({ self, invitees, byModel });
 }
