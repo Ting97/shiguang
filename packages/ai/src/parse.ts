@@ -122,6 +122,26 @@ function toCstWallClock(d: Date): string {
   return `${c.getFullYear()}-${p(c.getMonth() + 1)}-${p(c.getDate())} ${p(c.getHours())}:${p(c.getMinutes())}（北京时间）`;
 }
 
+/** 从原话确定性恢复饮食条目（GLM 整句当 name 时的兜底）："今天喝了两杯黑咖啡两杯豆浆和一点点香芋条" → 黑咖啡/豆浆/香芋条 */
+export function recoverDietItemsFromText(text: string): { name: string; amount: string | null; kcal: number | null }[] | null {
+  let t = text.trim()
+    .replace(/^(今天|今日|刚才|刚刚|现在|早上|中午|晚上)/, "")
+    .replace(/^(喝了|吃了|喝|吃|点了|点了)/, "")
+    .replace(/^(了)/, "");
+  if (t === text) return null; // 没去掉任何时间/动词前缀 → 不像饮食流水账，放弃恢复
+  const items: { name: string; amount: string | null; kcal: number | null }[] = [];
+  for (const rawPart of t.split(/和|及|还有|，|,|、/)) {
+    const seg = rawPart.trim().replace(/^一点点/, "").replace(/([0-9一二两三四五六七八九十半]+)(杯|碗|瓶|罐|份|个|根|块|片|包|盒|盘|颗)/g, "、");
+    for (const piece of seg.split("、")) {
+      const name = piece.replace(/^[杯碗瓶罐份个根条块片包盒盘颗]/, "").trim();
+      if (name.length >= 2 && name.length <= 12 && !/[了的在]/.test(name)) {
+        items.push({ name, amount: null, kcal: null });
+      }
+    }
+  }
+  return items.length >= 1 ? items : null;
+}
+
 // ---------- 主入口 ----------
 
 export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
@@ -209,9 +229,14 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
 
   // 饮食归一：过滤空名条目；totalKcal 缺失时按已知项合计
   // 饮食名过滤：整句/句子片段被误当食物名时丢弃（如"今天喝了两杯黑咖啡两杯豆"）
-  const dietItems = ext.diet.items.filter(
+  let dietItems = ext.diet.items.filter(
     (it) => it.name?.trim() && !/^(今天|今日|刚才|刚刚|我|现在)/.test(it.name.trim()) && it.name.trim().length <= 16,
   );
+  // GLM 拆分失败（整句当条目被滤空）→ 从原话确定性恢复：去时间词/动词 → 按连词拆分 → 去数量词
+  if (dietItems.length === 0 && ext.diet.applicable) {
+    const recovered = recoverDietItemsFromText(text);
+    if (recovered) dietItems = recovered;
+  }
   const knownKcal = dietItems.reduce((s, it) => s + (it.kcal ?? 0), 0);
   const totalKcal = ext.diet.totalKcal ?? (knownKcal > 0 ? knownKcal : null);
 
