@@ -344,12 +344,27 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
           <p className="mt-1.5 animate-pulse text-xs text-accent/80">🤖 AI 识别中…（日程 / 关系 / 待办 / 收支 / 心情 / 饮食）</p>
         )}
 
-        {/* 日程冲突降级提示：识别时发现时间重叠，未登记时间轴 */}
-        {m.analyzed_at && m.recognitions?.schedule?.status === "none" && m.recognitions.schedule.reason?.includes("已有日程") && (
-          <p className="mt-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-warn/90">
-            ⚠️ 未生成日程：{m.recognitions.schedule.reason}
-          </p>
-        )}
+        {/* 日程冲突降级提示：识别时发现时间重叠，未登记时间轴；可关闭（服务端标记，多端不再出现） */}
+        {m.analyzed_at &&
+          m.recognitions?.schedule?.status === "none" &&
+          !m.recognitions.schedule.reasonDismissed &&
+          (m.recognitions.schedule.reason?.includes("已有日程") || m.recognitions.schedule.reason?.includes("时间冲突")) && (
+            <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-warn/90">
+              <span className="min-w-0 flex-1">⚠️ 未生成日程：{m.recognitions.schedule.reason}</span>
+              <button
+                onClick={() =>
+                  run(async () => {
+                    await api(`/api/feed/${m.id}/dismiss-conflict`, "POST");
+                    return "已关闭，不再提示";
+                  })
+                }
+                title="不再显示此提示"
+                className="shrink-0 rounded px-1 text-warn/60 transition hover:text-warn"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
         {/* 心情：可改可删 */}
         {m.mood || moodPicker ? (
