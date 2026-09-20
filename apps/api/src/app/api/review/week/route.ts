@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   const from = localYmd(monday);
   const to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
 
-  const [timeRows, todoRows, txRows, interactRows, entryRows] = await Promise.all([
+  const [timeRows, todoRows, txRows, interactRows, entryRows, dayTimeRows, dayEntryRows, dayTxRows] = await Promise.all([
     pool.query(
       `select a.name, a.icon,
               sum(floor(extract(epoch from least((b.end_at at time zone $2), ($4::date + 1))
@@ -76,10 +76,61 @@ export async function POST(req: Request) {
        where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date`,
       [user.id, TZ, from, to],
     ),
+    // ---- 每日明细（喂给模型逐日对比；活动取每日 top2）----
+    pool.query(
+      `select (b.start_at at time zone $2)::date::text as day, a.name, a.icon,
+              sum(floor(extract(epoch from least((b.end_at at time zone $2), ($4::date + 1))
+                       - greatest((b.start_at at time zone $2), $3::date)) / 60))::int as mins
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       where b.user_id = $1
+         and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
+       group by 1, 2, 3`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select (created_at at time zone $2)::date::text as day, count(*)::int as n
+       from entries
+       where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
+       group by 1`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select (occurred_at at time zone $2)::date::text as day,
+              coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::int as out_cents
+       from transactions
+       where user_id = $1 and is_draft = false
+         and (occurred_at at time zone $2)::date between $3::date and $4::date
+       group by 1`,
+      [user.id, TZ, from, to],
+    ),
   ]);
 
   const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
   const timeParts = timeRows.rows.map((r) => `${r.icon}${r.name} ${fmtMin(r.mins)}`);
+  // 每日明细行：周一…周日，各取 top2 活动 + 动态数 + 支出
+  const WD = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  const dayAgg = new Map<string, { acts: string[]; n: number; out: number }>(
+    Array.from({ length: 7 }, (_, i) => {
+      const k = localYmd(new Date(monday.getTime() + i * 86_400_000));
+      return [k, { acts: [], n: 0, out: 0 }];
+    }),
+  );
+  for (const r of dayTimeRows.rows) {
+    const d = dayAgg.get(r.day);
+    if (d && d.acts.length < 2) d.acts.push(`${r.icon}${r.name} ${fmtMin(r.mins)}`);
+  }
+  for (const r of dayEntryRows.rows) {
+    const d = dayAgg.get(r.day);
+    if (d) d.n = r.n;
+  }
+  for (const r of dayTxRows.rows) {
+    const d = dayAgg.get(r.day);
+    if (d) d.out = r.out_cents;
+  }
+  const dayLines = [...dayAgg.entries()].map(([k, d], i) => {
+    const bits = [d.acts.join("、"), d.n ? `动态${d.n}条` : "", d.out ? `支出¥${(d.out / 100).toFixed(0)}` : ""].filter(Boolean);
+    return `${WD[i]}(${k.slice(5)})：${bits.length ? bits.join(" · ") : "无记录"}`;
+  });
   const facts = [
     `周期：${from} 至 ${to}`,
     `时间投入：${timeParts.length ? timeParts.join("、") : "无"}`,
@@ -87,12 +138,14 @@ export async function POST(req: Request) {
     `支出 ¥${(txRows.rows[0].out_cents / 100).toFixed(0)} · 收入 ¥${(txRows.rows[0].in_cents / 100).toFixed(0)}`,
     interactRows.rows.length ? `人际互动：${interactRows.rows.map((r) => `${r.name}${r.n}次`).join("、")}` : "人际互动：无",
     `动态 ${entryRows.rows[0].n} 条（覆盖 ${entryRows.rows[0].days} 天）${entryRows.rows[0].moods.length ? `（心情：${entryRows.rows[0].moods.join("、")}）` : ""}`,
+    "每日明细：",
+    ...dayLines,
   ];
 
-  const system = `你是个人经营助手「拾光复利」，基于用户一周的**真实记录**写一份简短周报。只依据事实归纳对比，**严禁编造**；语气温和务实，不灌鸡汤。严格输出 JSON：
+  const system = `你是个人经营助手「拾光复利」，基于用户一周的**真实记录**（含每日明细）写一份周报。只依据事实归纳对比，**严禁编造**；语气温和务实，不灌鸡汤。可引用具体某天的表现做对比。严格输出 JSON：
 {
-  "summary": "这一周的一句话总结（≤60字，突出时间结构和整体状态）",
-  "highlights": ["值得肯定的亮点，最多3条，没有就空数组"],
+  "summary": "这一周的总结（≤80字，突出时间结构、节奏变化和整体状态）",
+  "highlights": ["值得肯定的亮点，最多3条，可引用具体某天"],
   "suggestions": ["下周可改进的具体建议，最多2条，没有依据就空数组"]
 }`;
 
@@ -115,19 +168,19 @@ export async function POST(req: Request) {
       system,
       user: facts.join("\n"),
       temperature: 0.4,
-      maxTokens: 500,
+      maxTokens: 800,
       timeoutMs: 45_000,
       onUsage: capture,
     });
     const parsed = extractJson(raw) as Partial<WeekReview>;
-    const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 50)).filter(Boolean).slice(0, 3) : []);
+    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 60)).filter(Boolean).slice(0, n) : []);
     return {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 90)
+          ? parsed.summary.trim().slice(0, 110)
           : "这一周记录还很少，多记几天再来复盘会更有料",
-      highlights: arr(parsed.highlights),
-      suggestions: arr(parsed.suggestions),
+      highlights: arr(parsed.highlights, 3),
+      suggestions: arr(parsed.suggestions, 2),
     };
   });
 

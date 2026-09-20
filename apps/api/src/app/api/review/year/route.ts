@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
 
-  const [timeRows, todoRows, txRows, interactRows, entryRows] = await Promise.all([
+  const [timeRows, todoRows, txRows, interactRows, entryRows, mmTimeRows, mmEntryRows, mmTxRows] = await Promise.all([
     pool.query(
       `select a.name, a.icon,
               sum(floor(extract(epoch from least((b.end_at at time zone $2), ($4::date + 1))
@@ -71,10 +71,59 @@ export async function POST(req: Request) {
        where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date`,
       [user.id, TZ, from, to],
     ),
+    // ---- 逐月轨迹（跨月块按起止月分别计入时长；活动取每月 top3）----
+    pool.query(
+      `select extract(month from (b.start_at at time zone $2))::int as mm, a.name, a.icon,
+              sum(floor(extract(epoch from
+                least(least((b.end_at at time zone $2), ($4::date + 1)), date_trunc('month', (b.start_at at time zone $2)) + interval '1 month')
+                - greatest(greatest((b.start_at at time zone $2), $3::date), date_trunc('month', (b.start_at at time zone $2)))
+              ) / 60))::int as mins
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       where b.user_id = $1
+         and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
+       group by 1, 2, 3`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select extract(month from (created_at at time zone $2))::int as mm, count(*)::int as n
+       from entries
+       where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
+       group by 1`,
+      [user.id, TZ, from, to],
+    ),
+    pool.query(
+      `select extract(month from (occurred_at at time zone $2))::int as mm,
+              coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::int as out_cents
+       from transactions
+       where user_id = $1 and is_draft = false
+         and (occurred_at at time zone $2)::date between $3::date and $4::date
+       group by 1`,
+      [user.id, TZ, from, to],
+    ),
   ]);
 
   const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
   const timeParts = timeRows.rows.map((r) => `${r.icon}${r.name} ${fmtMin(r.mins)}`);
+  // 逐月轨迹行：1…12 月，各取 top3 活动 + 动态数 + 支出
+  const mmAgg = new Map<number, { acts: string[]; n: number; out: number }>(
+    Array.from({ length: 12 }, (_, i) => [i + 1, { acts: [], n: 0, out: 0 }]),
+  );
+  for (const r of mmTimeRows.rows) {
+    const d = mmAgg.get(r.mm);
+    if (d && d.acts.length < 3) d.acts.push(`${r.icon}${r.name} ${fmtMin(r.mins)}`);
+  }
+  for (const r of mmEntryRows.rows) {
+    const d = mmAgg.get(r.mm);
+    if (d) d.n = r.n;
+  }
+  for (const r of mmTxRows.rows) {
+    const d = mmAgg.get(r.mm);
+    if (d) d.out = r.out_cents;
+  }
+  const monthLines = [...mmAgg.entries()].map(([mm, d]) => {
+    const bits = [d.acts.join("、"), d.n ? `动态${d.n}条` : "", d.out ? `支出¥${(d.out / 100).toFixed(0)}` : ""].filter(Boolean);
+    return `${mm}月：${bits.length ? bits.join(" · ") : "无记录"}`;
+  });
   const facts = [
     `周期：${year} 年（${from} 至 ${to}）`,
     `时间投入：${timeParts.length ? timeParts.join("、") : "无"}`,
@@ -82,13 +131,15 @@ export async function POST(req: Request) {
     `支出 ¥${(txRows.rows[0].out_cents / 100).toFixed(0)} · 收入 ¥${(txRows.rows[0].in_cents / 100).toFixed(0)}`,
     interactRows.rows.length ? `人际互动：${interactRows.rows.map((r) => `${r.name}${r.n}次`).join("、")}` : "人际互动：无",
     `动态 ${entryRows.rows[0].n} 条（覆盖 ${entryRows.rows[0].days} 天）${entryRows.rows[0].moods.length ? `（心情：${entryRows.rows[0].moods.join("、")}）` : ""}`,
+    "逐月轨迹：",
+    ...monthLines,
   ];
 
-  const system = `你是个人经营助手「拾光复利」，基于用户一个月的**真实记录**写一份简短月报。只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。严格输出 JSON：
+  const system = `你是个人经营助手「拾光复利」，基于用户一年的**真实记录**（含逐月轨迹）写一份年报。只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。请梳理全年节奏与成长轨迹。严格输出 JSON：
 {
-  "summary": "这一年的总结（≤60字，突出全年时间结构、坚持情况和成长轨迹）",
-  "highlights": ["值得肯定的亮点，最多3条，没有就空数组"],
-  "suggestions": ["明年可改进的具体建议，最多2条，没有依据就空数组"]
+  "summary": "这一年的总结（≤150字，突出全年时间结构、坚持情况和成长轨迹）",
+  "highlights": ["值得肯定的亮点，最多5条"],
+  "suggestions": ["明年可改进的具体建议，最多3条，没有依据就空数组"]
 }`;
 
 
@@ -110,19 +161,19 @@ export async function POST(req: Request) {
       system,
       user: facts.join("\n"),
       temperature: 0.4,
-      maxTokens: 500,
+      maxTokens: 1400,
       timeoutMs: 45_000,
       onUsage: capture,
     });
     const parsed = extractJson(raw) as Partial<YearReview>;
-    const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 50)).filter(Boolean).slice(0, 3) : []);
+    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 80)).filter(Boolean).slice(0, n) : []);
     return {
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 90)
+          ? parsed.summary.trim().slice(0, 200)
           : "这一年记录还很少，多记几天再来复盘会更有料",
-      highlights: arr(parsed.highlights),
-      suggestions: arr(parsed.suggestions),
+      highlights: arr(parsed.highlights, 5),
+      suggestions: arr(parsed.suggestions, 3),
     };
   });
 
