@@ -129,6 +129,30 @@ export function parseClockRange(
 
 const WEEKDAYS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
 
+const MAX_SPAN_MS = 366 * 24 * 3600_000;
+
+/** 校验 AI 直推的时刻（北京时间本地串）：非法/距当前超 366 天 → null */
+export function resolveMoment(s: string | null | undefined, now: Date): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  if (Math.abs(d.getTime() - now.getTime()) > MAX_SPAN_MS) return null;
+  return d;
+}
+
+/** 校验 AI 直推的起止区间：end<=start / 超幅 → null */
+export function resolveExplicitRange(
+  startStr: string | null | undefined,
+  endStr: string | null | undefined,
+  now: Date,
+): { start: Date; end: Date } | null {
+  const start = resolveMoment(startStr, now);
+  if (!start) return null;
+  const end = resolveMoment(endStr, now);
+  if (!end || end <= start) return null;
+  return { start, end };
+}
+
 function atHour(base: Date, hour: number, minute = 0): Date {
   const d = new Date(base);
   d.setHours(Math.floor(hour), Math.round((hour % 1) * 60) + minute, 0, 0);

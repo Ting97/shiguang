@@ -126,6 +126,9 @@ export const LlmExtraction = z.object({
       activity: ActivityId.default("other"),
       title: z.string().max(30),
       durationMin: z.coerce.number().int().positive().nullish(),
+      /** AI 直推的起止时刻（北京时间本地串 "YYYY-MM-DDTHH:MM"）；语义含糊给 null 走规则推断 */
+      start: z.string().nullish().catch(null),
+      end: z.string().nullish().catch(null),
       periodHint: z
         .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
         .nullish()
@@ -138,6 +141,7 @@ export const LlmExtraction = z.object({
   todo: z
     .object({
       applicable: z.coerce.boolean().default(false),
+      due: z.string().nullish().catch(null),
       confidence: conf(0.9),
     })
     .nullish()

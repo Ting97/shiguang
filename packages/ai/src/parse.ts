@@ -9,7 +9,7 @@ import {
   LlmExtraction, ParseResult, ACTIVITY_IDS,
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
 } from "./schema";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange } from "./time-infer";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment } from "./time-infer";
 import { parseAmountCents, parseDuration } from "./duration";
 import { ruleMood } from "./mood-rules";
 
@@ -172,7 +172,20 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   const future = ext.todo.applicable || detectFuture(text) !== null;
 
   // 未来话术 → 不钳制的计划时刻（上层创建 TODO）；过去/当前 → 照常推断并钳制；status → 时间无意义，仅留档
-  const tb = inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);
+  // AI 直推起止优先（最强显式信号）；缺失/非法回退规则引擎推断
+  const glmRange = resolveExplicitRange(ext.schedule.start ?? null, ext.schedule.end ?? null, now);
+  const todoDue = resolveMoment(ext.todo.due ?? null, now);
+  let tb = glmRange
+    ? {
+        mode: "explicit" as const,
+        start: glmRange.start,
+        end: glmRange.end,
+        durationMin: Math.round((glmRange.end.getTime() - glmRange.start.getTime()) / 60_000),
+      }
+    : inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);
+  if (future && todoDue) {
+    tb = { mode: "future", start: todoDue, end: todoDue, durationMin };
+  }
   // 进行中：起止区间横跨当下（已开始未结束）→ 落日程块之外再生成收尾待办
   // （explicit/relative 都可能是显式钟点区间的产物——"9:10到9:30"无时长词时 mode=relative）
   const ongoing = !future && (tb.mode === "explicit" || tb.mode === "relative") && tb.start <= now && now < tb.end;
@@ -180,6 +193,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   // 弱锚点防御：无显式钟点/时段/时长/未来信号/刚…标记时，日程锚只能落到默认回顾点或当下——
   // 这类多为饮食/感受类流水账（GLM 偶发误判 applicable），强制降级为纯动态
   const hasExplicitTime =
+    glmRange !== null ||
     parseClockRange(text, ext.schedule.periodHint ?? null) !== null ||
     /\d{1,2}\s*[点时]/.test(text) ||
     detectPeriod(text) !== null ||

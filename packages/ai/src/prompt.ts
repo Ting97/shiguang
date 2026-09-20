@@ -7,6 +7,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 - 五个域互相独立：一句话可以同时命中任意多个域，也可以一个都不命中。
 - 每个域先独立问自己"这句话里有这个域的信息吗？"（写进 reasoning），再给结论。
 - **识别不出来就 applicable=false / 空值，禁止为了填而填，禁止脑补。**
+- **时间推断（start/end/due）**：以「当前时间」（北京时间）为基准推算今天/明天；能从话术明确推算起止才填（如"7点半到8点半"→今天07:30/08:30；"明天下午三点"→明天15:00起）；量词/感受/含糊表达（"一点点""两杯""有点累"）**一律 null**，禁止把"一点"当钟点。end 晚于 start（跨天如 22:30→06:30 给次日时间）
 
 ## 五域判定标准与正反例
 
@@ -47,8 +48,8 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光复利"App 的记录解析引
 ## 输出 JSON（reasoning 必须最先输出，先想后答）
 {
   "reasoning": { "schedule": "一句话判断", "todo": "…", "finance": "…", "mood": "…", "diet": "…" },
-  "schedule": { "applicable": bool, "activity": "sleep|work|study|fitness|social|fun|chores|commute|other", "title": "≤8字短语", "durationMin": 数字或null(话术明确给出才填), "periodHint": "now|morning|noon|afternoon|evening|night|lateNight", "confidence": 0~1 },
-  "todo": { "applicable": bool, "confidence": 0~1 },
+  "schedule": { "applicable": bool, "activity": "sleep|work|study|fitness|social|fun|chores|commute|other", "title": "≤8字短语", "start": "YYYY-MM-DDTHH:MM"或null, "end": "YYYY-MM-DDTHH:MM"或null, "durationMin": 数字或null(话术明确给出才填), "periodHint": "now|morning|noon|afternoon|evening|night|lateNight", "confidence": 0~1 },
+  "todo": { "applicable": bool, "due": "YYYY-MM-DDTHH:MM"或null, "confidence": 0~1 },
   "finance": { "hasAmount": bool, "direction": "out|in", "amountCents": 正数或null, "category": "餐饮/交通/人情往来/学习/购物/娱乐/其他", "counterparty": "交易对象或null", "confidence": 0~1 },
   "mood": { "label": "情绪词或null", "score": -100~100或null, "confidence": 0~1 },
   "diet": { "applicable": bool, "meal": "早餐|午餐|晚餐|加餐|夜宵|未知", "items": [ { "name": "食物", "amount": "分量如1碗", "kcal": 整数或null } ], "totalKcal": 已知项合计或null, "confidence": 0~1 },
