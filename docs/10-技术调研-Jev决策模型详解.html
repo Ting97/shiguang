@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jev 详解 —— TypeSafe AI 的 System One 模型 | 拾光复利技术调研</title>
+<style>
+  :root {
+    --accent: #5b5bd6;
+    --accent-light: #eeedff;
+    --ink: #1f2333;
+    --ink-soft: #555b70;
+    --line: #e6e6f0;
+    --bg: #fafaf8;
+    --card: #ffffff;
+    --ok: #0f8a5f;
+    --ok-bg: #e9f7f0;
+    --warn: #b7791f;
+    --warn-bg: #fdf3e3;
+    --bad: #c0392b;
+    --bad-bg: #fdeceb;
+    --code-bg: #1e2130;
+    --code-ink: #d8dcf0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.75;
+    font-size: 16px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    background: linear-gradient(135deg, #4747b3 0%, #5b5bd6 55%, #7a6ae0 100%);
+    color: #fff;
+    padding: 64px 24px 56px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 40px; font-weight: 700; letter-spacing: 1px; }
+  .hero .sub { margin-top: 14px; font-size: 17px; opacity: .92; max-width: 640px; margin-left: auto; margin-right: auto; }
+  .badges { margin-top: 26px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .badge {
+    background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.35);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 13px;
+    backdrop-filter: blur(4px);
+  }
+
+  /* ---------- 通用 ---------- */
+  section { margin-top: 56px; }
+  h2 {
+    font-size: 24px; font-weight: 700; margin-bottom: 18px;
+    padding-left: 14px; border-left: 5px solid var(--accent);
+  }
+  h3 { font-size: 18px; font-weight: 600; margin: 26px 0 10px; }
+  p { margin: 10px 0; color: var(--ink); }
+  p.soft, li.soft { color: var(--ink-soft); }
+  ul, ol { padding-left: 24px; margin: 10px 0; }
+  li { margin: 6px 0; }
+  strong { font-weight: 650; }
+  code {
+    font-family: "Cascadia Code", Consolas, "JetBrains Mono", monospace;
+    background: var(--accent-light); color: #4747b3;
+    padding: 2px 7px; border-radius: 5px; font-size: 13.5px;
+  }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
+  a:hover { border-bottom-style: solid; }
+
+  .tldr {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 26px; margin-top: 40px;
+    box-shadow: 0 6px 24px rgba(31,35,51,.05);
+    border-top: 4px solid var(--accent);
+  }
+  .tldr .tag { font-size: 12.5px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; background: var(--card); border-radius: 10px; overflow: hidden; font-size: 14.5px; }
+  th { background: #f1f1fa; text-align: left; padding: 11px 14px; font-weight: 650; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .table-note { font-size: 13px; color: var(--ink-soft); margin-top: -8px; }
+
+  .pill { display: inline-block; border-radius: 6px; padding: 1px 9px; font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+
+  pre {
+    background: var(--code-bg); color: var(--code-ink);
+    border-radius: 12px; padding: 20px 22px; overflow-x: auto;
+    font-size: 13px; line-height: 1.65; margin: 14px 0;
+    font-family: "Cascadia Code", Consolas, "JetBrains Mono", monospace;
+  }
+  pre .c { color: #7c86ad; } /* comment */
+  pre .k { color: #8ab4f8; } /* key */
+  pre .s { color: #a5d6a7; } /* string */
+  pre .n { color: #f0a5c0; } /* number */
+  .code-title { font-size: 13px; font-weight: 650; color: var(--ink-soft); margin-top: 18px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
+  @media (max-width: 720px) { .cards { grid-template-columns: 1fr; } }
+  .qcard {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 14px;
+  }
+  .qcard .qname { font-weight: 700; font-size: 16px; }
+  .qcard .qtype { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 1.5px; margin-bottom: 8px; }
+  .qcard p { font-size: 13.5px; color: var(--ink-soft); margin: 6px 0; }
+  .qcard .ret { font-size: 12.5px; color: var(--ok); font-family: Consolas, monospace; margin-top: 8px; }
+
+  .note { border-left: 4px solid var(--warn); background: var(--warn-bg); border-radius: 0 10px 10px 0; padding: 12px 18px; margin: 14px 0; font-size: 14.5px; }
+  .note.good { border-left-color: var(--ok); background: var(--ok-bg); }
+  .note.info { border-left-color: var(--accent); background: var(--accent-light); }
+
+  .metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
+  @media (max-width: 720px) { .metric-row { grid-template-columns: 1fr; } }
+  .metric { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; text-align: center; }
+  .metric .num { font-size: 30px; font-weight: 750; color: var(--accent); }
+  .metric .lbl { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+
+  footer { margin-top: 70px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-soft); }
+  .refs li { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Jev 详解</h1>
+  <div class="sub">TypeSafe AI 的首个「System One 模型」——一个不生成文本、只输出类型化概率决策的新型 AI，以及它与「拾光复利」的适配性分析</div>
+  <div class="badges">
+    <span class="badge">厂商：TypeSafe AI</span>
+    <span class="badge">发布：2026-09-15</span>
+    <span class="badge">模型：jev-latest</span>
+    <span class="badge">调研日期：2026-09-19</span>
+    <span class="badge">拾光复利技术调研 · 10</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="tldr">
+    <div class="tag">TL;DR</div>
+    <p><strong>Jev 是 2026 年 9 月中旬在硅谷爆火的新模型</strong>：它主动砍掉文本生成能力，专做「输入一段状态文本 → 对一组预定义问题返回带校准概率的类型化答案」。分类、路由、信息抽取等闭集判断任务上，官方宣称比同类 LLM <strong>快 200 倍、便宜 400 倍</strong>。它与本项目「一句话五域抽取」中约六成的字段（活动分类、情绪、财务判定等）<strong>范式高度契合</strong>，且已实测腾讯云服务器可直连其 API；但<strong>中文能力未经验证、上线仅数日、无法生成文本和抽取开放词汇（如人名）</strong>——<strong>当前结论：不接入，列入观察清单，保留 42 句 PoC 测试集作为未来试点基准</strong>。</p>
+  </div>
+
+  <section>
+    <h2>一、Jev 是什么</h2>
+    <p>2026 年 9 月 15 日前后，一个名叫 <strong>Jev</strong> 的模型在硅谷 AI 开发者社区刷屏。它由 <strong>TypeSafe AI</strong> 公司发布，是该公司首个公开的「<strong>System One 模型</strong>」。</p>
+    <p>它颠覆的地方在于：<strong>它不会写代码、不会写文章、甚至不会聊天</strong>。Jev 主动砍掉了过去几年大模型赖以展现「智能」的语言生成能力，回答问题时输出的不是一段文字，而是<strong>类型安全的结构化答案 + 校准概率</strong>。36 氪的报道称之为「一个不说话的 AI」。</p>
+    <p>它提出的核心质疑是：<strong>AI 的"智能"是否一定要通过高资源消耗的自回归文本生成来完成？分类、判断、路由这类高频决策任务，有没有更快、更省、更靠谱的方式？</strong></p>
+    <div class="note info">名字里的「System One」借用自心理学家丹尼尔·卡尼曼《思考，快与慢》中的双系统理论：<strong>System 1 = 快思考</strong>（直觉、毫秒级、低能耗），<strong>System 2 = 慢思考</strong>（推理、生成、高能耗）。传统 LLM 是 System 2，Jev 想做 AI 系统里的 System 1。</div>
+  </section>
+
+  <section>
+    <h2>二、核心范式：与 LLM 的本质区别</h2>
+    <table>
+      <thead>
+        <tr><th>维度</th><th>传统 LLM（GPT / GLM / Claude…）</th><th>Jev（System One）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>输出形态</strong></td><td>自回归逐 token 生成文本</td><td>类型化答案（选项/分数/概率），无文本</td></tr>
+        <tr><td><strong>接口范式</strong></td><td>Prompt → 补全</td><td>State（状态）+ Questions（问题组）→ Answers</td></tr>
+        <tr><td><strong>多问题</strong></td><td>串行生成，问题越多越慢</td><td><strong>并行评估</strong>，加问题几乎不增加延迟</td></tr>
+        <tr><td><strong>置信度</strong></td><td>让模型"自报"（常不可靠）</td><td><strong>原生校准概率</strong>（每个答案带概率分布）</td></tr>
+        <tr><td><strong>幻觉风险</strong></td><td>存在（编造事实/格式漂移）</td><td>闭集输出，结构上不会"编"出选项外内容</td></tr>
+        <tr><td><strong>速度</strong></td><td>秒级～十秒级</td><td>官方宣称最快 <strong>200×</strong>（毫秒级决策）</td></tr>
+        <tr><td><strong>开放推理/生成</strong></td><td>✅ 擅长</td><td>❌ 完全不能（title、摘要、追问都做不了）</td></tr>
+        <tr><td><strong>定位</strong></td><td>通用大脑</td><td>Agent 环路中的<strong>快速决策件</strong>（路由/分类/拦截）</td></tr>
+      </tbody>
+    </table>
+    <p class="soft">一句话：Jev 不是 LLM 的替代品，而是和 LLM 搭配的「快反射」——LLM 负责理解、推理和生成，Jev 负责过程中成千上万次高频结构化判断。</p>
+  </section>
+
+  <section>
+    <h2>三、接口详解</h2>
+    <h3>3.1 端点与认证</h3>
+    <ul>
+      <li>端点：<code>POST https://api.typesafe.ai/v1/systemone</code></li>
+      <li>认证：<code>Authorization: Bearer &lt;API_KEY&gt;</code>（密钥在 <code>console.typesafe.ai/keys</code> 申请）</li>
+      <li>请求体三个顶层字段：<code>state</code>（待分析文本）、<code>model</code>（如 <code>jev-latest</code>）、<code>questions</code>（问题字典，键为自定义名）</li>
+    </ul>
+
+    <h3>3.2 三种问题原语（Primitives）</h3>
+    <div class="cards">
+      <div class="qcard">
+        <div class="qtype">CHOICE</div>
+        <div class="qname">选择题</div>
+        <p>从一组选项中挑选。criteria 为「选项名 → 描述」字典。</p>
+        <p>例：工单属于哪个部门？活动属于八大分类中的哪类？</p>
+        <div class="ret">→ choice + confidence + probabilities</div>
+      </div>
+      <div class="qcard">
+        <div class="qtype">SCORE</div>
+        <div class="qname">评分题</div>
+        <p>按有序等级量表打分。criteria 为有序描述数组（0 起编号）。</p>
+        <p>例：用户沮丧程度（平静/不满/愤怒）？情绪强度多高？</p>
+        <div class="ret">→ score + confidence + legend + probabilities</div>
+      </div>
+      <div class="qcard">
+        <div class="qtype">NOUL</div>
+        <div class="qname">是非题</div>
+        <p>判断一句陈述为真的概率，无需 criteria。</p>
+        <p>例：这句话提到金额了吗？这个工单紧急吗？</p>
+        <div class="ret">→ noul（0～1 概率）</div>
+      </div>
+    </div>
+
+    <h3>3.3 完整请求示例（REST）</h3>
+    <div class="code-title">一次性对同一 state 混合提出三种问题（并行评估）</div>
+    <pre>curl -X POST https://api.typesafe.ai/v1/systemone \
+  -H <span class="s">"Authorization: Bearer $TYPESAFE_API_KEY"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{
+    "model": "jev-latest",
+    "state": "用户刚发来的消息：部署又失败了两次，客户已经在看到 500 报错了！",
+    "questions": {
+      "department": {
+        "type": "choice",
+        "instructions": "这条工单应该路由到哪个部门？",
+        "criteria": { "technical": "技术故障与部署问题", "sales": "销售咨询", "billing": "账单问题" }
+      },
+      "frustration": {
+        "type": "score",
+        "instructions": "评估发信人的沮丧程度",
+        "criteria": ["平静专业", "明显不满", "愤怒失控"]
+      },
+      "is_urgent": {
+        "type": "noul",
+        "instructions": "这条消息表达了紧急性或时间敏感"
+      }
+    }
+  }'</span></pre>
+
+    <div class="code-title">响应（含每个答案的校准概率分布 + token 用量）</div>
+    <pre>{
+  <span class="s">"model"</span>: <span class="s">"jev-1.13.0"</span>,
+  <span class="s">"answers"</span>: {
+    <span class="s">"department"</span>: {
+      <span class="s">"type"</span>: <span class="s">"choice"</span>,
+      <span class="s">"choice"</span>: <span class="s">"technical"</span>,
+      <span class="s">"confidence"</span>: <span class="n">0.78</span>,
+      <span class="s">"probabilities"</span>: { <span class="s">"technical"</span>: <span class="n">0.85</span>, <span class="s">"sales"</span>: <span class="n">0.0</span>, <span class="s">"billing"</span>: <span class="n">0.15</span> }
+    },
+    <span class="s">"frustration"</span>: {
+      <span class="s">"type"</span>: <span class="s">"score"</span>,
+      <span class="s">"score"</span>: <span class="n">1.0</span>,
+      <span class="s">"confidence"</span>: <span class="n">1.0</span>,
+      <span class="s">"legend"</span>: { <span class="s">"0"</span>: <span class="s">"平静专业"</span>, <span class="s">"1"</span>: <span class="s">"明显不满"</span>, <span class="s">"2"</span>: <span class="s">"愤怒失控"</span> },
+      <span class="s">"probabilities"</span>: { <span class="s">"0"</span>: <span class="n">0.0</span>, <span class="s">"1"</span>: <span class="n">1.0</span>, <span class="s">"2"</span>: <span class="n">0.0</span> }
+    },
+    <span class="s">"is_urgent"</span>: { <span class="s">"type"</span>: <span class="s">"noul"</span>, <span class="s">"noul"</span>: <span class="n">1.0</span> }
+  },
+  <span class="s">"usage"</span>: { <span class="s">"input_tokens"</span>: <span class="n">392</span>, <span class="s">"output_tokens"</span>: <span class="n">65</span> }
+}</pre>
+
+    <div class="note">官方最佳实践：<strong>把复合问题拆成原子问题，在代码里组合结果</strong>（例如不要问"这是紧急的技术工单吗"，而是拆成"紧急吗"+"是技术工单吗"两个问题并行问）。这与本项目「五域独立判定」的抽取设计思路天然一致。</div>
+
+    <h3>3.4 SDK 与集成方式</h3>
+    <table>
+      <thead><tr><th>方式</th><th>安装/用法</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>REST API</td><td>直接 <code>POST /v1/systemone</code></td><td>语言无关，最轻量</td></tr>
+        <tr><td>Python SDK</td><td><code>pip install typesafe-sdk</code></td><td>自动读 <code>TYPESAFE_API_KEY</code>，接口 <code>client.system_one(state, questions)</code></td></tr>
+        <tr><td>LangChain</td><td><code>pip install langchain-typesafe</code></td><td><code>TypeSafeClassifier</code> 可作为 Agent 环路里的中间件</td></tr>
+        <tr><td>LiteLLM</td><td>路由名 <code>typesafe/jev</code></td><td>统一网关 + 成本记账</td></tr>
+        <tr><td>OpenRouter / Netlify AI Gateway</td><td>OpenAI 兼容形式</td><td>零配置接入现有网关</td></tr>
+        <tr><td>MCP Server / jev-browser</td><td>社区生态</td><td>浏览器自动化（LLM 规划 + Jev 决策）、工具调用风险拦截等</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>四、性能与成本</h2>
+    <div class="metric-row">
+      <div class="metric"><div class="num">200×</div><div class="lbl">官方宣称同类 LLM 的推理速度（分类任务）</div></div>
+      <div class="metric"><div class="num">1/400</div><div class="lbl">官方宣称同类 LLM 的成本</div></div>
+      <div class="metric"><div class="num">$0.042<span style="font-size:15px">/M</span></div><div class="lbl">输入 token 单价（输出免费，"便宜到不值得计量"）</div></div>
+    </div>
+    <ul>
+      <li>官方内部评估单次判断成本约 <strong>$0.0004</strong>；部分聚合渠道（如 AI ML API）略贵（~$0.058/M）。</li>
+      <li>并行评估是核心省时机制：一次请求问 3 个问题和问 1 个问题延迟几乎相同，只增加少量 token。</li>
+      <li>TypeSafe 后续 System One 系列模型定价区间 $0.20～$10/MTok，Jev 是其中最便宜的入门款。</li>
+    </ul>
+    <p class="soft">注：以上为厂商官方与早期社区口径（2026-09），"200×/400×" 为特定基准下的宣称值，尚未有中立的第三方大规模复测。</p>
+  </section>
+
+  <section>
+    <h2>五、典型应用场景</h2>
+    <ul>
+      <li><strong>模型路由</strong>：Agent 每步先让 Jev 判断任务复杂度，简单查询走便宜模型、高风险推理走旗舰模型（LangChain <code>ModelRouterMiddleware</code> 的标准用法）。</li>
+      <li><strong>邮件/工单分诊</strong>：部门路由（Choice）+ 优先级（Score）+ 紧急度（Noul），一次调用并行出全部结果。</li>
+      <li><strong>工具调用风险拦截</strong>：Agent 执行危险工具（删库、转账、发邮件）前，Jev 毫秒级判断风险并拦截。</li>
+      <li><strong>内容分类与审核</strong>：垃圾短信判定、内容分级等高频闭集分类。</li>
+      <li><strong>浏览器自动化</strong>：开源项目 jev-browser——LLM 负责规划，Jev 负责页面上每一步的快速决策。</li>
+      <li><strong>发票/单据处理</strong>：并行判断单据类型、异常风险、审批级别等多个独立维度。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>六、局限与风险（本调研的审慎结论依据）</h2>
+    <table>
+      <thead><tr><th>问题</th><th>等级</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>不能生成文本</td><td><span class="pill bad">硬限制</span></td><td>标题、摘要、追问话术、复盘报告等生成类任务完全无法承担</td></tr>
+        <tr><td>开放词汇抽取缺失</td><td><span class="pill bad">硬限制</span></td><td>三种原语都是闭集（选项/等级/是非），<strong>抽不出"王智聪"这样的人名或自由文本字段</strong></td></tr>
+        <tr><td>中文能力未验证</td><td><span class="pill warn">待验证</span></td><td>官方文档未声明多语言支持；"撸铁""随了600块礼"等中文口语是否有足够判别力，无实测报告</td></tr>
+        <tr><td>成熟度极低</td><td><span class="pill warn">高风险</span></td><td>上线仅数日（2026-09-15），处于 hype 期，已有开发者对新范式持保留态度（36 氪报道）</td></tr>
+        <tr><td>注册/支付门槛</td><td><span class="pill warn">摩擦</span></td><td>需海外方式注册 console.typesafe.ai 并付款（试用额度未明示）</td></tr>
+        <tr><td>宣称数字未经中立复测</td><td><span class="pill warn">存疑</span></td><td>200×/400× 为厂商口径；HuggingFace 已出现复刻 tracker，但尚无权威基准</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>七、与「拾光复利」的适配分析</h2>
+    <p>本项目的高频 AI 工作负载是<strong>一句话五域抽取</strong>（时间/待办/财务/心情/饮食）。逐字段对照 Jev 的能力：</p>
+    <table>
+      <thead><tr><th>抽取字段</th><th>Jev 原语</th><th>适配</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>activity 八分类</td><td>Choice</td><td><span class="pill ok">完美</span></td><td>睡眠/工作/学习/健身… 天然的选择题</td></tr>
+        <tr><td>recordType（过去/未来/状态）</td><td>Choice</td><td><span class="pill ok">完美</span></td><td></td></tr>
+        <tr><td>periodHint 时段</td><td>Choice</td><td><span class="pill ok">完美</span></td><td>早/午/晚/凌晨</td></tr>
+        <tr><td>心情有无 + 强度</td><td>Noul + Score</td><td><span class="pill ok">完美</span></td><td><strong>校准概率可直接作为每域 confidence</strong>，优于让 LLM 自报 0.9</td></tr>
+        <tr><td>财务：有金额/收支方向/分类</td><td>Noul + Choice</td><td><span class="pill ok">完美</span></td><td>金额数值本身由确定性引擎（duration.ts）解析，不需模型</td></tr>
+        <tr><td>饮食：是否适用 / 餐次</td><td>Noul + Choice</td><td><span class="pill ok">完美</span></td><td></td></tr>
+        <tr><td><strong>人名 / 交易对象抽取</strong></td><td>—</td><td><span class="pill bad">不能</span></td><td>开放词汇，闭集原语无法表达，仍需 LLM 或规则</td></tr>
+        <tr><td><strong>title 短语 / 低置信追问</strong></td><td>—</td><td><span class="pill bad">不能</span></td><td>文本生成任务</td></tr>
+        <tr><td><strong>周/月复盘、陪伴对话</strong></td><td>—</td><td><span class="pill bad">不能</span></td><td>本就是 LLM 主场</td></tr>
+      </tbody>
+    </table>
+    <p class="table-note">结论：约六成抽取字段是 Jev 的主场，且直击本项目两大痛点——晚高峰免费档拥塞（毫秒级决策无排队）与置信度不可靠（原生校准概率）。</p>
+
+    <h3>7.1 已替你验证过的事实（2026-09-19）</h3>
+    <ul>
+      <li><strong>国内直连可用</strong>：从腾讯云生产服务器实测 <code>api.typesafe.ai</code>（HTTP 404 = 主机可达）、<code>docs.typesafe.ai</code>（308）、<code>typesafe.ai</code>（200）全部直连成功，<strong>不存在 OpenAI 式封锁</strong>。</li>
+      <li><strong>成本可忽略</strong>：按本项目月约 1.7M 输入 token 估算，Jev 月成本 ≈ <strong>¥0.5</strong>，与当前免费的 glm-4.7-flash 同一量级。</li>
+      <li><strong>架构可承接</strong>：本项目的确定性引擎（时长/金额/时间推断）与语义抽取已解耦，未来若引入 Jev 只替换语义分类那一半，五域「拆原子问题」的设计与 Jev 官方最佳实践同构。</li>
+    </ul>
+
+    <h3>7.2 结论与行动建议</h3>
+    <div class="note">
+      <strong>当前不接入。</strong>理由：① 中文能力无任何实测佐证；② 模型上线仅数日，生产依赖风险过高；③ 只能覆盖六成字段，却要引入第二家 AI 依赖（人名/标题仍需 LLM，变双引擎）；④ 本项目当前真正的痛点（免费档拥塞）用 glm-4.7-flashx 付费档（月 1~2 元）即可解决，性价比更高。
+    </div>
+    <ul>
+      <li><strong>观察信号</strong>：中文实测报告出现；HuggingFace 复刻版出现中文可用版本；国产厂商（智谱/DeepSeek 等）跟进同类「决策模型」。</li>
+      <li><strong>试点路径</strong>：现成的 42 句 PoC 测试集（docs/07）就是验收基准——哪天决定试，将五域闭集字段改写成 Choice/Score/Noul 问题组跑一轮准确率对照即可，预计半天工作量。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>八、参考资料</h2>
+    <ul class="refs">
+      <li>TypeSafe AI 官方文档与 Quickstart：<a href="https://docs.typesafe.ai">docs.typesafe.ai</a>（API 端点 / 三原语 / SDK）</li>
+      <li>LangChain 官方指南《What Is Jev? A Guide to TypeSafe AI's System One Model》：<a href="https://www.langchain.com/blog/building-a-harness-with-jev">langchain.com/blog/building-a-harness-with-jev</a></li>
+      <li>36 氪《一个"不说话"的AI刷屏，Jev真是新范式吗？》（2026-09）：<a href="https://m.36kr.com">m.36kr.com</a></li>
+      <li>知乎《一文了解 Jev 模型到底是啥》、B 站《爆火的 TypeSafe AI Jev 模型到底怎么玩》（中文入门）</li>
+      <li>DataCamp《Jev: TypeSafe's System One Model That Never Hallucinates》</li>
+      <li>HuggingFace「Jev Reproductions Tracker」（开源复刻进度跟踪）</li>
+      <li>GitHub <code>Ying-Kai-Liao/jev-browser</code>（LLM 规划 + Jev 决策的浏览器自动化）</li>
+      <li>LiteLLM 集成文档（成本记账）：<a href="https://docs.litellm.ai">docs.litellm.ai</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    拾光复利（shiguangri）技术调研系列 · 第 10 篇 · 生成于 2026-09-19 · 调研范围：官方文档、LangChain 指南、中文科技媒体、腾讯云服务器连通性实测 · 价格与宣称数据以厂商官方为准，本页仅供内部决策参考。
+  </footer>
+</div>
+</body>
+</html>

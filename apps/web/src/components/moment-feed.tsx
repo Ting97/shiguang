@@ -327,7 +327,20 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
           </div>
         ) : (
           <p
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={(e) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const desktop = window.innerWidth >= 640;
+              setMenuPos(
+                desktop
+                  ? {
+                      top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 360)),
+                      left: Math.max(8, Math.min(r.right - 300, window.innerWidth - 316)),
+                    }
+                  : null,
+              );
+              setActionsOpen(false);
+              setMenuOpen((v) => !v);
+            }}
             title="点击打开识别菜单"
             className="mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink transition-colors hover:text-white"
           >

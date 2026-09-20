@@ -11,14 +11,25 @@ import { resolveCors } from "@shiguangri/shared/cors";
 const PUBLIC_PAGES = ["/login", "/setup"];
 
 export function middleware(req: NextRequest) {
-  if (process.env.AUTH_DISABLED === "1") return NextResponse.next();
-
+  // CORS 处理独立于鉴权开关：本地 AUTH_DISABLED 跨域联调也需要响应头
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/api")) {
     const cors = resolveCors(req);
     if (cors.preflight) {
       return new NextResponse(null, { status: 204, headers: cors.headers });
+    }
+    if (process.env.AUTH_DISABLED === "1") {
+      const resp = NextResponse.next();
+      for (const [k, v] of Object.entries(cors.headers)) resp.headers.set(k, v);
+      // 本地联调：反射任意 origin（仅 AUTH_DISABLED 开发模式）
+      const o = req.headers.get("origin");
+      if (o && !cors.headers["Access-Control-Allow-Origin"]) {
+        resp.headers.set("Access-Control-Allow-Origin", o);
+        resp.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+        resp.headers.set("Access-Control-Allow-Headers", "Authorization,Content-Type");
+      }
+      return resp;
     }
     const bearer = extractBearerToken(req.headers.get("authorization"));
     const pass =
@@ -29,6 +40,8 @@ export function middleware(req: NextRequest) {
     for (const [k, v] of Object.entries(cors.headers)) resp.headers.set(k, v);
     return resp;
   }
+
+  if (process.env.AUTH_DISABLED === "1") return NextResponse.next();
 
   if (PUBLIC_PAGES.some((p) => pathname.startsWith(p))) return NextResponse.next();
   if (req.cookies.has("shiguang_session")) return NextResponse.next();
