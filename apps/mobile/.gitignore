@@ -1,0 +1,3 @@
+
+# Expo 移动端环境变量（无密钥，供 EAS 云构建）
+!apps/mobile/.env

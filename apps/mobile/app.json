@@ -16,13 +16,28 @@
     },
     "android": {
       "package": "cn.ting97.shiguang",
-      "permissions": ["RECORD_AUDIO"],
+      "permissions": [
+        "RECORD_AUDIO",
+        "RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0B1526"
       }
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c69d63f8-7b93-44d9-9d27-39a340797949"
+      }
+    },
+    "owner": "ting97",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c69d63f8-7b93-44d9-9d27-39a340797949"
+    }
   }
 }
