@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { pool, trimCompletionBlock } from "@/lib/db";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-/** PATCH /api/todos/:id —— { done: true } 勾选完成（生成日程块）；或传字段修改待办 */
+/** PATCH /api/todos/:id —— { done: true } 勾选完成；{ undone: true } 恢复；或传字段修改待办 */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -18,7 +18,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     activityId?: string;
   };
 
-  // ---- 模式零：恢复为未完成（撤销完成状态 + 删除完成时生成的日程块） ----
+  // ---- 模式零：恢复为未完成（撤销完成状态；历史版本完成时生成过日程块，一并删除） ----
   if (body.undone === true) {
     const client = await pool.connect();
     try {
@@ -33,7 +33,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         await client.query("rollback");
         return NextResponse.json({ error: "待办不存在或未完成" }, { status: 404 });
       }
-      await client.query(`delete from time_blocks where id = $1`, [todo.done_block_id]);
+      if (todo.done_block_id) await client.query(`delete from time_blocks where id = $1`, [todo.done_block_id]);
       const restored = (
         await client.query(
           `update todos set status = 'pending', done_at = null, done_entry_id = null, done_block_id = null
@@ -51,56 +51,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
   }
 
-  // ---- 模式一：勾选完成 ----
+  // ---- 模式一：勾选完成（仅改状态；日程与待办解耦，完成不再生成时间块） ----
   if (body.done === true) {
-    const client = await pool.connect();
-    try {
-      await client.query("begin");
-      const todo = (
-        await client.query(
-          `update todos set status = 'done', done_at = now()
-           where id = $1 and user_id = $2 and status = 'pending' returning *`,
-          [id, user.id],
-        )
-      ).rows[0];
-      if (!todo) {
-        await client.query("rollback");
-        return NextResponse.json({ error: "待办不存在或已完成" }, { status: 404 });
-      }
-
-      // 完成即记录：以类别默认时长回填时间块（结束于当下，避让已有日程；无空间则跳过）
-      const dur = (
-        await client.query("select default_min from activities where id = $1 and user_id = $2", [todo.activity_id, user.id])
-      ).rows[0]?.default_min ?? 30;
-      const now = new Date();
-      now.setSeconds(0, 0); // 对齐到整分钟
-      const trimmed = await trimCompletionBlock(user.id, new Date(now.getTime() - dur * 60_000), now);
-      let block: { id: string; entry_id: string | null; title: string } | null = null;
-      if (trimmed) {
-        block = (
-          await client.query(
-            `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
-             values ($1,$2,$3,$4,$5,$6,'default','manual') returning id, entry_id, title`,
-            [user.id, todo.entry_id, todo.activity_id, todo.title, trimmed.start.toISOString(), trimmed.end.toISOString()],
-          )
-        ).rows[0];
-      }
-      await client.query(
-        `update todos set done_entry_id = $2, done_block_id = $3 where id = $1`,
-        [todo.id, block?.entry_id ?? null, block?.id ?? null],
-      );
-      const todoFinal = (
-        await client.query(`select * from todos where id = $1`, [todo.id])
-      ).rows[0];
-
-      await client.query("commit");
-      return NextResponse.json({ todo: todoFinal, block });
-    } catch (e) {
-      await client.query("rollback");
-      return NextResponse.json({ error: String(e) }, { status: 500 });
-    } finally {
-      client.release();
-    }
+    const todo = (
+      await pool.query(
+        `update todos set status = 'done', done_at = now()
+         where id = $1 and user_id = $2 and status = 'pending' returning *`,
+        [id, user.id],
+      )
+    ).rows[0];
+    if (!todo) return NextResponse.json({ error: "待办不存在或已完成" }, { status: 404 });
+    return NextResponse.json({ todo });
   }
 
   // ---- 模式二：修改字段 ----

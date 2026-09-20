@@ -217,7 +217,7 @@ export default function Home() {
       setMsg({ ok: false, text: "完成操作失败，已恢复" });
       return;
     }
-    setMsg({ ok: true, text: `🎉 完成「${t.title}」，已记入今日日程` });
+    setMsg({ ok: true, text: `🎉 完成「${t.title}」` });
     await load();
   }
 
@@ -349,7 +349,7 @@ export default function Home() {
       setMsg({ ok: false, text: "恢复失败，已还原" });
       return;
     }
-    setMsg({ ok: true, text: `↩️ 「${t.title}」已恢复为未完成（对应日程已移除）` });
+    setMsg({ ok: true, text: `↩️ 「${t.title}」已恢复为未完成` });
     await load();
   }
 
