@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [smsCode, setSmsCode] = useState("");
   const [invite, setInvite] = useState("");
+  const [nickname, setNickname] = useState(""); // 注册必填
   const [countdown, setCountdown] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -71,8 +72,8 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             account.includes("@")
-              ? { email: account, password, emailCode: smsCode || undefined, inviteCode: invite }
-              : { phone: account, password, smsCode: smsCode || undefined, inviteCode: invite },
+              ? { email: account, password, emailCode: smsCode || undefined, inviteCode: invite, nickname: nickname.trim() || undefined }
+              : { phone: account, password, smsCode: smsCode || undefined, inviteCode: invite, nickname: nickname.trim() || undefined },
           ),
         });
       } else if (mode === "password") {
@@ -178,6 +179,13 @@ export default function LoginPage() {
 
             {isRegister && (
               <>
+                <input
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  maxLength={20}
+                  placeholder="昵称（必填）"
+                  className={inputCls}
+                />
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

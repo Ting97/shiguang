@@ -14,9 +14,13 @@ export const runtime = "nodejs";
  * 通道已配置时必须验证码；未配置时邀请码即凭证（identity 标记未验证，密码登录不受影响）
  */
 export async function POST(req: Request) {
-  const { phone, email, password, inviteCode, smsCode, emailCode } = (await req.json().catch(() => ({}))) as {
-    phone?: string; email?: string; password?: string; inviteCode?: string; smsCode?: string; emailCode?: string;
+  const { phone, email, password, inviteCode, smsCode, emailCode, nickname: nicknameRaw } = (await req.json().catch(() => ({}))) as {
+    phone?: string; email?: string; password?: string; inviteCode?: string; smsCode?: string; emailCode?: string; nickname?: string;
   };
+  const nickname = nicknameRaw?.trim();
+  if (!nickname || nickname.length > 20) {
+    return NextResponse.json({ error: "请填写昵称（1-20 个字符）" }, { status: 400 });
+  }
   const byEmail = !phone && !!email;
 
   if (!byEmail && (!phone || !isValidPhone(phone))) {
@@ -71,7 +75,6 @@ export async function POST(req: Request) {
     phoneVerified = true;
   }
 
-  const nickname = byEmail ? `用户${emailNorm!.split("@")[0].slice(-4)}` : `用户${phone!.slice(-4)}`;
   const { rows } = await pool.query(
     `insert into profiles (nickname, phone, email, phone_verified, email_verified, password_hash, last_login_at)
      values ($1, $2, $3, $4, $5, $6, now()) returning id, nickname`,
