@@ -5,11 +5,13 @@
 | 文件 | 端 | 版本 | 说明 |
 |---|---|---|---|
 | `shiguang-android-v1.1.1.apk` | Android | v1.1.1 | 原生 WebView 壳（[apps/android](../android)），debug 签名可侧载直装，34KB。v1.1.1 修复 Android 14+ 启动闪退（registerReceiver 需声明导出标志），已在 API 35 模拟器实机验证启动+页面加载 |
+| `shiguang-expo-native-v1.0.0.apk` | Android | v1.0.0 | **Expo 原生应用**（[apps/mobile](../mobile)），EAS 云构建（preview/侧载），66MB。原生渲染 UI + SecureStore + 原生录音；JS 层支持 EAS Update OTA 热更 |
 
 ## 重建方式
 
-- **Android**：`cd apps/android && ./gradlew assembleRelease`（产物 `app/build/outputs/apk/release/app-release.apk`）
-- **iOS**：Windows 无法编译 IPA；Xcode 工程在 [apps/native/ios](../native/ios)（Capacitor remote 模式），需 Mac + Apple 开发者账号，步骤见 [apps/native/README](../native/README.md)
+- **WebView 壳 Android**：`cd apps/android && ./gradlew assembleRelease`（产物 `app/build/outputs/apk/release/app-release.apk`）
+- **Expo 原生 Android**：`cd apps/mobile && eas build -p android --profile preview`（EAS 云构建，签名自动托管；热更：`eas update -p android` 免重装）
+- **iOS**：Windows 无法编译 IPA。两条路径：Capacitor Xcode 工程（[apps/native/ios](../native/ios)，Mac 编译）或 Expo 端 `eas build -p ios`（需 Apple 开发者账号 $99/年）
 
 ## 命名规范
 
