@@ -2,7 +2,7 @@
   "expo": {
     "name": "拾光复利",
     "slug": "shiguangri",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "scheme": "shiguang",
     "userInterfaceStyle": "dark",
@@ -22,7 +22,8 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#0B1526"
-      }
+      },
+      "versionCode": 2
     },
     "plugins": [
       "expo-secure-store"

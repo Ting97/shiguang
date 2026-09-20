@@ -14,11 +14,14 @@ config.resolver.nodeModulesPaths = [
 config.resolver.disableHierarchicalLookup = false;
 
 /**
- * monorepo 依赖去重：npm workspaces 下 web(19.3) 与 mobile(19.0) 各持一份 react，
- * 混用会导致 "Cannot read property 'useState' of null" 首屏崩溃。
- * 这里强制 bundle 内所有 react 引用统一解析到 mobile 自带的 19.0.0（RN 0.79 官方配对版本）。
+ * monorepo 依赖去重：强制 bundle 内所有 react 引用统一解析到同一份 react
+ * （RN 0.79 配对 react 19.0.0；混用两份 react 会报 "Cannot read property 'useState' of null" 首屏崩溃）。
+ * npm 将 19.0.0 提升到根 node_modules 时用根副本，否则用 mobile 自带的。
  */
-const reactPkg = path.join(projectRoot, "node_modules", "react");
+const fs = require("fs");
+const mobileReact = path.join(projectRoot, "node_modules", "react");
+const rootReact = path.join(workspaceRoot, "node_modules", "react");
+const reactPkg = fs.existsSync(path.join(mobileReact, "package.json")) ? mobileReact : rootReact;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === "react") {
     return context.resolveRequest(context, reactPkg, platform);
