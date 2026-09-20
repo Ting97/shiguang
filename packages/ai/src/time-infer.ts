@@ -85,17 +85,42 @@ export function detectDayRef(text: string, now: Date): number | null {
   return null;
 }
 
-/** 话术中的钟点："三点"/"15:30"/"下午三点"(配合 period 换算 12/24h) */
+/** 话术中的钟点："三点"/"15:30"/"7点半"/"6.30"(配合 period 换算 12/24h) */
 export function parseClock(text: string, period: PeriodHint | null): { hour: number; minute: number } | null {
-  const m = text.match(/(\d{1,2}|[一二两三四五六七八九十]+)\s*[点时:：]\s*(\d{1,2})?\s*分?/);
+  const m = text.match(
+    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时]\s*(半|\d{1,2})?\s*分?|[.:：](\d{2}))/,
+  );
   if (!m) return null;
   const n = cnToNumber(m[1]);
   if (n === null || n > 23) return null;
   let hour = n;
-  const minute = m[2] ? parseInt(m[2], 10) : 0;
+  // "点半"→30；点后数字→分钟；点号两位（6.30）→30 分（须两位数，避免"5.5小时"误伤）
+  const minute = m[2] ? (m[2] === "半" ? 30 : parseInt(m[2], 10)) : m[3] ? parseInt(m[3], 10) : 0;
+  if (minute > 59) return null;
   // "下午三点"→15、"晚上八点"→20（小时制+下午/晚上偏移）
   if (hour < 12 && (period === "afternoon" || period === "evening" || period === "night")) hour += 12;
   return { hour, minute };
+}
+
+/**
+ * 显式钟点区间："6.30-7.30"/"7点半到8点半"/"9:00~11:00" 等。
+ * 以区间分隔符（到/至/-/~/—）切两半，各自解析一个钟点；解析不出两个钟点则返回 null。
+ * 12/24h 偏移规则：起点在 pm 时段且 <12 → +12；终点 +12 后仍晚于起点才 +12
+ * （"下午2.30到3.30"→14:30-15:30；"晚上10.30到6.30"→22:30-次日06:30，不把 6 点抬成 18 点）
+ */
+export function parseClockRange(
+  text: string,
+  period: PeriodHint | null,
+): { start: { hour: number; minute: number }; end: { hour: number; minute: number } } | null {
+  const parts = text.split(/\s*(?:到|至|~|—|–|-)\s*/);
+  if (parts.length !== 2) return null;
+  const pmish = period === "afternoon" || period === "evening" || period === "night";
+  const a = parseClock(parts[0], pmish ? period : null);
+  const b = parseClock(parts[1], null);
+  if (!a || !b) return null;
+  let endHour = b.hour;
+  if (pmish && b.hour < 12 && b.hour + 12 > a.hour) endHour = b.hour + 12;
+  return { start: a, end: { hour: endHour, minute: b.minute } };
 }
 
 const WEEKDAYS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
@@ -170,8 +195,26 @@ export function inferTimeBlock(
   const clampToNow = (start: Date, end: Date): [Date, Date] =>
     end > now ? [new Date(now.getTime() - dur * 60_000), new Date(now)] : [start, end];
 
-  // 0.5) 显式相对日（昨天/前天/上周X/周X）：日期 = 今天偏移，时刻 = 钟点/时段锚点（无则按 20:00 回顾锚）
+  // 0.5) 显式钟点区间（"6.30-7.30"/"7点半到8点半"，可叠加 昨天/前天 等相对日）
+  //      用户明确给出起止钟点 → 精确落时段，不做 clampToNow 收拢（哪怕结尾略超记录时刻）
+  const range = parseClockRange(text, period ?? (/昨晚|昨夜/.test(text) ? "evening" : null));
   const dayRef = detectDayRef(text, now);
+  if (range) {
+    // 无相对日且在凌晨（<5点）补记白天的区间 → 归昨天
+    const back = dayRef !== null ? -dayRef * 24 * 3600_000 : now.getHours() < 5 ? 24 * 3600_000 : 0;
+    const base = new Date(now.getTime() - back);
+    let start = atHour(base, range.start.hour, range.start.minute);
+    let end = atHour(base, range.end.hour, range.end.minute);
+    if (end <= start) end = new Date(end.getTime() + 24 * 3600_000); // 跨天区间（如 22.30-6.30）
+    return {
+      mode: "explicit",
+      start,
+      end,
+      durationMin: Math.round((end.getTime() - start.getTime()) / 60_000),
+    };
+  }
+
+  // 0.6) 显式相对日（昨天/前天/上周X/周X）：日期 = 今天偏移，时刻 = 钟点/时段锚点（无则按 20:00 回顾锚）
   if (dayRef !== null) {
     const base = new Date(now.getTime() + dayRef * 24 * 3600_000);
     const clock = parseClock(text, period);

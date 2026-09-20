@@ -103,7 +103,9 @@ test("清早记录'早上…'（锚点8点尚未来到）→ 必须落在今天�
   assert.equal(tb.start.getFullYear(), 2026);
   assert.equal(tb.start.getMonth(), 8);
   assert.equal(tb.start.getDate(), 20, `应落今天9/20，实际${tb.start.toISOString()}`);
-  assert.ok(tb.end <= MORNING, "结尾不得晚于现在（clampToNow）");
+  // 显式钟点区间：精确落 6:30-7:30（结尾 7:30 略超记录时刻 7:17 也按用户说的保留）
+  assert.equal(`${tb.start.getHours()}:${String(tb.start.getMinutes()).padStart(2, "0")}`, "6:30");
+  assert.equal(`${tb.end.getHours()}:${String(tb.end.getMinutes()).padStart(2, "0")}`, "7:30");
 });
 
 test("清早无钟点的'早上…'同样保留今天", () => {
@@ -122,4 +124,45 @@ test("白天记录已过的时段 → 保持今天（原行为不变）", () => 
   const tb = inferTimeBlock("早上开了个会", NOW, 60, "morning"); // 15:00 说早上的事
   assert.equal(tb.start.getDate(), 17);
   assert.equal(tb.start.getHours(), 8);
+});
+
+// —— 回归2：显式钟点区间精确落时段（2026-09-20 "7点半到8点半通勤"被识别成 07:25-08:25） ——
+
+test("显式区间'7点半到8点半'→ 今天 07:30-08:30，不做当下收拢", () => {
+  const tb = inferTimeBlock("7点半到8点半 通勤+读书《复利效应》", new Date(2026, 8, 20, 7, 41), 60, "morning");
+  assert.equal(tb.mode, "explicit");
+  assert.equal(`${tb.start.getHours()}:${String(tb.start.getMinutes()).padStart(2, "0")}`, "7:30");
+  assert.equal(`${tb.end.getHours()}:${String(tb.end.getMinutes()).padStart(2, "0")}`, "8:30");
+  assert.equal(tb.start.getDate(), 20);
+  assert.equal(tb.durationMin, 60);
+});
+
+test("点号区间'6.30-7.30'清早记录 → 今天 06:30-07:30（结尾略超记录时刻也保留）", () => {
+  const tb = inferTimeBlock("早上醒来6.30-7.30，对拾光复利进行了部署调研", new Date(2026, 8, 20, 7, 17), 60, "morning");
+  assert.equal(`${tb.start.getHours()}:${String(tb.start.getMinutes()).padStart(2, "0")}`, "6:30");
+  assert.equal(`${tb.end.getHours()}:${String(tb.end.getMinutes()).padStart(2, "0")}`, "7:30");
+  assert.equal(tb.start.getDate(), 20);
+});
+
+test("区间+凌晨补记 → 归昨天", () => {
+  const tb = inferTimeBlock("早上6.30-7.30跑了步", new Date(2026, 8, 20, 2, 0), 60, "morning");
+  assert.equal(tb.start.getDate(), 19);
+  assert.equal(tb.start.getHours(), 6);
+  assert.equal(tb.end.getHours(), 7);
+});
+
+test("区间+相对日'昨晚10点半到11点半'→ 昨晚 22:30-23:30", () => {
+  const tb = inferTimeBlock("昨晚10点半到11点半读书", NOW, 60);
+  assert.equal(tb.start.getDate(), 16, "9/17 的昨天 = 9/16");
+  assert.equal(`${tb.start.getHours()}:${String(tb.start.getMinutes()).padStart(2, "0")}`, "22:30");
+  assert.equal(`${tb.end.getHours()}:${String(tb.end.getMinutes()).padStart(2, "0")}`, "23:30");
+});
+
+test("跨天区间'晚上10.30到6.30' → 当晚22:30至次日06:30", () => {
+  const tb = inferTimeBlock("晚上10.30到6.30睡觉", new Date(2026, 8, 20, 21, 0), 480, "evening");
+  assert.equal(tb.start.getHours(), 22);
+  assert.equal(tb.start.getMinutes(), 30);
+  assert.equal(tb.end.getDate(), 21);
+  assert.equal(tb.end.getHours(), 6);
+  assert.equal(tb.durationMin, 480);
 });
