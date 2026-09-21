@@ -1,4 +1,6 @@
-# APP 体验轮训状态（定时任务：每小时一轮，至 2026-09-22 09:00 停止）
+# APP 体验轮训状态（定时任务：每 20 分钟连续轮训，至 2026-09-22 09:00 停止）
+
+> ⚠️ **保护声明（07:32 添加）**：工作区中 `docs/requirements/002-空间感悟-待办手动关联-浮层点击关闭/` 与 `docs/requirements/README.md` 的未提交改动是**用户手写的需求输入**（REQ-002，开发设计中）。轮训任务**严禁 add/commit/checkout/回滚**这些文件——收尾时只提交自己的产物（docs/experience/**、本轮改动的源码文件），git status 留有这两处未提交改动属正常状态，不算"不干净"。
 
 > 每轮定时任务必读本文件。项目根：`D:\project\shiguang\shiguangri`（monorepo：apps/web Next.js 15 静态导出、apps/api Next.js standalone、packages/{ai,db,shared}；apps/mobile 本轮一律不动）。
 > 生产：https://shiguang.ting97.cn（远程 git@github.com:Ting97/shiguang.git main）。部署流程与红线见 `docs/08-部署文档.md`。
