@@ -25,21 +25,24 @@
 | 时间 | 模块 | 报告文件 | 修复/迭代 | 备注 |
 | --- | --- | --- | --- | --- |
 | 2026-09-22 03:10 | 首页今日 + 时光流 feed | [2026-09-22-03-首页今日与时光流.md](./2026-09-22-03-首页今日与时光流.md) | F1 识别超时兜底（feed recognize_state + 前端「识别未完成」态）；F2 今日到期顶层待办完成后保留（进「今日已完成」可恢复） | API 断言 2/2 PASS + 375 浏览器复核通过；测试数据已清理 |
+| 2026-09-22 04:10 | 动态发布 + 清单待办 | [2026-09-22-04-动态发布与清单待办.md](./2026-09-22-04-动态发布与清单待办.md) | F3 智能列表 chips 右缘渐隐提示（可滑动可供性）；F4 动态 ⋯ 菜单顶部避让 clamp | AI 拆解真调 5 行动 ✓；发布边界（空白/emoji/600字）✓；误报销案 2 项（FAB 遮挡、placeholder 截断）；清理脏数据 2 条 |
 
 ## 遗留问题池（从 001 需求 03-测试与部署.md 及历轮体验累积；每轮迭代优先从这里挑）
 
 - Expo App 端图片能力（用户明确本轮跳过，勿动 apps/mobile）
 - 行动手动拖拽排序（当前仅 afterId 插入式，无拖拽 UI）
 - /admin prompt 修改试运行 dry-run（二期可选）
-- P3：搜索框 placeholder 移动端缩短为「搜索动态…」（375 下贴边）
-- P3：动态「⋯」菜单无顶部导航避让 clamp
-- P2：feed 末条滚动 padding 让出麦克风 FAB（悬浮遮挡文字）
-- P3：空日程时 24 点时间轴压缩/折叠（占两屏）
+- P3：发布 textarea maxLength=2000 无字数计数器（接近上限时显示 n/2000）
+- P3：feed 卡片长文无 line-clamp/展开控制（600 字卡片占满屏；注意与「点原文弹识别菜单」交互的冲突，需独立「展开」按钮）
+- P3：空日程时 24 点时间轴压缩/折叠（占两屏，建议日程模块轮细评）
+- ~~P3：搜索 placeholder 截断~~（04 轮复测不成立）
+- ~~P2：feed 末条被 FAB 遮挡~~（04 轮复测不成立，pb-28 已覆盖）
 
-## 环境与已知坑
+## 环境与已知坑（累积）
 
-- 本地体验服务：`cd apps/api/.next/standalone/apps/api && set -a && source .env && set +a && PORT=3100 AUTH_DISABLED=1 nohup /d/nodejs/node.exe server.js`；本地 DB 为 docker 容器 shiguangri-pg。
-- 部署红线：构建 API 前必须杀掉 3100 node 进程（Windows 文件锁会卡死构建）；构建后必须重新 `cp -r apps/web/out apps/api/.next/standalone/apps/api/out`。
+- 本地体验服务：`cd apps/api/.next/standalone/apps/api && set -a && source /d/project/shiguang/shiguangri/.env && set +a && PORT=3100 AUTH_DISABLED=1 nohup /d/nodejs/node.exe server.js`（**必须 source 根 .env 并 echo 校验 ZHIPUAI_API_KEY=SET**，否则 AI 拆解/识别静默失败，audit_logs 可查）。
+- 部署红线：构建 API 前必须杀掉 3100 node 进程；**刷新 out 必须 `rm -rf …/out && cp -r apps/web/out …/out`**（目标存在时 cp -r 会嵌套成 out/out，服务继续供旧构建，04 轮实测踩坑）；构建后冒烟 /login 200。
 - 生产登录密码未入库（STATE.md 无记录时，生产只做未登录冒烟：/login 200、核心 API 401；不阻塞本轮）。
 - Bash 工具偶发 `spawn bash.exe ENOENT`：用 node REPL `cp.spawnSync("C:\\Program Files\\Git\\bin\\bash.exe", ["-c", "..."])` 应急。
-- 惰性日切：06:00 为记录日界（EFF_TODAY）；本地测试造的数据结束前清理。
+- IAB 标签易卡「正在加载拾光…」：reload 无效直接换新标签；改前端后验证必须 cache-bust（URL 加 &cb=时间戳）。
+- 惰性日切：06:00 为记录日界（EFF_TODAY）；本地测试造的数据结束前清理（entries 及其 todos/time_blocks/entry_recognitions 等从表先删）。

@@ -289,7 +289,8 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 <button
                   onClick={(e) => {
                     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    setActionsPos({ top: Math.min(r.bottom + 4, window.innerHeight - 100), left: Math.max(8, r.right - 128) });
+                    // 顶部避开吸顶导航（≥60px），底部预留菜单高度
+                    setActionsPos({ top: Math.max(60, Math.min(r.bottom + 4, window.innerHeight - 100)), left: Math.max(8, r.right - 128) });
                     setActionsOpen((v) => !v);
                     setMenuOpen(false);
                   }}

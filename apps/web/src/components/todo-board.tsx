@@ -375,8 +375,8 @@ export default function TodoBoard() {
         </div>
       )}
 
-      {/* 移动端：横滑 chips（lg 以下） */}
-      <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1 lg:hidden">{viewBar(false)}</div>
+      {/* 移动端：横滑 chips（lg 以下）；右缘渐隐提示可滑动（隐藏滚动条时唯一的可供性） */}
+      <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-28px),transparent)] lg:hidden">{viewBar(false)}</div>
 
       <div className="lg:grid lg:grid-cols-[190px_1fr] lg:gap-5">
         {/* PC：左侧智能列表栏 */}
