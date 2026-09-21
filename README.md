@@ -61,7 +61,7 @@ packages/shared 双端共享逻辑（CSV/财务/农历/图谱/Bearer/CORS）   p
 ## 线上与产物
 
 - **Web**：https://shiguang.ting97.cn （注册需邀请码）
-- **Android APK**：[GitHub Releases](https://github.com/Ting97/shiguangri/releases)（Expo 原生包走 Releases，小壳入库 `apps/artifacts/`）
+- **Android APK**：[GitHub Releases](https://github.com/Ting97/shiguang/releases)（Expo 原生包走 Releases，小壳入库 `apps/artifacts/`）
 - 运维：发布/备份/回滚见 [docs/08-部署文档.md](docs/08-部署文档.md)
 
 ## 文档索引

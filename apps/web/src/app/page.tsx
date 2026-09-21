@@ -572,7 +572,7 @@ export default function Home() {
         </section>
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
-          拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
+          拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang
         </footer>
       </div>
 
