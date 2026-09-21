@@ -162,6 +162,9 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   // 卡片操作菜单（编辑/删除）开关 + 桌面端锚定坐标
   const [actionsOpen, setActionsOpen] = useState(false);
   const [actionsPos, setActionsPos] = useState<{ top: number; left: number } | null>(null);
+  // 长文折叠：超过 150 字默认收起 6 行，用独立「展开全文」按钮（不与"点原文弹识别菜单"抢交互）
+  const [textExpanded, setTextExpanded] = useState(false);
+  const isLongText = m.raw_text.length > 150;
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   // 图片全屏预览（null=关闭；数字=打开的下标）
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -367,10 +370,21 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
               setMenuOpen((v) => !v);
             }}
             title="点击打开识别菜单"
-            className="mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink transition-colors hover:text-white"
+            className={`mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink transition-colors hover:text-white ${isLongText && !textExpanded ? "line-clamp-6" : ""}`}
           >
             {m.raw_text}
           </p>
+        )}
+        {editRaw === null && isLongText && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setTextExpanded((v) => !v);
+            }}
+            className="mt-1 text-xs font-medium text-accent hover:underline"
+          >
+            {textExpanded ? "收起" : `展开全文（${m.raw_text.length} 字）`}
+          </button>
         )}
 
         {/* 图片九宫格（点击全屏预览） */}

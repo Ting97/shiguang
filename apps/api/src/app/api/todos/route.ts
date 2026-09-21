@@ -30,10 +30,10 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const view = new URL(req.url).searchParams.get("view") ?? "all";
 
-  // 计数徽标：四个智能列表的顶层待办数（done 含子待办，勾一个减一个）
+  // 计数徽标：四个智能列表的顶层待办数（done 含子待办，勾一个减一个）；今日含过期未完成
   const { rows: countRows } = await pool.query(
     `select
-       count(*) filter (where status = 'pending' and today_tag_date = ${BJ_TODAY})::int as today,
+       count(*) filter (where status = 'pending' and parent_todo_id is null and (today_tag_date = ${BJ_TODAY} or (due_at is not null and (due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY})))::int as today,
        count(*) filter (where status = 'pending' and is_important and parent_todo_id is null)::int as important,
        count(*) filter (where status = 'pending' and parent_todo_id is null)::int as all_pending,
        count(*) filter (where status = 'done')::int as done
@@ -47,9 +47,9 @@ export async function GET(req: Request) {
     done: countRows[0]?.done ?? 0,
   };
 
-  // 首页「今日行动清单」：行动级 + 今天到期的顶层待办
-  // 行动：① 每日重复 ② 父待办标记今日 ③ 父待办今日到期 ④ 行动自身今日到期
-  // 顶层待办：自身今日到期（含已完成——进入「今日已完成」可恢复区，不会完成即消失）
+  // 首页「今日行动清单」：行动级 + 今天到期的顶层待办 + 过期未完成（拖欠的也要还）
+  // 行动：① 每日重复 ② 父待办标记今日 ③ 父待办今日到期 ④ 行动自身今日到期 ⑤ 行动自身已过期
+  // 顶层待办：自身今日到期（含已完成——进「今日已完成」可恢复区）或 已过期未完成
   if (view === "today-actions") {
     await restoreRepeating(user.id);
     const { rows } = await pool.query(
@@ -60,13 +60,16 @@ export async function GET(req: Request) {
            and ( a.repeat_daily
               or p.today_tag_date = ${BJ_TODAY}
               or ((p.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and p.status = 'pending')
-              or ((a.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and a.status = 'pending') )
+              or ((a.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and a.status = 'pending')
+              or ((a.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY} and a.status = 'pending') )
          union all
          select t.*, null::text as parent_title, t.due_at as parent_due
          from todos t
          where t.user_id = $1 and t.parent_todo_id is null
-           and t.status in ('pending', 'done')
-           and (t.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY}
+           and (
+             (t.status in ('pending', 'done') and (t.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY})
+             or (t.status = 'pending' and t.due_at is not null and (t.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY})
+           )
        ) x
        order by (x.status = 'done'), x.parent_due nulls last, x.created_at, x.sort
        limit 200`,
@@ -80,7 +83,7 @@ export async function GET(req: Request) {
 
   // 顶层待办：视图过滤 + 排序（重要在前，同组新建在前；done 视图按完成时间倒序）
   const where =
-    view === "today" ? `parent_todo_id is null and status = 'pending' and today_tag_date = ${BJ_TODAY}`
+    view === "today" ? `parent_todo_id is null and status = 'pending' and (today_tag_date = ${BJ_TODAY} or (due_at is not null and (due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY}))`
     : view === "important" ? `parent_todo_id is null and status = 'pending' and is_important`
     : view === "done" ? `parent_todo_id is null and status = 'done'`
     : `parent_todo_id is null and status = 'pending'`;
