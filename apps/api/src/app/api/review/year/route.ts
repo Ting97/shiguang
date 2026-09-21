@@ -5,6 +5,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
 import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
+import { getPrompt } from "@/lib/prompts";
 import {
   BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
   blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, sampleEntryRows, todoDoneLines, withCap,
@@ -172,17 +173,7 @@ export async function POST(req: Request) {
     ...monthLines,
   ];
 
-  const system = `你是个人经营助手「拾光」，为用户做**年度复盘**。输入是该用户全年的真实记录：逐月轨迹、代表性原始动态（含发布时间与心情标注）、日程块、完成待办、聚合统计，可能还有各月月报。请依次判断：
-1. 全年心情旅程（结合心情标注与原文语气，指出低谷与高光时段）；
-2. 主要时间花销与全年节奏变化；
-3. 写出年度总结、做得好的地方、明年可改进的方向。
-只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。全文 1000 字左右。sections 分 4-5 节（如 全年节奏/心情旅程/坚持与习惯/财务与人际/成长轨迹），每节 title≤8字、text≤220字。严格输出 JSON：
-{
-  "summary": "年度总述，≤150字，突出全年节奏与成长轨迹",
-  "sections": [ { "title": "全年节奏", "text": "该节展开" } ],
-  "highlights": ["做得好的地方，最多5条，每条≤36字"],
-  "suggestions": ["明年可改进的建议，最多3条，每条≤36字，没有依据就空数组"]
-}`;
+  const system = await getPrompt("review_year");
 
   // ---- 小结链（已有月报才带）+ 画像注入 ----
   const chainLines = await fetchChainSummaries(

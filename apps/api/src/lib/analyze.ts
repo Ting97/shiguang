@@ -1,5 +1,6 @@
 import { pool, findOverlap, overlapError } from "@/lib/db";
 import { parseInput } from "@shiguangri/ai";
+import { getPrompt } from "./prompts";
 import { inferGroupFromContext, inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
@@ -90,8 +91,10 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   const client = await pool.connect();
   try {
     const contactNames = await listContactNames(userId);
+    const systemPrompt = await getPrompt("extract_full");
     const r = await parseInput(rawText, {
       contactNames,
+      systemPrompt,
       onUsage: (u) => {
         // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
         promptTokens += u.prompt_tokens;

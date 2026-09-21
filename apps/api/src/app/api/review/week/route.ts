@@ -5,6 +5,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
 import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
+import { getPrompt } from "@/lib/prompts";
 import {
   BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
   blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, todoDoneLines, withCap,
@@ -178,16 +179,7 @@ export async function POST(req: Request) {
     ...dayLines,
   ];
 
-  const system = `你是个人经营助手「拾光」，为用户做**每周复盘**。输入是该用户本周的全部真实记录：原始动态（含发布时间与心情标注）、每日明细、日程块、完成待办、聚合统计，可能还有各日小结。请依次判断：
-1. 本周心情状况与起伏（结合心情标注与原文语气，可指出具体哪天低落/高涨）；
-2. 主要时间花销去了哪里、节奏如何；
-3. 总结这一周，说出做得好的地方，给出下周可改进的建议。
-只依据事实归纳对比，**严禁编造**；语气温和务实，不灌鸡汤。全文 200 字左右。严格输出 JSON：
-{
-  "summary": "本周总结，≤120字，突出心情起伏与时间结构",
-  "highlights": ["做得好的地方，最多3条，每条≤24字，可引用具体某天"],
-  "suggestions": ["下周可改进的建议，最多2条，每条≤24字，没有依据就空数组"]
-}`;
+  const system = await getPrompt("review_week");
 
   // ---- 小结链（已有日小结才带）+ 画像注入 ----
   const chainLines = await fetchChainSummaries(

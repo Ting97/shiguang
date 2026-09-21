@@ -5,6 +5,7 @@ import { parseInput, CONFIDENCE_THRESHOLD, DOMAIN_LABELS, type Domain, type Pars
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/lib/quota";
 import { writeAuditRecord } from "@/lib/audit";
+import { getPrompt, type PromptKey } from "@/lib/prompts";
 import { listContactNames } from "@/lib/analyze";
 
 export const runtime = "nodejs";
@@ -44,9 +45,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   let promptTokens = 0;
   let completionTokens = 0;
   const contactNames = domain === "people" ? await listContactNames(user.id) : undefined;
+  const systemPrompt = await getPrompt(`extract_domain_${domain}` as PromptKey);
   const r: ParseResult = await parseInput(entry.raw_text, {
     domain, // 单域专属提示词：只判本域，更准更省
     contactNames,
+    systemPrompt,
     onUsage: (u) => {
       // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
       promptTokens += u.prompt_tokens;

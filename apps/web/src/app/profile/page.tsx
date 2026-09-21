@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Nav from "@/components/nav";
 import { TagChip } from "@/components/tag-chip";
-import InvitesPanel from "@/components/invites-panel";
 
 interface Me {
   id: string;
@@ -39,30 +38,6 @@ export default function ProfilePage() {
     isAdmin: boolean;
     byModel?: { model: string; all: { calls: number; promptTokens: number; completionTokens: number }; d30: { calls: number } }[];
   } | null>(null);
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
-
-  interface AdminUser {
-    id: string;
-    nickname: string | null;
-    phone: string | null;
-    plan: string;
-    planExpiresAt: string | null;
-    used30d: number;
-  }
-
-  const loadUsers = () => {
-    fetch("/api/billing/users").then(async (r) => setUsers(r.ok ? await r.json().then((j) => j.users) : null));
-  };
-
-  async function adminSetPlan(userId: string, plan: "free" | "pro") {
-    await fetch("/api/billing/plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, plan, months: 12 }),
-    });
-    loadUsers();
-    fetch("/api/billing/plan").then(async (r) => r.ok && setQuota(await r.json())); // 同步刷新自己的额度条
-  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(async (r) => {
@@ -78,9 +53,7 @@ export default function ProfilePage() {
     // 套餐与 AI 用量（30 天窗口）
     fetch("/api/billing/plan").then(async (r) => {
       if (!r.ok) return;
-      const j = await r.json();
-      setQuota(j);
-      if (j.isAdmin) loadUsers();
+      setQuota(await r.json());
     });
   }, []);
 
@@ -281,44 +254,21 @@ export default function ProfilePage() {
               ) : (
                 <p className="mt-1 text-xs text-ink-dim">加载中…</p>
               )}
-              {/* 管理员：给用户发放/取消 Pro */}
-              {quota?.isAdmin && users && (
-                <div className="mt-4 border-t border-line-soft pt-3">
-                  <p className="text-xs font-medium text-ink-soft"><TagChip icon="👤" label="用户套餐管理（管理员）" tone="sky" /></p>
-                  <ul className="mt-2 space-y-2">
-                    {users.map((u) => (
-                      <li key={u.id} className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="min-w-0 flex-1 truncate text-ink">
-                          {u.nickname ?? "未命名"}
-                          <span className="ml-1.5 text-ink-faint">{u.phone ?? ""}</span>
-                        </span>
-                        <span className={u.plan === "pro" ? "font-medium text-amber-400" : "text-ink-mute"}>
-                          {u.plan === "pro" ? "Pro" : "免费"}·30天{u.used30d}次
-                        </span>
-                        {u.plan === "pro" ? (
-                          <button
-                            onClick={() => adminSetPlan(u.id, "free")}
-                            className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1 text-[11px] text-ink-soft transition hover:border-rose-500/50"
-                          >
-                            取消Pro
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => adminSetPlan(u.id, "pro")}
-                            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-warn transition hover:bg-amber-500/20"
-                          >
-                            升级Pro(1年)
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              {/* 管理员：后台入口（管理功能集中在 /admin） */}
+              {quota?.isAdmin && (
+                <a
+                  href="/admin"
+                  className="mt-4 flex items-center gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-3 transition hover:bg-sky-500/20"
+                >
+                  <span className="text-lg">🛠</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-semibold text-accent">后台管理</span>
+                    <span className="block text-[11px] text-ink-dim">AI prompt 调优 · 邀请与套餐 · Token 消耗</span>
+                  </span>
+                  <span className="text-ink-mute">→</span>
+                </a>
               )}
             </section>
-
-            {/* 邀请管理（原 /invites 独立页，仅管理员可见） */}
-            {me.isAdmin && <InvitesPanel />}
 
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
             <section className="glass rounded-2xl p-5">

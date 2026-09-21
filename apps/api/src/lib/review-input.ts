@@ -1,5 +1,6 @@
 import { pool } from "@/lib/db";
 import { chat, extractJson } from "@shiguangri/ai";
+import { getPrompt } from "@/lib/prompts";
 
 /**
  * 复盘输入基建（review v3）：原始明细行格式化、下层小结链、用户画像读写。
@@ -214,9 +215,6 @@ export async function chatReviewJson<T>(opts: {
   }
 }
 
-const PROFILE_MERGE_SYSTEM = `你是用户画像维护器。根据旧画像和本月复盘材料，合并出更新后的用户画像。只记录有长期价值的信息（习惯、偏好、规律、事实），短期的偶发内容不记；与旧画像重复或已过时的条目要去除/改写。总条目不超过 40 条，每条 ≤30 字，只依据材料严禁编造。严格输出 JSON：
-{"habits":["如：习惯在晚上跑步"],"preferences":["如：喜欢喝奶茶"],"patterns":["如：周中工作投入高周末少"],"facts":["如：9月开始记录打卡"]}`;
-
 /** 月报生成后合并更新用户画像（旧画像+本月材料→新画像 upsert）；失败静默不影响复盘主流程 */
 export async function updateProfileFromReview(
   userId: string,
@@ -226,8 +224,9 @@ export async function updateProfileFromReview(
 ): Promise<void> {
   try {
     const old = await loadProfileBlock(userId);
+    const system = await getPrompt("profile_merge");
     const raw = await chat({
-      system: PROFILE_MERGE_SYSTEM,
+      system,
       user: `旧画像：\n${old ?? "（暂无，首次建立）"}\n\n本月（${period}）事实：\n${clip(factsText, 1600)}\n\n本月复盘：\n${clip(reviewText, 1200)}`,
       temperature: 0.2,
       maxTokens: 1200,

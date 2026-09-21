@@ -5,6 +5,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
 import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
+import { getPrompt } from "@/lib/prompts";
 import {
   BLOCK_CAPS, ENTRY_CAPS, TODO_CAPS,
   blockLines, chatReviewJson, entryLines, fetchChainSummaries, loadProfileBlock, todoDoneLines, updateProfileFromReview, withCap,
@@ -189,17 +190,7 @@ export async function POST(req: Request) {
     ...weekLines,
   ];
 
-  const system = `你是个人经营助手「拾光」，为用户做**每月复盘**。输入是该用户本月的全部真实记录：原始动态（含发布时间与心情标注）、每周对比、日程块、完成待办、聚合统计，可能还有各周小结。请依次判断：
-1. 本月心情状况与曲线（结合心情标注与原文语气，指出低谷与高涨出现在何时）；
-2. 主要时间花销去了哪里、各周如何变化；
-3. 写出总结、做得好的地方、下月可改进的建议。
-只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。全文 500 字左右。sections 分 3 节左右（时间结构/心情曲线/财务与人际），每节 title≤8字、text≤160字。严格输出 JSON：
-{
-  "summary": "本月总述，≤120字，突出心情曲线与时间结构",
-  "sections": [ { "title": "时间结构", "text": "该节展开" } ],
-  "highlights": ["做得好的地方，最多4条，每条≤30字"],
-  "suggestions": ["下月可改进的建议，最多3条，每条≤30字，没有依据就空数组"]
-}`;
+  const system = await getPrompt("review_month");
 
   // ---- 小结链（已有周小结才带）+ 画像注入 ----
   const chainLines = await fetchChainSummaries(

@@ -2,10 +2,10 @@
 
 import { useEffect } from "react";
 
-/** 「邀请」已收进个人设置页（管理员区块）：旧地址跳转到 /profile */
+/** 「邀请」管理已迁入 /admin 后台（营销管理）：旧地址跳转 */
 export default function InvitesRedirectPage() {
   useEffect(() => {
-    location.replace("/profile");
+    location.replace("/admin");
   }, []);
   return null;
 }

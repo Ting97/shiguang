@@ -7,7 +7,7 @@ import { pool } from "@/lib/db";
 export interface AuditRecord {
   userId: string;
   entryId?: string | null;
-  stage: "parse" | "review" | "asr" | "chat";
+  stage: "parse" | "review" | "asr" | "chat" | "prompt_optimize" | "space_classify" | "decompose";
   model: string | null;
   engine?: string | null;
   latencyMs?: number | null;

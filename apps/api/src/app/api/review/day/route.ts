@@ -5,6 +5,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
 import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
+import { getPrompt } from "@/lib/prompts";
 import { blockLines, chatReviewJson, entryLines, loadProfileBlock, todoDoneLines, withCap } from "@/lib/review-input";
 
 export const runtime = "nodejs";
@@ -120,16 +121,7 @@ export async function POST(req: Request) {
     kcalRows.rows[0].kcal > 0 ? `饮食约 ${kcalRows.rows[0].kcal} kcal` : "",
   ].filter(Boolean);
 
-  const system = `你是个人经营助手「拾光」，为用户做**每日复盘**。输入是该用户当天的全部真实记录：原始动态（含发布时间与心情标注）、日程块、完成待办、聚合统计。请依次判断：
-1. 当天的心情状况如何（结合心情标注与原文语气）；
-2. 主要时间花销去了哪里；
-3. 总结这一天，说出做得好的地方，给出明天可改进的建议。
-只依据事实归纳，**严禁编造**；语气温和务实，不灌鸡汤。全文 100 字左右。严格输出 JSON：
-{
-  "summary": "当日总结，≤60字，突出心情与时间去向",
-  "highlights": ["做得好的地方，最多2条，每条≤20字"],
-  "suggestions": ["明天可改进的建议，最多2条，每条≤20字"]
-}`;
+  const system = await getPrompt("review_day");
 
   // ---- 画像注入（越用越懂用户）：有画像才拼入，无则跳过 ----
   const profileBlock = await loadProfileBlock(user.id);
