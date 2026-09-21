@@ -40,9 +40,10 @@ apps/android/.cxx/
 # 静态导出产物
 apps/web/out/
 
-# 发布产物（白名单入库）
+# 发布产物（白名单入库：仅小型壳 apk；大体积 Expo 原生包走 GitHub Releases，见 apps/artifacts/README.md）
 !apps/artifacts/
 !apps/artifacts/*.apk
+apps/artifacts/shiguang-expo-native-*.apk
 
 # Expo 原生工程（prebuild 产物不入库，EAS 云构建）
 apps/mobile/android/
