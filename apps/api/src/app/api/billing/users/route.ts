@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.id !== DEV_USER_ID) {
+  if (user.role !== "admin") {
     return NextResponse.json({ error: "仅管理员可查看" }, { status: 403 });
   }
   const { rows } = await pool.query(

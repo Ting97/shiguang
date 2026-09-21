@@ -7,8 +7,10 @@ import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
+import { TagChip, FilterChip, TONE_BG } from "@/components/tag-chip";
 import { api } from "@/lib/client-api";
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
+import { GROUP_TONE } from "@/lib/group-tone";
 
 interface Contact {
   id: string;
@@ -105,20 +107,17 @@ export default function ContactsPage() {
           {/* 列表 | 图谱 视图切换 */}
           <div className="mt-4 inline-flex rounded-full border border-line-soft bg-surface/70 p-1 text-xs">
             {([
-              ["list", "📋 列表"],
-              ["graph", "🕸 图谱"],
-            ] as const).map(([v, label]) => (
-              <button
+              ["list", "📋", "列表"],
+              ["graph", "🕸", "图谱"],
+            ] as const).map(([v, icon, label]) => (
+              <FilterChip
                 key={v}
+                variant="pill"
+                active={view === v}
                 onClick={() => setView(v)}
-                className={`rounded-full px-4 py-1.5 transition-all duration-200 ${
-                  view === v
-                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-ink-mute hover:text-ink"
-                }`}
-              >
-                {label}
-              </button>
+                icon={<span className="text-[12px] leading-none">{icon}</span>}
+                label={label}
+              />
             ))}
           </div>
         </header>
@@ -130,8 +129,14 @@ export default function ContactsPage() {
               const isAll = g.name === "全部";
               const selected = isAll ? groups.size === 0 : groups.has(g.name);
               return (
-                <button
+                <FilterChip
                   key={g.name}
+                  variant="filter"
+                  active={selected}
+                  title={isAll ? "显示全部分组" : "点击加入/移出筛选（可多选）"}
+                  icon={isAll ? undefined : <span className="text-[12px] leading-none">{GROUP_EMOJI[g.name] ?? "👤"}</span>}
+                  label={isAll ? "全部" : g.name}
+                  count={g.count}
                   onClick={() => {
                     if (isAll) {
                       setGroups(new Set());
@@ -144,15 +149,7 @@ export default function ContactsPage() {
                       return next;
                     });
                   }}
-                  title={isAll ? "显示全部分组" : "点击加入/移出筛选（可多选）"}
-                  className={`whitespace-nowrap rounded-full px-3 py-1 text-xs transition ${
-                    selected
-                      ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                      : "border border-line-soft bg-surface/60 text-ink-mute hover:bg-wash hover:text-ink"
-                  }`}
-                >
-                  {g.name === "全部" ? "全部" : `${GROUP_EMOJI[g.name] ?? "👤"} ${g.name}`} {g.count}
-                </button>
+                />
               );
             })}
           </div>
@@ -204,7 +201,9 @@ export default function ContactsPage() {
                   className="glass glass-hover group block rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-gradient-to-br from-elevated to-surface text-xl">
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-xl ${TONE_BG[GROUP_TONE[c.group_tag] ?? "sky"]}`}
+                    >
                       {GROUP_EMOJI[c.group_tag] ?? "👤"}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -213,7 +212,7 @@ export default function ContactsPage() {
                         {c.alias && <span className="truncate text-xs font-normal text-ink-dim">（{c.alias}）</span>}
                       </p>
                       <p className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-dim">
-                        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-ink-mute">{c.group_tag}</span>
+                        <TagChip label={c.group_tag} tone={GROUP_TONE[c.group_tag] ?? "sky"} size="sm" />
                         {bd?.countdown && <span className="text-ai">{bd.countdown}</span>}
                       </p>
                     </div>

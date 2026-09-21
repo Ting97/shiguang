@@ -15,6 +15,8 @@ create table if not exists public.profiles (
   password_hash  text,                                     -- scrypt，可空（纯验证码用户）
   wechat_openid  text unique,                              -- 预留：微信开放平台网站应用
   status      text not null default 'active',
+  role        text not null default 'user',                -- migrations/024：user/admin，admin 后台门禁
+  constraint profiles_role_check check (role in ('user','admin')),
   last_login_at timestamptz,
   created_at  timestamptz not null default now()
 );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCachedReview } from "./use-cached-review";
+import { TagChip } from "@/components/tag-chip";
 
 /** AI 日小结（review v3）：挂载时展示上次持久化的小结；点按钮生成/重新生成 */
 export default function DayReviewCard({ date, hasRecords, notify }: {
@@ -39,7 +40,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="shrink-0 text-xs font-semibold text-ink-mute">✨ AI 日小结{(generatedAt && review) && <span className="ml-2 text-[10px] font-normal text-ink-faint">生成于 {generatedAt.slice(5, 16).replace("T", " ")}</span>}</h3>
+        <h3 className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-mute"><TagChip icon="✨" label="AI 日小结" tone="violet" size="sm" />{(generatedAt && review) && <span className="ml-2 text-[10px] font-normal text-ink-faint">生成于 {generatedAt.slice(5, 16).replace("T", " ")}</span>}</h3>
         <button
           onClick={generate}
           disabled={busy || !hasRecords}
@@ -58,14 +59,14 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
           {(shown.highlights ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.highlights.map((h) => (
-                <li key={h} className="flex gap-1.5 text-[11px] text-success/90"><span className="shrink-0">💚</span><span>{h}</span></li>
+                <li key={h} className="flex gap-1.5 text-[11px] text-success/90"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success/80"></span><span>{h}</span></li>
               ))}
             </ul>
           )}
           {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.suggestions.map((sg) => (
-                <li key={sg} className="flex gap-1.5 text-[11px] text-accent/90"><span className="shrink-0">💡</span><span>{sg}</span></li>
+                <li key={sg} className="flex gap-1.5 text-[11px] text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 text-[9px] leading-none text-ai">💡</span><span>{sg}</span></li>
               ))}
             </ul>
           )}

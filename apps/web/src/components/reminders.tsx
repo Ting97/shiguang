@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ReminderItem } from "@/lib/reminders";
 import { todayStr } from "@/lib/date";
+import { TagChip } from "./tag-chip";
 
 /**
  * 工作台提醒横幅（W12）：生日/纪念日 + 到期待办
@@ -39,7 +40,7 @@ export default function Reminders({
       className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-warn"
     >
       <div className="flex items-center gap-2">
-        <span className="shrink-0 font-medium text-warn">🔔 提醒</span>
+        <TagChip icon="🔔" label="提醒" tone="amber" className="shrink-0" />
         <span className="flex-1" />
         <button
           onClick={() => {
@@ -55,7 +56,7 @@ export default function Reminders({
       <ul className="mt-1.5 space-y-1">
         {items.map((it) => (
           <li key={it.key} className="flex items-start gap-1.5 leading-relaxed">
-            <span className="mt-px shrink-0">
+            <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/15 text-[10px] leading-none">
               {it.kind === "birthday" ? "🎂" : it.kind === "anniversary" ? "💞" : it.overdue ? "⏰" : "📋"}
             </span>
             {it.contactId ? (

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getQuota } from "@/lib/quota";
 
@@ -30,7 +30,7 @@ export async function GET() {
     d30: { calls: Number(r.calls_30d), promptTokens: Number(r.prompt_30d), completionTokens: Number(r.completion_30d) },
   }));
   return NextResponse.json({
-    isAdmin: user.id === DEV_USER_ID,
+    isAdmin: user.role === "admin",
     ...quota,
     byModel,
   });
@@ -44,7 +44,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.id !== DEV_USER_ID) {
+  if (user.role !== "admin") {
     return NextResponse.json({ error: "仅管理员可变更套餐" }, { status: 403 });
   }
   const { userId, plan, months } = (await req.json().catch(() => ({}))) as {

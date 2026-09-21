@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
+import { TagChip } from "@/components/tag-chip";
 import { TX_CATEGORIES, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
 
 interface Account {
@@ -317,9 +318,9 @@ export default function FinancePage() {
         {/* 账户 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink-soft">
-              💳 账户
-              <span className="ml-2 text-xs font-normal text-ink-dim">
+            <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
+              <TagChip icon="💳" label="账户" tone="sky" />
+              <span className="text-xs font-normal text-ink-dim">
                 合计 {fmtMoney(ov.accounts.reduce((s, a) => s + a.balance_cents, 0))}
               </span>
             </h2>
@@ -330,7 +331,7 @@ export default function FinancePage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ov.accounts.map((a) => (
               <div key={a.id} className="rounded-xl border border-line-soft bg-bg/40 px-3 py-2.5 text-center">
-                <p className="text-lg">{a.icon}</p>
+                <p className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/15 text-base leading-none">{a.icon}</p>
                 <p className="truncate text-[11px] text-ink-mute">{a.name}</p>
                 <p className="text-sm font-semibold tabular-nums text-ink">{fmtMoney(a.balance_cents)}</p>
               </div>
@@ -347,9 +348,9 @@ export default function FinancePage() {
         {drafts.length > 0 && (
           <section id="draft-area" className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-warn">
-                📥 待确认流水
-                <span className="ml-2 text-xs font-normal text-warn/60">来自动态识别 · 确认后计入报表</span>
+              <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-warn">
+                <TagChip icon="📥" label="待确认流水" tone="amber" />
+                <span className="text-xs font-normal text-warn/60">来自动态识别 · 确认后计入报表</span>
               </h2>
               <button
                 onClick={() => setConfirmAll((v) => !v)}
@@ -411,9 +412,9 @@ export default function FinancePage() {
 
         {/* 已确认流水 */}
         <section className="glass rounded-2xl p-5">
-          <h2 className="mb-3 text-sm font-semibold text-ink-soft">
-            🧾 流水
-            <span className="ml-2 text-xs font-normal text-ink-dim">{confirmed.length} 笔</span>
+          <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
+            <TagChip icon="🧾" label="流水" tone="slate" />
+            <span className="text-xs font-normal text-ink-dim">{confirmed.length} 笔</span>
           </h2>
           {confirmed.length === 0 && (
             <p className="py-4 text-center text-xs text-ink-faint">
@@ -768,7 +769,9 @@ function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
   const max = Math.max(100, ...trend.map((t) => Math.abs(t.rate ?? 0)));
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
-      <p className="mb-2 text-[11px] text-ink-mute">📈 储蓄率 · 近 6 个月</p>
+      <p className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-mute">
+        <TagChip icon="📈" label="储蓄率 · 近 6 个月" tone="emerald" />
+      </p>
       <div className="flex items-end justify-between gap-2">
         {trend.map((t, i) => {
           const isCur = i === trend.length - 1;

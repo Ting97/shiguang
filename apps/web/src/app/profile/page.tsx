@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Nav from "@/components/nav";
+import { TagChip } from "@/components/tag-chip";
 import InvitesPanel from "@/components/invites-panel";
 
 interface Me {
@@ -237,7 +238,7 @@ export default function ProfilePage() {
 
             {/* 套餐与 AI 用量（M3 商业化） */}
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-ink-soft">💎 套餐与 AI 用量</h2>
+              <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon="💎" label="套餐与 AI 用量" tone="violet" /></h2>
               {quota ? (
                 <>
                   <p className="mt-1 text-xs text-ink-dim">
@@ -283,7 +284,7 @@ export default function ProfilePage() {
               {/* 管理员：给用户发放/取消 Pro */}
               {quota?.isAdmin && users && (
                 <div className="mt-4 border-t border-line-soft pt-3">
-                  <p className="text-xs font-medium text-ink-soft">👤 用户套餐管理（管理员）</p>
+                  <p className="text-xs font-medium text-ink-soft"><TagChip icon="👤" label="用户套餐管理（管理员）" tone="sky" /></p>
                   <ul className="mt-2 space-y-2">
                     {users.map((u) => (
                       <li key={u.id} className="flex flex-wrap items-center gap-2 text-xs">
@@ -321,7 +322,7 @@ export default function ProfilePage() {
 
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-ink-soft">📦 导出我的数据</h2>
+              <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon="📦" label="导出我的数据" tone="slate" /></h2>
               <p className="mt-1 text-xs text-ink-dim">全量备份包含动态、日程、待办、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
               <div className="mt-3 flex gap-2">
                 <a

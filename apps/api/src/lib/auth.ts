@@ -16,6 +16,7 @@ export interface SessionUser {
   id: string;
   nickname: string | null;
   phone: string | null;
+  role: "user" | "admin";
 }
 
 /**
@@ -26,10 +27,10 @@ export interface SessionUser {
 export async function getCurrentUser(): Promise<SessionUser | null> {
   if (process.env.AUTH_DISABLED === "1") {
     const { rows } = await pool.query(
-      `select id, nickname, phone from profiles where id = $1`,
+      `select id, nickname, phone, role from profiles where id = $1`,
       [DEV_USER_ID],
     );
-    return rows[0] ?? { id: DEV_USER_ID, nickname: "开发者", phone: null };
+    return rows[0] ?? { id: DEV_USER_ID, nickname: "开发者", phone: null, role: "admin" };
   }
   const bearer = extractBearerToken((await headers()).get("authorization"));
   let token = bearer;
@@ -40,7 +41,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!token) return null;
 
   const { rows } = await pool.query(
-    `select p.id, p.nickname, p.phone, s.expires_at
+    `select p.id, p.nickname, p.phone, p.role, s.expires_at
      from sessions s join profiles p on p.id = s.user_id
      where s.token_hash = $1`,
     [hashToken(token)],
@@ -60,7 +61,17 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       hashToken(token),
     ]);
   }
-  return { id: row.id, nickname: row.nickname, phone: row.phone };
+  return { id: row.id, nickname: row.nickname, phone: row.phone, role: row.role };
+}
+
+/**
+ * 管理员门禁：非登录返回 null（路由自行 401），非 admin 返回 null（路由自行 403）。
+ * 用法：const admin = await getAdminUser(); if (!admin) return 401/403 响应。
+ * 需区分 401/403 时用 getCurrentUser + role 判断。
+ */
+export async function getAdminUser(): Promise<SessionUser | null> {
+  const user = await getCurrentUser();
+  return user && user.role === "admin" ? user : null;
 }
 
 /**

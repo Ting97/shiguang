@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCachedReview } from "./use-cached-review";
+import { TagChip } from "@/components/tag-chip";
 
 /** AI 月报（review v3）：挂载时展示上次持久化的小结；点按钮生成/重新生成；分节长文渲染 */
 export default function MonthReviewCard({ month, hasRecords, notify }: {
@@ -43,7 +44,7 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
     <div className="glass mt-4 rounded-2xl p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink-soft">
-          ✨ AI 月报
+          <TagChip icon="✨" label="AI 月报" tone="violet" size="sm" />
           <span className="ml-2 text-[11px] font-normal text-ink-dim">{Number(month.slice(5))} 月</span>
         </h2>
         <button
@@ -72,14 +73,14 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
           {(shown.highlights ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.highlights.map((h) => (
-                <li key={h} className="flex gap-1.5 text-xs text-success/90"><span className="shrink-0">💚</span><span>{h}</span></li>
+                <li key={h} className="flex gap-1.5 text-xs text-success/90"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success/80"></span><span>{h}</span></li>
               ))}
             </ul>
           )}
           {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.suggestions.map((sg) => (
-                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="shrink-0">💡</span><span>{sg}</span></li>
+                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 text-[9px] leading-none text-ai">💡</span><span>{sg}</span></li>
               ))}
             </ul>
           )}

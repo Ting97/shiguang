@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Activity, TodoItem, TodoRow } from "@/lib/types";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
+import { FilterChip } from "./tag-chip";
 
 /**
  * TODO 管理视图（微软 To Do 式，日程页 TODO 子页）：
@@ -241,34 +242,23 @@ export default function TodoBoard() {
   };
 
   const viewBar = (vertical: boolean) =>
-    VIEWS.map(([v, label]) => {
-      const active = view === v;
-      return (
-        <button
-          key={v}
-          ref={vertical ? undefined : (el) => {
-            chipRefs.current[v] = el;
-          }}
-          onClick={() => setView(v)}
-          className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] transition-all duration-200 ${
-            vertical ? "w-full justify-between" : ""
-          } ${
-            active
-              ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-              : "text-ink-mute hover:bg-wash hover:text-ink"
-          }`}
-        >
-          {label}
-          <span
-            className={`min-w-5 rounded-full px-1.5 text-center text-[11px] tabular-nums ${
-              active ? "bg-white/25 text-white" : "bg-elevated text-ink-dim"
-            }`}
-          >
-            {counts[v]}
-          </span>
-        </button>
-      );
-    });
+    VIEWS.map(([v, label]) => (
+      <FilterChip
+        key={v}
+        label={label}
+        count={counts[v]}
+        active={view === v}
+        vertical={vertical}
+        onClick={() => setView(v)}
+        chipRef={
+          vertical
+            ? undefined
+            : (el) => {
+                chipRefs.current[v] = el;
+              }
+        }
+      />
+    ));
 
   return (
     <div>

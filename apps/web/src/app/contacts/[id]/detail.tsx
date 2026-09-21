@@ -6,8 +6,10 @@ import { useParams, useRouter } from "next/navigation";
 import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
+import { TagChip, TONE_BG } from "@/components/tag-chip";
 import { api } from "@/lib/client-api";
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
+import { GROUP_TONE } from "@/lib/group-tone";
 
 interface Contact {
   id: string;
@@ -154,39 +156,43 @@ export function ContactDetailPage() {
         {/* 档案头卡 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="flex items-start gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-line bg-gradient-to-br from-elevated to-surface text-2xl">
+            <span
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-line text-2xl ${TONE_BG[GROUP_TONE[contact.group_tag] ?? "sky"]}`}
+            >
               {GROUP_EMOJI[contact.group_tag] ?? "👤"}
             </span>
             <div className="min-w-0 flex-1">
               <h1 className="flex flex-wrap items-baseline gap-2 text-xl font-bold text-ink">
                 {contact.name}
                 {contact.alias && <span className="text-sm font-normal text-ink-dim">（{contact.alias}）</span>}
-                <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-normal text-ink-mute">{contact.group_tag}</span>
+                <TagChip label={contact.group_tag} tone={GROUP_TONE[contact.group_tag] ?? "sky"} size="sm" className="font-normal" />
                 <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] font-normal text-accent">
                   {importanceLabel(contact.importance)}
                 </span>
               </h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-mute">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-mute">
                 {bd && (
-                  <span>
-                    🎂 生日 {bd.date}
-                    {bd.lunar && bd.nextSolar && <span className="text-ink-dim">（{bd.nextSolar}）</span>}
+                  <>
+                    <TagChip
+                      icon="🎂"
+                      label={`生日 ${bd.date}${bd.lunar && bd.nextSolar ? `（${bd.nextSolar}）` : ""}`}
+                      tone="rose"
+                      size="sm"
+                    />
                     {bd.countdown != null && (
-                      <span className="ml-1 text-ai">
+                      <span className="text-ai">
                         · {bd.countdown === 0 ? "今天生日" : bd.countdown === 1 ? "明天生日" : `${bd.countdown} 天后生日`}
                       </span>
                     )}
-                  </span>
+                  </>
                 )}
                 {contact.anniversary && (() => {
                   const [, m, d] = contact.anniversary.split("-");
-                  return <span>💞 纪念日 {Number(m)}月{Number(d)}日</span>;
+                  return <TagChip icon="💞" label={`纪念日 ${Number(m)}月${Number(d)}日`} tone="rose" size="sm" />;
                 })()}
-                <span>📅 {timeline.length} 次往来</span>
+                <TagChip icon="📅" label={`${timeline.length} 次往来`} tone="sky" size="sm" />
                 {money.length > 0 && (
-                  <span className="tabular-nums">
-                    💰 收 {yuan(giftIn)} / 送 {yuan(giftOut)}
-                  </span>
+                  <TagChip icon="💰" label={`收 ${yuan(giftIn)} / 送 ${yuan(giftOut)}`} tone="rose" size="sm" className="tabular-nums" />
                 )}
               </div>
             </div>
@@ -337,9 +343,9 @@ export function ContactDetailPage() {
         {/* 关联人情账 */}
         {money.length > 0 && (
           <section className="glass rounded-2xl p-5">
-            <h2 className="mb-3 text-sm font-semibold text-ink-soft">
-              💰 关联人情账
-              <span className="ml-2 text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 {yuan(giftIn - giftOut)}</span>
+            <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
+              <TagChip icon="💰" label="关联人情账" tone="rose" />
+              <span className="text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 {yuan(giftIn - giftOut)}</span>
             </h2>
             <ul className="space-y-1">
               {money.map((m) => (

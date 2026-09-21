@@ -1,4 +1,4 @@
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
 
 /**
  * 复盘生成次数管控（review v3.1）。
@@ -92,6 +92,12 @@ export interface GateInfo {
   remaining: number | null;
 }
 
+/** 管理员（profiles.role = 'admin'）不限次数 */
+async function isAdminUser(userId: string): Promise<boolean> {
+  const { rows } = await pool.query(`select role from profiles where id = $1`, [userId]);
+  return rows[0]?.role === "admin";
+}
+
 /** 生成前检查并计提数据改动加成；不通过抛 ReviewGateError（由路由转 403） */
 export async function acquireGeneration(
   userId: string,
@@ -99,7 +105,7 @@ export async function acquireGeneration(
   periodKey: string,
   latestDataAt: Date | null,
 ): Promise<GateInfo> {
-  if (userId === DEV_USER_ID) return { ok: true, remaining: null }; // 管理员不限
+  if (await isAdminUser(userId)) return { ok: true, remaining: null }; // 管理员不限
 
   const M = REVIEW_LIMITS[kind];
   await pool.query(
@@ -132,7 +138,7 @@ export async function acquireGeneration(
 
 /** 生成成功后消耗一次 */
 export async function consumeGeneration(userId: string, kind: ReviewKind, periodKey: string): Promise<void> {
-  if (userId === DEV_USER_ID) return;
+  if (await isAdminUser(userId)) return;
   await pool.query(
     `update review_gen_quotas set used = used + 1, updated_at = now()
      where user_id = $1 and kind = $2 and period_key = $3`,

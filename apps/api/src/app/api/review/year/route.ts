@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool, DEV_USER_ID } from "@/lib/db";
+import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
@@ -30,7 +30,7 @@ interface YearReview {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.id !== DEV_USER_ID) {
+  if (user.role !== "admin") {
     const q = await checkAiQuota(user.id);
     if (!q.allowed) {
       return NextResponse.json(

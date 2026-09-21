@@ -5,6 +5,7 @@ import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
 import EntryMenu from "./entry-menu";
+import { TagChip } from "./tag-chip";
 import { PencilLine, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -164,12 +165,12 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const emoji = moodEmoji(m.mood);
   const intent =
     m.todos.length > 0
-      ? { icon: "📋", label: "待办" }
+      ? { icon: "📋", label: "待办", tone: "sky" as const }
       : m.blocks.length > 0
-        ? { icon: "🕒", label: "日程" }
+        ? { icon: "🕒", label: "日程", tone: "sky" as const }
         : m.mood
-          ? { icon: "✨", label: "心情" }
-          : { icon: "📝", label: "动态" };
+          ? { icon: "✨", label: "心情", tone: "violet" as const }
+          : { icon: "📝", label: "动态", tone: "slate" as const };
 
   // 卡内消息自动消失：成功 3.5s / 失败 8s（失败停留更久方便看清原因）
   useEffect(() => {
@@ -237,17 +238,16 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
       <div className="min-w-0 flex-1">
         {/* 头部：意图标签 + 整条删除（记录时间在卡片外的时间线旁） */}
         <div className="flex items-center gap-2 text-xs text-ink-dim">
-          <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-ink-mute">
-            {intent.icon} {intent.label}
-          </span>
-          {m.source === "voice" && <span title="语音输入">🎙</span>}
+          <TagChip icon={intent.icon} label={intent.label} tone={intent.tone} size="sm" />
+          {m.source === "voice" && <TagChip icon="🎙" label="语音" tone="slate" size="sm" title="语音输入" />}
           {(Object.values(m.recognitions ?? {}) as { engine?: string | null }[]).some((v) => v.engine === "rules") && (
-            <span
+            <TagChip
+              icon="⚠"
+              label="离线识别"
+              tone="amber"
+              size="sm"
               title="AI 暂不可用（额度/网络），本次由离线规则识别，点击原文可重识别"
-              className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-warn/80"
-            >
-              ⚠ 离线识别
-            </span>
+            />
           )}
           <span className="flex-1" />
           {confirming ? (
@@ -376,7 +376,10 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
 
         {/* 后台识别中：动态已上墙，识别产物随后出现 */}
         {!m.analyzed_at && (
-          <p className="mt-1.5 animate-pulse text-xs text-accent/80">🤖 AI 识别中…（日程 / 关系 / 待办 / 收支 / 心情 / 饮食）</p>
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-accent/80">
+            <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" className="shrink-0" />
+            <span className="min-w-0 truncate">正在提取 日程 / 关系 / 待办 / 收支 / 心情 / 饮食…</span>
+          </p>
         )}
 
         {/* 日程冲突降级提示：识别时发现时间重叠，未登记时间轴；可关闭（服务端标记，多端不再出现） */}
@@ -593,7 +596,8 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 </div>
               ) : (
                 <p key={td.id} className="group/row flex items-center gap-x-2">
-                  <span className="truncate">📋 待办：{td.title}</span>
+                  <TagChip icon="📋" label="待办" tone="sky" size="sm" className="shrink-0" />
+                  <span className="truncate">{td.title}</span>
                   <span className="shrink-0 text-ink-mute">
                     {todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}
                   </span>
@@ -675,8 +679,15 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 </div>
               ) : (
                 <p key={x.id} className="group/row flex items-center gap-x-2 text-ink-mute">
-                  <span>
-                    💰 {x.direction === "out" ? "支出" : "收入"} {yuan(x.amountCents)} · {x.category}
+                  <TagChip
+                    icon="💰"
+                    label={`${x.direction === "out" ? "支出" : "收入"} ${yuan(x.amountCents)}`}
+                    tone={x.direction === "out" ? "rose" : "emerald"}
+                    size="sm"
+                    className="shrink-0"
+                  />
+                  <span className="min-w-0 truncate">
+                    {x.category}
                     {x.counterparty ? ` · 对方：${x.counterparty}` : ""}
                   </span>
                   <RowAction
@@ -699,7 +710,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
             {/* ---- 人物 ---- */}
             {m.people.length > 0 && (
               <p className="group/row flex items-center gap-x-2 text-ink-mute">
-                <span>👥 {m.people.map((p) => p.name).join("、")}</span>
+                <TagChip icon="👥" label={m.people.map((p) => p.name).join("、")} tone="sky" size="sm" />
                 <RowAction
                   onDelete={() =>
                     del(`移除人物关联？（不影响联系人档案）\n「${m.people.map((p) => p.name).join("、")}」`, () =>
@@ -712,8 +723,9 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
             {/* ---- 饮食 ---- */}
             {m.diet && (
               <p className="group/row flex items-center gap-x-2 text-ink-mute">
-                <span className="min-w-0 flex-1">
-                  🍽 {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
+                <TagChip icon="🍽" label="饮食" tone="amber" size="sm" className="shrink-0" />
+                <span className="min-w-0 flex-1 truncate">
+                  {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
                   {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}
                   {m.diet.totalKcal != null ? ` · ≈${m.diet.totalKcal} kcal` : ""}
                 </span>

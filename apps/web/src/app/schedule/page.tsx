@@ -6,6 +6,7 @@ import CalendarPanel from "@/components/calendar-panel";
 import TodoBoard from "@/components/todo-board";
 import ActivityPanel from "@/components/activity-panel";
 import TodoLogo from "@/components/todo-logo";
+import { FilterChip } from "@/components/tag-chip";
 
 /**
  * 日程模块：日历（时间统计四视图）+ TODO（待办管理）+ 分类（活动分类管理）。
@@ -46,18 +47,15 @@ export default function SchedulePage() {
           </h1>
           <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
             {TABS.map(([v, label]) => (
-              <button
+              <FilterChip
                 key={v}
+                variant="pill"
+                active={tab === v}
                 onClick={() => setTab(v)}
-                className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 transition-all duration-200 sm:flex-none sm:px-4 sm:py-1 sm:text-[13px] ${
-                  tab === v
-                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-ink-mute hover:bg-wash hover:text-ink"
-                }`}
-              >
-                {v === "todo" && <TodoLogo size={15} onGradient={tab === v} />}
-                {label}
-              </button>
+                className="flex-1 justify-center sm:flex-none"
+                icon={v === "todo" ? <TodoLogo size={15} onGradient={tab === v} /> : undefined}
+                label={label}
+              />
             ))}
           </div>
         </div>

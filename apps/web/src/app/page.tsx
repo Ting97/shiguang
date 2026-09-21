@@ -12,6 +12,7 @@ import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-f
 import VoiceButton from "@/components/voice-button";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
+import { TagChip, FilterChip } from "@/components/tag-chip";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
 import type { Activity, Block, FeedMoment, TodoItem, TodoRow } from "@/lib/types";
 
@@ -410,38 +411,18 @@ export default function Home() {
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <section className="glass rounded-2xl p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-y-1">
-            <h2 className="text-sm font-semibold text-ink-soft">
-              🕐 今日日程{" "}
-              <span className="ml-1 whitespace-nowrap text-xs text-ink-dim">
-                {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
-              </span>
-              {todayKcal > 0 && (
-                <span className="ml-2 whitespace-nowrap rounded bg-orange-500/10 px-1.5 py-0.5 text-[11px] text-warn">
-                  🍽 今日 ≈{todayKcal} kcal
+            <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
+              <span className="inline-flex items-center gap-1">
+                🕐 今日日程{" "}
+                <span className="whitespace-nowrap text-xs font-normal text-ink-dim">
+                  {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
                 </span>
-              )}
+              </span>
+              {todayKcal > 0 && <TagChip icon="🍽" label={`今日 ≈${todayKcal} kcal`} tone="amber" size="sm" className="whitespace-nowrap" />}
             </h2>
             <div className="flex shrink-0 rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs">
-              <button
-                onClick={() => setView("timeline")}
-                className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 ${
-                  view === "timeline"
-                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-ink-mute hover:bg-wash hover:text-ink"
-                }`}
-              >
-                时间轴
-              </button>
-              <button
-                onClick={() => setView("list")}
-                className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 ${
-                  view === "list"
-                    ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
-                    : "text-ink-mute hover:bg-wash hover:text-ink"
-                }`}
-              >
-                列表
-              </button>
+              <FilterChip variant="pill" active={view === "timeline"} onClick={() => setView("timeline")} label="时间轴" />
+              <FilterChip variant="pill" active={view === "list"} onClick={() => setView("list")} label="列表" />
             </div>
           </div>
 

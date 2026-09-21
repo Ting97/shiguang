@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { TX_CATEGORIES, yuan } from "@/lib/finance";
+import { TagChip } from "./tag-chip";
 
 interface ImportPreview {
   platform: "alipay" | "wechat";
@@ -136,7 +137,7 @@ export default function BillImport({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">📥 导入支付宝/微信账单</h3>
+          <TagChip icon="📥" label="导入支付宝/微信账单" tone="amber" className="text-sm" />
           <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
         </div>
 
@@ -164,7 +165,10 @@ export default function BillImport({
               className="w-full rounded-xl border border-dashed border-line-strong bg-bg/40 px-4 py-6 text-center text-sm text-ink-mute transition hover:border-sky-500/60 hover:text-accent"
             >
               {fileName ? (
-                <>📄 {fileName}<span className="ml-2 text-xs text-ink-dim">点击更换</span></>
+                <span className="inline-flex max-w-full items-center gap-1">
+                  <TagChip icon="📄" label={fileName} tone="slate" className="max-w-[70%]" />
+                  <span className="text-xs text-ink-dim">点击更换</span>
+                </span>
               ) : (
                 <>点击选择账单 CSV 文件<span className="mt-1 block text-xs text-ink-faint">支付宝 / 微信官方导出，编码自动识别</span></>
               )}
