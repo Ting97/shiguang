@@ -413,6 +413,7 @@ export default function Home() {
               }
             }}
             rows={2}
+            maxLength={2000}
             placeholder='记录此刻…（试试"刚跑完步40分钟，心情不错"、"有点累"、"明天下午三点看牙"）'
             className="input-glow w-full resize-none rounded-xl border border-line-soft bg-surface/60 px-4 py-3 text-sm outline-none placeholder:text-ink-faint"
           />
@@ -443,13 +444,21 @@ export default function Home() {
               />
               <span className="hidden text-[11px] text-ink-faint sm:block">🎤 按住说话 · Enter 发布</span>
             </div>
-            <button
-              onClick={submit}
-              disabled={busy || !text.trim()}
-              className="btn-primary rounded-xl px-7 py-2 text-sm font-medium"
-            >
-              {busy ? "识别中…" : "发布"}
-            </button>
+            <div className="flex items-center gap-3">
+              {/* 接近上限才显示字数，与发布弹层口径一致 */}
+              {text.length >= 1800 && (
+                <span className={`text-[11px] tabular-nums ${text.length >= 1950 ? "text-danger" : "text-ink-faint"}`}>
+                  {text.length}/2000
+                </span>
+              )}
+              <button
+                onClick={submit}
+                disabled={busy || !text.trim()}
+                className="btn-primary rounded-xl px-7 py-2 text-sm font-medium"
+              >
+                {busy ? "识别中…" : "发布"}
+              </button>
+            </div>
           </div>
           {/* 已选图片缩略条（可移除；上传失败可重试） */}
           {desktopImages.length > 0 && (
