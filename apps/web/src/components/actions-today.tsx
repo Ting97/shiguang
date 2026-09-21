@@ -80,7 +80,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
         <>
           <ul className="space-y-0.5">
             {pending.map((a) => {
-              const tag = dueTag(a.parent_due);
+              // 到期提示：行动自身优先，父待办兜底（顶层待办条目只有自身 due）
+              const tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
               return (
                 <li key={a.id} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-elevated/60">
                   <TodoCircle size="md" done={false} onClick={() => toggleDone(a)} />
@@ -94,10 +95,12 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                       )}
                       {a.note && <span className="shrink-0 text-[10px] text-ink-faint" title="有描述">📄</span>}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
-                      <span className="min-w-0 truncate">来自「{a.parent_title}」</span>
-                      {tag && <span className={`shrink-0 ${tag.cls}`}>{tag.text}</span>}
-                    </p>
+                    {(a.parent_title || tag) && (
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
+                        {a.parent_title && <span className="min-w-0 truncate">来自「{a.parent_title}」</span>}
+                        {tag && <span className={`shrink-0 ${tag.cls}`}>{tag.text}</span>}
+                      </p>
+                    )}
                   </div>
                 </li>
               );

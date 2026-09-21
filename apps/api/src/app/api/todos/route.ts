@@ -47,17 +47,28 @@ export async function GET(req: Request) {
     done: countRows[0]?.done ?? 0,
   };
 
-  // 首页「今日行动清单」：行动级扁平列表（重复行动每天出现 ∪ 父待办标记今日 ∪ 父待办今日到期）
+  // 首页「今日行动清单」：行动级 + 今天到期的顶层待办
+  // 行动：① 每日重复 ② 父待办标记今日 ③ 父待办今日到期 ④ 行动自身今日到期
+  // 顶层待办：自身今日到期（pending）——无行动的到期待办也能在首页看到
   if (view === "today-actions") {
     await restoreRepeating(user.id);
     const { rows } = await pool.query(
-      `select a.*, p.title as parent_title, p.due_at as parent_due
-       from todos a join todos p on p.id = a.parent_todo_id
-       where a.user_id = $1
-         and ( a.repeat_daily
-            or p.today_tag_date = ${BJ_TODAY}
-            or ((p.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and p.status = 'pending') )
-       order by (a.status = 'done'), p.due_at nulls last, p.created_at, a.sort
+      `select x.* from (
+         select a.*, p.title as parent_title, p.due_at as parent_due
+         from todos a join todos p on p.id = a.parent_todo_id
+         where a.user_id = $1
+           and ( a.repeat_daily
+              or p.today_tag_date = ${BJ_TODAY}
+              or ((p.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and p.status = 'pending')
+              or ((a.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and a.status = 'pending') )
+         union all
+         select t.*, null::text as parent_title, t.due_at as parent_due
+         from todos t
+         where t.user_id = $1 and t.parent_todo_id is null
+           and t.status = 'pending'
+           and (t.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY}
+       ) x
+       order by (x.status = 'done'), x.parent_due nulls last, x.created_at, x.sort
        limit 200`,
       [user.id],
     );
