@@ -40,7 +40,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-mute"><TagChip icon="✨" label="AI 日小结" tone="violet" size="sm" />{(generatedAt && review) && <span className="ml-2 text-[10px] font-normal text-ink-faint">生成于 {generatedAt.slice(5, 16).replace("T", " ")}</span>}</h3>
+        <h3 className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-mute"><TagChip icon="✨" label="AI 日小结" tone="violet" size="sm" />{(generatedAt && review) && <span className="ml-2 text-[10px] font-normal text-ink-faint">生成于 {new Date(new Date(generatedAt).getTime() + 8 * 3600_000).toISOString().slice(5, 16).replace("T", " ")}</span>}</h3>
         <button
           onClick={generate}
           disabled={busy || !hasRecords}
