@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拾光 · 系统架构与业务架构总览</title>
+<style>
+  :root {
+    --accent: #5b5bd6; --accent-light: #eeedff; --accent-deep: #4747b3;
+    --ink: #1f2333; --ink-soft: #555b70; --line: #e6e6f0; --bg: #fafaf8; --card: #fff;
+    --ok: #0f8a5f; --ok-bg: #e9f7f0; --warn: #b7791f; --warn-bg: #fdf3e3;
+    --bad: #c0392b; --bad-bg: #fdeceb;
+    --c1: #3d6fd6; --c2: #0f8a5f; --c3: #c2603d; --c4: #8a4fd0; --c5: #b3902e;
+    --code-bg: #1e2130; --code-ink: #d8dcf0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif; color: var(--ink); background: var(--bg); line-height: 1.75; font-size: 15.5px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px 80px; }
+
+  .hero { background: linear-gradient(135deg,#3b3ba8 0%,#5b5bd6 55%,#7a6ae0 100%); color: #fff; padding: 56px 24px 48px; text-align: center; }
+  .hero h1 { font-size: 36px; font-weight: 700; letter-spacing: 1px; }
+  .hero .sub { margin-top: 12px; font-size: 16px; opacity: .93; max-width: 700px; margin-inline: auto; }
+  .badges { margin-top: 22px; display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
+  .badge { background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 4px 13px; font-size: 12.5px; }
+
+  section { margin-top: 52px; }
+  h2 { font-size: 23px; font-weight: 700; margin-bottom: 16px; padding-left: 13px; border-left: 5px solid var(--accent); }
+  h3 { font-size: 17px; font-weight: 650; margin: 24px 0 10px; }
+  p { margin: 8px 0; } p.soft, li.soft { color: var(--ink-soft); }
+  ul, ol { padding-left: 22px; margin: 8px 0; } li { margin: 4px 0; }
+  code { font-family: Consolas,"Cascadia Code",monospace; background: var(--accent-light); color: var(--accent-deep); padding: 1.5px 6px; border-radius: 5px; font-size: 13px; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
+
+  .tldr { background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 14px; padding: 20px 24px; margin-top: 36px; box-shadow: 0 6px 24px rgba(31,35,51,.05); }
+  .tldr .tag { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; background: var(--card); border-radius: 10px; overflow: hidden; font-size: 14px; }
+  th { background: #f1f1fa; text-align: left; padding: 10px 13px; font-weight: 650; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  td { padding: 9px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.run { background: var(--accent-light); color: var(--accent-deep); }
+  .pill.plan { background: #eee; color: #777; }
+
+  /* ---------- 三轴业务卡 ---------- */
+  .axes { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin: 16px 0; }
+  @media (max-width: 760px) { .axes, .cards4, .qcards { grid-template-columns: 1fr !important; } }
+  .axis { background: var(--card); border: 1px solid var(--line); border-radius: 13px; padding: 18px; border-top: 4px solid var(--c1); }
+  .axis:nth-child(2) { border-top-color: var(--c2); } .axis:nth-child(3) { border-top-color: var(--c3); }
+  .axis .icon { font-size: 26px; } .axis .name { font-size: 17px; font-weight: 700; margin: 6px 0 4px; }
+  .axis p { font-size: 13.5px; color: var(--ink-soft); }
+
+  /* ---------- 流程图 ---------- */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 16px 0; }
+  .fstep { flex: 1 1 130px; background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 12px 12px 10px; text-align: center; position: relative; min-width: 128px; }
+  .fstep .n { display: inline-block; width: 20px; height: 20px; line-height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+  .fstep .t { font-size: 13.5px; font-weight: 650; }
+  .fstep .d { font-size: 12px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+  .fstep:not(:last-child)::after { content: "▶"; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); color: #b9b9d6; font-size: 11px; z-index: 1; }
+  @media (max-width: 760px) { .fstep:not(:last-child)::after { content: "▼"; right: 50%; top: auto; bottom: -13px; transform: translateX(50%); } }
+
+  /* ---------- 分层架构图 ---------- */
+  .layers { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+  .layer { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .layer .lname { font-size: 13px; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .lname .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .box { border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #fbfbfe; font-size: 12.8px; }
+  .box b { display: block; font-size: 13px; }
+  .box span { color: var(--ink-soft); font-size: 12px; line-height: 1.5; display: block; }
+  .l-client .dot { background: var(--c1); } .l-gate .dot { background: #7c86ad; }
+  .l-svc .dot { background: var(--accent); } .l-share .dot { background: var(--c5); }
+  .l-ai .dot { background: var(--c4); } .l-data .dot { background: var(--c2); }
+  .l-ext .dot { background: var(--c3); }
+  .between { text-align: center; color: #9a9ab8; font-size: 13px; margin: -3px 0; }
+
+  /* ---------- 五域卡 ---------- */
+  .qcards { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin: 14px 0; }
+  .q { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 12px; text-align: center; }
+  .q .e { font-size: 22px; } .q .t { font-weight: 700; font-size: 14px; margin: 4px 0 2px; }
+  .q .d { font-size: 11.5px; color: var(--ink-soft); line-height: 1.5; }
+  .q .to { font-size: 11px; color: var(--accent-deep); background: var(--accent-light); border-radius: 5px; padding: 1px 5px; display: inline-block; margin-top: 6px; }
+
+  /* ---------- 数据模型 ---------- */
+  .dm { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin: 14px 0; }
+  .dmg { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .dmg h4 { font-size: 13.5px; padding: 8px 13px; color: #fff; font-weight: 650; letter-spacing: .5px; }
+  .dmg ul { list-style: none; padding: 7px 13px 10px; }
+  .dmg li { font-family: Consolas, monospace; font-size: 12.5px; padding: 3px 0; border-bottom: 1px dashed #efeff5; }
+  .dmg li:last-child { border-bottom: none; }
+  .dmg li small { font-family: inherit; color: var(--ink-soft); }
+
+  /* ---------- 部署拓扑 ---------- */
+  .topo { background: var(--code-bg); color: var(--code-ink); border-radius: 13px; padding: 22px; margin: 14px 0; font-family: Consolas, monospace; font-size: 13px; line-height: 1.9; overflow-x: auto; }
+  .topo .h { color: #8ab4f8; } .topo .c { color: #7c86ad; } .topo .s { color: #a5d6a7; } .topo .y { color: #f0d08c; }
+
+  .note { border-left: 4px solid var(--warn); background: var(--warn-bg); border-radius: 0 10px 10px 0; padding: 11px 16px; margin: 13px 0; font-size: 14px; }
+  .note.good { border-left-color: var(--ok); background: var(--ok-bg); }
+  .note.info { border-left-color: var(--accent); background: var(--accent-light); }
+
+  .cards4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 14px 0; }
+  .c4 { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .c4 b { font-size: 14px; } .c4 p { font-size: 12.5px; color: var(--ink-soft); margin-top: 5px; line-height: 1.55; }
+
+  footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>拾光 · 系统架构与业务架构总览</h1>
+  <div class="sub">个人经营系统「钱 · 时间 · 人」——一句话 / 一段语音，AI 五域识别同时落进时间轴、财务账、人情簿，并做钱×时间×人的交叉复盘</div>
+  <div class="badges">
+    <span class="badge">线上：shiguang.ting97.cn</span>
+    <span class="badge">Monorepo · 4 端 · 21 组 API · 21 张表</span>
+    <span class="badge">AI-First（GLM）</span>
+    <span class="badge">整理日期 2026-09-21</span>
+    <span class="badge">docs/12</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="tldr">
+    <div class="tag">TL;DR</div>
+    <p><strong>一个 Next.js 同构单服务的全栈应用 + 多端壳</strong>：<code>apps/api</code>（Next.js standalone）同域承担「全部 REST API + Web 静态托管」，<code>apps/web</code> 纯静态导出由它服务；移动端是 Expo 原生 App（主力）与 WebView 壳两条线。业务内核是 <strong>AI-First 五域识别管线</strong>：一句话经 GLM 抽取「日程 / 待办 / 收支 / 心情 / 饮食」五域，高置信直接落库、低置信转待确认，时间日期由确定性引擎锚定防漂移；在此之上是<strong>日/周/月/年四级交叉复盘</strong>（喂全量明细 + 用户画像，越用越懂）与<strong>商业化配额</strong>（free/pro）。部署为腾讯云单机（Caddy + systemd + PostgreSQL 13），双 tar 秒级回滚发布。</p>
+  </div>
+
+  <!-- ============ 一、业务架构 ============ -->
+  <section>
+    <h2>一、业务架构：三轴一体</h2>
+    <p>产品的一切功能都围绕三条业务轴展开，<strong>核心差异化在「一句话同时命中多轴」</strong>——"中午和老王吃饭花了260" 同时生成：日程块（社交·60min）+ 财务流水（餐饮支出 ¥260，对手方老王）+ 人际往来（老王·吃饭），数据天然打通。</p>
+    <div class="axes">
+      <div class="axis">
+        <div class="icon">⏱</div>
+        <div class="name">时间轴（Time）</div>
+        <p>说一句"刚跑完步40分钟"→ AI 识别类别与起止 → 四级日历自动登记：日 24h 时间轴 / 周列式 / 月历 / 年度热力图。含待办（未来话术自动建 TODO，完成回写日程）。</p>
+      </div>
+      <div class="axis">
+        <div class="icon">💰</div>
+        <div class="name">财务账（Money）</div>
+        <p>话术中含金额自动入账（收支方向/分类/对手方）；支付宝·微信账单 CSV 导入去重；账户体系；预算（月度上限预警）；分类统计与报表。</p>
+      </div>
+      <div class="axis">
+        <div class="icon">👥</div>
+        <div class="name">人情簿（People）</div>
+        <p>联系人档案（生日/纪念日/重要度/农历）+ 星型关系图谱（AntV G6）+ 点开 TA 见交往时间线与礼尚往来账 + 长久未联系提醒。AI 人物识别对齐已有联系人称呼。</p>
+      </div>
+    </div>
+
+    <h3>1.1 四大能力层（业务视角）</h3>
+    <div class="cards4">
+      <div class="c4"><b>🎙 记录入口</b><p>文字一句话（Web / 移动端）；语音长按 30s（移动端原生录音 → 服务端 ffmpeg 转码 → GLM-ASR 转写 → 回填预览确认后发布）。</p></div>
+      <div class="c4"><b>🧠 五域识别</b><p>AI-First：一次 GLM 调用联合抽取五域，置信度分流（直接落库 / 待确认 / 不适用），规则引擎只做灾难兜底。</p></div>
+      <div class="c4"><b>📊 复盘洞察</b><p>日/周/月/年四级小结：喂全量原始明细 + 下层小结链 + 用户画像，钱×时间×人交叉归因；小结持久化可回看。</p></div>
+      <div class="c4"><b>🔐 账户与商业化</b><p>手机号密码 / 短信 / 邮箱登录 + 邀请码注册；数据按用户隔离；free/pro 套餐 + AI 调用配额（audit_logs 全量计费口径）。</p></div>
+    </div>
+
+    <h3>1.2 核心业务流：从一句话到复盘</h3>
+    <div class="flow">
+      <div class="fstep"><span class="n">1</span><div class="t">说一句话</div><div class="d">文字或语音<br>（ASR 转写回填）</div></div>
+      <div class="fstep"><span class="n">2</span><div class="t">五域 AI 识别</div><div class="d">GLM 一次调用<br>JSON Schema 约束</div></div>
+      <div class="fstep"><span class="n">3</span><div class="t">确定性后处理</div><div class="d">日期锚定/金额归一<br>ongoing 推导/冲突检测</div></div>
+      <div class="fstep"><span class="n">4</span><div class="t">置信度分流落库</div><div class="d">≥0.6 直接落库<br>&lt;0.6 转 pending 待确认</div></div>
+      <div class="fstep"><span class="n">5</span><div class="t">动态流呈现</div><div class="d">卡片展示五域结果<br>可单域重识别/修正</div></div>
+      <div class="fstep"><span class="n">6</span><div class="t">四级复盘</div><div class="d">喂明细+画像<br>生成日/周/月/年小结</div></div>
+    </div>
+    <p class="soft">用户确认/修正数据会反哺识别登记簿（entry_recognitions 留痕每次识别的 engine/model/置信度），复盘喂料则随周期放大：周报带每日明细、月报带每周对比、年报带逐月轨迹。</p>
+  </section>
+
+  <!-- ============ 二、五域 ============ -->
+  <section>
+    <h2>二、五域识别模型（业务核心）</h2>
+    <p>一句话做<strong>五个独立判断</strong>，每域自带 applicable + confidence，互不强制：</p>
+    <div class="qcards">
+      <div class="q"><div class="e">🕒</div><div class="t">日程 schedule</div><div class="d">发生了/正做着某件具体的事，AI 直推起止时刻</div><div class="to">time_blocks</div></div>
+      <div class="q"><div class="e">📋</div><div class="t">待办 todo</div><div class="d">未来计划（明天/待会儿/打算…），due 必填</div><div class="to">todos</div></div>
+      <div class="q"><div class="e">💰</div><div class="t">收支 finance</div><div class="d">金额(分)+方向+分类+交易对象</div><div class="to">transactions</div></div>
+      <div class="q"><div class="e">😊</div><div class="t">心情 mood</div><div class="d">情绪词 + valence(-100~100)</div><div class="to">entries.mood</div></div>
+      <div class="q"><div class="e">🍽</div><div class="t">饮食 diet</div><div class="d">食物条目拆分 + kcal 估算 + 餐次</div><div class="to">diet_records</div></div>
+    </div>
+    <div class="note info"><strong>第六域（联动）：</strong>话术中提到的人物由 people 域抽取（对齐已有联系人档案，"爸妈"等合称自动拆分），落到 <code>interactions</code> 人际往来，并在财务上自动关联对手方——这使三轴数据在同一句话上天然联通。</div>
+    <table>
+      <thead><tr><th>分流规则</th><th>行为</th><th>用户感知</th></tr></thead>
+      <tbody>
+        <tr><td>confidence ≥ 0.6</td><td>直接落库 + 登记簿记 applied</td><td>发布即见日程/账目，可改可删</td></tr>
+        <tr><td>confidence &lt; 0.6</td><td>不落库，登记簿记 <strong>pending</strong></td><td>动态卡片提示「N 项待确认」，点开可修正或采纳</td></tr>
+        <tr><td>日程与已有时间块重叠</td><td>冲突降级为纯动态（保留心情/账/人）</td><td>警示条说明原因，可关闭（多端持久）</td></tr>
+        <tr><td>AI 判定 ongoing（区间横跨当下）</td><td>落日程块 + 生成收尾待办</td><td>时间轴显示"进行中"</td></tr>
+        <tr><td>AI 整体失败（限流/超时/额度熔断）</td><td><strong>规则引擎兜底</strong>（engine=rules，置信 0.4）</td><td>打卡入口永不失败；单域可重识别补救</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 三、系统分层 ============ -->
+  <section>
+    <h2>三、系统架构分层</h2>
+    <div class="layers">
+      <div class="layer l-client">
+        <div class="lname"><span class="dot"></span>客户端层（4 端，共享 packages/shared 逻辑层）</div>
+        <div class="boxes">
+          <div class="box"><b>Web（PWA）</b><span>apps/web · Next.js 15 纯静态导出（output:export），全 "use client" + fetch，由 API 同域托管；页面：动态流/日历/日程/分类/联系人/财务/登录/邀请/个人</span></div>
+          <div class="box"><b>Android 原生（主力）</b><span>apps/mobile · Expo/RN，App.tsx 单页 958 行；原生录音 + SecureStore + 极光毛玻璃视觉；EAS 云构建 + OTA 热更，v1.1.3</span></div>
+          <div class="box"><b>Android WebView 壳</b><span>apps/android · 纯 Java 单 Activity 零依赖，34KB，加载线上站（麦克风/下载/断网兼容点齐）</span></div>
+          <div class="box"><b>iOS（规划）</b><span>apps/native · Capacitor Xcode 工程，需 Mac 编译；认证/CORS 已为跨域 Bearer 就绪</span></div>
+        </div>
+      </div>
+      <div class="between">▲ HTTPS（Bearer / HttpOnly Cookie） ▼</div>
+      <div class="layer l-gate">
+        <div class="lname"><span class="dot"></span>接入层</div>
+        <div class="boxes">
+          <div class="box"><b>Caddy</b><span>HTTPS 自动证书（Let's Encrypt），同机多站点反代 → 127.0.0.1:3000</span></div>
+          <div class="box"><b>middleware 会话门卫</b><span>浅层校验：无凭证页面 307→/login、API 401；Cookie（Web 同域）与 Bearer（原生端）双凭证；CORS 预检 204 白名单回显</span></div>
+        </div>
+      </div>
+      <div class="between">▲ 同进程（Next.js standalone） ▼</div>
+      <div class="layer l-svc">
+        <div class="lname"><span class="dot"></span>服务层 —— apps/api（Next.js App Router，21 组路由）</div>
+        <div class="boxes">
+          <div class="box"><b>识别与记录</b><span>parse（五域）· asr（语音转写+ffmpeg）· feed（动态流/单域重识别/冲突关闭）· entries · today</span></div>
+          <div class="box"><b>时间</b><span>blocks（日程块）· todos（待办/升级）· activities（分类）· reminders（生日/纪念日/待办提醒）</span></div>
+          <div class="box"><b>财务</b><span>transactions（+CSV 导入）· accounts · budget · finance（报表）</span></div>
+          <div class="box"><b>人际</b><span>contacts · interactions · contacts/[id]（TA 档案）</span></div>
+          <div class="box"><b>复盘与统计</b><span>review（day/week/month/year）· stats</span></div>
+          <div class="box"><b>账户与运营</b><span>auth（密码/短信/邮箱/邀请/setup）· billing（套餐）· tokens（AI 用量）· export（数据导出）</span></div>
+        </div>
+      </div>
+      <div class="between">▲ 函数调用（monorepo 内包） ▼</div>
+      <div class="layer l-share">
+        <div class="lname"><span class="dot"></span>共享层（packages/，三端复用）</div>
+        <div class="boxes">
+          <div class="box"><b>@shiguangri/ai</b><span>GLM 客户端 · 五域 v2 解析管线（全量+单域）· 确定性时间引擎（duration/time-infer/日期锚定）· ASR · 复盘与单域提示词 · 46 句 PoC 测试集</span></div>
+          <div class="box"><b>@shiguangri/shared</b><span>双客户端共享：bearer/cors/client-api · csv-import · finance · graph · lunar(农历) · mood · reminders · social · types</span></div>
+          <div class="box"><b>@shiguangri/db</b><span>schema.sql + 20 个增量迁移（可重复执行），本地与生产各持一份</span></div>
+        </div>
+      </div>
+      <div class="between">▲ HTTPS ▼</div>
+      <div class="layer l-ai">
+        <div class="lname"><span class="dot"></span>AI 能力层（智谱 GLM，OpenAI 兼容协议）</div>
+        <div class="boxes">
+          <div class="box"><b>glm-5.3-flash</b><span>五域抽取 + 复盘生成 + 单域重识别（默认主力；429/5xx 总预算重试 → glm-4-flash 降级 → 规则引擎 → 额度熔断）</span></div>
+          <div class="box"><b>GLM-ASR-2512</b><span>语音转写（只认 wav/mp3，其余先经 ffmpeg 转 16k 单声道）</span></div>
+          <div class="box"><b>成本与稳定三板斧</b><span>audit_logs 全量 token 记账 · 免费档拥塞退避+降级链 · 修复重问（校验错误清单回喂）</span></div>
+        </div>
+      </div>
+      <div class="between">▲ SQL（node-postgres 连接池） ▼</div>
+      <div class="layer l-data">
+        <div class="lname"><span class="dot"></span>数据层 —— PostgreSQL 13（服务器本地，仅 127.0.0.1，scram 认证）</div>
+        <div class="boxes">
+          <div class="box"><b>21 张业务表</b><span>账户/会话/邀请码/验证码 + 动态/五域产物 + 财务三表 + 人际两表 + 复盘三表 + 审计（见 §5）</span></div>
+        </div>
+      </div>
+      <div class="between">▲ 出站调用 ▼</div>
+      <div class="layer l-ext">
+        <div class="lname"><span class="dot"></span>外部依赖</div>
+        <div class="boxes">
+          <div class="box"><b>智谱开放平台</b><span>GLM 对话 / GLM-ASR</span></div>
+          <div class="box"><b>腾讯云 SMS</b><span>短信验证码（未配置时密码登录不受影响）</span></div>
+          <div class="box"><b>SMTP</b><span>邮箱验证码（email_codes）</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 四、AI 管线 ============ -->
+  <section>
+    <h2>四、AI 管线（系统的灵魂）</h2>
+    <h3>4.1 识别管线（v2 · AI-First）</h3>
+    <div class="flow">
+      <div class="fstep"><span class="n">1</span><div class="t">预处理</div><div class="d">北京时间墙钟注入<br>（防 UTC 时区漂移）</div></div>
+      <div class="fstep"><span class="n">2</span><div class="t">GLM 全量抽取</div><div class="d">reasoning 先行<br>五域联合一次出</div></div>
+      <div class="fstep"><span class="n">3</span><div class="t">严格校验</div><div class="d">zod v2 域契约<br>漏答=不合格</div></div>
+      <div class="fstep"><span class="n">4</span><div class="t">修复重问 ×1</div><div class="d">校验错误清单<br>回喂模型自查</div></div>
+      <div class="fstep"><span class="n">5</span><div class="t">确定性后处理</div><div class="d">区间合法性 + 无日期词<br>锚定今天 + ongoing</div></div>
+      <div class="fstep"><span class="n">6</span><div class="t">落库分流</div><div class="d">applied/pending/none<br>登记簿留痕</div></div>
+    </div>
+    <ul class="soft">
+      <li><strong>降级链</strong>：GLM 失败（网络/超时/限流耗尽/重问仍不合格/额度熔断）→ 规则引擎兜底（engine=rules），打卡入口永不 500；单域重识别（日程/待办/收支/心情/饮食/人物专属提示词）随时补救。</li>
+      <li><strong>时间防漂移</strong>：起止时刻由 AI 直推，但「话术无日期词 → 强制锚定今天」（凌晨 0–5 点补记归昨天）——确定性函数 <code>anchorRangeToToday</code> 兜住模型偶发的明天/昨天漂移。</li>
+      <li><strong>防幻觉细节</strong>：量词不当钟点（"一点点"≠01:00）、reasoning-before-answer、JSON 键序即思考序。</li>
+    </ul>
+    <h3>4.2 复盘管线（v3 · 越用越懂你）</h3>
+    <div class="flow">
+      <div class="fstep"><span class="n">1</span><div class="t">喂料组装</div><div class="d">全量原始明细<br>（杜绝 LLM 现算数字）</div></div>
+      <div class="fstep"><span class="n">2</span><div class="t">下层小结链</div><div class="d">周报引用每日明细<br>月报带每周对比…</div></div>
+      <div class="fstep"><span class="n">3</span><div class="t">画像注入</div><div class="d">user_ai_profiles<br>稳定特征/偏好/目标</div></div>
+      <div class="fstep"><span class="n">4</span><div class="t">生成分级输出</div><div class="d">字数/maxTokens<br>随周期递增</div></div>
+      <div class="fstep"><span class="n">5</span><div class="t">持久化 + 配额</div><div class="d">review_caches 回看<br>gen_quotas 次数管控</div></div>
+      <div class="fstep"><span class="n">6</span><div class="t">画像合并</div><div class="d">月报后自动合并<br>更新用户画像</div></div>
+    </div>
+    <h3>4.3 配额与计费口径</h3>
+    <table>
+      <thead><tr><th>机制</th><th>规则</th></tr></thead>
+      <tbody>
+        <tr><td>审计记账</td><td>audit_logs 记录每次 parse/review/asr 的阶段、engine、model、prompt/completion tokens——全站唯一计费口径（/api/tokens/usage 与配额共用）</td></tr>
+        <tr><td>套餐配额</td><td>free：30 天滚动窗口 30 次 AI 调用；pro：不限（plan_expires_at 到期自动回落，无需定时任务）；管理员不限</td></tr>
+        <tr><td>复盘次数管控</td><td>日 2 / 周 5 / 月 10 / 年 24 次；晚 20 点前各预留 1/2 次；月逐周 +2、年逐月 +2 解锁；数据改动 bonus+1 不破上限</td></tr>
+        <tr><td>稳定策略</td><td>免费档拥塞：429/5xx 总预算内指数退避 → glm-4-flash 降级兜底；额度熔断后直接走规则引擎不再打 API</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 五、数据模型 ============ -->
+  <section>
+    <h2>五、数据模型（21 张表 · 5 组）</h2>
+    <div class="dm">
+      <div class="dmg"><h4 style="background:#7c86ad">账户与会话</h4><ul>
+        <li>profiles <small>用户主表（手机/邮箱/密码 hash/套餐/状态）</small></li>
+        <li>sessions <small>会话（token_hash sha256，30 天滑动）</small></li>
+        <li>sms_codes <small>短信验证码（hash，5min，限流）</small></li>
+        <li>email_codes <small>邮箱验证码</small></li>
+        <li>invite_codes <small>邀请码（一码一人）</small></li>
+      </ul></div>
+      <div class="dmg"><h4 style="background:var(--c1)">记录与时间轴</h4><ul>
+        <li>entries <small>动态本体（raw_text/mood/analyzed_at）</small></li>
+        <li>entry_recognitions <small>五域识别登记簿（entry+domain 唯一）</small></li>
+        <li>time_blocks <small>日程块（起止/模式/来源）</small></li>
+        <li>todos <small>待办（due/remind/start_at）</small></li>
+        <li>activities <small>九大活动分类（按用户隔离）</small></li>
+        <li>voice_logs <small>语音打卡原始记录</small></li>
+      </ul></div>
+      <div class="dmg"><h4 style="background:var(--c2)">财务</h4><ul>
+        <li>transactions <small>流水（方向/金额分/分类/对手方/外部单号去重）</small></li>
+        <li>accounts <small>账户（余额/类型）</small></li>
+        <li>budgets <small>预算（月度上限预警）</small></li>
+      </ul></div>
+      <div class="dmg"><h4 style="background:var(--c3)">人际</h4><ul>
+        <li>contacts <small>联系人（生日/农历/纪念日/重要度/AI 画像）</small></li>
+        <li>interactions <small>往来（类型/摘要/发生时刻）</small></li>
+      </ul></div>
+      <div class="dmg"><h4 style="background:var(--c4)">AI 沉淀与运营</h4><ul>
+        <li>diet_records <small>饮食条目（meal/kcal）</small></li>
+        <li>review_caches <small>四级小结持久化</small></li>
+        <li>review_gen_quotas <small>复盘次数管控（用户×周期）</small></li>
+        <li>user_ai_profiles <small>用户画像（月报后自动合并）</small></li>
+        <li>audit_logs <small>AI 全量审计（计费口径）</small></li>
+      </ul></div>
+    </div>
+    <p class="soft">关键联动：entries ←1:N→ entry_recognitions（每次识别留痕）；time_blocks/todos/transactions/diet_records/interactions 均挂 entry_id 可溯源到原话；transactions.counterparty ↔ contacts（礼尚往来）；contacts.alias 兜底称呼变体避免重复建档。</p>
+  </section>
+
+  <!-- ============ 六、部署拓扑 ============ -->
+  <section>
+    <h2>六、部署拓扑与发布流程</h2>
+    <div class="topo">
+<span class="c">互联网</span><br>
+&nbsp;&nbsp;│ HTTPS（Let's Encrypt，Caddy 自动续期）<br>
+<span class="h">腾讯云 CentOS Stream 9 · 3.6G 内存（114.132.169.158）</span><br>
+&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;├─ <span class="h">Caddy</span> ── 反代 shiguang.ting97.cn → 127.0.0.1:3000（同机另有 trade/tend 站点互不影响）<br>
+&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;├─ <span class="h">systemd: shiguangri.service</span>（Node 22 · /usr/local/shiguangri-runtime）<br>
+&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;WorkingDirectory=/opt/shiguangri/apps/api<br>
+&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├─ <span class="s">Next.js standalone</span>：21 组 API + 静态托管 catch-all（out/ 由 STATIC_DIR 指定）<br>
+&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├─ middleware 会话门卫（307/401/CORS）<br>
+&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└─ <span class="y">ffmpeg</span>（语音转码子进程，ASR 前置）<br>
+&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;├─ <span class="h">PostgreSQL 13</span>（127.0.0.1 · scram · 库名 shiguangri · 每日 pg_dump 备份）<br>
+&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;└─ <span class="h">/opt/shiguangri/.env</span>（生产凭据唯一来源：DB/智谱 Key/模型名/SMS 五件套）<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">旧版本保留 /opt/shiguangri_old → mv 回去即秒级回滚</span>
+    </div>
+    <h3>发布流程（双 tar 红线）</h3>
+    <div class="flow">
+      <div class="fstep"><span class="n">1</span><div class="t">本地构建</div><div class="d">npm run build<br>= web 静态 out + api standalone</div></div>
+      <div class="fstep"><span class="n">2</span><div class="t">双 tar 同步</div><div class="d">api 树 + web out →<br>/opt/shiguangri_new</div></div>
+      <div class="fstep"><span class="n">3</span><div class="t">原子切换</div><div class="d">stop → mv 换血 → start</div></div>
+      <div class="fstep"><span class="n">4</span><div class="t">烟雾检查</div><div class="d">/login 必须 200<br>（只发单 tar 会静态 404）</div></div>
+    </div>
+    <div class="note">⚠️ 历史事故教训：目录切换是整树换血，<strong>两个 tar 必须都发</strong>（哪怕 web 没改）；时间相关环境变量注意时区（库与服务器均显式 Asia/Shanghai）；CentOS PG13 默认 md5，改 scram 前先 set password_encryption。</div>
+  </section>
+
+  <!-- ============ 七、认证安全 ============ -->
+  <section>
+    <h2>七、认证与安全</h2>
+    <table>
+      <thead><tr><th>面</th><th>方案</th></tr></thead>
+      <tbody>
+        <tr><td>登录方式</td><td>手机号+密码（scrypt）· 手机号+短信验证码（腾讯云 SMS）· 邮箱验证码；微信扫码预留（需企业主体）</td></tr>
+        <tr><td>会话</td><td>HttpOnly Cookie（Web 同域）存随机 token，库存 sha256 可吊销；30 天滑动续期（剩余&lt;15 天自动续）；原生端走 Authorization: Bearer</td></tr>
+        <tr><td>注册</td><td>邀请码制（8 位易读字符，一码一人）；首个 /setup 账号为管理员（继承开发用户 UUID，存量数据零迁移）</td></tr>
+        <tr><td>数据隔离</td><td>全表 user_id 隔离 + 每查询显式过滤；全站门禁（页面 307 / API 401）</td></tr>
+        <tr><td>风控</td><td>验证码 hash 存储 5 分钟有效错 5 次作废；同号 60s/次、日 10 条；生产严禁 AUTH_DISABLED</td></tr>
+        <tr><td>AI 安全</td><td>敏感日记数据仅出站给智谱 API；导出功能（/api/export）满足个保法可携带权；审计留痕可追溯每次 AI 消耗</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 八、工程结构与演进 ============ -->
+  <section>
+    <h2>八、Monorepo 工程结构与演进状态</h2>
+    <table>
+      <thead><tr><th>目录</th><th>职责</th><th>技术要点</th></tr></thead>
+      <tbody>
+        <tr><td><code>apps/web</code></td><td>Web 客户端（9 页面 + 20+ 组件）</td><td>Next.js 15 · output:export · PWA（icon/manifest）· AntV G6 关系图谱</td></tr>
+        <tr><td><code>apps/api</code></td><td>API + 静态托管 + 会话门卫</td><td>Next.js 15 standalone · 21 组路由 · lib（analyze/audit/auth/quota/review-*）</td></tr>
+        <tr><td><code>apps/mobile</code></td><td>Android 原生 App（主力）</td><td>Expo/RN · EAS 云构建 + OTA · SecureStore · 原生录音（长按 30s 声波）</td></tr>
+        <tr><td><code>apps/android</code></td><td>Android WebView 壳（备选）</td><td>纯 Java 单 Activity，34KB，零第三方依赖</td></tr>
+        <tr><td><code>apps/native</code></td><td>iOS Capacitor 工程（待 Mac）</td><td>跨域 Bearer 认证已就绪</td></tr>
+        <tr><td><code>packages/ai</code></td><td>AI 内核</td><td>GLM 客户端 · 五域 v2 · 时间确定性引擎 · ASR · 46 句 PoC（≥85% 验收线）</td></tr>
+        <tr><td><code>packages/shared</code></td><td>双端共享逻辑</td><td>CSV 导入/财务计算/农历/图谱/社交推断/Bearer/CORS</td></tr>
+        <tr><td><code>packages/db</code></td><td>Schema 与迁移</td><td>schema.sql + 20 迁移（可重复执行，本地与生产各执行）</td></tr>
+        <tr><td><code>apps/artifacts</code></td><td>发布产物</td><td>小壳入库；大包走 GitHub Releases（tag：apk-v*）</td></tr>
+      </tbody>
+    </table>
+    <h3>演进里程碑</h3>
+    <table>
+      <thead><tr><th>阶段</th><th>内容</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>Phase 0</td><td>调研定稿 + monorepo + 语音解析 PoC（20 句 ≥85%）</td><td><span class="pill ok">✅ 完成</span></td></tr>
+        <tr><td>Phase 1</td><td>时间日记：四视图日历 / 动态流 / 待办</td><td><span class="pill ok">✅ 完成</span></td></tr>
+        <tr><td>Phase 2</td><td>财务：记账 / 账户 / CSV 导入 / 预算 / 报表 + 账户体系上线</td><td><span class="pill ok">✅ 完成</span></td></tr>
+        <tr><td>Phase 3</td><td>人际：档案 / TA 页 / 星型图谱 / 提醒横幅（W9–W12）</td><td><span class="pill ok">✅ 完成</span></td></tr>
+        <tr><td>M1–M3</td><td>三端适配（Expo 原生 v1.1.3）+ 商业化（套餐/AI 配额）+ 语音记账全链路</td><td><span class="pill ok">✅ 完成</span></td></tr>
+        <tr><td>Phase 4</td><td>交叉复盘 v3（已上线）· 主动消息 · 上线收尾打磨</td><td><span class="pill run">▶ 进行中</span></td></tr>
+        <tr><td>远期</td><td>iOS 上架 · 微信生态 · 记忆系统（pgvector RAG）· Jev 类决策模型观察</td><td><span class="pill plan">规划</span></td></tr>
+      </tbody>
+    </table>
+    <div class="note good"><strong>架构决策的三条主线</strong>（贯穿全程）：① <strong>AI-First 但永不单点</strong>——AI 直推 + 确定性引擎锚定 + 规则兜底 + 单域重识别，故障任一层都有下家；② <strong>逻辑共享、UI 分端</strong>——packages/shared+ai 承载全部业务逻辑，Web/移动 UI 各自演进；③ <strong>单人可运维</strong>——单机单服务单数据库，双 tar 秒回滚，审计全量可算账。</div>
+  </section>
+
+  <section>
+    <h2>九、关联文档</h2>
+    <ul>
+      <li><a href="03-技术方案与架构设计.md">docs/03 技术方案与架构设计</a> · <a href="08-部署文档.md">docs/08 部署文档</a> · <a href="09-账户体系.md">docs/09 账户体系</a></li>
+      <li><a href="10-人际模块.md">docs/10 人际模块</a> · <a href="11-使用手册.md">docs/11 使用手册</a> · <a href="13-WebView壳与原生安卓方案对比.md">docs/13 壳方案对比</a> · <a href="14-三端适配与商业化方案对比.md">docs/14 三端与商业化</a></li>
+      <li><a href="12-系统架构与业务架构总览.html">本文（docs/12）</a> · <a href="10-技术调研-Jev决策模型详解.html">docs/10-Jev 技术调研</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    拾光（shiguangri）· 系统架构与业务架构总览 · 生成于 2026-09-21 · 依据当日代码库实况梳理（21 组 API / 21 张表 / 20 迁移 / 四端）· 后续架构变更请同步更新本页。
+  </footer>
+</div>
+</body>
+</html>
