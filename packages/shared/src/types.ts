@@ -40,6 +40,38 @@ export interface TodoRow {
   note: string | null;
   done_at: string | null;
   created_at: string;
+  /* —— REQ-001 R3 行动模型 / 空间 —— */
+  space_id: string | null;
+  sort: number;
+  repeat_daily: boolean;
+  repeat_done_count: number;
+  last_done_date: string | null;
+}
+
+/** 目标空间（REQ-001 R3）：宏大目标容器 */
+export interface Space {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string;
+  color: string;
+  status: "active" | "archived";
+  started_at: string | null;
+  target_date: string | null;
+  sort: number;
+  created_at: string;
+  updated_at: string;
+  todo_total?: number;
+  todo_done?: number;
+  action_total?: number;
+  action_done?: number;
+  entry_count?: number;
+}
+
+/** 今日行动清单条目：行动 + 父待办上下文 */
+export interface TodayAction extends TodoRow {
+  parent_title: string;
+  parent_due: string | null;
 }
 
 /** 待办树节点：顶层待办 + 子待办（最多一层） */
@@ -88,7 +120,19 @@ export interface FeedMoment {
     items: { name: string; amount?: string | null; kcal?: number | null }[] | null;
     totalKcal: number | null;
   } | null;
+  images: FeedImage[];
+  space: { id: string; name: string; icon: string; color: string } | null;
   recognitions: Partial<Record<string, { status: "applied" | "pending" | "none"; confidence: number; reason?: string | null; reasonDismissed?: boolean; engine?: string | null }>>;
   /** 五域识别完成时间；为空 = 仍在后台识别（卡片显示「AI 识别中」） */
   analyzed_at: string | null;
+}
+
+/** 动态图片（REQ-001 R1）：访问统一走 /api/files/{storageKey} */
+export interface FeedImage {
+  id: string;
+  storageKey: string;
+  mime: string;
+  width: number | null;
+  height: number | null;
+  sort: number;
 }
