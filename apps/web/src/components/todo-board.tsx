@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Activity, Space, TodoItem, TodoRow } from "@/lib/types";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { FilterChip } from "./tag-chip";
@@ -36,6 +37,9 @@ function isChildId(id: string, todos: TodoItem[]): boolean {
   return todos.some((t) => t.children.some((c) => c.id === id));
 }
 
+/** 行是否已完成（菜单分支用） */
+const isDoneRow = (t: TodoRow) => t.status === "done";
+
 export default function TodoBoard() {
   const [view, setView] = useState<View>("today");
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -62,6 +66,9 @@ export default function TodoBoard() {
   const [editRepeat, setEditRepeat] = useState(false);
   // AI 拆解进行中的节点 id
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
+  // 行操作菜单卡片（点「⋯」弹出，带文字标签；桌面锚定浮层 / 移动端底部弹层）
+  const [menuRow, setMenuRow] = useState<{ todo: TodoRow; isChild: boolean; parentTitle?: string } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   // 行动详情面板（点标题展开）：标题 + 详细内容（≤1000 字）+ 截止
   const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
@@ -304,6 +311,39 @@ export default function TodoBoard() {
     done: "还没有已完成的任务 ✓",
   };
 
+  /** 菜单卡片单项：点击即关菜单再执行动作（danger 红、active 已开启徽标、busy 转圈文案） */
+  const MenuItem = ({ icon, label, hint, extra, danger, active, disabled, busy, onClick }: {
+    icon: string;
+    label: string;
+    hint?: string;
+    extra?: string;
+    danger?: boolean;
+    active?: boolean;
+    disabled?: boolean;
+    busy?: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      onClick={() => {
+        if (disabled) return;
+        setMenuRow(null);
+        onClick();
+      }}
+      disabled={disabled}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition disabled:opacity-40 ${
+        danger ? "text-danger hover:bg-rose-500/10" : active ? "text-warn hover:bg-wash" : "text-ink hover:bg-wash"
+      }`}
+    >
+      <span className="w-5 shrink-0 text-center text-sm leading-none">{busy ? "⏳" : icon}</span>
+      <span className="min-w-0 flex-1">
+        {label}
+        {hint && <span className="block truncate text-[10px] text-ink-faint">{hint}</span>}
+      </span>
+      {extra && <span className="shrink-0 text-[10px] tabular-nums text-success">{extra}</span>}
+      {active && <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-warn">已开启</span>}
+    </button>
+  );
+
   const viewBar = (vertical: boolean) =>
     VIEWS.map(([v, label]) => (
       <FilterChip
@@ -518,56 +558,17 @@ export default function TodoBoard() {
                             </button>
                           )}
                           {tag && <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>}
-                          <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                            {(view === "done" ? !done : true) && (
-                              <button
-                                onClick={() => patchTodo(t.id, { important: !t.is_important })}
-                                title={t.is_important ? "取消重要" : "标记重要"}
-                                className={`rounded px-1.5 py-0.5 text-xs transition hover:bg-soft ${t.is_important ? "text-warn" : "text-ink-mute opacity-60 hover:text-warn"}`}
-                              >
-                                ⭐
-                              </button>
-                            )}
-                            {!done && (
-                              <button
-                                onClick={() => patchTodo(t.id, { today: !t.today_tag_date })}
-                                title={t.today_tag_date ? "移出今日" : "标记今日（跨零点自动失效）"}
-                                className={`rounded px-1.5 py-0.5 text-xs transition hover:bg-soft ${t.today_tag_date ? "text-accent" : "text-ink-mute opacity-60 hover:text-accent"}`}
-                              >
-                                ☀️
-                              </button>
-                            )}
-                            {!done && (
-                              <button
-                                onClick={() => decompose(t, false)}
-                                disabled={decomposingId === t.id}
-                                title="✨ AI 拆解为可执行的行动"
-                                className="rounded px-1.5 py-0.5 text-xs text-ai opacity-60 transition hover:bg-soft hover:opacity-100 disabled:animate-pulse"
-                              >
-                                {decomposingId === t.id ? "✨…" : "✨"}
-                              </button>
-                            )}
-                            {!done && (
-                              <button
-                                onClick={() => {
-                                  setSubParentId(subParentId === t.id ? null : t.id);
-                                  setSubTitle("");
-                                  setExpanded((s) => new Set(s).add(t.id));
-                                }}
-                                title="添加子任务"
-                                className="rounded px-1.5 py-0.5 text-xs text-ink-mute opacity-60 transition hover:bg-soft hover:text-accent"
-                              >
-                                ＋
-                              </button>
-                            )}
-                            <button
-                              onClick={() => removeTodo(t, false)}
-                              title="删除（子任务一并删除）"
-                              className="rounded px-1.5 py-0.5 text-xs text-ink-mute opacity-60 transition hover:bg-soft hover:text-danger"
-                            >
-                              🗑
-                            </button>
-                          </span>
+                          <button
+                            onClick={(e) => {
+                              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 330), left: Math.max(8, r.right - 224) });
+                              setMenuRow({ todo: t, isChild: false });
+                            }}
+                            title="更多操作"
+                            className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
+                          >
+                            ⋯
+                          </button>
                           {(t.children.length > 0) && (
                               <button
                               onClick={() => toggleExpand(t.id)}
@@ -669,25 +670,17 @@ export default function TodoBoard() {
                                         </span>
                                       )}
                                       {ctag && <span className={`shrink-0 text-[11px] ${ctag.cls}`}>{ctag.text}</span>}
-                                      <span className="row-actions hidden shrink-0 gap-0.5 group-hover/child:flex">
-                                        {!cDone && (
-                                          <button
-                                            onClick={() => decompose(c, true)}
-                                            disabled={decomposingId === c.id}
-                                            title="✨ AI 细化为更小的行动（插入其后）"
-                                            className="rounded px-1.5 py-0.5 text-xs text-ai opacity-60 transition hover:bg-soft hover:opacity-100 disabled:animate-pulse"
-                                          >
-                                            {decomposingId === c.id ? "✨…" : "✨"}
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={() => removeTodo(c, true)}
-                                          title="删除行动"
-                                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute transition hover:bg-soft hover:text-danger"
-                                        >
-                                          🗑
-                                        </button>
-                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                          setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 300), left: Math.max(8, r.right - 224) });
+                                          setMenuRow({ todo: c, isChild: true, parentTitle: t.title });
+                                        }}
+                                        title="更多操作"
+                                        className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover/child:block"
+                                      >
+                                        ⋯
+                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -712,7 +705,7 @@ export default function TodoBoard() {
                               </div>
                             )}
                             {t.children.length === 0 && subParentId !== t.id && (
-                              <p className="px-1.5 py-1 text-[11px] text-ink-faint">还没有行动 —— 点行右侧「＋」添加，或「✨」让 AI 拆解</p>
+                              <p className="px-1.5 py-1 text-[11px] text-ink-faint">还没有行动 —— 行右侧「⋯」里添加，或让 AI 拆解</p>
                             )}
                             {done && <p className="px-1.5 py-0.5 text-[11px] text-ink-faint">已完成的待办不可再添加行动</p>}
                           </div>
@@ -729,6 +722,101 @@ export default function TodoBoard() {
           )}
         </div>
       </div>
+
+      {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层） */}
+      {menuRow &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setMenuRow(null)} />
+            <div
+              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+              style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 移动端拖拽指示条 */}
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
+              <p className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</span>
+                {menuRow.isChild && menuRow.parentTitle && (
+                  <span className="max-w-24 shrink-0 truncate text-[10px] text-ink-faint">{menuRow.parentTitle}</span>
+                )}
+              </p>
+              <div className="space-y-0.5">
+                {menuRow.isChild ? (
+                  <>
+                    <MenuItem icon="✏️" label="编辑标题 / 描述" onClick={() => openNote(menuRow.todo)} />
+                    {!isDoneRow(menuRow.todo) && (
+                      <MenuItem
+                        icon="🔁"
+                        label={menuRow.todo.repeat_daily ? "关闭每日重复" : "每日重复（次日 6 点恢复）"}
+                        active={menuRow.todo.repeat_daily}
+                        extra={menuRow.todo.repeat_done_count > 0 ? `已完成 ×${menuRow.todo.repeat_done_count}` : undefined}
+                        onClick={() => patchTodo(menuRow.todo.id, { repeatDaily: !menuRow.todo.repeat_daily }, menuRow.todo.repeat_daily ? "已关闭每日重复" : "🔁 已设为每日重复")}
+                      />
+                    )}
+                    {!isDoneRow(menuRow.todo) && (
+                      <MenuItem
+                        icon="✨"
+                        label="AI 细化为更小行动"
+                        hint="插入到该行动之后"
+                        disabled={decomposingId === menuRow.todo.id}
+                        busy={decomposingId === menuRow.todo.id}
+                        onClick={() => decompose(menuRow.todo, true)}
+                      />
+                    )}
+                    <MenuItem icon="🗑" label="删除行动" danger onClick={() => removeTodo(menuRow.todo, true)} />
+                  </>
+                ) : (
+                  <>
+                    <MenuItem icon="✏️" label="编辑标题与时间" onClick={() => startEdit(menuRow.todo)} />
+                    {!isDoneRow(menuRow.todo) && (
+                      <MenuItem
+                        icon="⭐"
+                        label={menuRow.todo.is_important ? "取消重要标记" : "标记为重要"}
+                        active={menuRow.todo.is_important}
+                        onClick={() => patchTodo(menuRow.todo.id, { important: !menuRow.todo.is_important }, menuRow.todo.is_important ? "已取消重要" : "⭐ 已标记为重要")}
+                      />
+                    )}
+                    {!isDoneRow(menuRow.todo) && (
+                      <MenuItem
+                        icon="☀️"
+                        label={menuRow.todo.today_tag_date ? "移出今日" : "标记为今日"}
+                        hint="今日标记跨零点自动失效"
+                        active={!!menuRow.todo.today_tag_date}
+                        onClick={() => patchTodo(menuRow.todo.id, { today: !menuRow.todo.today_tag_date }, menuRow.todo.today_tag_date ? "已移出今日" : "☀️ 已加入今日")}
+                      />
+                    )}
+                    {!isDoneRow(menuRow.todo) && (
+                      <MenuItem
+                        icon="＋"
+                        label="添加行动"
+                        onClick={() => {
+                          setSubParentId(menuRow.todo.id);
+                          setSubTitle("");
+                          setExpanded((s) => new Set(s).add(menuRow.todo.id));
+                        }}
+                      />
+                    )}
+                    {!isDoneRow(menuRow.todo) && (
+                      <MenuItem
+                        icon="✨"
+                        label="AI 拆解为可执行的行动"
+                        disabled={decomposingId === menuRow.todo.id}
+                        busy={decomposingId === menuRow.todo.id}
+                        onClick={() => decompose(menuRow.todo, false)}
+                      />
+                    )}
+                    {isDoneRow(menuRow.todo) && (
+                      <MenuItem icon="↩️" label="恢复为未完成" onClick={() => patchTodo(menuRow.todo.id, { undone: true }, `↩️ 「${menuRow.todo.title}」已恢复`)} />
+                    )}
+                    <MenuItem icon="🗑" label="删除待办" hint="其下行动一并删除" danger onClick={() => removeTodo(menuRow.todo, false)} />
+                  </>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

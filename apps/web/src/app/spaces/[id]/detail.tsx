@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import Nav from "@/components/nav";
 import { TagChip } from "@/components/tag-chip";
 import { TodoCircle, childProgress, dueTag, zhTime } from "@/components/todo-bits";
-import type { FeedMoment, Space, TodoItem } from "@/lib/types";
+import type { FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
 
 /**
  * 空间详情（REQ-001 R3）：空间头部（可编辑/归档/删除）→ 进度概览 →
@@ -32,6 +33,9 @@ export default function Detail() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 行动描述编辑（复用 note 字段；详情页只读展开）
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
+  // 行操作菜单卡片（点「⋯」弹出；桌面锚定浮层 / 移动端底部弹层）
+  const [menuRow, setMenuRow] = useState<{ todo: TodoRow; isChild: boolean } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const load = useCallback(async () => {
     const sr = await fetch("/api/spaces");
@@ -294,10 +298,15 @@ export default function Detail() {
                         {busyId === t.id ? "✨…" : "✨ 拆解"}
                       </button>
                       <button
-                        onClick={() => removeTodo(t.id, t.title)}
-                        className="row-actions hidden shrink-0 rounded px-1.5 py-0.5 text-xs text-ink-mute opacity-60 transition hover:bg-soft hover:text-danger group-hover:block"
+                        onClick={(e) => {
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) });
+                          setMenuRow({ todo: t, isChild: false });
+                        }}
+                        title="更多操作"
+                        className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
                       >
-                        🗑
+                        ⋯
                       </button>
                       {t.children.length > 0 && (
                         <button
@@ -322,18 +331,15 @@ export default function Detail() {
                               {c.repeat_daily && <TagChip icon="🔁" label={c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : "每日"} tone="emerald" size="sm" />}
                               {c.note && <span className="shrink-0 text-[10px] text-ink-faint">📄</span>}
                               <button
-                                onClick={() => decompose({ id: c.id, title: c.title, isAction: true })}
-                                disabled={busyId === c.id || cDone}
-                                title="AI 细化为更小行动（插入其后）"
-                                className="row-actions hidden shrink-0 rounded px-1 text-[11px] text-ai opacity-60 hover:bg-soft group-hover/child:block disabled:opacity-30"
+                                onClick={(e) => {
+                                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                  setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                                  setMenuRow({ todo: c, isChild: true });
+                                }}
+                                title="更多操作"
+                                className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover/child:block"
                               >
-                                ✨
-                              </button>
-                              <button
-                                onClick={() => removeTodo(c.id, c.title)}
-                                className="row-actions hidden shrink-0 rounded px-1 text-[11px] text-ink-mute hover:bg-soft hover:text-danger group-hover/child:block"
-                              >
-                                🗑
+                                ⋯
                               </button>
                             </div>
                           );
@@ -388,6 +394,75 @@ export default function Detail() {
             </ul>
           )}
         </section>
+
+        {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层） */}
+        {menuRow &&
+          createPortal(
+            <>
+              <div className="fixed inset-0 z-[60]" onClick={() => setMenuRow(null)} />
+              <div
+                className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+                style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
+                <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</p>
+                <div className="space-y-0.5">
+                  {menuRow.isChild ? (
+                    <>
+                      {menuRow.todo.status !== "done" && (
+                        <button
+                          onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: true }); }}
+                          disabled={busyId === menuRow.todo.id}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash disabled:opacity-40"
+                        >
+                          <span className="w-5 shrink-0 text-center text-sm leading-none">{busyId === menuRow.todo.id ? "⏳" : "✨"}</span>
+                          <span className="min-w-0 flex-1">
+                            AI 细化为更小行动
+                            <span className="block truncate text-[10px] text-ink-faint">插入到该行动之后</span>
+                          </span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setMenuRow(null); removeTodo(menuRow.todo.id, menuRow.todo.title); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
+                      >
+                        <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
+                        <span className="min-w-0 flex-1">删除行动</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {menuRow.todo.status !== "done" && (
+                        <button
+                          onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: false }); }}
+                          disabled={busyId === menuRow.todo.id}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash disabled:opacity-40"
+                        >
+                          <span className="w-5 shrink-0 text-center text-sm leading-none">{busyId === menuRow.todo.id ? "⏳" : "✨"}</span>
+                          <span className="min-w-0 flex-1">
+                            AI 拆解为可执行的行动
+                            <span className="block truncate text-[10px] text-ink-faint">拆出 ≤10 个行动</span>
+                          </span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setMenuRow(null); removeTodo(menuRow.todo.id, menuRow.todo.title); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
+                      >
+                        <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
+                        <span className="min-w-0 flex-1">
+                          删除待办
+                          <span className="block truncate text-[10px] text-ink-faint">其下行动一并删除</span>
+                        </span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </>,
+            document.body,
+          )}
       </div>
     </main>
   );
