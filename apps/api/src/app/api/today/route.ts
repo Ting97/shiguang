@@ -61,17 +61,17 @@ export async function GET() {
      where user_id = $1 order by sort_order`,
     [user.id],
   );
-  // 今日卡路里合计（饮食域：区间与今天有交集的动态的饮食记录）
+  // 今日卡路里合计（饮食域）：只计「今天记录」的动态的饮食记录，按北京自然日切。
+  // 旧口径用 created_at±12h 窗口与今天求交集，会把昨天 12:00 后记录的正餐/夜宵
+  // 也算进今天（窗口宽达 24 小时，跨天双向渗漏），导致当日卡路里明显虚高。
   const { rows: kcalRows } = await pool.query(
     `select coalesce(sum(d.total_kcal), 0)::int as kcal
      from diet_records d
      join entries e on e.id = d.entry_id
      where d.user_id = $1
        and coalesce(d.total_kcal, 0) > 0
-       and tstzrange(e.created_at - interval '12 hour', e.created_at + interval '12 hour', '[]')
-           && tstzrange(
-             date_trunc('day', now() at time zone $2) at time zone $2,
-             (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2)`,
+       and e.created_at >= date_trunc('day', now() at time zone $2) at time zone $2
+       and e.created_at < (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2`,
     [user.id, TZ],
   );
   const todayKcal = kcalRows[0]?.kcal ?? 0;
