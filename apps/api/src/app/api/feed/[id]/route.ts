@@ -18,7 +18,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { mood?: string | null; raw_text?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    mood?: string | null;
+    raw_text?: string;
+    spaceId?: string | null; // 手动归属/移除目标空间
+  };
+
+  // 手动归属空间：校验空间属主（null=移除归属）
+  if (body.spaceId !== undefined) {
+    let sid: string | null = null;
+    if (body.spaceId) {
+      const hit = await pool.query(`select id from goal_spaces where id = $1 and user_id = $2`, [body.spaceId, user.id]);
+      if (!hit.rows[0]) return NextResponse.json({ error: "空间不存在" }, { status: 400 });
+      sid = hit.rows[0].id;
+    }
+    const updated = (
+      await pool.query(
+        `update entries set space_id = $1 where id = $2 and user_id = $3 returning id, space_id`,
+        [sid, id, user.id],
+      )
+    ).rows[0];
+    if (!updated) return NextResponse.json({ error: "动态不存在" }, { status: 404 });
+    return NextResponse.json({ ok: true, entry: updated });
+  }
 
   if (body.raw_text !== undefined) {
     const text = body.raw_text.trim();

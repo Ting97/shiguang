@@ -63,8 +63,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         if (result.dueAt && result.title) {
           await pool.query(`delete from todos where entry_id = $1 and user_id = $2`, [id, user.id]);
           await pool.query(
-            `insert into todos (user_id, entry_id, title, due_at, remind_at, source)
-             values ($1,$2,$3,$4,$5,'keyboard')`,
+            `insert into todos (user_id, entry_id, title, due_at, remind_at, source, space_id)
+             values ($1,$2,$3,$4,$5,'keyboard',(select space_id from entries where id = $2))`,
             [user.id, id, result.title, result.dueAt, new Date(new Date(result.dueAt).getTime() - 15 * 60_000).toISOString()],
           );
         }

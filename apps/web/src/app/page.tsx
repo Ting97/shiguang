@@ -6,7 +6,7 @@ import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import MomentFeed from "@/components/moment-feed";
 import Reminders from "@/components/reminders";
-import TodayTodos from "@/components/today-todos";
+import ActionsToday from "@/components/actions-today";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import VoiceButton from "@/components/voice-button";
@@ -15,7 +15,7 @@ import PublishSheet from "@/components/publish-sheet";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
 import { uploadImages } from "@/lib/image";
-import type { Activity, Block, FeedMoment, TodoItem, TodoRow } from "@/lib/types";
+import type { Activity, Block, FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
 
 /** 桌面输入区随附图片的状态机：ready 待发布 / uploading 上传中 / error 失败可重试 */
 interface DesktopImage {
@@ -48,6 +48,9 @@ export default function Home() {
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState(""); // 生效中的搜索词（输入防抖后）
   const [loadingMore, setLoadingMore] = useState(false);
+  // 空间切换条（REQ-001 R3）：all=全部 / none=未归属 / <id>=某空间
+  const [spaceFilter, setSpaceFilter] = useState("all");
+  const [spaces, setSpaces] = useState<Space[]>([]);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [doneToday, setDoneToday] = useState<TodoRow[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -137,13 +140,14 @@ export default function Home() {
     void load();
   }
 
-  const load = useCallback(async (opts?: { limit?: number; query?: string }) => {
+  const load = useCallback(async (opts?: { limit?: number; query?: string; spaceId?: string }) => {
     // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
     const lim = opts?.limit ?? feedLimit;
     const q = opts?.query !== undefined ? opts.query : query;
+    const sp = opts?.spaceId ?? spaceFilter;
     const [todayRes, feedRes, reminderRes] = await Promise.all([
       fetch("/api/today"),
-      fetch(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+      fetch(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}${sp !== "all" ? `&spaceId=${sp}` : ""}`),
       fetch("/api/reminders"),
     ]);
     const j = await todayRes.json();
@@ -162,7 +166,12 @@ export default function Home() {
     } catch {
       setReminderItems([]);
     }
-  }, [feedLimit, query]);
+  }, [feedLimit, query, spaceFilter]);
+
+  // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）
+  useEffect(() => {
+    fetch("/api/spaces").then(async (r) => setSpaces(r.ok ? (await r.json()).spaces.filter((s: Space) => s.status === "active") : []));
+  }, []);
 
   useEffect(() => {
     load();
@@ -475,8 +484,8 @@ export default function Home() {
           <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
         )}
 
-        {/* 今日 TODO：只展示手动标记今日的待办（每天重新规划；完整管理在「日程 · TODO」） */}
-        <TodayTodos todos={todos} doneToday={doneToday} activities={activities} onChanged={load} notify={setMsg} />
+        {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父待办今日/今日到期），完整管理在「日程 · TODO」 */}
+        <ActionsToday notify={setMsg} />
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <section className="mb-6">
@@ -512,6 +521,42 @@ export default function Home() {
               )}
             </div>
           </div>
+          {/* 空间切换条：全部 / 未归属 / 各 active 空间（有归属数据才显示） */}
+          {(spaces.length > 0 || moments.some((m) => m.space)) && (
+            <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1">
+              <FilterChip
+                variant="filter"
+                active={spaceFilter === "all"}
+                label="全部"
+                onClick={() => {
+                  setSpaceFilter("all");
+                  void load({ spaceId: "all" });
+                }}
+              />
+              <FilterChip
+                variant="filter"
+                active={spaceFilter === "none"}
+                label="未归属"
+                onClick={() => {
+                  setSpaceFilter("none");
+                  void load({ spaceId: "none" });
+                }}
+              />
+              {spaces.map((s) => (
+                <FilterChip
+                  key={s.id}
+                  variant="filter"
+                  active={spaceFilter === s.id}
+                  icon={<span className="text-[12px] leading-none">{s.icon}</span>}
+                  label={s.name}
+                  onClick={() => {
+                    setSpaceFilter(s.id);
+                    void load({ spaceId: s.id });
+                  }}
+                />
+              ))}
+            </div>
+          )}
           <MomentFeed
             moments={moments}
             activities={activities}

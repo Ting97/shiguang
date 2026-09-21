@@ -118,8 +118,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           const remind = new Date(new Date(r.time.start).getTime() - 15 * 60_000);
           const todo = (
             await client.query(
-              `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source)
-               values ($1,$2,$3,$4,$5,$6,'keyboard') returning id`,
+              `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source, space_id)
+               values ($1,$2,$3,$4,$5,$6,'keyboard',(select space_id from entries where id = $2)) returning id`,
               [user.id, id, r.title, r.activity, r.time.start, remind.toISOString()],
             )
           ).rows[0];

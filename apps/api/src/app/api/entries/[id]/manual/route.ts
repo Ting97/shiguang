@@ -77,8 +77,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         const dueAt = p.dueAt ? new Date(String(p.dueAt)).toISOString() : null;
         const activityId = typeof p.activityId === "string" && p.activityId ? p.activityId : "other";
         await client.query(
-          `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source)
-           values ($1,$2,$3,$4,$5,$6,'manual')`,
+          `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source, space_id)
+           values ($1,$2,$3,$4,$5,$6,'manual',(select space_id from entries where id = $2))`,
           [user.id, id, title, activityId, dueAt, dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000) : null],
         );
         result = { title, dueAt };

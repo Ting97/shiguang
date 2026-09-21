@@ -73,10 +73,10 @@ async function GET(req: Request) {
   for (const c of candidates) {
     if (existsSync(c) && statSync(c).isFile()) return respond(c, req);
   }
-  // 动态段壳页回退：contacts/[id] 静态导出只产出 __shell__.html，任意 id 复用它（真实 id 由客户端 useParams 从 URL 读取）
-  const shell = clean.match(/^\/?contacts\/[^/]+\/?$/);
+  // 动态段壳页回退：contacts/[id]、spaces/[id] 静态导出只产出 __shell__.html，任意 id 复用它（真实 id 由客户端 useParams 从 URL 读取）
+  const shell = clean.match(/^\/?(contacts|spaces)\/[^/]+\/?$/);
   if (shell) {
-    const p = join(dir, "contacts", "__shell__.html");
+    const p = join(dir, shell[1], "__shell__.html");
     if (existsSync(p)) return respond(p, req);
   }
   const notFound = join(dir, "404.html");

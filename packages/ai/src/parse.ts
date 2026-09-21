@@ -28,6 +28,8 @@ export interface ParseOptions {
   domain?: string;
   /** 用户已有联系人名单（人物识别时对齐称呼，避免重复建档） */
   contactNames?: string[];
+  /** 覆盖 system prompt（DB 纳管值注入；缺省用包内默认）。仅影响 LLM 路径，规则兜底不受影响 */
+  systemPrompt?: string;
   /** LLM 成功响应后回调 token 用量（审计/成本核算用） */
   onUsage?: (usage: { prompt_tokens: number; completion_tokens: number }) => void;
 }
@@ -157,14 +159,15 @@ export function recoverDietItemsFromText(text: string): { name: string | null; a
 // ---------- AI 路径（v2 主干） ----------
 
 /** AI 调用与校验：失败时抛错（由 parseInput 决定降级）；输出不合格自动带错误清单重问一次 */
-async function aiExtract(
+export async function aiExtract(
   text: string,
   domain: string | undefined,
   now: Date,
   onUsage?: ParseOptions["onUsage"],
   contactNames?: string[],
+  systemOverride?: string,
 ): Promise<{ ext: LlmExtractionT; engine: "llm" | "llm-repaired" }> {
-  const system = domain ? DOMAIN_PROMPTS[domain] : EXTRACT_SYSTEM_PROMPT;
+  const system = systemOverride ?? (domain ? DOMAIN_PROMPTS[domain] : EXTRACT_SYSTEM_PROMPT);
   const schema = domain ? domainExtractionV2(domain) : FullExtractionV2;
   const base = buildExtractUserPrompt(text, toCstWallClock(now), contactNames);
 
@@ -373,7 +376,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   }
 
   try {
-    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage, opts.contactNames);
+    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage, opts.contactNames, opts.systemPrompt);
     return mapAiResult(ext, text, now, engine);
   } catch (e) {
     // 灾难降级：GLM 不可用（网络/超时/额度/鉴权）或重问后输出仍不合格 → 规则引擎接管，打卡入口永不失败

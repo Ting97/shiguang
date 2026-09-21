@@ -25,6 +25,8 @@ interface Props {
   busyDomain: string | null;
   onAI: (domain: string) => void;
   onManual: (domain: SixKey, payload: Record<string, unknown>) => void | Promise<void>;
+  /** 手动归属/移除目标空间（spaceId=null 移除） */
+  onSetSpace: (spaceId: string | null) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -45,9 +47,10 @@ const inputCls =
 const btnMini = "shrink-0 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-sky-500";
 
 /** 识别菜单：六域（AI 识别 / 手动添加）。移动端底部弹层，桌面锚定卡片浮层 */
-export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, onClose, desktopPos }: Props & { desktopPos?: { top: number; left: number } | null }) {
+export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, onSetSpace, onClose, desktopPos }: Props & { desktopPos?: { top: number; left: number } | null }) {
   const [manualDomain, setManualDomain] = useState<SixKey | null>(null);
   const [busy, setBusy] = useState(false);
+  const [spaceMenu, setSpaceMenu] = useState<Array<{ id: string; name: string; icon: string; color: string; status: string }> | null>(null);
 
   const [text, setText] = useState("");
   const [start, setStart] = useState("12:00");
@@ -264,6 +267,55 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
             </div>
           );
         })}
+      </div>
+
+      {/* 所属空间（REQ-001 R3）：单选归属 / 移除；spaceMenu 列表由父级挂载时拉取 */}
+      <div className="mt-2 border-t border-line-soft pt-2">
+        <span className="text-[11px] font-semibold text-ink">所属空间</span>
+        {spaceMenu === null ? (
+          <button
+            onClick={() => {
+              fetch("/api/spaces")
+                .then((r) => r.json())
+                .then((j) => setSpaceMenu((j.spaces ?? []).filter((s: { status: string }) => s.status === "active")))
+                .catch(() => setSpaceMenu([]));
+            }}
+            className="mt-1 block text-[11px] text-accent hover:underline"
+          >
+            选择归属…
+          </button>
+        ) : (
+          <div className="mt-1 space-y-0.5">
+            {spaceMenu.length === 0 && <p className="text-[10px] text-ink-faint">还没有进行中的空间</p>}
+            {spaceMenu.map((s: { id: string; name: string; icon: string; color: string }) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  void onSetSpace(s.id);
+                  onClose();
+                }}
+                className={`flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] transition hover:bg-wash ${
+                  m.space?.id === s.id ? "font-medium text-accent" : "text-ink-soft"
+                }`}
+              >
+                <span>{s.icon}</span>
+                <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                {m.space?.id === s.id && <Check size={12} />}
+              </button>
+            ))}
+            {m.space && (
+              <button
+                onClick={() => {
+                  void onSetSpace(null);
+                  onClose();
+                }}
+                className="w-full rounded-lg px-1.5 py-1 text-left text-[11px] text-danger hover:bg-wash"
+              >
+                移除归属
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-2 text-[10px] leading-relaxed text-ink-dim">

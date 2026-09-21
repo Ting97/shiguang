@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
@@ -239,9 +240,21 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
       </div>
 
       <div className="min-w-0 flex-1">
-        {/* 头部：意图标签 + 整条删除（记录时间在卡片外的时间线旁） */}
+        {/* 头部：意图标签 + 空间徽标 + 整条删除（记录时间在卡片外的时间线旁） */}
         <div className="flex items-center gap-2 text-xs text-ink-dim">
           <TagChip icon={intent.icon} label={intent.label} tone={intent.tone} size="sm" />
+          {m.space && (
+            <Link href={`/spaces/${m.space.id}`} className="min-w-0">
+              <span
+                className="inline-flex max-w-full items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] font-medium"
+                style={{ backgroundColor: `${m.space.color}26`, color: m.space.color }}
+                title={`目标空间：${m.space.name}`}
+              >
+                <span className="shrink-0 text-[11px] leading-none">{m.space.icon}</span>
+                <span className="min-w-0 truncate">{m.space.name}</span>
+              </span>
+            </Link>
+          )}
           {m.source === "voice" && <TagChip icon="🎙" label="语音" tone="slate" size="sm" title="语音输入" />}
           {(Object.values(m.recognitions ?? {}) as { engine?: string | null }[]).some((v) => v.engine === "rules") && (
             <TagChip
@@ -375,6 +388,12 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 busyDomain={busyDomain}
                 onAI={recognizeDomain}
                 onManual={manualAdd}
+                onSetSpace={(spaceId) =>
+                  run(async () => {
+                    await api(`/api/feed/${m.id}`, "PATCH", { spaceId });
+                    return spaceId ? `🎯 已归属空间` : "已移除空间归属";
+                  })
+                }
                 onClose={() => setMenuOpen(false)}
                 desktopPos={menuPos}
               />

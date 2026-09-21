@@ -1,9 +1,72 @@
 import { pool, findOverlap, overlapError } from "@/lib/db";
-import { parseInput } from "@shiguangri/ai";
+import { parseInput, SpaceClassification, chat } from "@shiguangri/ai";
 import { getPrompt } from "./prompts";
 import { inferGroupFromContext, inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
+
+/** 空间自动归属置信阈值（低于不写入） */
+const SPACE_CONFIDENCE_THRESHOLD = 0.7;
+
+/**
+ * AI 空间归属（REQ-001 R3）：五域识别完成后，若有 active 空间则轻量分类一次；
+ * 置信 ≥0.7 且 spaceId 在候选内 → 写入 entries.space_id 并让本动态的待办继承。
+ * 失败静默（记 audit_logs stage='space_classify'），不影响主识别流程。
+ */
+async function classifySpace(userId: string, entryId: string, rawText: string): Promise<void> {
+  try {
+    const { rows: spaces } = await pool.query(
+      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit 20`,
+      [userId],
+    );
+    if (spaces.length === 0) return; // 无 active 空间：跳过分类调用
+
+    const system = await getPrompt("space_classify");
+    const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`).join("\n");
+    const t0 = Date.now();
+    const raw = await chat({
+      system,
+      user: `候选空间：\n${candidates}\n\n用户记录：「${rawText.slice(0, 500)}」`,
+      temperature: 0,
+      maxTokens: 256,
+      timeoutMs: 45_000,
+    });
+    const parsed = SpaceClassification.safeParse(JSON.parse(extractJsonLoose(raw)));
+    if (!parsed.success) return;
+    const { spaceId, confidence } = parsed.data;
+    if (!spaceId || confidence < SPACE_CONFIDENCE_THRESHOLD) return;
+    if (!spaces.some((s) => s.id === spaceId)) return; // spaceId 不在候选内：忽略
+
+    await pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3`, [spaceId, entryId, userId]);
+    // 待办继承动态的空间（AI 从带空间动态识别出的待办自动归类）
+    await pool.query(`update todos set space_id = $1 where entry_id = $2 and user_id = $3 and space_id is null`, [
+      spaceId,
+      entryId,
+      userId,
+    ]);
+    void writeAuditRecord({
+      userId, entryId, stage: "space_classify",
+      model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "space-classify",
+      latencyMs: Date.now() - t0, ok: true,
+    });
+  } catch (e) {
+    console.warn("[space-classify] 归属失败（静默忽略）:", String(e).slice(0, 160));
+    void writeAuditRecord({
+      userId, entryId, stage: "space_classify",
+      model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "space-classify",
+      ok: false, error: String(e).slice(0, 300),
+    });
+  }
+}
+
+/** 宽松提取 JSON（分类输出可能带代码围栏） */
+function extractJsonLoose(raw: string): string {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = fenced ? fenced[1] : raw;
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  return start >= 0 && end > start ? body.slice(start, end + 1) : body;
+}
 
 /** 登记簿 upsert：每次识别写一行（entry+domain 唯一） */
 export async function recordRecognition(
@@ -201,6 +264,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: true,
       promptTokens, completionTokens,
     });
+    // 空间归属（失败静默）：有 active 空间即发起轻量分类（依据是原文本身，与是否落库产物无关）
+    void classifySpace(userId, entryId, rawText).catch(() => {});
     return {
       conflictTitle,
       pendingDomains,

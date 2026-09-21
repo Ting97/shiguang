@@ -2,7 +2,7 @@
 
 import type { TodoRow } from "@/lib/types";
 
-/** 待办共用小件：勾选圆圈 + 时间标签 + 日期工具（todo-board / today-todos 共用） */
+/** 待办共用小件：勾选圆圈 + 时间标签 + 日期工具（todo-board / actions-today 共用） */
 
 export const pad = (n: number) => String(n).padStart(2, "0");
 

@@ -6,9 +6,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/feed?limit=10&offset=0&q=关键字
- * 动态流：entries 按记录时刻倒序，聚合 AI 识别出的日程/待办/金额/人物/饮食/识别登记簿。
+ * GET /api/feed?limit=10&offset=0&q=关键字&spaceId=all|none|<uuid>
+ * 动态流：entries 按记录时刻倒序，聚合 AI 识别出的日程/待办/金额/人物/饮食/图片/识别登记簿。
  * q 非空时按关键字检索：原文 + 识别产物（日程/待办标题、交易类别与对方、联系人、饮食条目）。
+ * spaceId：空间切换条过滤（all=不过滤 / none=未归属 / 具体值=该空间）。
  */
 export async function GET(req: Request) {
   const user = await getCurrentUser();
@@ -17,6 +18,12 @@ export async function GET(req: Request) {
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 10), 1), 200);
   const offset = Math.min(Math.max(Number(url.searchParams.get("offset") ?? 0), 0), 100_000);
   const q = (url.searchParams.get("q") ?? "").trim();
+  const spaceId = url.searchParams.get("spaceId") ?? "all";
+
+  let spaceSql = "";
+  const spaceParamIndex = 4;
+  if (spaceId === "none") spaceSql = ` and e.space_id is null`;
+  else if (spaceId !== "all" && /^[0-9a-f-]{36}$/.test(spaceId)) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
 
   // 关键字检索：动态原文命中，或任一识别产物命中（中英文均可，ilike 不区分大小写）
   const searchSql = q
@@ -34,6 +41,8 @@ export async function GET(req: Request) {
 
   const { rows } = await pool.query(
     `select e.id, e.raw_text, e.source, e.mood, e.mood_score, e.created_at, e.analyzed_at,
+       (select jsonb_build_object('id', gs.id, 'name', gs.name, 'icon', gs.icon, 'color', gs.color)
+          from goal_spaces gs where gs.id = e.space_id) as space,
        count(*) over () as total_count,
        coalesce((
          select jsonb_agg(jsonb_build_object(
@@ -77,11 +86,17 @@ export async function GET(req: Request) {
          from entry_recognitions rg where rg.entry_id = e.id
        ), '{}'::jsonb) as recognitions
      from entries e
-     where e.user_id = $1 ${searchSql}
+     where e.user_id = $1 ${searchSql} ${spaceSql}
      order by e.created_at desc
      limit $2 offset $3`,
     // 转义 ilike 通配符，避免用户输入的 % _ 被当模糊匹配
-    q ? [user.id, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`] : [user.id, limit, offset],
+    q
+      ? spaceId !== "all" && spaceId !== "none"
+        ? [user.id, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`, spaceId]
+        : [user.id, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`]
+      : spaceId !== "all" && spaceId !== "none"
+        ? [user.id, limit, offset, spaceId]
+        : [user.id, limit, offset],
   );
   const total = rows[0] ? Number(rows[0].total_count) : 0;
   return NextResponse.json({ moments: rows, total });

@@ -72,6 +72,13 @@ export const DOMAIN_ICONS: Record<Domain, string> = {
 /** 低置信阈值：低于此值的域不自动落库，转 pending 待用户确认 */
 export const CONFIDENCE_THRESHOLD = 0.6;
 
+/** 空间归属分类（REQ-001 R3）：spaceId 必须来自候选列表或为 null */
+export const SpaceClassification = z.object({
+  spaceId: z.string().uuid().nullable(),
+  confidence: z.number().min(0).max(1),
+});
+export type SpaceClassificationT = z.infer<typeof SpaceClassification>;
+
 export const ParseResult = z.object({
   activity: ActivityId,
   title: z.string().max(30),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Activity, TodoItem, TodoRow } from "@/lib/types";
+import type { Activity, Space, TodoItem, TodoRow } from "@/lib/types";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { FilterChip } from "./tag-chip";
 
@@ -9,7 +9,8 @@ import { FilterChip } from "./tag-chip";
  * TODO 管理视图（微软 To Do 式，日程页 TODO 子页）：
  * - 智能列表：☀️ 今日（手动标记，跨零点自动失效）/ ⭐ 重要 / 📋 全部 / ✓ 已完成
  * - 移动端顶部横滑 chips；PC（lg+）左侧列表栏 + 右侧主列表
- * - 任务树：子任务最多一层；标记（今日/重要）只作用于顶层任务，子任务随父
+ * - 任务树：行动（原子任务）最多一层；标记（今日/重要）只作用于顶层任务，行动随父
+ * - REQ-001 R3：行动支持 ✨AI 拆解（插入式）、🔁 每日重复（×N 已完成次数）、关联目标空间
  */
 
 type View = "today" | "important" | "all" | "done";
@@ -26,8 +27,14 @@ interface Draft {
   today: boolean;
   due: string; // datetime-local 值，空串=无截止
   activityId: string; // "other" 默认
+  spaceId: string; // ""=不关联空间
 }
-const EMPTY_DRAFT: Draft = { title: "", important: false, today: false, due: "", activityId: "" };
+const EMPTY_DRAFT: Draft = { title: "", important: false, today: false, due: "", activityId: "", spaceId: "" };
+
+/** 判断 id 是否为行动（子待办）：行内编辑据此决定是否提交 repeatDaily */
+function isChildId(id: string, todos: TodoItem[]): boolean {
+  return todos.some((t) => t.children.some((c) => c.id === id));
+}
 
 export default function TodoBoard() {
   const [view, setView] = useState<View>("today");
@@ -49,12 +56,21 @@ export default function TodoBoard() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subParentId, setSubParentId] = useState<string | null>(null); // 正在添加子任务的任务
   const [subTitle, setSubTitle] = useState("");
-  // 子任务详情面板（点标题展开）：标题 + 详细内容（≤1000 字）+ 截止
+  // 空间列表（添加行展开区选择；REQ-001 R3）
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  // 行动行内编辑的 🔁 每日重复开关
+  const [editRepeat, setEditRepeat] = useState(false);
+  // AI 拆解进行中的节点 id
+  const [decomposingId, setDecomposingId] = useState<string | null>(null);
+  // 行动详情面板（点标题展开）：标题 + 详细内容（≤1000 字）+ 截止
   const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
   const [noteDue, setNoteDue] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  // 行动详情面板里的 🔁 每日重复开关（与已完成次数只读展示）
+  const [noteRepeat, setNoteRepeat] = useState(false);
+  const [noteDoneCount, setNoteDoneCount] = useState(0);
   const chipRefs = useRef<Record<View, HTMLButtonElement | null>>({} as Record<View, HTMLButtonElement | null>);
 
   // 视图切换后把激活 chip 滚入视野（窄屏四个 chip 放不下，与顶部导航同款处理）
@@ -75,6 +91,7 @@ export default function TodoBoard() {
   }, []);
   useEffect(() => {
     loadActivities();
+    fetch("/api/spaces").then(async (r) => setSpaces(r.ok ? (await r.json()).spaces.filter((s: Space) => s.status === "active") : []));
   }, [loadActivities]);
 
   const load = useCallback(async (v: View) => {
@@ -117,6 +134,7 @@ export default function TodoBoard() {
           important: draft.important || view === "important" ? true : undefined,
           today: draft.today || view === "today" ? true : undefined,
           dueAt: draft.due ? localInputToIso(draft.due) : undefined,
+          spaceId: draft.spaceId || undefined,
         }),
       });
       const j = await r.json();
@@ -153,8 +171,40 @@ export default function TodoBoard() {
     await patchTodo(t.id, done ? { undone: true } : { done: true }, done ? `↩️ 「${t.title}」已恢复` : `🎉 完成「${t.title}」`);
   }
 
+  /** AI 拆解（REQ-001 R3 · 插入式）：待办→≤10 行动（追加尾部/重新生成）；行动→≤3 同级细化（插入其后） */
+  async function decompose(t: TodoRow, isAction: boolean) {
+    if (decomposingId) return;
+    setDecomposingId(t.id);
+    try {
+      let mode: string | undefined;
+      if (!isAction) {
+        const parent = todos.find((x) => x.id === t.id);
+        const pending = parent?.children.filter((c) => c.status === "pending").length ?? 0;
+        if (pending > 0) {
+          mode = window.confirm(`「${t.title}」已有 ${pending} 个未完成行动。\n\n「确定」= 重新生成（清空未完成，已完成与次数保留）\n「取消」= 追加到末尾`)
+            ? "replace"
+            : "append";
+        }
+      }
+      const r = await fetch(`/api/todos/${t.id}/decompose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mode ? { mode } : {}),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setMsg({ ok: false, text: j.error ?? "AI 拆解失败" });
+        return;
+      }
+      setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${isAction ? "，已插入原行动之后" : ""}` });
+      await load(view);
+    } finally {
+      setDecomposingId(null);
+    }
+  }
+
   async function removeTodo(t: TodoRow, isChild: boolean) {
-    if (!window.confirm(`删除${isChild ? "子任务" : "任务"}？${isChild ? "" : "\n其子任务将一并删除。"}\n「${t.title}」`)) return;
+    if (!window.confirm(`删除${isChild ? "行动" : "待办"}？${isChild ? "" : "\n其下行动将一并删除。"}\n「${t.title}」`)) return;
     const r = await fetch(`/api/todos/${t.id}`, { method: "DELETE" });
     const j = await r.json();
     if (!r.ok) {
@@ -170,6 +220,7 @@ export default function TodoBoard() {
     setEditTitle(t.title);
     setEditDue(isoToLocalInput(t.due_at));
     setEditActivity(t.activity_id ?? "other");
+    setEditRepeat(t.repeat_daily);
   }
 
   async function saveEdit() {
@@ -179,7 +230,12 @@ export default function TodoBoard() {
     }
     const ok = await patchTodo(
       editingId,
-      { title: editTitle.trim(), dueAt: localInputToIso(editDue), activityId: editActivity },
+      {
+        title: editTitle.trim(),
+        dueAt: localInputToIso(editDue),
+        activityId: editActivity,
+        ...(isChildId(editingId, todos) ? { repeatDaily: editRepeat } : {}),
+      },
       "💾 已保存",
     );
     if (ok) setEditingId(null);
@@ -211,12 +267,14 @@ export default function TodoBoard() {
     });
   }
 
-  /** 点开子任务详情：标题 + 详细内容 + 截止（列表里只展示标题） */
+  /** 点开行动详情：标题 + 描述 + 截止 + 🔁 每日重复（列表里只展示标题） */
   function openNote(c: TodoRow) {
     setNoteOpenId(c.id);
     setNoteTitle(c.title);
     setNoteText(c.note ?? "");
     setNoteDue(isoToLocalInput(c.due_at));
+    setNoteRepeat(c.repeat_daily);
+    setNoteDoneCount(c.repeat_done_count);
   }
 
   async function saveNote() {
@@ -227,8 +285,13 @@ export default function TodoBoard() {
     setNoteSaving(true);
     const ok = await patchTodo(
       noteOpenId,
-      { title: noteTitle.trim(), note: noteText.trim() ? noteText.trim() : null, dueAt: localInputToIso(noteDue) },
-      "💾 子任务已保存",
+      {
+        title: noteTitle.trim(),
+        note: noteText.trim() ? noteText.trim() : null,
+        dueAt: localInputToIso(noteDue),
+        repeatDaily: noteRepeat,
+      },
+      "💾 行动已保存",
     );
     setNoteSaving(false);
     if (ok) setNoteOpenId(null);
@@ -348,6 +411,21 @@ export default function TodoBoard() {
                       </option>
                     ))}
                   </select>
+                  {spaces.length > 0 && (
+                    <select
+                      value={draft.spaceId}
+                      onChange={(e) => setDraft({ ...draft, spaceId: e.target.value })}
+                      title="关联目标空间"
+                      className="rounded border border-line-strong bg-surface px-2 py-1.5 outline-none focus:border-sky-500"
+                    >
+                      <option value="">不关联空间</option>
+                      {spaces.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.icon} {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               )}
             </div>
@@ -419,14 +497,22 @@ export default function TodoBoard() {
                             className={`min-w-0 flex-1 truncate text-left text-sm transition ${done ? "text-ink-dim line-through" : ""}`}
                             title={t.title}
                           >
-                            {t.title}
-                          </button>
+                              {t.title}
+                            </button>
                           {t.activity_name && <span className="hidden shrink-0 text-[11px] text-ink-faint sm:inline">{t.icon} {t.activity_name}</span>}
+                          {t.space_id && (() => {
+                            const sp = spaces.find((x) => x.id === t.space_id);
+                            return sp ? (
+                              <span className="hidden shrink-0 items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[10px] font-medium sm:inline-flex" style={{ backgroundColor: `${sp.color}26`, color: sp.color }} title={`空间：${sp.name}`}>
+                                {sp.icon} {sp.name}
+                              </span>
+                            ) : null;
+                          })()}
                           {prog && prog.m > 0 && (
                             <button
                               onClick={() => toggleExpand(t.id)}
                               className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[11px] tabular-nums text-ink-dim transition hover:text-accent"
-                              title="子任务进度"
+                              title="行动进度"
                             >
                               {prog.n}/{prog.m}
                             </button>
@@ -449,6 +535,16 @@ export default function TodoBoard() {
                                 className={`rounded px-1.5 py-0.5 text-xs transition hover:bg-soft ${t.today_tag_date ? "text-accent" : "text-ink-mute opacity-60 hover:text-accent"}`}
                               >
                                 ☀️
+                              </button>
+                            )}
+                            {!done && (
+                              <button
+                                onClick={() => decompose(t, false)}
+                                disabled={decomposingId === t.id}
+                                title="✨ AI 拆解为可执行的行动"
+                                className="rounded px-1.5 py-0.5 text-xs text-ai opacity-60 transition hover:bg-soft hover:opacity-100 disabled:animate-pulse"
+                              >
+                                {decomposingId === t.id ? "✨…" : "✨"}
                               </button>
                             )}
                             {!done && (
@@ -491,7 +587,7 @@ export default function TodoBoard() {
                               return (
                                 <div key={c.id} className="group/child rounded-lg px-1.5 py-1 transition hover:bg-elevated/60">
                                   {noteOpenId === c.id ? (
-                                    /* ---- 子任务详情面板：标题 + 详细内容（≤1000 字）+ 截止 ---- */
+                                    /* ---- 行动详情面板：标题 + 详细内容（≤1000 字）+ 截止 ---- */
                                     <div className="rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5">
                                       <input
                                         autoFocus
@@ -521,6 +617,20 @@ export default function TodoBoard() {
                                           title="截止时间（可清空）"
                                           className="rounded border border-line-strong bg-surface px-2 py-1 text-[12px] tabular-nums outline-none focus:border-sky-500"
                                         />
+                                        <label
+                                          title="每日重复：完成后次日 06:00 自动恢复未完成，并累积完成次数"
+                                          className={`flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-[11px] transition ${
+                                            noteRepeat ? "bg-emerald-500/20 text-success" : "border border-line-soft text-ink-mute hover:text-ink"
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={noteRepeat}
+                                            onChange={(e) => setNoteRepeat(e.target.checked)}
+                                            className="h-3 w-3 accent-emerald-500"
+                                          />
+                                          🔁 每日{noteRepeat && noteDoneCount > 0 ? ` · 已完成 ×${noteDoneCount}` : ""}
+                                        </label>
                                         <div className="ml-auto flex gap-2">
                                           <button onClick={() => setNoteOpenId(null)} className="rounded px-2.5 py-1 text-xs text-ink-mute hover:bg-soft">
                                             取消
@@ -550,11 +660,29 @@ export default function TodoBoard() {
                                           📄
                                         </span>
                                       )}
+                                      {c.repeat_daily && (
+                                        <span
+                                          className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-success"
+                                          title="每日重复（06:00 日切自动恢复未完成）"
+                                        >
+                                          🔁 {c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : ""}
+                                        </span>
+                                      )}
                                       {ctag && <span className={`shrink-0 text-[11px] ${ctag.cls}`}>{ctag.text}</span>}
                                       <span className="row-actions hidden shrink-0 gap-0.5 group-hover/child:flex">
+                                        {!cDone && (
+                                          <button
+                                            onClick={() => decompose(c, true)}
+                                            disabled={decomposingId === c.id}
+                                            title="✨ AI 细化为更小的行动（插入其后）"
+                                            className="rounded px-1.5 py-0.5 text-xs text-ai opacity-60 transition hover:bg-soft hover:opacity-100 disabled:animate-pulse"
+                                          >
+                                            {decomposingId === c.id ? "✨…" : "✨"}
+                                          </button>
+                                        )}
                                         <button
                                           onClick={() => removeTodo(c, true)}
-                                          title="删除子任务"
+                                          title="删除行动"
                                           className="rounded px-1.5 py-0.5 text-xs text-ink-mute transition hover:bg-soft hover:text-danger"
                                         >
                                           🗑
@@ -577,16 +705,16 @@ export default function TodoBoard() {
                                     if (e.key === "Enter" && !e.nativeEvent.isComposing) addSubtask(t.id);
                                     if (e.key === "Escape") setSubParentId(null);
                                   }}
-                                  placeholder="子任务，回车添加（Esc 结束）"
+                                  placeholder="行动，回车添加（Esc 结束）"
                                   maxLength={200}
                                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-ink-faint"
                                 />
                               </div>
                             )}
                             {t.children.length === 0 && subParentId !== t.id && (
-                              <p className="px-1.5 py-1 text-[11px] text-ink-faint">还没有子任务 —— 点行右侧「＋」添加</p>
+                              <p className="px-1.5 py-1 text-[11px] text-ink-faint">还没有行动 —— 点行右侧「＋」添加，或「✨」让 AI 拆解</p>
                             )}
-                            {done && <p className="px-1.5 py-0.5 text-[11px] text-ink-faint">已完成任务不可再添加子任务</p>}
+                            {done && <p className="px-1.5 py-0.5 text-[11px] text-ink-faint">已完成的待办不可再添加行动</p>}
                           </div>
                         )}
                       </>
