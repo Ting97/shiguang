@@ -64,10 +64,15 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: "POST", body: JSON.stringify(body) });
 }
 
-/** 语音上传（multipart，native FormData 用 { uri, name, type }） */
+/** 语音上传（multipart，native FormData 用 { uri, name, type }）；文件名/MIME 跟随录音实际格式 */
 export function apiUpload<T>(path: string, fileUri: string): Promise<T> {
+  const isM4a = fileUri.endsWith(".m4a") || fileUri.endsWith(".aac");
   const form = new FormData();
-  form.append("file", { uri: fileUri, name: "voice.wav", type: "audio/wav" } as unknown as Blob);
+  form.append("file", {
+    uri: fileUri,
+    name: isM4a ? "voice.m4a" : "voice.wav",
+    type: isM4a ? "audio/mp4" : "audio/wav",
+  } as unknown as Blob);
   return request<T>(path, { method: "POST", body: form });
 }
 

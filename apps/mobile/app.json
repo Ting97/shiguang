@@ -2,7 +2,7 @@
   "expo": {
     "name": "拾光",
     "slug": "shiguangri",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "orientation": "portrait",
     "scheme": "shiguang",
     "userInterfaceStyle": "dark",
@@ -17,14 +17,13 @@
     "android": {
       "package": "cn.ting97.shiguang",
       "permissions": [
-        "RECORD_AUDIO",
         "RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-foreground.png",
         "backgroundColor": "#0B1526"
       },
-      "versionCode": 4,
+      "versionCode": 5,
       "icon": "./assets/icon.png"
     },
     "plugins": [

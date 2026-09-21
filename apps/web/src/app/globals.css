@@ -139,6 +139,20 @@
   --text-gradient-3: #4338ca;
 }
 
+/* 悬浮发布圆钮：夜间浅蓝 / 日间奶白（与 Expo App 主题令牌一致） */
+:root {
+  --capture-btn: #38bdf8;
+}
+[data-theme="light"] {
+  --capture-btn: #f7f1e3;
+}
+.capture-btn {
+  background: var(--capture-btn);
+}
+.capture-btn-rec {
+  background: var(--danger);
+}
+
 /* 映射为 Tailwind 颜色令牌（inline：工具类直接引用运行时变量，透明度修饰符走 color-mix） */
 @theme inline {
   --color-bg: var(--bg);

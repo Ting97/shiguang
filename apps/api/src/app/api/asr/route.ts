@@ -1,3 +1,7 @@
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { hasApiKey, transcribeAudio, asrModel } from "@shiguangri/ai";
@@ -8,9 +12,44 @@ export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15MB 上限（约几分钟语音）
 
+/** 音频魔数嗅探：GLM-ASR 只认 wav/mp3，其余格式先经 FFMPEG_PATH 转成 16k 单声道 wav */
+function sniffFormat(buf: Buffer): "wav" | "mp3" | "other" {
+  if (buf.length > 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WAVE") return "wav";
+  if (buf.length > 3 && (buf.toString("ascii", 0, 3) === "ID3" || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0))) return "mp3";
+  return "other";
+}
+
+function runFfmpeg(bin: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const p = spawn(bin, args, { stdio: "ignore" });
+    p.on("error", (e) => reject(new Error(`ffmpeg 启动失败：${e.message}`)));
+    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg 退出码 ${code}`))));
+  });
+}
+
+/** 非 wav/mp3（安卓 MediaRecorder 只能出 3gp/m4a 等）→ 统一转 16k 单声道 wav 再送识别 */
+async function toWav(buffer: Buffer, contentType: string): Promise<Buffer> {
+  const ffmpeg = process.env.FFMPEG_PATH;
+  if (!ffmpeg) {
+    throw new Error("该音频格式暂不支持，请使用键盘输入或重试");
+  }
+  const ext = contentType.includes("mp4") || contentType.includes("m4a") ? "m4a" : contentType.includes("webm") ? "webm" : "bin";
+  const dir = await mkdtemp(join(tmpdir(), "asr-"));
+  try {
+    const src = join(dir, `in.${ext}`);
+    const dst = join(dir, "out.wav");
+    await writeFile(src, buffer);
+    await runFfmpeg(ffmpeg, ["-y", "-i", src, "-ac", "1", "-ar", "16000", "-sample_fmt", "s16", dst]);
+    return await readFile(dst);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /**
  * POST /api/asr —— 语音转文字（multipart: file）
  * 转发智谱 GLM-ASR；返回 { text }，空音频返回空文本由前端提示。
+ * Web 端已重采样为 wav；安卓受 MediaRecorder 限制产出 m4a 等，由 FFMPEG_PATH 转码兜底。
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -30,13 +69,21 @@ export async function POST(req: Request) {
   }
 
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
+    let buffer = Buffer.from(await file.arrayBuffer());
+    const format = sniffFormat(buffer);
+    let filename = file.name || "voice.webm";
+    let contentType = file.type || "audio/webm";
+    if (format === "other") {
+      buffer = Buffer.from(await toWav(buffer, contentType));
+      filename = "voice.wav";
+      contentType = "audio/wav";
+    }
     const startedAt = Date.now();
     let usage = { prompt_tokens: 0, completion_tokens: 0 };
     const text = await transcribeAudio({
       data: buffer,
-      filename: file.name || "voice.webm",
-      contentType: file.type || "audio/webm",
+      filename,
+      contentType,
       timeoutMs: 45_000,
       onUsage: (u) => (usage = u),
     });

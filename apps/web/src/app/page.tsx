@@ -9,6 +9,8 @@ import Reminders from "@/components/reminders";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import VoiceButton from "@/components/voice-button";
+import CaptureButton from "@/components/capture-button";
+import PublishSheet from "@/components/publish-sheet";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
 import type { Activity, Block, FeedMoment } from "@/lib/types";
 
@@ -101,6 +103,9 @@ export default function Home() {
   const listFormRef = useRef<HTMLDivElement>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // 移动端发布：sheetOpen 控制底部输入面板；voiceDraft 是长按语音转写出的待预览文字
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState("");
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // 发布后识别产物的延迟刷新定时器（卸载时清理，避免对已卸载组件 setState）
@@ -166,14 +171,16 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  async function submit() {
-    if (!text.trim() || busy) return;
+  /** 发布一条动态：桌面输入框与移动端悬浮圆圈面板共用的唯一提交路径 */
+  async function publish(raw: string) {
+    const t = raw.trim();
+    if (!t || busy) return;
     setBusy(true);
     try {
       const r = await fetch("/api/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim() }),
+        body: JSON.stringify({ text: t }),
       });
       const j = await r.json();
       // 防御非约定响应（网关错误页/结构变更）：给出可读原因，而不是 TypeError
@@ -191,8 +198,8 @@ export default function Home() {
       }
       // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（组件卸载时清理）
       for (const delay of [6000, 16000]) {
-        const t = setTimeout(() => void load(), delay);
-        refreshTimers.current.push(t);
+        const t2 = setTimeout(() => void load(), delay);
+        refreshTimers.current.push(t2);
       }
     } catch (e) {
       setMsg({ ok: false, text: `记录失败：${e instanceof Error ? e.message : e}` });
@@ -201,6 +208,10 @@ export default function Home() {
       // 移动端不回焦输入框（会把视口拽回顶部并重新拉起键盘，打断阅读动态流）
       if (window.innerWidth >= 640) inputRef.current?.focus();
     }
+  }
+
+  async function submit() {
+    await publish(text);
   }
 
   async function toggleDone(t: Todo) {
@@ -449,7 +460,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen text-ink">
-      <div className="mx-auto max-w-2xl px-5 py-5 sm:py-8">
+      <div className="mx-auto max-w-2xl px-5 pb-28 pt-5 sm:pb-8 sm:pt-8">
         <Nav />
         <header className="mb-5 text-center sm:mb-7">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
@@ -464,8 +475,8 @@ export default function Home() {
         {/* W12 提醒横幅：生日/纪念日/到期待办 */}
         <Reminders items={reminderItems} />
 
-        {/* 输入区 */}
-        <section className="mb-3">
+        {/* 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */}
+        <section className="mb-3 hidden sm:block">
           <textarea
             ref={inputRef}
             value={text}
@@ -942,6 +953,30 @@ export default function Home() {
           拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguangri
         </footer>
       </div>
+
+      {/* 移动端发布入口：底部悬浮圆圈（点按打字 / 长按说话，转写后回填面板预览） */}
+      <CaptureButton
+        onTap={() => {
+          setVoiceDraft("");
+          setSheetOpen(true);
+        }}
+        onVoiceText={(t) => {
+          setVoiceDraft(t);
+          setSheetOpen(true);
+        }}
+        onError={(m) => setMsg({ ok: false, text: m })}
+        onHint={(m) => setMsg({ ok: true, text: m })}
+      />
+      <PublishSheet
+        open={sheetOpen}
+        initialText={voiceDraft}
+        busy={busy}
+        onPublish={async (t) => {
+          await publish(t);
+          setSheetOpen(false);
+        }}
+        onClose={() => setSheetOpen(false)}
+      />
     </main>
   );
 }
