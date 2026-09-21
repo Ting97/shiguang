@@ -16,6 +16,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     dueAt?: string | null; // ISO；null=清除时间
     startAt?: string | null; // ISO；null=清除起始（区间待办用）
     activityId?: string;
+    important?: boolean; // ⭐ 重要标记（仅顶层任务，子待办随父）
+    today?: boolean; // ☀️ 今日标记：true=北京今天，false=清除（跨零点自动失效）
   };
 
   // ---- 模式零：恢复为未完成（撤销完成状态；历史版本完成时生成过日程块，一并删除） ----
@@ -65,6 +67,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   // ---- 模式二：修改字段 ----
+  // 今日/重要标记只作用于顶层任务（子待办的上下文随父，避免「标记了却不出现在视图」的困惑）
+  if (body.important !== undefined || body.today !== undefined) {
+    const isChild = (
+      await pool.query(`select parent_todo_id from todos where id = $1 and user_id = $2`, [id, user.id])
+    ).rows[0]?.parent_todo_id;
+    if (isChild) {
+      return NextResponse.json({ error: "子任务不支持单独标记，请标记父任务" }, { status: 400 });
+    }
+  }
   const sets: string[] = [];
   const vals: unknown[] = [];
   if (body.title != null) { vals.push(body.title.trim()); sets.push(`title = $${vals.length}`); }
@@ -78,6 +89,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     sets.push(`start_at = $${vals.length}::timestamptz`);
   }
   if (body.activityId != null) { vals.push(body.activityId); sets.push(`activity_id = $${vals.length}`); }
+  if (body.important !== undefined) { vals.push(Boolean(body.important)); sets.push(`is_important = $${vals.length}`); }
+  if (body.today !== undefined) {
+    // true → 标记为北京今天；false → 清除。查询按 today_tag_date = 今天 过滤，跨零点自动失效
+    vals.push(Boolean(body.today));
+    sets.push(`today_tag_date = case when $${vals.length} then (now() at time zone 'Asia/Shanghai')::date else null end`);
+  }
   if (sets.length === 0) {
     return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
   }

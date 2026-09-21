@@ -150,9 +150,15 @@ create table if not exists public.todos (
   done_at      timestamptz,
   done_entry_id uuid references public.entries(id) on delete set null, -- 完成时的打卡记录
   done_block_id uuid references public.time_blocks(id) on delete set null, -- 完成时生成的时间块（恢复未完成时删除）
+  parent_todo_id uuid references public.todos(id) on delete cascade, -- 子待办（仅一层，应用层校验；migrations/020）
+  is_important boolean not null default false,                        -- ⭐ 重要（微软 To Do 式标记）
+  today_tag_date date,                                                -- ☀️ 今日标记（=标记当天北京日期，跨零点惰性失效）
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_todos_user_due on public.todos (user_id, due_at);
+create index if not exists idx_todos_user_parent on public.todos (user_id, parent_todo_id);
+create index if not exists idx_todos_user_today on public.todos (user_id, today_tag_date);
+create index if not exists idx_todos_user_important on public.todos (user_id, is_important);
 
 create index if not exists idx_blocks_user_range on public.time_blocks (user_id, start_at desc);
 

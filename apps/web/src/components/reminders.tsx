@@ -7,17 +7,31 @@ import { todayStr } from "@/lib/date";
 
 /**
  * 工作台提醒横幅（W12）：生日/纪念日 + 到期待办
- * - 条目可点：联系人 → TA 档案；待办 → 锚到待办区
+ * - 条目可点：联系人 → TA 档案；待办 → 锚到主页今日 TODO 区
+ * - 待办条目附「☀️今日」快捷按钮：一键加入今日规划（跨零点自动失效的今日标记）
  * - 「知道了」当天不再展示（localStorage 按日期记录，次日自动回来）
  */
-export default function Reminders({ items }: { items: ReminderItem[] }) {
+export default function Reminders({
+  items,
+  onMarkToday,
+}: {
+  items: ReminderItem[];
+  onMarkToday?: (todoId: string, title: string) => void;
+}) {
   const [dismissed, setDismissed] = useState(true); // 默认不展示，读到 localStorage 后纠正，避免闪烁
+  const [marked, setMarked] = useState<Set<string>>(new Set()); // 已标今日的条目（防重复提交 + 即时反馈）
 
   useEffect(() => {
     setDismissed(window.localStorage.getItem("shiguang_reminders_dismissed") === todayStr());
   }, []);
 
   if (items.length === 0 || dismissed) return null;
+
+  async function markToday(it: ReminderItem) {
+    if (!it.todoId || marked.has(it.todoId)) return;
+    setMarked((s) => new Set(s).add(it.todoId!));
+    await onMarkToday?.(it.todoId!, it.label);
+  }
 
   return (
     <section
@@ -52,9 +66,21 @@ export default function Reminders({ items }: { items: ReminderItem[] }) {
                 {it.label}
               </Link>
             ) : (
-              <a href="#todos" className={it.overdue ? "text-danger underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}>
-                {it.label}
-              </a>
+              <>
+                <a href="#todos" className={it.overdue ? "text-danger underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}>
+                  {it.label}
+                </a>
+                {it.todoId && onMarkToday && (
+                  <button
+                    onClick={() => markToday(it)}
+                    disabled={marked.has(it.todoId!)}
+                    title="加入今日 TODO（跨零点自动失效）"
+                    className="mt-px shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 px-1.5 py-px text-[11px] text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    {marked.has(it.todoId!) ? "已加入 ✓" : "☀️ 今日"}
+                  </button>
+                )}
+              </>
             )}
           </li>
         ))}

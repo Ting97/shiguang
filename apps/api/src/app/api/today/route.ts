@@ -8,17 +8,34 @@ export const dynamic = "force-dynamic";
 /** PG 容器为 UTC，「今天」必须按北京日期切分（凌晨 0~8 点 UTC 日期仍是昨天） */
 const TZ = "Asia/Shanghai";
 
-/** GET /api/today —— 工作台数据：待办 + 今日已完成待办 + 今日时间块 */
+/** GET /api/today —— 工作台数据：今日 TODO（标记今日的，含子任务）+ 今日已完成待办 + 今日时间块 */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { rows: todos } = await pool.query(
+  // 主页今日区只展示「手动标记今日」的待办（微软 To Do「我的一天」语义）：
+  // today_tag_date = 北京今天，跨零点自动失效，由用户每天自行规划
+  const { rows: parents } = await pool.query(
     `select t.*, a.name as activity_name, a.icon, a.color
      from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id
-     where t.user_id = $1 and t.status = 'pending'
-     order by t.due_at asc nulls last, t.created_at desc`,
-    [user.id],
+     where t.user_id = $1 and t.status = 'pending' and t.parent_todo_id is null
+       and t.today_tag_date = (now() at time zone $2)::date
+     order by t.is_important desc, t.created_at desc`,
+    [user.id, TZ],
   );
+  let todos = parents.map((p) => ({ ...p, children: [] }));
+  if (parents.length > 0) {
+    const ids = parents.map((p) => p.id);
+    const { rows: kids } = await pool.query(
+      `select t.*, a.name as activity_name, a.icon, a.color
+       from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id
+       where t.user_id = $1 and t.parent_todo_id = any($2::uuid[])
+       order by (t.status = 'done'), t.created_at`,
+      [user.id, ids],
+    );
+    const byParent = new Map<string, unknown[]>(parents.map((p) => [p.id, []]));
+    for (const k of kids) byParent.get(k.parent_todo_id)?.push(k);
+    todos = parents.map((p) => ({ ...p, children: byParent.get(p.id) ?? [] }));
+  }
   const { rows: doneToday } = await pool.query(
     `select t.*, a.name as activity_name, a.icon
      from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id

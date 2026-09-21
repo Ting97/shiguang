@@ -6,26 +6,15 @@ import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import MomentFeed from "@/components/moment-feed";
 import Reminders from "@/components/reminders";
+import TodayTodos from "@/components/today-todos";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import VoiceButton from "@/components/voice-button";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
-import type { Activity, Block, FeedMoment } from "@/lib/types";
+import type { Activity, Block, FeedMoment, TodoItem, TodoRow } from "@/lib/types";
 
-interface Todo {
-  id: string;
-  title: string;
-  due_at: string | null;
-  start_at?: string | null;
-  status: string;
-  done_at: string | null;
-  activity_id: string | null;
-  activity_name: string | null;
-  icon: string | null;
-  color: string | null;
-}
 interface BlockDraft {
   id: string;
   title: string;
@@ -33,48 +22,11 @@ interface BlockDraft {
   end: string; // HH:MM
   activityId: string;
 }
-interface TodoDraft {
-  id: string;
-  title: string;
-  start: string; // datetime-local 值，空串=无起始（区间待办用）
-  due: string; // datetime-local 值 YYYY-MM-DDTHH:MM，空串=无时间
-  activityId: string;
-}
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const zhDateTime = (iso: string | null) => {
-  if (!iso) return "未定时间";
-  const d = new Date(iso);
-  const now = new Date();
-  const sameYear = d.getFullYear() === now.getFullYear();
-  const date = `${sameYear ? "" : d.getFullYear() + "年"}${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 const zhTime = (iso: string) => {
   const d = new Date(iso);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-const dueTag = (iso: string | null) => {
-  if (!iso) return { text: "无时间", cls: "text-ink-dim" };
-  const d = new Date(iso);
-  if (d < new Date()) return { text: "已过期", cls: "text-danger" };
-  // 按日历天比对（当天晚些时候是"今天"而非"明天"）
-  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const days = Math.round((dayStart(d) - dayStart(new Date())) / 86400_000);
-  if (days === 0) return { text: "今天", cls: "text-warn" };
-  if (days === 1) return { text: "明天", cls: "text-accent" };
-  return { text: `${days} 天后`, cls: "text-ink-mute" };
-};
-/** 待办时间：有起始且与到期同日 →「9:10–9:30」区间；否则单时刻 */
-const todoTimeText = (t: Todo) => {
-  if (t.start_at && t.due_at) {
-    const a = new Date(t.start_at);
-    const b = new Date(t.due_at);
-    if (a.toDateString() === b.toDateString() && b.getTime() !== a.getTime()) {
-      return `${zhTime(t.start_at)}–${zhTime(t.due_at)}`;
-    }
-  }
-  return zhDateTime(t.due_at);
 };
 
 const FEED_PAGE_SIZE = 10; // 动态流每页条数，「加载更多」按页追加
@@ -87,15 +39,11 @@ export default function Home() {
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState(""); // 生效中的搜索词（输入防抖后）
   const [loadingMore, setLoadingMore] = useState(false);
-  const [addingTodo, setAddingTodo] = useState(false);
-  const [newTodoTitle, setNewTodoTitle] = useState("");
-  const [newTodoBusy, setNewTodoBusy] = useState(false);
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [doneToday, setDoneToday] = useState<Todo[]>([]);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [doneToday, setDoneToday] = useState<TodoRow[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [editing, setEditing] = useState<BlockDraft | null>(null);
-  const [editingTodo, setEditingTodo] = useState<TodoDraft | null>(null);
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [todayKcal, setTodayKcal] = useState(0);
   const [listDraft, setListDraft] = useState<BlockDraftValue | null>(null);
@@ -214,24 +162,6 @@ export default function Home() {
     await publish(text);
   }
 
-  async function toggleDone(t: Todo) {
-    // 乐观更新
-    setTodos((list) => list.filter((x) => x.id !== t.id));
-    setDoneToday((list) => [{ ...t, status: "done" }, ...list]);
-    const r = await fetch(`/api/todos/${t.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done: true }),
-    });
-    if (!r.ok) {
-      await load(); // 失败回滚视图
-      setMsg({ ok: false, text: "完成操作失败，已恢复" });
-      return;
-    }
-    setMsg({ ok: true, text: `🎉 完成「${t.title}」` });
-    await load();
-  }
-
   function startEdit(b: Block) {
     setEditing({
       id: b.id,
@@ -287,106 +217,6 @@ export default function Home() {
     }
     setMsg({ ok: true, text: `🗑 已删除「${b.title}」` });
     await load();
-  }
-
-  // ---------- 待办编辑/删除 ----------
-
-  const isoToLocalInput = (iso: string | null) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  const localInputToIso = (v: string) => {
-    if (!v) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-  };
-
-  function startTodoEdit(t: Todo) {
-    setEditingTodo({
-      id: t.id,
-      title: t.title,
-      start: isoToLocalInput(t.start_at ?? null),
-      due: isoToLocalInput(t.due_at),
-      activityId: t.activity_id ?? "other",
-    });
-  }
-
-  async function saveTodoEdit() {
-    if (!editingTodo || !editingTodo.title.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
-      return;
-    }
-    const r = await fetch(`/api/todos/${editingTodo.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: editingTodo.title.trim(),
-        startAt: localInputToIso(editingTodo.start),
-        dueAt: localInputToIso(editingTodo.due),
-        activityId: editingTodo.activityId,
-      }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "保存失败" });
-      return;
-    }
-    setEditingTodo(null);
-    setMsg({ ok: true, text: "💾 待办已更新" });
-    await load();
-  }
-
-  async function removeTodo(t: Todo) {
-    if (!window.confirm(`删除这条待办？\n「${t.title}」`)) return;
-    const r = await fetch(`/api/todos/${t.id}`, { method: "DELETE" });
-    if (!r.ok) {
-      setMsg({ ok: false, text: "删除失败" });
-      return;
-    }
-    setMsg({ ok: true, text: `🗑 已删除待办「${t.title}」` });
-    await load();
-  }
-
-  async function restoreTodo(t: Todo) {
-    setDoneToday((list) => list.filter((x) => x.id !== t.id)); // 乐观更新
-    const r = await fetch(`/api/todos/${t.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ undone: true }),
-    });
-    if (!r.ok) {
-      await load();
-      setMsg({ ok: false, text: "恢复失败，已还原" });
-      return;
-    }
-    setMsg({ ok: true, text: `↩️ 「${t.title}」已恢复为未完成` });
-    await load();
-  }
-
-  // ---------- 手动新增待办（不做时间控制，只填标题） ----------
-
-  async function saveNewTodo() {
-    const title = newTodoTitle.trim();
-    if (!title || newTodoBusy) return;
-    setNewTodoBusy(true);
-    try {
-      const r = await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
-      setMsg({ ok: true, text: `📌 已新增待办「${j.todo.title}」` });
-      setNewTodoTitle("");
-      setAddingTodo(false);
-      await load();
-    } catch (e) {
-      setMsg({ ok: false, text: `新增失败：${e instanceof Error ? e.message : e}` });
-    } finally {
-      setNewTodoBusy(false);
-    }
   }
 
   /** 时间轴缺口补录 */
@@ -472,8 +302,23 @@ export default function Home() {
           </p>
         </header>
 
-        {/* W12 提醒横幅：生日/纪念日/到期待办 */}
-        <Reminders items={reminderItems} />
+        {/* W12 提醒横幅：生日/纪念日/到期待办（待办可一键加入今日 TODO） */}
+        <Reminders
+          items={reminderItems}
+          onMarkToday={async (todoId, label) => {
+            const r = await fetch(`/api/todos/${todoId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ today: true }),
+            });
+            if (r.ok) {
+              setMsg({ ok: true, text: `☀️ 已加入今日 TODO` });
+              await load();
+            } else {
+              setMsg({ ok: false, text: `加入今日失败（${label.slice(0, 20)}…）` });
+            }
+          }}
+        />
 
         {/* 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */}
         <section className="mb-3 hidden sm:block">
@@ -512,6 +357,9 @@ export default function Home() {
         {msg && (
           <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
         )}
+
+        {/* 今日 TODO：只展示手动标记今日的待办（每天重新规划；完整管理在「日程 · TODO」） */}
+        <TodayTodos todos={todos} doneToday={doneToday} activities={activities} onChanged={load} notify={setMsg} />
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <section className="mb-6">
@@ -557,232 +405,6 @@ export default function Home() {
             searching={!!query}
             searchKeyword={query}
           />
-        </section>
-
-        {/* 待办列表 */}
-        <section id="todos" className="glass mb-6 rounded-2xl p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink-soft">
-              📋 待办 <span className="ml-1 text-xs text-ink-dim">{todos.length} 项 · 点击圆圈完成</span>
-            </h2>
-            <button
-              onClick={() => setAddingTodo(true)}
-              className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1 text-xs text-accent transition hover:border-sky-500/50"
-            >
-              ＋ 新增
-            </button>
-          </div>
-          {todos.length === 0 && !addingTodo && (
-            <p className="py-4 text-center text-xs text-ink-faint">
-              暂无待办 —— 说句带"明天/待会儿"的话，或点右上「＋ 新增」
-            </p>
-          )}
-          <ul className="space-y-1">
-            {addingTodo && (
-              <li className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5">
-                <span className="text-base">📌</span>
-                <input
-                  autoFocus
-                  value={newTodoTitle}
-                  onChange={(e) => setNewTodoTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing) saveNewTodo();
-                    if (e.key === "Escape") {
-                      setAddingTodo(false);
-                      setNewTodoTitle("");
-                    }
-                  }}
-                  placeholder="要做什么？回车保存，不用填时间"
-                  className="min-w-0 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
-                />
-                <button
-                  onClick={() => {
-                    setAddingTodo(false);
-                    setNewTodoTitle("");
-                  }}
-                  className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={saveNewTodo}
-                  disabled={!newTodoTitle.trim() || newTodoBusy}
-                  className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-50"
-                >
-                  {newTodoBusy ? "保存中…" : "保存"}
-                </button>
-              </li>
-            )}
-            {todos.map((t) => {
-              const tag = dueTag(t.due_at);
-              return editingTodo?.id === t.id ? (
-                /* ---- 待办行内编辑器 ---- */
-                <li key={t.id} className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={editingTodo.title}
-                      onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                      className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
-                      placeholder="标题"
-                    />
-                    <input
-                      type="datetime-local"
-                      value={editingTodo.start}
-                      onChange={(e) => setEditingTodo({ ...editingTodo, start: e.target.value })}
-                      title="开始时间（可清空）"
-                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
-                    />
-                    <input
-                      type="datetime-local"
-                      value={editingTodo.due}
-                      onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
-                      title="到期时间"
-                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
-                    />
-                    <select
-                      value={editingTodo.activityId}
-                      onChange={(e) => setEditingTodo({ ...editingTodo, activityId: e.target.value })}
-                      className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
-                    >
-                      {activities.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.icon} {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mt-2 flex justify-end gap-2">
-                    <button
-                      onClick={() => setEditingTodo(null)}
-                      className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft"
-                    >
-                      取消
-                    </button>
-                    <button
-                      onClick={saveTodoEdit}
-                      className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500"
-                    >
-                      保存
-                    </button>
-                  </div>
-                </li>
-              ) : (
-                /* ---- 常规待办行：移动端自动折两行（标题行 + 时间/操作行） ---- */
-                <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-elevated/60">
-                  <button
-                    onClick={() => toggleDone(t)}
-                    title="点击标记完成"
-                    className="tap-lg flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-500 text-transparent transition group-hover:border-sky-400 group-hover:text-accent/60"
-                  >
-                    ✓
-                  </button>
-                  <span className="text-base">{t.icon ?? "📌"}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
-                  <span className={`shrink-0 text-xs ${tag.cls}`}>{tag.text}</span>
-                  <span className="hidden shrink-0 text-xs tabular-nums text-ink-dim sm:inline">{todoTimeText(t)}</span>
-                  <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
-                    <button
-                      onClick={() => startTodoEdit(t)}
-                      title="修改"
-                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => removeTodo(t)}
-                      title="删除"
-                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
-                    >
-                      🗑
-                    </button>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          {doneToday.length > 0 && (
-            <details className="mt-3 border-t border-line-soft pt-3">
-              <summary className="cursor-pointer text-xs text-ink-dim">
-                今日已完成 {doneToday.length} 项（可恢复 / 修改 / 删除）
-              </summary>
-              <ul className="mt-2 space-y-1">
-                {doneToday.map((t) =>
-                  editingTodo?.id === t.id ? (
-                    <li key={t.id} className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          value={editingTodo.title}
-                          onChange={(e) => setEditingTodo({ ...editingTodo, title: e.target.value })}
-                          className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
-                          placeholder="标题"
-                        />
-                        <input
-                          type="datetime-local"
-                          value={editingTodo.due}
-                          onChange={(e) => setEditingTodo({ ...editingTodo, due: e.target.value })}
-                          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
-                        />
-                        <select
-                          value={editingTodo.activityId}
-                          onChange={(e) => setEditingTodo({ ...editingTodo, activityId: e.target.value })}
-                          className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
-                        >
-                          {activities.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.icon} {a.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="mt-2 flex justify-end gap-2">
-                        <button
-                          onClick={() => setEditingTodo(null)}
-                          className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft"
-                        >
-                          取消
-                        </button>
-                        <button
-                          onClick={saveTodoEdit}
-                          className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500"
-                        >
-                          保存
-                        </button>
-                      </div>
-                    </li>
-                  ) : (
-                    <li key={t.id} className="group flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-elevated/60">
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
-                      <span className="flex-1 truncate text-xs text-ink-dim line-through">{t.title}</span>
-                      <span className="shrink-0 text-xs text-ink-faint">{t.done_at ? zhTime(t.done_at) : ""}</span>
-                      <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
-                        <button
-                          onClick={() => restoreTodo(t)}
-                          title="恢复为未完成"
-                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-warn"
-                        >
-                          ↩️
-                        </button>
-                        <button
-                          onClick={() => startTodoEdit(t)}
-                          title="修改"
-                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => removeTodo(t)}
-                          title="删除"
-                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
-                        >
-                          🗑
-                        </button>
-                      </span>
-                    </li>
-                  ),
-                )}
-              </ul>
-            </details>
-          )}
         </section>
 
         {/* 今日日程：时间轴 / 列表 双视图 */}

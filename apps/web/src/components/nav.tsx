@@ -7,10 +7,9 @@ import ThemeToggle from "./theme-toggle";
 
 const LINKS = [
   { href: "/", label: "动态" },
-  { href: "/calendar", label: "日历" },
+  { href: "/schedule", label: "日程" },
   { href: "/contacts", label: "人际" },
   { href: "/finance", label: "财务" },
-  { href: "/categories", label: "分类" },
 ];
 
 export default function Nav() {
@@ -56,7 +55,7 @@ export default function Nav() {
     <nav className="sticky top-0 z-40 mb-8 flex items-center justify-between gap-2 rounded-b-2xl border border-t-0 border-line-soft bg-surface/80 p-1 pl-3 text-sm shadow-lg shadow-scrim/50 backdrop-blur-xl safe-top">
       <div ref={scrollRef} className="scrollbar-none flex min-w-0 flex-1 justify-start gap-1 overflow-x-auto sm:justify-center">
         {LINKS.map((l) => {
-          const active = pathname === l.href;
+          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
           return (
             <Link key={l.href} href={l.href} data-path={l.href} className={linkCls(active)}>
               {l.label}
