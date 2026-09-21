@@ -240,7 +240,7 @@ export default function ProfilePage() {
                     <ul className="mt-2.5 space-y-0.5">
                       {quota.byModel.map((m) => (
                         <li key={m.model} className="flex items-center gap-2 text-[11px] tabular-nums text-ink-mute">
-                          <span className="font-medium text-ink-soft">{m.model}</span>
+                          <span className="font-medium text-ink-soft">{m.model || "其他模型"}</span>
                           <span className="ml-auto">
                             近30天 {m.d30.calls} 次 · 累计 {m.all.calls} 次 /{" "}
                             {(m.all.promptTokens + m.all.completionTokens).toLocaleString("zh-CN")} tokens
