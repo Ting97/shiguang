@@ -79,10 +79,13 @@ export async function POST(req: Request) {
     important?: boolean;
     today?: boolean;
     dueAt?: string | null; // ISO；null/缺省=无时间（之后行内编辑补充）
+    note?: string | null; // 子任务详情内容（≤1000 字）
   };
   const title = (body.title ?? "").trim();
   if (!title) return NextResponse.json({ error: "标题不能为空" }, { status: 400 });
   if (title.length > 200) return NextResponse.json({ error: "标题太长了（≤200 字）" }, { status: 400 });
+  const note = body.note?.trim() ? body.note.trim() : null;
+  if (note && note.length > 1000) return NextResponse.json({ error: "详情内容太长了（≤1000 字）" }, { status: 400 });
 
   // 子待办：校验父属主 + 最多一层（父自身不得再有 parent，且须未完成）
   let parentId: string | null = null;
@@ -119,11 +122,11 @@ export async function POST(req: Request) {
   const dueAt = body.dueAt ?? null;
   const todo = (
     await pool.query(
-      `insert into todos (user_id, title, activity_id, source, parent_todo_id, is_important, today_tag_date, due_at, remind_at)
+      `insert into todos (user_id, title, activity_id, source, parent_todo_id, is_important, today_tag_date, due_at, remind_at, note)
        values ($1, $2, $3, 'manual', $4, $5,
                ${marked && body.today ? BJ_TODAY : "null"},
-               $6, $7) returning *`,
-      [user.id, title, activityId, parentId, marked && body.important ? true : false, dueAt, dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000).toISOString() : null],
+               $6, $7, $8) returning *`,
+      [user.id, title, activityId, parentId, marked && body.important ? true : false, dueAt, dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000).toISOString() : null, note],
     )
   ).rows[0];
   return NextResponse.json({ todo });

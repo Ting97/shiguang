@@ -48,6 +48,12 @@ export default function TodoBoard() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [subParentId, setSubParentId] = useState<string | null>(null); // 正在添加子任务的任务
   const [subTitle, setSubTitle] = useState("");
+  // 子任务详情面板（点标题展开）：标题 + 详细内容（≤1000 字）+ 截止
+  const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteText, setNoteText] = useState("");
+  const [noteDue, setNoteDue] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
   const chipRefs = useRef<Record<View, HTMLButtonElement | null>>({} as Record<View, HTMLButtonElement | null>);
 
   // 视图切换后把激活 chip 滚入视野（窄屏四个 chip 放不下，与顶部导航同款处理）
@@ -202,6 +208,29 @@ export default function TodoBoard() {
       else next.add(id);
       return next;
     });
+  }
+
+  /** 点开子任务详情：标题 + 详细内容 + 截止（列表里只展示标题） */
+  function openNote(c: TodoRow) {
+    setNoteOpenId(c.id);
+    setNoteTitle(c.title);
+    setNoteText(c.note ?? "");
+    setNoteDue(isoToLocalInput(c.due_at));
+  }
+
+  async function saveNote() {
+    if (!noteOpenId || !noteTitle.trim()) {
+      setMsg({ ok: false, text: "标题不能为空" });
+      return;
+    }
+    setNoteSaving(true);
+    const ok = await patchTodo(
+      noteOpenId,
+      { title: noteTitle.trim(), note: noteText.trim() ? noteText.trim() : null, dueAt: localInputToIso(noteDue) },
+      "💾 子任务已保存",
+    );
+    setNoteSaving(false);
+    if (ok) setNoteOpenId(null);
   }
 
   const emptyText: Record<View, string> = {
@@ -471,32 +500,49 @@ export default function TodoBoard() {
                               const cDone = c.status === "done";
                               return (
                                 <div key={c.id} className="group/child rounded-lg px-1.5 py-1 transition hover:bg-elevated/60">
-                                  {editingId === c.id ? (
-                                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-elevated/60 p-2">
+                                  {noteOpenId === c.id ? (
+                                    /* ---- 子任务详情面板：标题 + 详细内容（≤1000 字）+ 截止 ---- */
+                                    <div className="rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5">
                                       <input
                                         autoFocus
-                                        value={editTitle}
-                                        onChange={(e) => setEditTitle(e.target.value)}
+                                        value={noteTitle}
+                                        onChange={(e) => setNoteTitle(e.target.value)}
                                         onKeyDown={(e) => {
-                                          if (e.key === "Enter" && !e.nativeEvent.isComposing) saveEdit();
-                                          if (e.key === "Escape") setEditingId(null);
+                                          if (e.key === "Enter" && !e.nativeEvent.isComposing) saveNote();
+                                          if (e.key === "Escape") setNoteOpenId(null);
                                         }}
-                                        className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-[13px] outline-none focus:border-sky-500"
+                                        className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-[13px] outline-none focus:border-sky-500"
+                                        placeholder="标题"
                                       />
-                                      <input
-                                        type="datetime-local"
-                                        value={editDue}
-                                        onChange={(e) => setEditDue(e.target.value)}
-                                        title="截止时间（可清空）"
-                                        className="rounded border border-line-strong bg-surface px-2 py-1 text-[13px] tabular-nums outline-none focus:border-sky-500"
+                                      <textarea
+                                        value={noteText}
+                                        onChange={(e) => setNoteText(e.target.value.slice(0, 1000))}
+                                        rows={4}
+                                        maxLength={1000}
+                                        placeholder="详细内容（可选，记录细节/链接/备注，≤1000 字）"
+                                        className="input-glow mt-2 w-full resize-none rounded border border-line-soft bg-surface/60 px-2.5 py-2 text-[13px] leading-relaxed outline-none placeholder:text-ink-faint"
                                       />
-                                      <div className="flex justify-end gap-2">
-                                        <button onClick={() => setEditingId(null)} className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft">
-                                          取消
-                                        </button>
-                                        <button onClick={saveEdit} className="rounded bg-sky-600 px-2.5 py-1 text-xs font-medium hover:bg-sky-500">
-                                          保存
-                                        </button>
+                                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                        <span className="text-[10px] tabular-nums text-ink-faint">{noteText.length}/1000</span>
+                                        <input
+                                          type="datetime-local"
+                                          value={noteDue}
+                                          onChange={(e) => setNoteDue(e.target.value)}
+                                          title="截止时间（可清空）"
+                                          className="rounded border border-line-strong bg-surface px-2 py-1 text-[12px] tabular-nums outline-none focus:border-sky-500"
+                                        />
+                                        <div className="ml-auto flex gap-2">
+                                          <button onClick={() => setNoteOpenId(null)} className="rounded px-2.5 py-1 text-xs text-ink-mute hover:bg-soft">
+                                            取消
+                                          </button>
+                                          <button
+                                            onClick={saveNote}
+                                            disabled={noteSaving || !noteTitle.trim()}
+                                            className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-50"
+                                          >
+                                            {noteSaving ? "保存中…" : "保存"}
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   ) : (
@@ -504,11 +550,16 @@ export default function TodoBoard() {
                                       <TodoCircle size="sm" done={cDone} onClick={() => toggleDone(c)} />
                                       <span
                                         className={`min-w-0 flex-1 cursor-pointer truncate text-[13px] ${cDone ? "text-ink-faint line-through" : ""}`}
-                                        onClick={() => startEdit(c)}
-                                        title={c.title}
+                                        onClick={() => openNote(c)}
+                                        title={c.note ? `${c.title}（点击查看详情）` : c.title}
                                       >
                                         {c.title}
                                       </span>
+                                      {c.note && (
+                                        <span className="shrink-0 text-[10px] text-ink-faint" title="有点击查看详情">
+                                          📄
+                                        </span>
+                                      )}
                                       {ctag && <span className={`shrink-0 text-[11px] ${ctag.cls}`}>{ctag.text}</span>}
                                       <span className="row-actions hidden shrink-0 gap-0.5 group-hover/child:flex">
                                         <button

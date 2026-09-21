@@ -153,6 +153,7 @@ create table if not exists public.todos (
   parent_todo_id uuid references public.todos(id) on delete cascade, -- 子待办（仅一层，应用层校验；migrations/020）
   is_important boolean not null default false,                        -- ⭐ 重要（微软 To Do 式标记）
   today_tag_date date,                                                -- ☀️ 今日标记（=标记当天北京日期，跨零点惰性失效）
+  note text,                                                          -- 子任务详情内容（≤1000 字，应用层校验；列表只展示标题，点开看详情；migrations/021）
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_todos_user_due on public.todos (user_id, due_at);

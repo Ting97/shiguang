@@ -25,6 +25,7 @@ export default function TodayTodos({ todos, doneToday, activities, onChanged, no
   const [newTitle, setNewTitle] = useState("");
   const [newBusy, setNewBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [noteShown, setNoteShown] = useState<Set<string>>(new Set()); // 主页子任务点开的详情（只读，编辑去日程·TODO）
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDue, setEditDue] = useState("");
@@ -259,14 +260,34 @@ export default function TodayTodos({ todos, doneToday, activities, onChanged, no
                     </div>
                     {open && (
                       <div className="ml-8 mt-0.5 space-y-0.5 border-l border-line-soft pl-3">
-                        {t.children.map((c) => (
-                          <div key={c.id} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition hover:bg-elevated/60">
-                            <TodoCircle size="sm" done={c.status === "done"} onClick={() => toggleDone(c)} />
-                            <span className={`min-w-0 flex-1 truncate text-[13px] ${c.status === "done" ? "text-ink-faint line-through" : ""}`} title={c.title}>
-                              {c.title}
-                            </span>
-                          </div>
-                        ))}
+                        {t.children.map((c) => {
+                          const noteOn = noteShown.has(c.id);
+                          return (
+                            <div key={c.id} className="rounded-lg px-1.5 py-1 transition hover:bg-elevated/60">
+                              <div className="flex items-center gap-2.5">
+                                <TodoCircle size="sm" done={c.status === "done"} onClick={() => toggleDone(c)} />
+                                <span
+                                  className={`min-w-0 flex-1 truncate text-[13px] ${c.status === "done" ? "text-ink-faint line-through" : ""} ${c.note ? "cursor-pointer" : ""}`}
+                                  title={c.note ? `${c.title}（点击查看详情）` : c.title}
+                                  onClick={c.note ? () => setNoteShown((s) => {
+                                    const n = new Set(s);
+                                    if (n.has(c.id)) n.delete(c.id);
+                                    else n.add(c.id);
+                                    return n;
+                                  }) : undefined}
+                                >
+                                  {c.title}
+                                </span>
+                                {c.note && <span className="shrink-0 text-[10px] text-ink-faint" title="有点击查看详情">📄</span>}
+                              </div>
+                              {noteOn && c.note && (
+                                <p className="ml-7.5 mt-1 whitespace-pre-wrap break-words rounded-lg bg-elevated/60 px-2.5 py-1.5 text-[12px] leading-relaxed text-ink-dim">
+                                  {c.note}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </>

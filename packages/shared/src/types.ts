@@ -37,6 +37,7 @@ export interface TodoRow {
   source: string;
   is_important: boolean;
   today_tag_date: string | null;
+  note: string | null;
   done_at: string | null;
   created_at: string;
 }

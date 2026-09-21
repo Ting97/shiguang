@@ -18,6 +18,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     activityId?: string;
     important?: boolean; // ⭐ 重要标记（仅顶层任务，子待办随父）
     today?: boolean; // ☀️ 今日标记：true=北京今天，false=清除（跨零点自动失效）
+    note?: string | null; // 子任务详情内容（≤1000 字；null=清除）
   };
 
   // ---- 模式零：恢复为未完成（撤销完成状态；历史版本完成时生成过日程块，一并删除） ----
@@ -89,6 +90,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     sets.push(`start_at = $${vals.length}::timestamptz`);
   }
   if (body.activityId != null) { vals.push(body.activityId); sets.push(`activity_id = $${vals.length}`); }
+  if (body.note !== undefined) {
+    const note = body.note?.trim() ? body.note.trim() : null;
+    if (note && note.length > 1000) {
+      return NextResponse.json({ error: "详情内容太长了（≤1000 字）" }, { status: 400 });
+    }
+    vals.push(note);
+    sets.push(`note = $${vals.length}`);
+  }
   if (body.important !== undefined) { vals.push(Boolean(body.important)); sets.push(`is_important = $${vals.length}`); }
   if (body.today !== undefined) {
     // true → 标记为北京今天；false → 清除。查询按 today_tag_date = 今天 过滤，跨零点自动失效
