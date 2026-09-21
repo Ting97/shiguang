@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拾光复利 · 系统架构（2026-09-20）</title>
+<style>
+  :root { --bg:#0b1220; --card:#111a2e; --line:#24324f; --txt:#e2e8f0; --sub:#8fa3c0; --a:#38bdf8; --b:#34d399; --c:#f472b6; --d:#fbbf24; --e:#a78bfa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; padding:32px 20px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:22px; text-align:center; }
+  .sub { text-align:center; color:var(--sub); font-size:12px; margin:6px 0 28px; }
+  .layer { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .layer h2 { font-size:13px; color:var(--sub); font-weight:600; letter-spacing:1px; margin-bottom:12px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; }
+  .box { flex:1 1 180px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:rgba(255,255,255,.02); }
+  .box b { display:block; font-size:13px; margin-bottom:4px; }
+  .box span { font-size:11.5px; color:var(--sub); }
+  .arrow { text-align:center; color:var(--sub); font-size:16px; margin:-6px 0 8px; }
+  .clients .box { border-top:3px solid var(--a); }
+  .gate .box { border-top:3px solid var(--d); }
+  .app .box { border-top:3px solid var(--b); }
+  .ai .box { border-top:3px solid var(--e); }
+  .data .box { border-top:3px solid var(--c); }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  td { padding:4px 8px; border-bottom:1px solid var(--line); color:var(--sub); }
+  td:first-child { color:var(--txt); white-space:nowrap; }
+  .foot { text-align:center; color:var(--sub); font-size:11px; margin-top:22px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>拾光复利 · 系统架构</h1>
+  <p class="sub">个人经营系统：钱 · 时间 · 人 ｜ 生成于 2026-09-20，依据 main@b54e029 实际代码</p>
+
+  <div class="layer clients">
+    <h2>客户端（三端）</h2>
+    <div class="row">
+      <div class="box"><b>🌐 Web（主力）</b><span>Next.js 15 SSR/PWA 化移动适配，shiguang.ting97.cn</span></div>
+      <div class="box"><b>📱 Expo 原生 App v1.1.3</b><span>EAS 云构建；原生录音（语音记账长按2min）、SecureStore、OTA 热更；APK 走 GitHub Releases 分发</span></div>
+      <div class="box"><b>🜲 Android WebView 壳 v1.1.1</b><span>34KB 快捷入口壳（apps/android），已修 Android 14+ 闪退</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼ HTTPS</div>
+
+  <div class="layer gate">
+    <h2>接入层（腾讯云 CentOS Stream 9，同机多站点）</h2>
+    <div class="row">
+      <div class="box"><b>Caddy</b><span>HTTPS（Let's Encrypt 自动签发续期）→ 反代 127.0.0.1:3000；与 trade/tend 站点共存</span></div>
+      <div class="box"><b>认证门卫</b><span>middleware 浅查 cookie → 各 API getCurrentUser() 深校验；未登录页面 307 → /login，API 401</span></div>
+      <div class="box"><b>systemd</b><span>shiguangri.service 守护 Node 进程，崩溃 3s 自动拉起</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <div class="layer app">
+    <h2>应用层（Next.js 15 standalone · Node 22 · /opt/shiguangri）</h2>
+    <div class="row">
+      <div class="box"><b>页面（10 个）</b><span>工作台 · 日历(日/周/月/年) · 分类 · 财务 · 人际列表/TA档案 · 动态流 · 登录/注册/邀请/个人设置</span></div>
+      <div class="box"><b>API（30+ 路由）</b><span>/api/parse 多域解析落库 · blocks/todos/blocks·range · finance(overview/accounts/transactions/budget/import) · contacts(+interactions) · reminders · auth/* · feed</span></div>
+      <div class="box"><b>纯函数库（带单测）</b><span>ai 解析引擎 · social 分组/往来推断 · graph 图谱布局 · reminders · csv-import · auth-crypto（共 48+ 用例）</span></div>
+      <div class="box"><b>跨域联动</b><span>一句话同时落：时间块 + 流水草稿 + 联系人/往来 + 心情；时间轴唯一性约束（tstzrange 重叠检测）</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <div class="layer ai">
+    <h2>AI 能力层（智谱 GLM · OpenAI 兼容协议）</h2>
+    <div class="row">
+      <div class="box"><b>glm-4-flash（主力）</b><span>一句话 → JSON 结构化：类别/标题/时长/时段/金额/人物/心情/意图(past·future)；zod 校验+规则引擎兜底</span></div>
+      <div class="box"><b>时间推断引擎（确定性）</b><span>显式时长/相对时段/默认时长/未来→TODO；中文数字·钟点·下周X；整分钟对齐</span></div>
+      <div class="box"><b>复盘生成 + 缓存</b><span>日/周/月/年复盘（排除未来块的新鲜度策略，review_caches 012）；token 审计入账</span></div>
+      <div class="box"><b>TA 档案 AI 画像</b><span>contact_ai_profile（010）：喜好/忌讳提炼</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <div class="layer data">
+    <h2>数据层</h2>
+    <div class="row">
+      <div class="box"><b>PostgreSQL 13（服务器本机）</b><span>scram 认证仅 127.0.0.1；日期按 Asia/Shanghai 显式切分</span></div>
+      <div class="box"><b>19 个迁移</b><span>核心表：users/profiles/sessions/invites · entries/time_blocks/todos/activities · accounts/transactions/budgets · contacts/interactions · review_caches/audit_logs</span></div>
+      <div class="box"><b>产物分发</b><span>APK → GitHub Releases（>100MB 移出 git）；代码 → github.com/Ting97/shiguangri</span></div>
+    </div>
+  </div>
+
+  <div class="layer">
+    <h2>发布与运维速查</h2>
+    <table>
+      <tr><td>Web 发布</td><td>本地 npm run build → rsync standalone+static → systemctl restart shiguangri（docs/08）</td></tr>
+      <tr><td>App 发布</td><td>cd apps/mobile && eas build -p android --profile preview；热更：eas update -p android</td></tr>
+      <tr><td>数据库备份</td><td>sudo -u postgres pg_dump shiguangri（建议 cron 每日）</td></tr>
+      <tr><td>日志</td><td>journalctl -u shiguangri -f</td></tr>
+      <tr><td>凭据</td><td>唯一来源服务器 /opt/shiguangri/.env（不入库，其他终端 ssh tencent 获取）</td></tr>
+    </table>
+  </div>
+
+  <p class="foot">拾光复利 shiguangri · 本文件由代码现状生成，架构调整后请重新生成 · 源码 github.com/Ting97/shiguangri</p>
+</div>
+</body>
+</html>
