@@ -1,12 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, StyleSheet, Text, TextInput, View, useColorScheme,
+  Pressable, RefreshControl, StyleSheet, Text, TextInput, View,
+  useColorScheme, useWindowDimensions,
 } from "react-native";
+import Animated, {
+  Easing, FadeInDown, FadeOut, SlideInDown,
+  useAnimatedStyle, useDerivedValue, useSharedValue, withDelay, withRepeat, withSequence,
+  withSpring, withTiming,
+} from "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { Canvas, Circle, RadialGradient, vec } from "@shopify/react-native-skia";
 import { Audio } from "expo-av";
 import { getToken, loadFeed, login, sendText, transcribe, type Moment } from "./src/api";
+
+const C = {
+  bg: "#020617", card: "#0f172a", line: "#1e293b",
+  ink: "#f1f5f9", dim: "#94a3b8", accent: "#38bdf8",
+  amber: "#f1c66b", danger: "#f43f5e", ok: "#34d399",
+};
 
 /** 长按起录的等待时长：松开早于它 = 点按打开文字面板 */
 const LONG_PRESS_MS = 500;
@@ -19,16 +34,17 @@ const MIN_HOLD_MS = 600;
 const CANCEL_SLIDE_PX = 80;
 
 /**
- * 主题令牌：与 Web 端 globals.css 的 :root（深色默认）/ [data-theme="light"] 完全同源，
- * 保证 App 与移动端 Web 视觉一致。悬浮圆钮颜色按用户约定：夜间浅蓝 / 日间奶白。
+ * 主题令牌：与 Web 端 globals.css 的 :root（深色默认）/ [data-theme="light"] 完全同源。
+ * 悬浮圆钮颜色按约定：夜间浅蓝 / 日间奶白。
  */
 const THEMES = {
   dark: {
     bg: "#020617",
     surface: "#0f172a",
-    surfaceSoft: "rgba(15, 23, 42, 0.88)", // 玻璃卡片（--glass-bg-mobile）
+    surfaceSoft: "rgba(15, 23, 42, 0.72)",
     elevated: "#1e293b",
-    glassBorder: "rgba(148, 163, 184, 0.12)", // --glass-border
+    glassBorder: "rgba(148, 163, 184, 0.16)",
+    glassHighlight: "rgba(255, 255, 255, 0.06)",
     line: "#334155",
     lineSoft: "#1e293b",
     ink: "#f1f5f9",
@@ -41,23 +57,25 @@ const THEMES = {
     danger: "#fda4af",
     dangerSolid: "#f43f5e",
     success: "#6ee7b7",
-    title: "#f8fafc", // .text-gradient 起点（近似主色）
-    scrim: "rgba(2, 6, 23, 0.6)",
-    fab: "#38bdf8", // 夜间：浅蓝
+    title: "#f8fafc",
+    scrim: "rgba(2, 6, 23, 0.55)",
+    fab: "#38bdf8",
     fabFg: "#062033",
     bannerOkBg: "rgba(16, 185, 129, 0.1)",
     bannerOkBorder: "rgba(16, 185, 129, 0.3)",
     bannerErrBg: "rgba(244, 63, 94, 0.1)",
     bannerErrBorder: "rgba(244, 63, 94, 0.3)",
-    chipWarnBg: "rgba(245, 158, 11, 0.15)",
     chipWarn: "#fcd34d",
+    blurTint: "dark" as const,
+    aurora: { sky: 0.16, indigo: 0.11, pink: 0.07 },
   },
   light: {
     bg: "#f1f5f9",
     surface: "#ffffff",
-    surfaceSoft: "rgba(255, 255, 255, 0.95)", // --glass-bg-mobile（浅色）
+    surfaceSoft: "rgba(255, 255, 255, 0.78)",
     elevated: "#f1f5f9",
     glassBorder: "rgba(15, 23, 42, 0.08)",
+    glassHighlight: "rgba(255, 255, 255, 0.65)",
     line: "#d3dbe4",
     lineSoft: "#e5eaf1",
     ink: "#0f172a",
@@ -71,19 +89,34 @@ const THEMES = {
     dangerSolid: "#f43f5e",
     success: "#047857",
     title: "#0f172a",
-    scrim: "rgba(100, 116, 139, 0.55)",
-    fab: "#f7f1e3", // 日间：奶白
+    scrim: "rgba(100, 116, 139, 0.45)",
+    fab: "#f7f1e3",
     fabFg: "#0f172a",
     bannerOkBg: "rgba(16, 185, 129, 0.1)",
     bannerOkBorder: "rgba(16, 185, 129, 0.3)",
     bannerErrBg: "rgba(244, 63, 94, 0.1)",
     bannerErrBorder: "rgba(244, 63, 94, 0.3)",
-    chipWarnBg: "rgba(245, 158, 11, 0.15)",
     chipWarn: "#b45309",
+    blurTint: "light" as const,
+    aurora: { sky: 0.12, indigo: 0.08, pink: 0.06 },
   },
 } as const;
 
-type Theme = { [K in keyof typeof THEMES.dark]: string };
+type Theme = {
+  [K in keyof typeof THEMES.dark]: K extends "aurora"
+    ? { sky: number; indigo: number; pink: number }
+    : K extends "blurTint"
+      ? "light" | "dark"
+      : string;
+};
+
+/** 触觉兜底：模拟器/老设备可能不支持，失败静默 */
+const haptic = {
+  tap: () => Haptics.selectionAsync().catch(() => {}),
+  record: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}),
+  cancel: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}),
+  success: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}),
+};
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -108,7 +141,139 @@ export default function App() {
   return token ? <Home onLogout={() => setTokenState(null)} /> : <Login onOk={() => setTokenState("1")} />;
 }
 
-// —— 登录（对齐 Web 登录页：居中品牌 + 玻璃输入 + 渐变主按钮） ——
+// —— 氛围组件 ——
+
+/** 动态极光背景：三色径向光晕缓慢漂移 + 呼吸（Skia GPU 绘制，性能无忧） */
+function AuroraBackground({ t }: { t: Theme }) {
+  const { width: W, height: H } = useWindowDimensions();
+  const r = Math.max(W, H) * 0.62;
+  // 漂移与呼吸：各自独立的缓慢往复
+  const p = useSharedValue(0);
+  const breathe = useSharedValue(0);
+  useEffect(() => {
+    p.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 22000, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 22000, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+    breathe.value = withRepeat(
+      withSequence(withTiming(1, { duration: 5000, easing: Easing.inOut(Easing.quad) }), withTiming(0, { duration: 5000, easing: Easing.inOut(Easing.quad) })),
+      -1,
+      false,
+    );
+  }, [p, breathe]);
+
+  // Skia 属性动画必须经由 useDerivedValue 桥接 SharedValue
+  const cx1 = useDerivedValue(() => W * (0.18 + 0.22 * p.value));
+  const cy1 = useDerivedValue(() => H * (0.08 + 0.06 * (1 - p.value)));
+  const cx2 = useDerivedValue(() => W * (0.95 - 0.18 * p.value));
+  const cy2 = useDerivedValue(() => H * (0.38 + 0.05 * p.value));
+  const cx3 = useDerivedValue(() => W * (0.25 + 0.1 * (1 - p.value)));
+  const cy3 = useDerivedValue(() => H * (0.92 - 0.05 * p.value));
+  const skyOp = useDerivedValue(() => t.aurora.sky * (0.75 + 0.25 * breathe.value));
+
+  return (
+    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Circle cx={cx1} cy={cy1} r={r} opacity={skyOp}>
+        <RadialGradient c={vec(W * 0.3, H * 0.12)} r={r} colors={["#38bdf8", "rgba(56,189,248,0)"]} />
+      </Circle>
+      <Circle cx={cx2} cy={cy2} r={r * 0.85} opacity={t.aurora.indigo}>
+        <RadialGradient c={vec(W * 0.9, H * 0.4)} r={r * 0.85} colors={["#818cf8", "rgba(129,140,248,0)"]} />
+      </Circle>
+      <Circle cx={cx3} cy={cy3} r={r * 0.8} opacity={t.aurora.pink}>
+        <RadialGradient c={vec(W * 0.3, H * 0.9)} r={r * 0.8} colors={["#f472b6", "rgba(244,114,182,0)"]} />
+      </Circle>
+    </Canvas>
+  );
+}
+
+/** 呼吸微光层（FAB 待机光晕） */
+function BreathingGlow({ color }: { color: string }) {
+  const sv = useSharedValue(0);
+  useEffect(() => {
+    sv.value = withRepeat(
+      withSequence(withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.quad) }), withTiming(0, { duration: 1800, easing: Easing.inOut(Easing.quad) })),
+      -1,
+      false,
+    );
+  }, [sv]);
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.18 + 0.16 * sv.value,
+    transform: [{ scale: 1 + 0.12 * sv.value }],
+  }));
+  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color, borderRadius: 999 }, style]} />;
+}
+
+/** 录音脉冲扩散环 */
+function PulseRing({ color, delay }: { color: string; delay: number }) {
+  const sv = useSharedValue(0);
+  useEffect(() => {
+    sv.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1400, easing: Easing.out(Easing.quad) }), -1, false));
+  }, [sv, delay]);
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.55 * (1 - sv.value),
+    transform: [{ scale: 1 + 1.1 * sv.value }],
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { borderRadius: 999, borderWidth: 2, borderColor: color }, style]}
+    />
+  );
+}
+
+/** 录音声波条：错峰跳动的弹性竖条 */
+function WaveBar({ index, color }: { index: number; color: string }) {
+  const sv = useSharedValue(0);
+  useEffect(() => {
+    sv.value = withDelay(
+      index * 85,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 320 + index * 22, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 320 + index * 22, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [sv, index]);
+  const style = useAnimatedStyle(() => ({ height: 10 + 30 * sv.value }));
+  return <Animated.View style={[{ width: 5, borderRadius: 3, backgroundColor: color }, style]} />;
+}
+
+/** 骨架屏假卡片 */
+function SkeletonCard({ t, delay }: { t: Theme; delay: number }) {
+  const sv = useSharedValue(0);
+  useEffect(() => {
+    sv.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) }), withTiming(0, { duration: 700, easing: Easing.inOut(Easing.quad) })),
+        -1,
+        false,
+      ),
+    );
+  }, [sv, delay]);
+  const style = useAnimatedStyle(() => ({ opacity: 0.35 + 0.3 * sv.value }));
+  return (
+    <View style={[s.card, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+      <View style={s.cardBody}>
+        <View style={[s.avatar, { backgroundColor: t.elevated, borderColor: t.line }]} />
+        <View style={{ flex: 1 }}>
+          <View style={[s.skelLine, { backgroundColor: t.elevated, width: "30%" }]} />
+          <Animated.View style={[s.skelLine, { backgroundColor: t.elevated, width: "88%", marginTop: 14 }, style]} />
+          <Animated.View style={[s.skelLine, { backgroundColor: t.elevated, width: "62%", marginTop: 10 }, style]} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// —— 登录（对齐 Web 登录页 + 极光氛围） ——
 
 function Login({ onOk }: { onOk: () => void }) {
   const scheme = useColorScheme();
@@ -135,27 +300,50 @@ function Login({ onOk }: { onOk: () => void }) {
   return (
     <KeyboardAvoidingView style={[s.root, { backgroundColor: t.bg }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar style={scheme === "light" ? "dark" : "light"} />
-      <Text style={s.logo}>☀️</Text>
-      <Text style={[s.title, { color: t.title }]}>拾光</Text>
-      <Text style={[s.sub, { color: t.inkMute }]}>钱 · 时间 · 人，一句话记下来</Text>
-      <TextInput
-        style={[s.input, { backgroundColor: t.surface, borderColor: t.lineSoft, color: t.ink }]}
-        placeholder="手机号 / 邮箱" placeholderTextColor={t.inkFaint}
-        autoCapitalize="none" keyboardType="email-address" value={phone} onChangeText={setPhone}
-      />
-      <TextInput
-        style={[s.input, { backgroundColor: t.surface, borderColor: t.lineSoft, color: t.ink }]}
-        placeholder="密码" placeholderTextColor={t.inkFaint}
-        secureTextEntry value={password} onChangeText={setPassword}
-      />
-      {err && <Text style={[s.err, { color: t.danger }]}>{err}</Text>}
-      <Pressable onPress={submit} disabled={busy} style={[s.gradBtnWrap, busy && { opacity: 0.6 }]}>
-        <LinearGradient colors={["#0ea5e9", "#6366f1"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.gradBtn}>
-          {busy ? <ActivityIndicator color="#ffffff" /> : <Text style={s.gradBtnText}>登录</Text>}
-        </LinearGradient>
-      </Pressable>
-      <Text style={[s.hint, { color: t.inkFaint }]}>短信验证码登录请使用网页版 · 注册需邀请码</Text>
+      <AuroraBackground t={t} />
+      <Animated.View entering={FadeInDown.springify().damping(16)} style={s.center}>
+        <Text style={s.logo}>☀️</Text>
+        <Text style={[s.title, { color: t.title }]}>拾光</Text>
+        <Text style={[s.sub, { color: t.inkMute }]}>钱 · 时间 · 人，一句话记下来</Text>
+        <BlurInput
+          t={t} placeholder="手机号 / 邮箱" value={phone} onChangeText={setPhone}
+          keyboardType="email-address" autoCapitalize="none"
+        />
+        <BlurInput t={t} placeholder="密码" value={password} onChangeText={setPassword} secureTextEntry />
+        {err && <Text style={[s.err, { color: t.danger }]}>{err}</Text>}
+        <Pressable onPress={submit} disabled={busy} style={[s.gradBtnWrap, busy && { opacity: 0.6 }]}>
+          <LinearGradient colors={["#0ea5e9", "#6366f1"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.gradBtn}>
+            {busy ? <ActivityIndicator color="#ffffff" /> : <Text style={s.gradBtnText}>登录</Text>}
+          </LinearGradient>
+        </Pressable>
+        <Text style={[s.hint, { color: t.inkFaint }]}>短信验证码登录请使用网页版 · 注册需邀请码</Text>
+      </Animated.View>
     </KeyboardAvoidingView>
+  );
+}
+
+/** 玻璃输入框：聚焦光晕描边（accent 边框渐变过渡） */
+function BlurInput({
+  t, placeholder, value, onChangeText, secureTextEntry, keyboardType, autoCapitalize, multiline,
+}: {
+  t: Theme; placeholder: string; value: string; onChangeText: (v: string) => void;
+  secureTextEntry?: boolean; keyboardType?: "email-address"; autoCapitalize?: "none"; multiline?: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  const style = useAnimatedStyle(() => ({
+    borderColor: withTiming(focused ? t.accent : t.lineSoft, { duration: 180 }),
+  }));
+  return (
+    <Animated.View style={[multiline ? s.inputWrapMultiline : s.inputWrap, { backgroundColor: t.surface }, style]}>
+      <TextInput
+        style={multiline ? [s.inputMultiline, { color: t.ink }] : [s.input, { color: t.ink }]}
+        placeholder={placeholder} placeholderTextColor={t.inkFaint}
+        value={value} onChangeText={onChangeText} secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType} autoCapitalize={autoCapitalize}
+        multiline={multiline} maxLength={multiline ? 2000 : undefined}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      />
+    </Animated.View>
   );
 }
 
@@ -166,6 +354,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
   const t = THEMES[scheme === "light" ? "light" : "dark"];
   const [moments, setMoments] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -183,6 +372,8 @@ function Home({ onLogout }: { onLogout: () => void }) {
   const startAt = useRef(0);
   const autoStop = useRef(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  // FAB 按压弹性
+  const fabScale = useSharedValue(1);
 
   const refresh = useCallback(async () => {
     try {
@@ -191,13 +382,19 @@ function Home({ onLogout }: { onLogout: () => void }) {
       if (e instanceof Error && e.message.includes("401")) onLogout();
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [onLogout]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    haptic.tap();
+    await refresh();
+  }, [refresh]);
 
   useEffect(() => {
     refresh();
     return () => {
-      // 卸载时清理计时器与可能残留的录音
       clearTimers();
       const rec = recordingRef.current;
       if (rec) {
@@ -232,6 +429,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
       setText("");
       setSheetOpen(false);
       setMsg({ ok: true, text: "✅ 已记录，AI 识别中…" });
+      haptic.success();
       setTimeout(refresh, 6000);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "发送失败" });
@@ -251,9 +449,8 @@ function Home({ onLogout }: { onLogout: () => void }) {
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      // 16kHz 单声道 PCM WAV（GLM-ASR 全平台稳）
+      // Android：MediaRecorder 无 PCM 输出，DEFAULT(3gp/amr) GLM-ASR 不认；用 AAC/M4A（16kHz 单声道）
       const { recording: rec } = await Audio.Recording.createAsync({
-        // Android：MediaRecorder 无 PCM 输出，DEFAULT(3gp/amr) GLM-ASR 不认；用 AAC/M4A（16kHz 单声道）
         android: {
           extension: ".m4a",
           outputFormat: Audio.AndroidOutputFormat.MPEG_4,
@@ -284,6 +481,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
       setSeconds(0);
       setCancelArmed(false);
       setRecState("recording");
+      haptic.record();
       tickTimer.current = setInterval(() => setSeconds((x) => x + 1), 1000);
       autoStopTimer.current = setTimeout(() => {
         autoStop.current = true;
@@ -316,6 +514,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
       if (!text) throw new Error("没有听清内容，请再试一次");
       setText((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
       setSheetOpen(true);
+      haptic.tap();
       if (wasAuto) setMsg({ ok: true, text: `已录满 ${VOICE_MAX_SECONDS} 秒，自动识别完成` });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "识别失败" });
@@ -339,6 +538,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
     setSeconds(0);
     setCancelArmed(false);
     autoStop.current = false;
+    haptic.cancel();
     setMsg({ ok: true, text: "录音已取消" });
   }
 
@@ -346,6 +546,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
   // 按下 → 500ms 内松开 = 点按打开文字面板；超过 = 起录；按住上滑 = 取消；松手 = 送识别
   function onGrant(e: { nativeEvent: { pageY: number } }) {
     if (recState !== "idle") return;
+    fabScale.value = withSpring(0.92, { damping: 14 });
     startY.current = e.nativeEvent.pageY;
     longFired.current = false;
     setCancelArmed(false);
@@ -364,6 +565,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
   }
 
   function onRelease() {
+    fabScale.value = withSpring(1, { damping: 12 });
     if (pressTimer.current) {
       clearTimeout(pressTimer.current);
       pressTimer.current = null;
@@ -371,6 +573,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
     // 注意：录音中 recState 已是 "recording"，这里不能按 recState 拦截（否则松手被吞）。
     // 到点自动结束后才松手的场景：recordingRef 已清空，stopAndSend/discardRec 内部自会空转。
     if (!longFired.current) {
+      haptic.tap();
       setText("");
       setSheetOpen(true);
       return;
@@ -380,6 +583,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
   }
 
   const mmss = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  const recording = recState === "recording";
 
   // 按天分组：列表里插入「— 今天 —」分隔头（与 Web 动态流一致）
   const listData = useMemo(() => {
@@ -400,30 +604,43 @@ function Home({ onLogout }: { onLogout: () => void }) {
     return items;
   }, [moments]);
 
-  const recording = recState === "recording";
+  const fabScaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: fabScale.value }] }));
 
   return (
     <View style={[s.root, { backgroundColor: t.bg }]}>
       <StatusBar style={scheme === "light" ? "dark" : "light"} />
-      {/* 顶栏（对齐 Web 玻璃导航 pill） */}
-      <View style={[s.nav, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
-        <Text style={[s.navBrand, { color: t.title }]}>拾光</Text>
-        <View style={[s.navChip, { backgroundColor: t.elevated }]}>
-          <Text style={[s.navChipText, { color: t.inkSoft }]}>📝 动态</Text>
+      <AuroraBackground t={t} />
+
+      {/* 顶栏：真毛玻璃 pill（对齐 Web 玻璃导航） */}
+      <BlurView
+        intensity={scheme === "light" ? 70 : 55}
+        tint={t.blurTint}
+        experimentalBlurMethod="dimezisBlurView"
+        style={[s.nav, { overflow: "hidden" }]}
+      >
+        <View style={[s.navInner, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+          <Text style={[s.navBrand, { color: t.title }]}>拾光</Text>
+          <View style={[s.navChip, { backgroundColor: t.elevated }]}>
+            <Text style={[s.navChipText, { color: t.inkSoft }]}>📝 动态</Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          <Pressable onPress={onLogout} hitSlop={8}>
+            <Text style={[s.navExit, { color: t.inkMute }]}>退出</Text>
+          </Pressable>
         </View>
-        <View style={{ flex: 1 }} />
-        <Pressable onPress={onLogout} hitSlop={8}>
-          <Text style={[s.navExit, { color: t.inkMute }]}>退出</Text>
-        </Pressable>
-      </View>
+      </BlurView>
+
       <View style={s.head}>
         <Text style={[s.headTitle, { color: t.title }]}>
           拾光 <Text style={[s.headSub, { color: t.inkDim }]}>动态</Text>
         </Text>
         <Text style={[s.headDesc, { color: t.inkMute }]}>随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办</Text>
       </View>
+
       {msg && (
-        <View
+        <Animated.View
+          entering={SlideInDown.springify().damping(15)}
+          exiting={FadeOut.duration(250)}
           style={[
             s.banner,
             msg.ok
@@ -432,73 +649,110 @@ function Home({ onLogout }: { onLogout: () => void }) {
           ]}
         >
           <Text style={{ color: msg.ok ? t.success : t.danger, fontSize: 12, lineHeight: 18 }}>{msg.text}</Text>
-        </View>
+        </Animated.View>
       )}
+
       {loading ? (
-        <Center bg={t.bg}><ActivityIndicator color={t.accentBright} /></Center>
+        <View style={s.list}>
+          {[0, 140, 280].map((d) => (
+            <SkeletonCard key={d} t={t} delay={d} />
+          ))}
+        </View>
       ) : (
         <FlatList
           data={listData}
           keyExtractor={(x) => x.key}
           contentContainerStyle={s.list}
-          renderItem={({ item }) =>
+          renderItem={({ item, index }) =>
             item.kind === "day" ? (
               <Text style={[s.dayHead, { color: t.inkDim }]}>— {item.label} —</Text>
             ) : (
-              <MomentCard m={item.m} t={t} />
+              <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 55).springify().damping(15)}>
+                <MomentCard m={item.m} t={t} />
+              </Animated.View>
             )
           }
           ListEmptyComponent={<Text style={[s.empty, { color: t.inkMute }]}>还没有动态，点下方圆圈说一句话开始 ✨</Text>}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={t.accentBright}
+              colors={[t.accentBright]}
+              progressBackgroundColor={t.surface}
+            />
+          }
         />
       )}
 
-      {/* 录音/识别浮层：按住时全屏提示。pointerEvents=none 纯视觉，
+      {/* 录音/识别浮层：全屏暗幕 + 毛玻璃信息卡。pointerEvents=none 纯视觉，
           否则浮层插入手势中途会吃掉 FAB 的松手事件，导致录音停不下来 */}
       {recState !== "idle" && (
         <View style={[s.overlay, { backgroundColor: t.scrim }]} pointerEvents="none">
-          <View style={[s.overlayCard, { backgroundColor: t.surface, borderColor: t.line }]}>
-            {recording ? (
-              <>
-                <View style={s.recRow}>
-                  <View style={[s.recDot, { backgroundColor: t.dangerSolid }]} />
-                  <Text style={[s.recTime, { color: t.dangerSolid }]}>{mmss}</Text>
-                </View>
-                <Text style={[s.overlayHint, { color: t.inkMute }]}>
-                  {cancelArmed ? "松开取消" : `松开识别文字 · 上滑取消（最长 ${VOICE_MAX_SECONDS} 秒）`}
-                </Text>
-              </>
-            ) : (
-              <>
-                <ActivityIndicator color={t.accentBright} />
-                <Text style={[s.overlayHint, { color: t.inkMute }]}>识别中…</Text>
-              </>
-            )}
-          </View>
+          <BlurView intensity={scheme === "light" ? 60 : 45} tint={t.blurTint} experimentalBlurMethod="dimezisBlurView" style={[s.overlayCardWrap, { overflow: "hidden", borderRadius: 20 }]}>
+            <View style={[s.overlayCard, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+              {recording ? (
+                <>
+                  <View style={s.recRow}>
+                    <View style={[s.recDot, { backgroundColor: t.dangerSolid }]} />
+                    <Text style={[s.recTime, { color: t.dangerSolid }]}>{mmss}</Text>
+                  </View>
+                  <View style={s.waveRow}>
+                    {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                      <WaveBar key={i} index={i} color={cancelArmed ? t.dangerSolid : t.accent} />
+                    ))}
+                  </View>
+                  <Text style={[s.overlayHint, { color: cancelArmed ? t.dangerSolid : t.inkMute }]}>
+                    {cancelArmed ? "↑ 松开取消" : `松开识别文字 · 上滑取消（最长 ${VOICE_MAX_SECONDS} 秒）`}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <ActivityIndicator color={t.accentBright} />
+                  <Text style={[s.overlayHint, { color: t.inkMute }]}>识别中…</Text>
+                </>
+              )}
+            </View>
+          </BlurView>
         </View>
       )}
 
-      {/* 底部中央悬浮圆圈：点按=文字，长按=语音（夜间浅蓝 / 日间奶白） */}
+      {/* 底部中央悬浮圆圈：点按=文字，长按=语音（夜间浅蓝 / 日间奶白）+ 呼吸微光 + 录音脉冲环 */}
       <View style={s.fabWrap} pointerEvents="box-none">
-        <View
-          style={[s.fab, { backgroundColor: recording ? t.dangerSolid : t.fab }, recState === "transcribing" && { opacity: 0.7 }]}
-          onStartShouldSetResponder={() => recState === "idle"}
-          onResponderGrant={onGrant}
-          onResponderMove={onMove}
-          onResponderRelease={onRelease}
-          onResponderTerminate={discardRec}
-        >
-          {recState === "transcribing" ? (
-            <ActivityIndicator color={t.fabFg} size="small" />
-          ) : (
-            <Text style={[s.fabIcon, { color: t.fabFg }]}>🎙</Text>
+        <View style={{ width: 96, height: 96, alignItems: "center", justifyContent: "center" }}>
+          {recording && (
+            <>
+              <PulseRing color={t.dangerSolid} delay={0} />
+              <PulseRing color={t.dangerSolid} delay={700} />
+            </>
           )}
+          <Animated.View style={[s.fabGlowWrap, fabScaleStyle]}>
+            {!recording && recState === "idle" && <BreathingGlow color={t.fab} />}
+            <View
+              style={[s.fab, { backgroundColor: recording ? t.dangerSolid : t.fab }, recState === "transcribing" && { opacity: 0.7 }]}
+              onStartShouldSetResponder={() => recState === "idle"}
+              onResponderGrant={onGrant}
+              onResponderMove={onMove}
+              onResponderRelease={onRelease}
+              onResponderTerminate={discardRec}
+            >
+              {recState === "transcribing" ? (
+                <ActivityIndicator color={t.fabFg} size="small" />
+              ) : (
+                <Text style={[s.fabIcon, { color: t.fabFg }]}>🎙</Text>
+              )}
+            </View>
+          </Animated.View>
         </View>
       </View>
 
       {/* 文字输入面板：点按=空面板；语音转写结果回填预览，确认后才发布 */}
       <Modal visible={sheetOpen} transparent animationType="slide" onRequestClose={() => setSheetOpen(false)}>
         <KeyboardAvoidingView style={s.sheetWrap} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <Pressable style={[s.sheetBackdrop, { backgroundColor: t.scrim }]} onPress={() => setSheetOpen(false)} />
+          <BlurView intensity={scheme === "light" ? 50 : 40} tint={t.blurTint} experimentalBlurMethod="dimezisBlurView" style={s.sheetBackdrop}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: t.scrim }]} />
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setSheetOpen(false)} />
+          </BlurView>
           <View style={[s.sheet, { backgroundColor: t.surface, borderTopColor: t.glassBorder }]}>
             <View style={s.sheetHead}>
               <Text style={[s.sheetTitle, { color: t.inkSoft }]}>记录此刻</Text>
@@ -506,11 +760,9 @@ function Home({ onLogout }: { onLogout: () => void }) {
                 <Text style={[s.sheetClose, { color: t.inkDim }]}>✕</Text>
               </Pressable>
             </View>
-            <TextInput
-              style={[s.sheetInput, { backgroundColor: t.bg, borderColor: t.lineSoft, color: t.ink }]}
-              placeholder="说点什么…（试试“刚跑完步40分钟，心情不错”）"
-              placeholderTextColor={t.inkFaint} value={text} onChangeText={setText}
-              multiline autoFocus maxLength={2000}
+            <BlurInput
+              t={t} placeholder="说点什么…（试试“刚跑完步40分钟，心情不错”）"
+              value={text} onChangeText={setText} multiline
             />
             <View style={s.sheetFoot}>
               <Text style={[s.sheetHint, { color: t.inkFaint }]}>发布后 AI 自动识别日程 / 待办 / 收支 / 心情</Text>
@@ -530,12 +782,19 @@ function Home({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-/** 动态卡片：结构/样式对齐 Web moment-feed 的玻璃卡片（头像圈 + 意图标签 + 原文 + 识别态 + 收益标签） */
+/** 动态卡片：结构/样式对齐 Web moment-feed 的玻璃卡片（头像圈 + 意图标签 + 原文 + 收益标签） */
 function MomentCard({ m, t }: { m: Moment; t: Theme }) {
   const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
   const time = new Date(m.created_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
   return (
     <View style={[s.card, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+      {/* 顶部高光描边：玻璃卡片的受光面 */}
+      <LinearGradient
+        colors={["rgba(255,255,255,0.14)", "rgba(255,255,255,0)"]}
+        start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+        style={s.cardHighlight}
+        pointerEvents="none"
+      />
       <View style={s.cardBody}>
         {/* 头像位：心情 emoji（无心情用 📝），对齐 Web 的 40px 圆圈 */}
         <View style={[s.avatar, { backgroundColor: t.elevated, borderColor: t.line }]}>
@@ -589,20 +848,27 @@ const s = StyleSheet.create({
   logo: { fontSize: 56, textAlign: "center" },
   title: { fontSize: 26, fontWeight: "700", textAlign: "center", marginTop: 8 },
   sub: { fontSize: 13, textAlign: "center", marginTop: 6, marginBottom: 28 },
-  input: {
+  inputWrap: {
     borderWidth: 1, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
     marginBottom: 12, width: 280,
+  },
+  input: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  inputWrapMultiline: {
+    borderWidth: 1, borderRadius: 12,
+  },
+  inputMultiline: {
+    minHeight: 90, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 15, textAlignVertical: "top",
   },
   err: { fontSize: 12, marginBottom: 10 },
   gradBtnWrap: { width: 280, borderRadius: 12, overflow: "hidden" },
   gradBtn: { paddingVertical: 12, paddingHorizontal: 32, alignItems: "center", borderRadius: 12 },
   gradBtnText: { color: "#ffffff", fontWeight: "700", fontSize: 15 },
   hint: { fontSize: 11, marginTop: 18, textAlign: "center" },
-  // 顶栏与标题（对齐 Web 玻璃导航 + 居中标题）
-  nav: {
+  // 顶栏（毛玻璃 pill）
+  nav: { borderRadius: 999, marginHorizontal: 12, marginTop: 10, marginBottom: 4 },
+  navInner: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    marginHorizontal: 12, marginTop: 10, marginBottom: 4,
     borderWidth: 1, borderRadius: 999,
     paddingHorizontal: 14, paddingVertical: 8,
   },
@@ -626,8 +892,9 @@ const s = StyleSheet.create({
   empty: { textAlign: "center", marginTop: 60 },
   card: {
     borderWidth: 1, borderRadius: 16,
-    padding: 14, marginBottom: 10,
+    padding: 14, marginBottom: 10, overflow: "hidden",
   },
+  cardHighlight: { position: "absolute", left: 0, right: 0, top: 0, height: 60 },
   cardBody: { flexDirection: "row", gap: 12 },
   avatar: {
     width: 40, height: 40, borderRadius: 20, borderWidth: 1,
@@ -644,11 +911,13 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, fontSize: 11, overflow: "hidden",
   },
+  skelLine: { height: 14, borderRadius: 7 },
   // 底部中央悬浮圆圈
   fabWrap: {
-    position: "absolute", bottom: 30, left: 0, right: 0,
+    position: "absolute", bottom: 14, left: 0, right: 0,
     alignItems: "center",
   },
+  fabGlowWrap: { width: 64, height: 64, borderRadius: 32 },
   fab: {
     width: 64, height: 64, borderRadius: 32,
     alignItems: "center", justifyContent: "center",
@@ -661,14 +930,15 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center", justifyContent: "center",
   },
+  overlayCardWrap: { minWidth: 250 },
   overlayCard: {
-    borderWidth: 1, borderRadius: 16,
-    paddingHorizontal: 28, paddingVertical: 22, alignItems: "center", gap: 10,
-    minWidth: 220,
+    borderWidth: 1,
+    paddingHorizontal: 28, paddingVertical: 22, alignItems: "center", gap: 12,
   },
   recRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   recDot: { width: 12, height: 12, borderRadius: 6 },
-  recTime: { fontSize: 26, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  recTime: { fontSize: 30, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  waveRow: { flexDirection: "row", alignItems: "flex-end", gap: 5, height: 42 },
   overlayHint: { fontSize: 12, textAlign: "center" },
   // 底部输入面板
   sheetWrap: { flex: 1, justifyContent: "flex-end" },
@@ -681,11 +951,6 @@ const s = StyleSheet.create({
   sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   sheetTitle: { fontSize: 15, fontWeight: "600" },
   sheetClose: { fontSize: 16, paddingHorizontal: 4 },
-  sheetInput: {
-    minHeight: 90, borderWidth: 1, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 15, textAlignVertical: "top",
-  },
   sheetFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
   sheetHint: { fontSize: 11, flex: 1, marginRight: 10 },
   gradBtnWrapSheet: { borderRadius: 12, overflow: "hidden" },
