@@ -6,18 +6,19 @@
 <title>拾光 · 系统架构与业务架构总览</title>
 <style>
   :root {
-    --accent: #5b5bd6; --accent-light: #eeedff; --accent-deep: #4747b3;
-    --ink: #1f2333; --ink-soft: #555b70; --line: #e6e6f0; --bg: #fafaf8; --card: #fff;
-    --ok: #0f8a5f; --ok-bg: #e9f7f0; --warn: #b7791f; --warn-bg: #fdf3e3;
-    --bad: #c0392b; --bad-bg: #fdeceb;
-    --c1: #3d6fd6; --c2: #0f8a5f; --c3: #c2603d; --c4: #8a4fd0; --c5: #b3902e;
-    --code-bg: #1e2130; --code-ink: #d8dcf0;
+    color-scheme: dark;
+    --accent: #8b8bf0; --accent-light: #262742; --accent-deep: #a5a5ff;
+    --ink: #e2e5f0; --ink-soft: #9aa1b8; --line: #2a2e3f; --bg: #0f1117; --card: #181b24;
+    --ok: #4ade9c; --ok-bg: #12291f; --warn: #e2b04a; --warn-bg: #2c2314;
+    --bad: #f07f70; --bad-bg: #321914;
+    --c1: #6b96e8; --c2: #34c48a; --c3: #e07a52; --c4: #b06ff0; --c5: #d4ad4a;
+    --code-bg: #0a0c12; --code-ink: #d8dcf0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif; color: var(--ink); background: var(--bg); line-height: 1.75; font-size: 15.5px; }
   .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px 80px; }
 
-  .hero { background: linear-gradient(135deg,#3b3ba8 0%,#5b5bd6 55%,#7a6ae0 100%); color: #fff; padding: 56px 24px 48px; text-align: center; }
+  .hero { background: linear-gradient(135deg,#23235e 0%,#3d3d96 55%,#5a4bb8 100%); color: #fff; padding: 56px 24px 48px; text-align: center; }
   .hero h1 { font-size: 36px; font-weight: 700; letter-spacing: 1px; }
   .hero .sub { margin-top: 12px; font-size: 16px; opacity: .93; max-width: 700px; margin-inline: auto; }
   .badges { margin-top: 22px; display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
@@ -31,11 +32,11 @@
   code { font-family: Consolas,"Cascadia Code",monospace; background: var(--accent-light); color: var(--accent-deep); padding: 1.5px 6px; border-radius: 5px; font-size: 13px; }
   a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
 
-  .tldr { background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 14px; padding: 20px 24px; margin-top: 36px; box-shadow: 0 6px 24px rgba(31,35,51,.05); }
+  .tldr { background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 14px; padding: 20px 24px; margin-top: 36px; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
   .tldr .tag { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
 
   table { width: 100%; border-collapse: collapse; margin: 14px 0; background: var(--card); border-radius: 10px; overflow: hidden; font-size: 14px; }
-  th { background: #f1f1fa; text-align: left; padding: 10px 13px; font-weight: 650; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  th { background: #1e2230; text-align: left; padding: 10px 13px; font-weight: 650; border-bottom: 2px solid var(--line); white-space: nowrap; }
   td { padding: 9px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
 
@@ -43,7 +44,7 @@
   .pill.ok { background: var(--ok-bg); color: var(--ok); }
   .pill.warn { background: var(--warn-bg); color: var(--warn); }
   .pill.run { background: var(--accent-light); color: var(--accent-deep); }
-  .pill.plan { background: #eee; color: #777; }
+  .pill.plan { background: #242a3a; color: #8b92a8; }
 
   /* ---------- 三轴业务卡 ---------- */
   .axes { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin: 16px 0; }
@@ -68,7 +69,7 @@
   .layer .lname { font-size: 13px; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
   .lname .dot { width: 9px; height: 9px; border-radius: 50%; }
   .boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-  .box { border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #fbfbfe; font-size: 12.8px; }
+  .box { border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #1b1f2a; font-size: 12.8px; }
   .box b { display: block; font-size: 13px; }
   .box span { color: var(--ink-soft); font-size: 12px; line-height: 1.5; display: block; }
   .l-client .dot { background: var(--c1); } .l-gate .dot { background: #7c86ad; }
@@ -89,7 +90,7 @@
   .dmg { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .dmg h4 { font-size: 13.5px; padding: 8px 13px; color: #fff; font-weight: 650; letter-spacing: .5px; }
   .dmg ul { list-style: none; padding: 7px 13px 10px; }
-  .dmg li { font-family: Consolas, monospace; font-size: 12.5px; padding: 3px 0; border-bottom: 1px dashed #efeff5; }
+  .dmg li { font-family: Consolas, monospace; font-size: 12.5px; padding: 3px 0; border-bottom: 1px dashed #262b3a; }
   .dmg li:last-child { border-bottom: none; }
   .dmg li small { font-family: inherit; color: var(--ink-soft); }
 

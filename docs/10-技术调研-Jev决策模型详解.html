@@ -6,20 +6,21 @@
 <title>Jev 详解 —— TypeSafe AI 的 System One 模型 | 拾光技术调研</title>
 <style>
   :root {
-    --accent: #5b5bd6;
-    --accent-light: #eeedff;
-    --ink: #1f2333;
-    --ink-soft: #555b70;
-    --line: #e6e6f0;
-    --bg: #fafaf8;
-    --card: #ffffff;
-    --ok: #0f8a5f;
-    --ok-bg: #e9f7f0;
-    --warn: #b7791f;
-    --warn-bg: #fdf3e3;
-    --bad: #c0392b;
-    --bad-bg: #fdeceb;
-    --code-bg: #1e2130;
+    color-scheme: dark;
+    --accent: #8b8bf0;
+    --accent-light: #262742;
+    --ink: #e2e5f0;
+    --ink-soft: #9aa1b8;
+    --line: #2a2e3f;
+    --bg: #0f1117;
+    --card: #181b24;
+    --ok: #4ade9c;
+    --ok-bg: #12291f;
+    --warn: #e2b04a;
+    --warn-bg: #2c2314;
+    --bad: #f07f70;
+    --bad-bg: #321914;
+    --code-bg: #0a0c12;
     --code-ink: #d8dcf0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,7 +35,7 @@
 
   /* ---------- Hero ---------- */
   .hero {
-    background: linear-gradient(135deg, #4747b3 0%, #5b5bd6 55%, #7a6ae0 100%);
+    background: linear-gradient(135deg, #23235e 0%, #3d3d96 55%, #5a4bb8 100%);
     color: #fff;
     padding: 64px 24px 56px;
     text-align: center;
@@ -65,7 +66,7 @@
   strong { font-weight: 650; }
   code {
     font-family: "Cascadia Code", Consolas, "JetBrains Mono", monospace;
-    background: var(--accent-light); color: #4747b3;
+    background: var(--accent-light); color: #a3a3ff;
     padding: 2px 7px; border-radius: 5px; font-size: 13.5px;
   }
   a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
@@ -74,13 +75,13 @@
   .tldr {
     background: var(--card); border: 1px solid var(--line); border-radius: 14px;
     padding: 22px 26px; margin-top: 40px;
-    box-shadow: 0 6px 24px rgba(31,35,51,.05);
+    box-shadow: 0 6px 24px rgba(0,0,0,.45);
     border-top: 4px solid var(--accent);
   }
   .tldr .tag { font-size: 12.5px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
 
   table { width: 100%; border-collapse: collapse; margin: 16px 0; background: var(--card); border-radius: 10px; overflow: hidden; font-size: 14.5px; }
-  th { background: #f1f1fa; text-align: left; padding: 11px 14px; font-weight: 650; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  th { background: #1e2230; text-align: left; padding: 11px 14px; font-weight: 650; border-bottom: 2px solid var(--line); white-space: nowrap; }
   td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
   .table-note { font-size: 13px; color: var(--ink-soft); margin-top: -8px; }
