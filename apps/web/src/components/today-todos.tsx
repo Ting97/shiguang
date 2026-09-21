@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { Activity, TodoItem, TodoRow } from "@/lib/types";
+import TodoLogo from "@/components/todo-logo";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso, zhTime } from "./todo-bits";
 
 /**
@@ -155,10 +156,13 @@ export default function TodayTodos({ todos, doneToday, activities, onChanged, no
   return (
     <section id="todos" className="glass mb-6 rounded-2xl p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-ink-soft">
-          ☀️ TODO · 今日{" "}
-          <span className="ml-1 text-xs text-ink-dim">
-            {total > 0 ? `完成 ${doneN}/${total}` : "每天重新规划"}
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+          <TodoLogo size={17} />
+          <span>
+            TODO · 今日{" "}
+            <span className="text-xs font-normal text-ink-dim">
+              {total > 0 ? `完成 ${doneN}/${total}` : "每天重新规划"}
+            </span>
           </span>
         </h2>
         <Link

@@ -5,6 +5,7 @@ import Nav from "@/components/nav";
 import CalendarPanel from "@/components/calendar-panel";
 import TodoBoard from "@/components/todo-board";
 import ActivityPanel from "@/components/activity-panel";
+import TodoLogo from "@/components/todo-logo";
 
 /**
  * 日程模块：日历（时间统计四视图）+ TODO（待办管理）+ 分类（活动分类管理）。
@@ -14,7 +15,7 @@ import ActivityPanel from "@/components/activity-panel";
 type Tab = "calendar" | "todo" | "categories";
 const TABS: [Tab, string][] = [
   ["calendar", "📅 日历"],
-  ["todo", "✅ TODO"],
+  ["todo", "TODO"],
   ["categories", "🏷️ 分类"],
 ];
 
@@ -48,12 +49,13 @@ export default function SchedulePage() {
               <button
                 key={v}
                 onClick={() => setTab(v)}
-                className={`flex-1 whitespace-nowrap rounded-full px-3 py-1.5 transition-all duration-200 sm:flex-none sm:px-4 sm:py-1 sm:text-[13px] ${
+                className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 transition-all duration-200 sm:flex-none sm:px-4 sm:py-1 sm:text-[13px] ${
                   tab === v
                     ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                     : "text-ink-mute hover:bg-wash hover:text-ink"
                 }`}
               >
+                {v === "todo" && <TodoLogo size={15} onGradient={tab === v} />}
                 {label}
               </button>
             ))}
