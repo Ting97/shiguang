@@ -49,7 +49,7 @@ export async function GET(req: Request) {
 
   // 首页「今日行动清单」：行动级 + 今天到期的顶层待办
   // 行动：① 每日重复 ② 父待办标记今日 ③ 父待办今日到期 ④ 行动自身今日到期
-  // 顶层待办：自身今日到期（pending）——无行动的到期待办也能在首页看到
+  // 顶层待办：自身今日到期（含已完成——进入「今日已完成」可恢复区，不会完成即消失）
   if (view === "today-actions") {
     await restoreRepeating(user.id);
     const { rows } = await pool.query(
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
          select t.*, null::text as parent_title, t.due_at as parent_due
          from todos t
          where t.user_id = $1 and t.parent_todo_id is null
-           and t.status = 'pending'
+           and t.status in ('pending', 'done')
            and (t.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY}
        ) x
        order by (x.status = 'done'), x.parent_due nulls last, x.created_at, x.sort

@@ -405,13 +405,19 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
         {lightbox !== null && m.images?.length > 0 &&
           createPortal(<ImageLightbox images={m.images} index={lightbox} onClose={() => setLightbox(null)} />, document.body)}
 
-        {/* 后台识别中：动态已上墙，识别产物随后出现 */}
-        {!m.analyzed_at && (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-accent/80">
-            <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" className="shrink-0" />
-            <span className="min-w-0 truncate">正在提取 日程 / 关系 / 待办 / 收支 / 心情 / 饮食…</span>
-          </p>
-        )}
+        {/* 后台识别中 / 识别超时：动态已上墙，产物随后出现；超 10 分钟未完成则显示失败态（不再转圈） */}
+        {!m.analyzed_at &&
+          (m.recognize_state === "timeout" ? (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-faint">
+              <TagChip icon="🤖" label="识别未完成" tone="slate" size="sm" className="shrink-0" />
+              <span className="min-w-0 truncate">AI 当时未返回结果 · 点击原文可重新识别</span>
+            </p>
+          ) : (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-accent/80">
+              <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" className="shrink-0" />
+              <span className="min-w-0 truncate">正在提取 日程 / 关系 / 待办 / 收支 / 心情 / 饮食…</span>
+            </p>
+          ))}
 
         {/* 日程冲突降级提示：识别时发现时间重叠，未登记时间轴；可关闭（服务端标记，多端不再出现） */}
         {m.analyzed_at &&

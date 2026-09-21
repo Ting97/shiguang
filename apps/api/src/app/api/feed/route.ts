@@ -41,6 +41,8 @@ export async function GET(req: Request) {
 
   const { rows } = await pool.query(
     `select e.id, e.raw_text, e.source, e.mood, e.mood_score, e.created_at, e.analyzed_at,
+       -- 识别超时兜底：analyzed_at 为空且发布超 10 分钟，前端显示「识别未完成」而非无限转圈
+       case when e.analyzed_at is null and e.created_at < now() - interval '10 minutes' then 'timeout' end as recognize_state,
        (select jsonb_build_object('id', gs.id, 'name', gs.name, 'icon', gs.icon, 'color', gs.color)
           from goal_spaces gs where gs.id = e.space_id) as space,
        count(*) over () as total_count,

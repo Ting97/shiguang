@@ -125,6 +125,8 @@ export interface FeedMoment {
   recognitions: Partial<Record<string, { status: "applied" | "pending" | "none"; confidence: number; reason?: string | null; reasonDismissed?: boolean; engine?: string | null }>>;
   /** 五域识别完成时间；为空 = 仍在后台识别（卡片显示「AI 识别中」） */
   analyzed_at: string | null;
+  /** 识别超时兜底：analyzed_at 为空且发布超 10 分钟 → 前端显示「识别未完成」而非无限转圈 */
+  recognize_state?: "timeout";
 }
 
 /** 动态图片（REQ-001 R1）：访问统一走 /api/files/{storageKey} */
