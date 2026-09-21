@@ -341,7 +341,8 @@ export default function TodoBoard() {
           ) : (
             <ul className="space-y-1">
               {todos.map((t) => {
-                const tag = dueTag(t.due_at);
+                // 已完成的任务不再展示过期/到期标签（截止时间对已完成的任务没有意义）
+                const tag = t.status === "done" ? null : dueTag(t.due_at);
                 const prog = childProgress(t.children);
                 const isEditing = editingId === t.id;
                 const open = expanded.has(t.id);
@@ -466,7 +467,7 @@ export default function TodoBoard() {
                         {open && (
                           <div className="ml-8 mt-0.5 space-y-0.5 border-l border-line-soft pl-3">
                             {t.children.map((c) => {
-                              const ctag = dueTag(c.due_at);
+                              const ctag = c.status === "done" ? null : dueTag(c.due_at);
                               const cDone = c.status === "done";
                               return (
                                 <div key={c.id} className="group/child rounded-lg px-1.5 py-1 transition hover:bg-elevated/60">
