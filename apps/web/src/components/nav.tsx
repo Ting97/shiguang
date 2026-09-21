@@ -16,7 +16,6 @@ export default function Nav() {
   const pathname = usePathname();
   const [nickname, setNickname] = useState<string | null>(null);
   const [authDisabled, setAuthDisabled] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function Nav() {
       r.json().then((j) => {
         setNickname(j.nickname ?? "我");
         setAuthDisabled(Boolean(j.authDisabled));
-        setIsAdmin(Boolean(j.isAdmin));
       });
     });
   }, []);
@@ -62,11 +60,6 @@ export default function Nav() {
             </Link>
           );
         })}
-        {isAdmin && (
-          <Link href="/invites" data-path="/invites" className={linkCls(pathname === "/invites")}>
-            邀请
-          </Link>
-        )}
       </div>
       <span className="flex shrink-0 items-center gap-1 pr-2">
         <ThemeToggle />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Nav from "@/components/nav";
+import InvitesPanel from "@/components/invites-panel";
 
 interface Me {
   id: string;
@@ -314,6 +315,9 @@ export default function ProfilePage() {
                 </div>
               )}
             </section>
+
+            {/* 邀请管理（原 /invites 独立页，仅管理员可见） */}
+            {me.isAdmin && <InvitesPanel />}
 
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
             <section className="glass rounded-2xl p-5">
