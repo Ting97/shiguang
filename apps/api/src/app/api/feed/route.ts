@@ -62,6 +62,12 @@ export async function GET(req: Request) {
          from interactions i join contacts c on c.id = i.contact_id
          where i.entry_id = e.id
        ), '[]') as people,
+       coalesce((
+         select jsonb_agg(jsonb_build_object(
+           'id', g.id, 'storageKey', g.storage_key, 'mime', g.mime, 'width', g.width, 'height', g.height, 'sort', g.sort
+         ) order by g.sort, g.created_at)
+         from entry_images g where g.entry_id = e.id
+       ), '[]') as images,
        (select jsonb_build_object('id', d.id, 'meal', d.meal, 'items', d.items, 'totalKcal', d.total_kcal)
          from diet_records d where d.entry_id = e.id) as diet,
        coalesce((

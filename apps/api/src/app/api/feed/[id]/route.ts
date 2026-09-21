@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ruleMood } from "@shiguangri/ai";
 import { analyzeAndPersist } from "@/lib/analyze";
 import { checkAiQuota } from "@/lib/quota";
+import { deleteImageFile } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -94,6 +95,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const client = await pool.connect();
   try {
     await client.query("begin");
+    const imageKeys = (
+      await client.query(`select storage_key from entry_images where entry_id = $1 and user_id = $2`, [id, user.id])
+    ).rows.map((r) => r.storage_key);
+    if (imageKeys.length) {
+      await client.query(`delete from entry_images where entry_id = $1 and user_id = $2`, [id, user.id]);
+    }
     await client.query(`delete from interactions where entry_id = $1 and user_id = $2`, [id, user.id]);
     await client.query(`delete from transactions where entry_id = $1 and user_id = $2`, [id, user.id]);
     await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [id, user.id]);
@@ -109,6 +116,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "动态不存在" }, { status: 404 });
     }
     await client.query("commit");
+    // 盘上文件事务外异步清理（失败仅记日志，不阻塞响应）
+    for (const k of imageKeys) void deleteImageFile(k);
     return NextResponse.json({ ok: true });
   } catch (e) {
     await client.query("rollback");

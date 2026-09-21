@@ -14,7 +14,15 @@ import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
+import { uploadImages } from "@/lib/image";
 import type { Activity, Block, FeedMoment, TodoItem, TodoRow } from "@/lib/types";
+
+/** 桌面输入区随附图片的状态机：ready 待发布 / uploading 上传中 / error 失败可重试 */
+interface DesktopImage {
+  file: File;
+  url: string;
+  status: "ready" | "uploading" | "error";
+}
 
 interface BlockDraft {
   id: string;
@@ -59,11 +67,75 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // 发布后识别产物的延迟刷新定时器（卸载时清理，避免对已卸载组件 setState）
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // 桌面输入区：随动态附带的图片（发布后并行上传；失败可重试）
+  const [desktopImages, setDesktopImages] = useState<DesktopImage[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // 最近一次成功发布的动态 id（图片上传失败补传时使用）
+  const lastEntryId = useRef<string | null>(null);
 
   useEffect(() => {
     const timers = refreshTimers.current;
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  async function submit() {
+    const files = desktopImages.filter((i) => i.status !== "error").map((i) => i.file);
+    const entryId = await publish(text);
+    if (!entryId) return;
+    lastEntryId.current = entryId;
+    if (files.length) {
+      setDesktopImages((prev) => prev.map((i) => ({ ...i, status: "uploading" as const })));
+      const { failed } = await uploadImages(entryId, files);
+      if (failed.length) {
+        const failedSet = new Set(failed);
+        setDesktopImages((prev) =>
+          prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })),
+        );
+        setMsg({ ok: false, text: "动态已发布；部分图片上传失败，点缩略图上的「↻ 重试」" });
+      } else {
+        setDesktopImages((prev) => {
+          prev.forEach((i) => URL.revokeObjectURL(i.url));
+          return [];
+        });
+        setMsg({ ok: true, text: "✨ 动态与图片已发布，AI 正在识别…" });
+      }
+      void load();
+    }
+  }
+
+  /** 随动态附图：选择（≤9 张，超出的忽略并提示） */
+  function addDesktopImages(files: File[]) {
+    const imgs = files
+      .filter((f) => /^image\/(jpeg|png|webp|gif)$/.test(f.type))
+      .slice(0, 9 - desktopImages.length)
+      .map((file) => ({ file, url: URL.createObjectURL(file), status: "ready" as const }));
+    if (files.length && !imgs.length) setMsg({ ok: false, text: "仅支持 jpg/png/webp/gif 图片" });
+    else if (imgs.length < files.length) setMsg({ ok: false, text: "最多添加 9 张，多余图片已忽略" });
+    setDesktopImages((prev) => [...prev, ...imgs]);
+  }
+
+  function removeDesktopImage(index: number) {
+    setDesktopImages((prev) => {
+      URL.revokeObjectURL(prev[index]?.url ?? "");
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  /** 上传失败重试：用暂存的 entryId 重新上传仍处于 error 态的图片 */
+  async function retryDesktopUpload() {
+    if (!lastEntryId.current) return;
+    const retryFiles = desktopImages.filter((i) => i.status === "error").map((i) => i.file);
+    if (!retryFiles.length) return;
+    const { failed } = await uploadImages(lastEntryId.current, retryFiles);
+    if (failed.length) {
+      setMsg({ ok: false, text: `仍有 ${failed.length} 张上传失败，请稍后再试` });
+      void load();
+      return;
+    }
+    setDesktopImages([]);
+    setMsg({ ok: true, text: "✨ 图片已补传完成" });
+    void load();
+  }
 
   const load = useCallback(async (opts?: { limit?: number; query?: string }) => {
     // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
@@ -120,10 +192,10 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  /** 发布一条动态：桌面输入框与移动端悬浮圆圈面板共用的唯一提交路径 */
-  async function publish(raw: string) {
+  /** 发布一条动态（文字秒存上墙），返回 entry id；图片上传由调用方拿到 id 后自行并行处理（可重试） */
+  async function publish(raw: string): Promise<string | null> {
     const t = raw.trim();
-    if (!t || busy) return;
+    if (!t || busy) return null;
     setBusy(true);
     try {
       const r = await fetch("/api/parse", {
@@ -150,17 +222,15 @@ export default function Home() {
         const t2 = setTimeout(() => void load(), delay);
         refreshTimers.current.push(t2);
       }
+      return j.entry.id as string;
     } catch (e) {
       setMsg({ ok: false, text: `记录失败：${e instanceof Error ? e.message : e}` });
+      return null;
     } finally {
       setBusy(false);
       // 移动端不回焦输入框（会把视口拽回顶部并重新拉起键盘，打断阅读动态流）
       if (window.innerWidth >= 640) inputRef.current?.focus();
     }
-  }
-
-  async function submit() {
-    await publish(text);
   }
 
   function startEdit(b: Block) {
@@ -339,6 +409,24 @@ export default function Home() {
           />
           <div className="mt-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
+              {/* 图片按钮：相册多选 ≤9 张（发布后并行上传） */}
+              <label
+                title="添加图片（最多 9 张）"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-line-soft bg-surface/60 text-base transition hover:border-sky-500/60"
+              >
+                🖼
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    addDesktopImages(Array.from(e.target.files ?? []));
+                    e.target.value = "";
+                  }}
+                />
+              </label>
               <VoiceButton
                 onText={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))}
                 onError={(m) => setMsg({ ok: false, text: m })}
@@ -354,6 +442,34 @@ export default function Home() {
               {busy ? "识别中…" : "发布"}
             </button>
           </div>
+          {/* 已选图片缩略条（可移除；上传失败可重试） */}
+          {desktopImages.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {desktopImages.map((img, i) => (
+                <span key={img.url} className={`relative overflow-hidden rounded-lg border ${img.status === "error" ? "border-rose-500/60" : "border-line-soft"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt="" className="h-14 w-14 object-cover" />
+                  {img.status === "error" ? (
+                    <button
+                      onClick={() => retryDesktopUpload()}
+                      title="重新上传"
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs text-white"
+                    >
+                      ↻ 重试
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => removeDesktopImage(i)}
+                      title="移除"
+                      className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-[9px] text-white"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </section>
         {msg && (
           <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
@@ -574,10 +690,7 @@ export default function Home() {
         open={sheetOpen}
         initialText={voiceDraft}
         busy={busy}
-        onPublish={async (t) => {
-          await publish(t);
-          setSheetOpen(false);
-        }}
+        onPublish={publish}
         onClose={() => setSheetOpen(false)}
       />
     </main>

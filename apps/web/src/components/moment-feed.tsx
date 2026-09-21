@@ -6,6 +6,7 @@ import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
 import EntryMenu from "./entry-menu";
 import { TagChip } from "./tag-chip";
+import { ImageGrid, ImageLightbox } from "./image-grid";
 import { PencilLine, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -161,6 +162,8 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [actionsPos, setActionsPos] = useState<{ top: number; left: number } | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  // 图片全屏预览（null=关闭；数字=打开的下标）
+  const [lightbox, setLightbox] = useState<number | null>(null);
 
   const emoji = moodEmoji(m.mood);
   const intent =
@@ -356,6 +359,11 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
           </p>
         )}
 
+        {/* 图片九宫格（点击全屏预览） */}
+        {m.images?.length > 0 && !editRaw && (
+          <ImageGrid images={m.images} onOpen={(i) => setLightbox(i)} />
+        )}
+
         {/* 识别与补充菜单：portal 渲染到 body——卡片 hover 位移会让 fixed 遮罩失效、后续卡片盖住菜单 */}
         {menuOpen &&
           createPortal(
@@ -373,6 +381,10 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
             </>,
             document.body,
           )}
+
+        {/* 图片全屏预览 */}
+        {lightbox !== null && m.images?.length > 0 &&
+          createPortal(<ImageLightbox images={m.images} index={lightbox} onClose={() => setLightbox(null)} />, document.body)}
 
         {/* 后台识别中：动态已上墙，识别产物随后出现 */}
         {!m.analyzed_at && (

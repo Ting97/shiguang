@@ -82,6 +82,21 @@ create table if not exists public.entry_recognitions (
 );
 create unique index if not exists idx_recog_entry_domain on public.entry_recognitions (entry_id, domain);
 
+-- 动态图片（migrations/023，REQ-001 R1）：storage_key 在 UPLOAD_DIR（发布交换目录之外）
+create table if not exists public.entry_images (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  entry_id    uuid not null references public.entries(id) on delete cascade,
+  storage_key text not null unique,
+  mime        text not null,
+  bytes       int not null,
+  width       int,
+  height      int,
+  sort        int not null default 0,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_entry_images_entry on public.entry_images (entry_id, sort);
+
 -- ---------- 时间模块（P0） ----------
 
 -- 活动分类：预设 8 类 + 用户自定义
