@@ -47,7 +47,10 @@ export default function SpacesPage() {
   }, [load]);
 
   function openNew() {
-    setEditing({ ...EMPTY, startedAt: new Date().toISOString().slice(0, 10) });
+    // 本地时区的今天；toISOString() 会取 UTC 日期，北京 0-8 点会默认成昨天
+    const d = new Date();
+    const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setEditing({ ...EMPTY, startedAt: localToday });
     setEditingId(null);
   }
   function openEdit(s: Space) {

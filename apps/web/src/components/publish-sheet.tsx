@@ -139,6 +139,12 @@ export default function PublishSheet({
           placeholder='说点什么…（试试"刚跑完步40分钟，心情不错"、"明天下午三点看牙"）'
           className="input-glow w-full resize-none rounded-xl border border-line-soft bg-surface/60 px-4 py-3 text-sm outline-none placeholder:text-ink-faint"
         />
+        {/* 接近上限才显示字数，平时不干扰 */}
+        {value.length >= 1800 && (
+          <p className={`mt-1 text-right text-[11px] tabular-nums ${value.length >= 1950 ? "text-danger" : "text-ink-faint"}`}>
+            {value.length}/2000
+          </p>
+        )}
 
         {/* 已选图片缩略条（上传失败显示重试） */}
         {images.length > 0 && (
