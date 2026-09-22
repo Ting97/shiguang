@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import { getCurrentUser } from "@/server/identity/auth";
+import { isParsableMoment } from "@/server/platform/http/datetime";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!cur) return NextResponse.json({ error: "日程不存在" }, { status: 404 });
   const newStart = body.startAt ?? cur.start_at;
   const newEnd = body.endAt ?? cur.end_at;
+  // 语义校验前置（QA 验收修复：倒挂/非法时间曾触发 PG range 异常 → 500 空响应体）
+  if ((body.startAt != null && !isParsableMoment(body.startAt)) || (body.endAt != null && !isParsableMoment(body.endAt))) {
+    return NextResponse.json({ error: "起止时间格式不正确" }, { status: 400 });
+  }
+  if (Date.parse(newEnd) <= Date.parse(newStart)) {
+    return NextResponse.json({ error: "结束时间必须晚于开始时间" }, { status: 400 });
+  }
   const conflict = await findOverlap(user.id, newStart, newEnd, id);
   if (conflict) {
     return NextResponse.json({ error: overlapError(conflict), conflict }, { status: 409 });

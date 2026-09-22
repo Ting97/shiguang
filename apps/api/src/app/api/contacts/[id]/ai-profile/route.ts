@@ -17,6 +17,18 @@ interface AiProfile {
  * POST /api/contacts/:id/ai-profile —— 基于往来记录提炼「AI 交往画像」（W10 遗留）
  * 只依据真实记录（往来时间线 + 人情账 + 档案备注），禁止编造；结果缓存于 contacts.ai_profile
  */
+/** GET /api/contacts/:id/ai-profile —— 只读已缓存的画像（不触发 AI；QA 验收补齐） */
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const { id } = await ctx.params;
+  const { rows } = await pool.query(
+    `select ai_profile, ai_profile_at from contacts where id = $1 and user_id = $2`,
+    [id, user.id],
+  );
+  if (!rows[0]) return NextResponse.json({ error: "联系人不存在" }, { status: 404 });
+  return NextResponse.json({ profile: rows[0].ai_profile ?? null, generatedAt: rows[0].ai_profile_at ?? null });
+}
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });

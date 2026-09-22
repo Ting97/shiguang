@@ -272,6 +272,7 @@ body {
 
 /* 主按钮：sky→indigo 渐变 + 光晕（双色通用，白字对比充足） */
 .btn-primary {
+  color: #fff; /* 渐变底固定白字：修复继承父级淡色导致低对比（QA 验收发现） */
   background: linear-gradient(135deg, #0ea5e9, #6366f1);
   box-shadow: 0 4px 16px rgba(14, 165, 233, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;

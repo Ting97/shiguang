@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { getCurrentUser } from "@/server/identity/auth";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export async function GET(req: Request) {
   const to = url.searchParams.get("to") ?? "";
   if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) {
     return NextResponse.json({ error: "from/to 需为合法日期且 from ≤ to" }, { status: 400 });
+  }
+  if (!isValidCalendarDate(from) || !isValidCalendarDate(to)) {
+    return NextResponse.json({ error: "from/to 需为真实存在的日期（如 2025-13-01 非法）" }, { status: 400 });
   }
   // 按「区间与查询日期有交集」取：跨天块在其覆盖的每一天都返回（前端按天钳制显示），
   // 避免开始日在前一天的凌晨占用段在当天不可见、却仍触发冲突拦截

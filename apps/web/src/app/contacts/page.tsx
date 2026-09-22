@@ -180,6 +180,19 @@ export default function ContactsPage() {
 
         {contacts === null ? (
           <Skeleton rows={4} className="py-2" />
+        ) : view === "graph" ? (
+          <>
+            {/* 4-F/QA：图谱视图空数据也渲染轨道+中心「我」（原空数据短路只显示列表空态文案） */}
+            <ContactGraph contacts={filtered} onOpen={(id) => router.push(`/contacts/${id}`)} />
+            {contacts.length === 0 && (
+              <p className="empty-state py-6">
+                还没有联系人 —— 动态里说「和老王吃饭」，TA 会自动出现在这里
+              </p>
+            )}
+            {contacts.length > 0 && filtered.length === 0 && (
+              <p className="empty-state py-6">没有匹配的联系人</p>
+            )}
+          </>
         ) : contacts.length === 0 ? (
           <p className="empty-state py-10">
             还没有联系人 —— 动态里说「和老王吃饭」，TA 会自动出现在这里
@@ -188,8 +201,6 @@ export default function ContactsPage() {
           <p className="empty-state py-10">
             没有匹配的联系人
           </p>
-        ) : view === "graph" ? (
-          <ContactGraph contacts={filtered} onOpen={(id) => router.push(`/contacts/${id}`)} />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {filtered.map((c) => {

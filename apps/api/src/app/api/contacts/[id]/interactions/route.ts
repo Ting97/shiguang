@@ -37,3 +37,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   ).rows[0];
   return NextResponse.json({ interaction: created });
 }
+
+/** GET /api/contacts/:id/interactions —— 该联系人的往来列表（时间倒序，QA 验收补齐） */
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const { id } = await ctx.params;
+  const contact = (
+    await pool.query(`select id from contacts where id = $1 and user_id = $2`, [id, user.id])
+  ).rows[0];
+  if (!contact) return NextResponse.json({ error: "联系人不存在" }, { status: 404 });
+  const { rows } = await pool.query(
+    `select id, type, summary, occurred_at, entry_id, created_at
+     from interactions where user_id = $1 and contact_id = $2
+     order by occurred_at desc, created_at desc`,
+    [user.id, id],
+  );
+  return NextResponse.json({ interactions: rows });
+}

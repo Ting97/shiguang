@@ -74,6 +74,90 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
     );
     ctxOut = built.ctx;
     userPrompt = built.userPrompt;
+  } else if (key === "trade_review_week") {
+    // 交易周报预览（QA 验收修复：原落入 prompt_optimizer 兜底导致模板/占位符错配返回原始模板）
+    const mondayOf = (dateStr: string) => {
+      const d = new Date(`${dateStr}T00:00:00Z`);
+      return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const addDays = (dateStr: string, n: number) =>
+      new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+    const from = mondayOf(period && /^\d{4}-\d{2}-\d{2}$/.test(period) ? period : new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
+    const to = addDays(from, 6);
+    const yuan = (cents: number) => `¥${(cents / 100).toFixed(0)}`;
+
+    const agg = (
+      await pool.query(
+        `select coalesce(sum(case when direction = 'in' then amount_cents else 0 end), 0)::bigint as inc,
+                coalesce(sum(case when direction = 'out' then amount_cents else 0 end), 0)::bigint as out,
+                count(*)::int as n
+         from transactions
+         where user_id = $1 and is_draft = false
+           and (occurred_at at time zone $2)::date between $3::date and $4::date`,
+        [user.id, "Asia/Shanghai", from, to],
+      )
+    ).rows[0];
+    const prev = (
+      await pool.query(
+        `select coalesce(sum(case when direction = 'in' then amount_cents else 0 end), 0)::bigint as inc,
+                coalesce(sum(case when direction = 'out' then amount_cents else 0 end), 0)::bigint as out
+         from transactions
+         where user_id = $1 and is_draft = false
+           and (occurred_at at time zone $2)::date between $3::date and $4::date`,
+        [user.id, "Asia/Shanghai", addDays(from, -7), addDays(from, -1)],
+      )
+    ).rows[0];
+    const cats = (
+      await pool.query(
+        `select category, sum(case when direction = 'out' then amount_cents else 0 end)::bigint as cents
+         from transactions
+         where user_id = $1 and is_draft = false
+           and (occurred_at at time zone $2)::date between $3::date and $4::date
+         group by category order by cents desc limit 5`,
+        [user.id, "Asia/Shanghai", from, to],
+      )
+    ).rows;
+    const momPct = (cur: number, base: number) =>
+      base > 0 ? `${cur >= base ? "+" : ""}${Math.round(((cur - base) / base) * 100)}%` : "—";
+    const facts = [
+      `交易周报 · 本周 ${from} ~ ${to}（周一至周日）`,
+      `总支出 ${yuan(Number(agg.out))}（上周 ${yuan(Number(prev.out))}，环比 ${momPct(Number(agg.out), Number(prev.out))}）`,
+      `总收入 ${yuan(Number(agg.inc))}（上周 ${yuan(Number(prev.inc))}，环比 ${momPct(Number(agg.inc), Number(prev.inc))}）`,
+      `笔数：共 ${agg.n} 笔`,
+      ...(cats.length ? [`支出分类 Top：${cats.map((c) => `${c.category} ${yuan(Number(c.cents))}`).join("、")}`] : []),
+    ].join("\n");
+
+    let txDetail = "";
+    if (cfg.inject.txDetail && cfg.caps.txCap !== 0) {
+      const rows = (
+        await pool.query(
+          `select to_char((occurred_at at time zone $2)::date, 'MM-DD') as d, direction, amount_cents, category, counterparty, note
+           from transactions
+           where user_id = $1 and is_draft = false
+             and (occurred_at at time zone $2)::date between $3::date and $4::date
+           order by occurred_at
+           limit $5`,
+          [user.id, "Asia/Shanghai", from, to, cfg.caps.txCap],
+        )
+      ).rows;
+      const total = (
+        await pool.query(
+          `select count(*)::int as n from transactions
+           where user_id = $1 and is_draft = false
+             and (occurred_at at time zone $2)::date between $3::date and $4::date`,
+          [user.id, "Asia/Shanghai", from, to],
+        )
+      ).rows[0].n;
+      const lines = rows.map(
+        (r) =>
+          `${r.d} ${r.direction === "out" ? "-" : "+"}${yuan(Number(r.amount_cents))} ${r.category}` +
+          `${r.counterparty ? ` ${r.counterparty}` : ""}${r.note ? `（${r.note}）` : ""}`,
+      );
+      if (total > rows.length) lines.push(`（另有 ${total - rows.length} 条流水未展示）`);
+      txDetail = lines.length > 0 ? `本周流水（时间升序）：\n${lines.join("\n")}` : "本周无流水明细。";
+    }
+    ctxOut = { facts, txDetail };
+    userPrompt = assembleUserPrompt(key as PromptKey, bundle, ctxOut);
   } else if (key === "todo_decompose" || key === "action_decompose") {
     const isAction = key === "action_decompose";
     const todo = (

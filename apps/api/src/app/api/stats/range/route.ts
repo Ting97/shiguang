@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { getCurrentUser } from "@/server/identity/auth";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,9 @@ export async function GET(req: Request) {
   const to = url.searchParams.get("to") ?? "";
   if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) {
     return NextResponse.json({ error: "from/to 需为合法日期且 from ≤ to" }, { status: 400 });
+  }
+  if (!isValidCalendarDate(from) || !isValidCalendarDate(to)) {
+    return NextResponse.json({ error: "from/to 需为真实存在的日期（如 2025-13-01 非法）" }, { status: 400 });
   }
 
   // 按天交集钳制：跨天块（如昨晚23:00→今早07:00的睡眠）的时长分摊到它覆盖的每一天，

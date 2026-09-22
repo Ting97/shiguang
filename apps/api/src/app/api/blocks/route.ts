@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import { getCurrentUser } from "@/server/identity/auth";
+import { isParsableMoment } from "@/server/platform/http/datetime";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,13 @@ export async function POST(req: Request) {
   };
   if (!body.title?.trim() || !body.startAt || !body.endAt || !body.activityId) {
     return NextResponse.json({ error: "标题、起止时间、类别均必填" }, { status: 400 });
+  }
+  // 语义校验前置（QA 验收修复：倒挂/非法时间曾触发 PG range 异常 → 500 空响应体）
+  if (!isParsableMoment(body.startAt) || !isParsableMoment(body.endAt)) {
+    return NextResponse.json({ error: "起止时间格式不正确" }, { status: 400 });
+  }
+  if (Date.parse(body.endAt) <= Date.parse(body.startAt)) {
+    return NextResponse.json({ error: "结束时间必须晚于开始时间" }, { status: 400 });
   }
   const conflict = await findOverlap(user.id, body.startAt, body.endAt);
   if (conflict) {
