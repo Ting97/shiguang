@@ -12,8 +12,8 @@ import SpaceReflections from "@/components/space-reflections";
 import ReflectionEditor from "@/components/reflection-editor";
 import SpacePicker from "@/components/space-picker";
 import { TagChip } from "@/components/tag-chip";
-import { TodoCircle, childProgress, dueTag, zhTime } from "@/components/todo-bits";
-import type { FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
+import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "@/components/todo-bits";
+import type { Activity, FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
 
 /**
  * 空间详情（REQ-001 R3）：空间头部（可编辑/归档/删除）→ 进度概览 →
@@ -57,6 +57,19 @@ export default function Detail() {
   // 目标到期时间就地编辑（头部 ⏳ 日期可点击调整/清除）
   const [dateEdit, setDateEdit] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
+  // 行内编辑器（与日程 todo-board 同交互）：顶层 todo 标题/截止/分类
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDue, setEditDue] = useState("");
+  const [editActivity, setEditActivity] = useState("other");
+  // 行动详情面板（点行动标题展开编辑）：标题+描述+截止+每日重复（取代原只读描述展开）
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteText, setNoteText] = useState("");
+  const [noteDue, setNoteDue] = useState("");
+  const [noteRepeat, setNoteRepeat] = useState(false);
+  const [noteDoneCount, setNoteDoneCount] = useState(0);
+  // 活动分类（编辑器下拉用）
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -82,6 +95,8 @@ export default function Detail() {
       }
       const fr = await fetch("/api/feed?limit=20&spaceId=" + id);
       if (fr.ok) setMoments((await fr.json()).moments as FeedMoment[]);
+      const ar = await fetch("/api/activities");
+      if (ar.ok) setActivities((await ar.json()).activities ?? []);
     } catch (e) {
       // 网络抖动/接口异常不能停在加载态（历史 bug：无 catch 时永远"加载中"只能强刷）
       setLoadErr(e instanceof Error ? e.message : String(e));
@@ -109,7 +124,7 @@ export default function Detail() {
     }
   }
 
-  async function patchTodo(todoId: string, body: Record<string, unknown>, okText: string) {
+  async function patchTodo(todoId: string, body: Record<string, unknown>, okText: string): Promise<boolean> {
     setBusyId(todoId);
     try {
       const r = await fetch(`/api/todos/${todoId}`, {
@@ -120,10 +135,11 @@ export default function Detail() {
       if (!r.ok) {
         const j = await r.json();
         setMsg({ ok: false, text: j.error ?? "操作失败" });
-        return;
+        return false;
       }
       setMsg({ ok: true, text: okText });
       await load();
+      return true;
     } finally {
       setBusyId(null);
     }
@@ -198,6 +214,53 @@ export default function Detail() {
     setAllSpaces((list) => list.map((x) => (x.id === id ? { ...x, target_date: v } : x)));
     setMsg({ ok: true, text: v ? `⏳ 目标到期时间已调整为 ${v}` : "目标到期时间已清除" });
     return true;
+  }
+
+  /** 行内编辑（与日程 todo-board 同交互）：顶层 todo 标题/截止/分类 */
+  function startEdit(t: TodoRow) {
+    setEditingId(t.id);
+    setEditTitle(t.title);
+    setEditDue(isoToLocalInput(t.due_at));
+    setEditActivity(t.activity_id ?? "other");
+  }
+
+  async function saveEdit(): Promise<boolean> {
+    if (!editingId || !editTitle.trim()) {
+      setMsg({ ok: false, text: "标题不能为空" });
+      return false;
+    }
+    const ok = await patchTodo(editingId, {
+      title: editTitle.trim(),
+      dueAt: localInputToIso(editDue),
+      activityId: editActivity,
+    }, "💾 已保存");
+    if (ok) setEditingId(null);
+    return ok;
+  }
+
+  /** 行动详情面板：标题+描述+截止+每日重复（与 todo-board 行动面板同交互） */
+  function openNote(c: TodoRow) {
+    setNoteOpen(c.id);
+    setNoteTitle(c.title);
+    setNoteText(c.note ?? "");
+    setNoteDue(isoToLocalInput(c.due_at));
+    setNoteRepeat(c.repeat_daily);
+    setNoteDoneCount(c.repeat_done_count);
+  }
+
+  async function saveNote(): Promise<boolean> {
+    if (!noteOpen || !noteTitle.trim()) {
+      setMsg({ ok: false, text: "标题不能为空" });
+      return false;
+    }
+    const ok = await patchTodo(noteOpen, {
+      title: noteTitle.trim(),
+      note: noteText.trim() ? noteText.trim() : null,
+      dueAt: localInputToIso(noteDue),
+      repeatDaily: noteRepeat,
+    }, "💾 行动已保存");
+    if (ok) setNoteOpen(null);
+    return ok;
   }
 
   /** N1：行级关联/切换/移除空间 */
@@ -462,9 +525,66 @@ export default function Detail() {
                 const tag = done ? null : dueTag(t.due_at);
                 return (
                   <li key={t.id} className="rounded-xl border border-line-soft bg-bg/30 px-3 py-2.5">
+                    {editingId === t.id ? (
+                      /* ---- 行内编辑器（与日程 todo-board 同交互；点空白/Esc 取消，有改动轻提示） ---- */
+                      <Dismissable
+                        onClose={() => {
+                          const dirty = editTitle !== t.title || editDue !== isoToLocalInput(t.due_at) || editActivity !== (t.activity_id ?? "other");
+                          if (dirty) setMsg({ ok: true, text: "已取消，未保存" });
+                          setEditingId(null);
+                        }}
+                        className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            autoFocus
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit();
+                              if (e.key === "Escape") setEditingId(null);
+                            }}
+                            className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
+                          />
+                          <input
+                            type="datetime-local"
+                            value={editDue}
+                            onChange={(e) => setEditDue(e.target.value)}
+                            title="截止时间（可清空）"
+                            className="rounded border border-line-strong bg-surface px-2 py-1 text-sm tabular-nums outline-none focus:border-sky-500"
+                          />
+                          <select
+                            value={editActivity}
+                            onChange={(e) => setEditActivity(e.target.value)}
+                            className="rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
+                          >
+                            {activities.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.icon} {a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button onClick={() => setEditingId(null)} className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft">
+                            取消
+                          </button>
+                          <button onClick={() => void saveEdit()} className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500">
+                            保存
+                          </button>
+                        </div>
+                      </Dismissable>
+                    ) : (
+                      <>
                     <div className="group flex items-center gap-2.5">
-                      <TodoCircle size="md" done={done} onClick={() => patchTodo(t.id, { done: true }, `✅「${t.title}」已完成`)} />
-                      <span className={`min-w-0 flex-1 truncate text-sm ${done ? "text-ink-faint line-through" : ""}`}>{t.title}</span>
+                      <TodoCircle size="md" done={done} onClick={() => patchTodo(t.id, done ? { undone: true } : { done: true }, done ? `↩️「${t.title}」已恢复` : `✅「${t.title}」已完成`)} />
+                      <button
+                        onClick={() => startEdit(t)}
+                        className={`min-w-0 flex-1 truncate text-left text-sm transition hover:text-accent ${done ? "text-ink-faint line-through" : ""}`}
+                        title={`${t.title}（点击编辑）`}
+                      >
+                        {t.title}
+                      </button>
                       {t.children.length > 0 && <span className="shrink-0 text-[11px] tabular-nums text-ink-faint">{(() => { const p = childProgress(t.children); return p ? `${p.n}/${p.m}` : ""; })()}</span>}
                       {tag && <span className={`shrink-0 text-[11px] ${tag.cls}`}>{tag.text}</span>}
                       <button
@@ -502,8 +622,8 @@ export default function Detail() {
                           const cDone = c.status === "done";
                           return (
                             <div key={c.id} className="group/child flex items-center gap-2.5 rounded-lg px-1.5 py-1 hover:bg-elevated/60">
-                              <TodoCircle size="sm" done={cDone} onClick={() => patchTodo(c.id, { done: true }, `✅ 已完成`)}/>
-                              <span className={`min-w-0 flex-1 cursor-pointer truncate text-[13px] ${cDone ? "text-ink-faint line-through" : ""}`} onClick={() => setNoteOpen(noteOpen === c.id ? null : c.id)}>
+                              <TodoCircle size="sm" done={cDone} onClick={() => patchTodo(c.id, cDone ? { undone: true } : { done: true }, cDone ? "↩️ 已恢复" : "✅ 已完成")}/>
+                              <span className={`min-w-0 flex-1 cursor-pointer truncate text-[13px] transition hover:text-accent ${cDone ? "text-ink-faint line-through" : ""}`} onClick={() => (noteOpen === c.id ? setNoteOpen(null) : openNote(c))} title={`${c.title}（点击编辑详情）`}>
                                 {c.title}
                               </span>
                               {c.repeat_daily && <TagChip icon="🔁" label={c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : "每日"} tone="emerald" size="sm" />}
@@ -533,17 +653,82 @@ export default function Detail() {
                         )}
                       </div>
                     )}
-                    {/* 行动描述只读展开 */}
+                    {/* 行动详情面板（可编辑，与 todo-board 同交互；点空白/Esc 取消，有改动轻提示） */}
                     {noteOpen && t.children.some((c) => c.id === noteOpen) && (() => {
                       const c = t.children.find((x) => x.id === noteOpen)!;
                       return (
-                        <Dismissable onClose={() => setNoteOpen(null)} className="ml-8 mt-1 rounded-lg border border-sky-500/30 bg-elevated/60 p-2.5">
-                          <p className="text-[10px] text-ink-faint">{c.title} · 描述</p>
-                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-ink-soft">{c.note || "（无描述）"}</p>
-                          {c.done_at && <p className="mt-1 text-[10px] text-ink-faint">完成于 {zhTime(c.done_at)}</p>}
+                        <Dismissable
+                          onClose={() => {
+                            const dirty =
+                              noteTitle !== c.title ||
+                              noteText !== (c.note ?? "") ||
+                              noteDue !== isoToLocalInput(c.due_at) ||
+                              noteRepeat !== c.repeat_daily;
+                            if (dirty) setMsg({ ok: true, text: "已取消，未保存" });
+                            setNoteOpen(null);
+                          }}
+                          className="ml-8 mt-1 rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5"
+                        >
+                          <input
+                            autoFocus
+                            value={noteTitle}
+                            onChange={(e) => setNoteTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveNote();
+                              if (e.key === "Escape") setNoteOpen(null);
+                            }}
+                            className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-[13px] outline-none focus:border-sky-500"
+                            placeholder="标题"
+                          />
+                          <textarea
+                            value={noteText}
+                            onChange={(e) => setNoteText(e.target.value.slice(0, 1000))}
+                            rows={4}
+                            maxLength={1000}
+                            placeholder="详细内容（可选，记录细节/链接/备注，≤1000 字）"
+                            className="input-glow mt-2 w-full resize-none rounded border border-line-soft bg-surface/60 px-2.5 py-2 text-[13px] leading-relaxed outline-none placeholder:text-ink-faint"
+                          />
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] tabular-nums text-ink-faint">{noteText.length}/1000</span>
+                            <input
+                              type="datetime-local"
+                              value={noteDue}
+                              onChange={(e) => setNoteDue(e.target.value)}
+                              title="截止时间（可清空）"
+                              className="rounded border border-line-strong bg-surface px-2 py-1 text-[12px] tabular-nums outline-none focus:border-sky-500"
+                            />
+                            <label
+                              title="每日重复：完成后次日 06:00 自动恢复未完成，并累积完成次数"
+                              className={`flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-[11px] transition ${
+                                noteRepeat ? "bg-emerald-500/20 text-success" : "border border-line-soft text-ink-mute hover:text-ink"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={noteRepeat}
+                                onChange={(e) => setNoteRepeat(e.target.checked)}
+                                className="h-3 w-3 accent-emerald-500"
+                              />
+                              🔁 每日{noteRepeat && noteDoneCount > 0 ? ` · 已完成 ×${noteDoneCount}` : ""}
+                            </label>
+                            <div className="ml-auto flex gap-2">
+                              <button onClick={() => setNoteOpen(null)} className="rounded px-2.5 py-1 text-xs text-ink-mute hover:bg-soft">
+                                取消
+                              </button>
+                              <button
+                                onClick={() => void saveNote()}
+                                disabled={!noteTitle.trim()}
+                                className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-50"
+                              >
+                                保存
+                              </button>
+                            </div>
+                          </div>
                         </Dismissable>
                       );
                     })()}
+                      </>
+                    )}
                   </li>
                 );
               })}
@@ -624,6 +809,13 @@ export default function Detail() {
                 <div className="space-y-0.5">
                   {menuRow.isChild ? (
                     <>
+                      <button
+                        onClick={() => { const c = menuRow.todo; setMenuRow(null); openNote(c); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
+                      >
+                        <span className="w-5 shrink-0 text-center text-sm leading-none">✏️</span>
+                        <span className="min-w-0 flex-1">编辑标题 / 描述</span>
+                      </button>
                       {menuRow.todo.status !== "done" && (
                         <button
                           onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: true }); }}
@@ -647,6 +839,13 @@ export default function Detail() {
                     </>
                   ) : (
                     <>
+                      <button
+                        onClick={() => { const t = menuRow.todo; setMenuRow(null); startEdit(t); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
+                      >
+                        <span className="w-5 shrink-0 text-center text-sm leading-none">✏️</span>
+                        <span className="min-w-0 flex-1">编辑标题与时间</span>
+                      </button>
                       <button
                         onClick={() => { const t = menuRow.todo; setMenuRow(null); setPickerRow({ id: t.id, spaceId: t.space_id }); }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"

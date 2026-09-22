@@ -28,10 +28,10 @@ export default function SpacePicker({
   const pickable = spaces.filter((s) => s.status === "active");
 
   return (
+    // 桌面端无锚点信息，fixed+auto inset 会落到文档流末尾（视口外）→ 显式居中；移动端保持底部弹层
     <div
       ref={ref}
-      className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-64 sm:rounded-xl sm:p-2"
-      style={undefined}
+      className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:w-64 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-2"
     >
       <p className="mb-1.5 px-1.5 text-[11px] font-medium text-ink-dim">关联目标空间</p>
       <div className="space-y-0.5">

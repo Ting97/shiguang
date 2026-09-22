@@ -229,7 +229,8 @@ export async function POST(req: Request) {
         dueAt, dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000).toISOString() : null,
         note, spaceId, sort,
         parentId || kind === "action" ? body.repeatDaily === true : false, // 每日重复仅对行动生效（含独立行动）
-        kind,
+        // 子行动恒为 kind='action'（028 修复：此前带 parentId 新建的行动落了默认 'todo'，导致重复开关 400、行动统计漏计）
+        parentId ? "action" : kind,
       ],
     )
   ).rows[0];
