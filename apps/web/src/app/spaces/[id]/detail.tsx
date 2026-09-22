@@ -57,6 +57,9 @@ export default function Detail() {
   // 目标到期时间就地编辑（头部 ⏳ 日期可点击调整/清除）
   const [dateEdit, setDateEdit] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
+  // 空间操作菜单（⋯ 收纳归档/删除）
+  const [spaceMenu, setSpaceMenu] = useState(false);
+  const [spaceMenuPos, setSpaceMenuPos] = useState<{ top: number; left: number } | null>(null);
   // 行内编辑器（与日程 todo-board 同交互）：顶层 todo 标题/截止/分类
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -451,15 +454,20 @@ export default function Detail() {
                 {days != null && <span>第 {days} 天</span>}
               </p>
             </div>
-            <div className="flex shrink-0 flex-col gap-1">
-              <Link href="/spaces" className="rounded px-2 py-1 text-right text-xs text-ink-mute hover:bg-soft hover:text-accent">
+            <div className="flex shrink-0 items-center gap-1">
+              <Link href="/spaces" className="rounded px-2 py-1 text-xs text-ink-mute transition hover:bg-soft hover:text-accent">
                 ← 列表
               </Link>
-              <button onClick={() => setStatus("archived")} className="rounded px-2 py-1 text-right text-xs text-ink-mute hover:bg-soft hover:text-warn">
-                归档
-              </button>
-              <button onClick={removeSpace} className="rounded px-2 py-1 text-right text-xs text-ink-mute hover:bg-soft hover:text-danger">
-                删除
+              <button
+                onClick={(e) => {
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setSpaceMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                  setSpaceMenu(true);
+                }}
+                title="更多操作"
+                className="rounded px-2 py-1 text-base leading-none text-ink-dim transition hover:bg-soft hover:text-ink"
+              >
+                ⋯
               </button>
             </div>
           </div>
@@ -797,6 +805,46 @@ export default function Detail() {
         )}
 
         {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层）；点空白关闭由 useDismiss 处理（N3） */}
+        {/* 空间操作菜单（⋯ 收纳归档/删除；桌面锚定浮层 / 移动端底部弹层） */}
+        {spaceMenu && space &&
+          createPortal(
+            <Dismissable
+              onClose={() => setSpaceMenu(false)}
+              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+              style={spaceMenuPos ? { top: spaceMenuPos.top, left: spaceMenuPos.left } : undefined}
+            >
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
+              <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{space.name}</p>
+              <div className="space-y-0.5">
+                {space.status === "archived" ? (
+                  <button
+                    onClick={() => setStatus("active")}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
+                  >
+                    <span className="w-5 shrink-0 text-center text-sm leading-none">📤</span>
+                    <span className="min-w-0 flex-1">恢复空间</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setStatus("archived")}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-warn transition hover:bg-wash"
+                  >
+                    <span className="w-5 shrink-0 text-center text-sm leading-none">📦</span>
+                    <span className="min-w-0 flex-1">归档空间</span>
+                  </button>
+                )}
+                <button
+                  onClick={removeSpace}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
+                >
+                  <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
+                  <span className="min-w-0 flex-1">删除空间</span>
+                </button>
+              </div>
+            </Dismissable>,
+            document.body,
+          )}
+
         {menuRow &&
           createPortal(
             <Dismissable

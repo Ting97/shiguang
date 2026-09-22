@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Nav from "@/components/nav";
 import { Dismissable } from "@/components/dismissable";
@@ -35,6 +36,9 @@ export default function SpacesPage() {
   const [showArchived, setShowArchived] = useState(false);
   // 加载失败态：给出重试入口，避免网络异常时永远停在"加载中"
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  // 卡片 ⋯ 菜单（编辑/归档/删除收纳；桌面锚定浮层 / 移动端底部弹层）
+  const [cardMenu, setCardMenu] = useState<Space | null>(null);
+  const [cardMenuPos, setCardMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -209,6 +213,19 @@ export default function SpacesPage() {
                         {s.target_date && ` · ⏳ ${bjDay(s.target_date).slice(5)}`}
                       </p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setCardMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                        setCardMenu(s);
+                      }}
+                      title="更多操作"
+                      className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
+                    >
+                      ⋯
+                    </button>
                   </div>
                   {s.description && <p className="mt-2 line-clamp-2 text-xs text-ink-mute">{s.description}</p>}
                   <div className="mt-3">
@@ -338,6 +355,43 @@ export default function SpacesPage() {
               </div>
           </Dismissable>
         )}
+
+        {/* 卡片 ⋯ 菜单：编辑/归档/删除收纳（桌面锚定浮层 / 移动端底部弹层） */}
+        {cardMenu &&
+          createPortal(
+            <Dismissable
+              onClose={() => setCardMenu(null)}
+              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+              style={cardMenuPos ? { top: cardMenuPos.top, left: cardMenuPos.left } : undefined}
+            >
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
+              <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{cardMenu.name}</p>
+              <div className="space-y-0.5">
+                <button
+                  onClick={() => { const s = cardMenu; setCardMenu(null); openEdit(s); }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
+                >
+                  <span className="w-5 shrink-0 text-center text-sm leading-none">✏️</span>
+                  <span className="min-w-0 flex-1">编辑空间</span>
+                </button>
+                <button
+                  onClick={() => { const s = cardMenu; setCardMenu(null); void setStatus(s, "archived"); }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-warn transition hover:bg-wash"
+                >
+                  <span className="w-5 shrink-0 text-center text-sm leading-none">📦</span>
+                  <span className="min-w-0 flex-1">归档空间</span>
+                </button>
+                <button
+                  onClick={() => { const s = cardMenu; setCardMenu(null); void remove(s); }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
+                >
+                  <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
+                  <span className="min-w-0 flex-1">删除空间</span>
+                </button>
+              </div>
+            </Dismissable>,
+            document.body,
+          )}
 
         <footer className="mt-10 text-center">
           <TagChip icon="🎯" label="拾光 · 目标空间" tone="violet" size="sm" />
