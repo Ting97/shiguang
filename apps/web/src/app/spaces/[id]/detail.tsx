@@ -34,6 +34,8 @@ export default function Detail() {
   const [space, setSpace] = useState<Space | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  // 已完成的关联 todo（默认收起展示）
+  const [doneTodos, setDoneTodos] = useState<TodoItem[]>([]);
   const [moments, setMoments] = useState<FeedMoment[]>([]);
   const [newTodo, setNewTodo] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -100,6 +102,12 @@ export default function Detail() {
       if (tr.ok) {
         const tj = await tr.json();
         setTodos((tj.todos as TodoItem[]).filter((t) => t.space_id === id));
+      }
+      // 已完成的关联 todo（done 视图按完成时间倒序）
+      const dr = await fetch("/api/todos?view=done");
+      if (dr.ok) {
+        const dj = await dr.json();
+        setDoneTodos(((dj.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
       }
       const fr = await fetch("/api/feed?limit=20&spaceId=" + id);
       if (fr.ok) setMoments((await fr.json()).moments as FeedMoment[]);
@@ -778,6 +786,38 @@ export default function Detail() {
                 );
               })}
             </ul>
+          )}
+
+          {/* 已完成（默认收起，可展开查看/恢复） */}
+          {doneTodos.length > 0 && (
+            <details className="group mt-3 border-t border-line-soft pt-2">
+              <summary className="cursor-pointer select-none list-none text-[11px] text-ink-faint transition hover:text-ink-mute">
+                ✓ 已完成（{doneTodos.length}）<span className="ml-1 inline-block transition-transform group-open:rotate-90">▸</span>
+              </summary>
+              <ul className="mt-1.5 space-y-0.5">
+                {doneTodos.map((t) => (
+                  <li key={t.id} className="group flex items-center gap-2 rounded-lg px-1.5 py-1 text-xs transition hover:bg-elevated/60">
+                    <span className="shrink-0 text-success">✓</span>
+                    <span className="min-w-0 flex-1 truncate text-ink-faint line-through" title={t.title}>
+                      {t.title}
+                    </span>
+                    {t.children.length > 0 && (
+                      <span className="shrink-0 text-[10px] tabular-nums text-ink-faint">
+                        {(() => { const p = childProgress(t.children); return p ? `${p.n}/${p.m}` : ""; })()}
+                      </span>
+                    )}
+                    {t.done_at && <span className="shrink-0 text-[10px] text-ink-faint">{bjDate(t.done_at).slice(5)} 完成</span>}
+                    <button
+                      onClick={() => patchTodo(t.id, { undone: true }, `↩️「${t.title}」已恢复`)}
+                      title="恢复为未完成"
+                      className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-[11px] text-ink-dim transition hover:text-accent group-hover:block"
+                    >
+                      ↩️
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </section>
         )}

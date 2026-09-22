@@ -140,8 +140,10 @@ export default function SpacesPage() {
 
         <div className="glass mb-5 flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-gradient text-xl font-bold tracking-wide">
-            目标
-            <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">把这一年献给什么</span>
+            目标空间
+            <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">
+              创建一个空间，专属于这个目标的 TODO·行动与感悟 —— 相关动态自动归属，见证每天的靠近
+            </span>
           </h1>
           <button onClick={openNew} className="btn-primary whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
             ＋ 新建空间
@@ -163,7 +165,7 @@ export default function SpacesPage() {
           <div className="glass rounded-2xl p-10 text-center empty-state">
             <p className="text-4xl">🎯</p>
             <p className="mt-3 text-sm font-medium">还没有目标空间</p>
-            <p className="mt-1 text-xs text-ink-dim">为一个大目标（考研上岸 / 副业过万 / 完成全马…）建一个容器，把相关的动态和 todo 都聚在它下面</p>
+            <p className="mt-1 text-xs text-ink-dim">为一个大目标（考研上岸 / 副业过万 / 完成全马…）建一个空间，把它的 TODO·行动、感悟和动态都聚在专属容器里</p>
             <button onClick={openNew} className="btn-primary mt-4 rounded-xl px-5 py-2 text-sm font-medium">
               创建第一个空间
             </button>
