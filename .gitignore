@@ -49,3 +49,4 @@ apps/artifacts/shiguang-expo-native-*.apk
 apps/mobile/android/
 apps/mobile/ios/
 apps/mobile/.expo/
+.zcode/
