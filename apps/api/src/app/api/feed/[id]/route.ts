@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { withAuthParams, withAuthSchema } from "@/server/platform/http/route";
+import { withAuthParams } from "@/server/platform/http/route";
 import { patchFeed, deleteFeed } from "@/server/timeline";
 
 export const runtime = "nodejs";

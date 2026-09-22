@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuthParams } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
 
 /** PATCH /api/transactions/:id —— 修正流水（方向/金额/类别/交易对象/账户）；{confirm:true} 草稿转正 */
-export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { id } = await ctx.params;
+export const PATCH = withAuthParams(async (req, { user, params }) => {
+  const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as {
     direction?: "out" | "in";
     amountCents?: number; // 正整数（方向由 direction 决定）
@@ -26,7 +25,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
   if (body.amountCents != null) {
     if (!Number.isInteger(body.amountCents) || body.amountCents <= 0) {
-      return NextResponse.json({ error: "金额必须为正整数（单位分）" }, { status: 400 });
+      throw ApiError.badRequest("金额必须为正整数（单位分）");
     }
     vals.push(body.amountCents);
     sets.push(`amount_cents = $${vals.length}`);
@@ -49,7 +48,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         [body.accountId, user.id],
       );
       if (owned.rows.length === 0) {
-        return NextResponse.json({ error: "账户不存在" }, { status: 400 });
+        throw ApiError.badRequest("账户不存在");
       }
       vals.push(body.accountId);
       sets.push(`account_id = $${vals.length}`);
@@ -60,7 +59,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     sets.push(`is_draft = $${vals.length}`);
   }
   if (sets.length === 0) {
-    return NextResponse.json({ error: "没有可更新的字段" }, { status: 400 });
+    throw ApiError.badRequest("没有可更新的字段");
   }
   vals.push(id, user.id);
 
@@ -71,21 +70,19 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       vals,
     )
   ).rows[0];
-  if (!updated) return NextResponse.json({ error: "流水不存在" }, { status: 404 });
+  if (!updated) throw ApiError.notFound("流水不存在");
   return NextResponse.json({ transaction: updated });
-}
+});
 
 /** DELETE /api/transactions/:id —— 删除识别错的流水 */
-export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const { id } = await ctx.params;
+export const DELETE = withAuthParams(async (_req, { user, params }) => {
+  const { id } = await params;
   const deleted = (
     await pool.query(
       `delete from transactions where id = $1 and user_id = $2 returning id`,
       [id, user.id],
     )
   ).rows[0];
-  if (!deleted) return NextResponse.json({ error: "流水不存在" }, { status: 404 });
+  if (!deleted) throw ApiError.notFound("流水不存在");
   return NextResponse.json({ ok: true });
-}
+});

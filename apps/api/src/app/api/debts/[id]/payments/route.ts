@@ -1,24 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
-import { getModuleUser } from "@/server/platform/modules";
-import { serializeDebt, serializePayment } from "@/server/finance/debt/debts";
+import { withAuthParams, type AuthedCtx, type WithParams } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { getModuleUser } from "@/server/platform";
+import { serializeDebt, serializePayment } from "@/server/finance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** 带路径参数的 debt 模块门禁：等价组合 withModule("debt")（基座 withModule 不透传 params）
+ * —— withAuthParams 未登录 401「未登录」；getModuleUser 为 null 即已登录未授权 → 403「未开通该模块」（admin 直通）。 */
+const withDebtParams = (
+  handler: (req: NextRequest, ctx: AuthedCtx & WithParams) => Promise<Response> | Response,
+) =>
+  withAuthParams(async (req, ctx) => {
+    if (!(await getModuleUser("debt"))) throw new ApiError(403, "forbidden", "未开通该模块");
+    return handler(req, ctx);
+  });
+
 /** POST /api/debts/[id]/payments —— 记还款 {amountCents, paidAt?, accountId?, note?}
  * 余额递减、归零自动结清；accountId 传值时联动记一笔「还款」支出并回填 tx_id；
  * 同负债同日同额重复提交 409（防双击/重试）。 */
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getModuleUser("debt");
-  if (!user) {
-    const cur = await getCurrentUser();
-    return NextResponse.json(
-      { error: cur ? "未开通负债管理模块" : "未登录" },
-      { status: cur ? 403 : 401 },
-    );
-  }
+export const POST = withDebtParams(async (req, { user, params }) => {
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as {
     amountCents?: number;
@@ -27,19 +30,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     note?: string | null;
   };
   if (!Number.isInteger(body.amountCents) || (body.amountCents ?? 0) <= 0) {
-    return NextResponse.json({ error: "还款金额需为正整数（分）" }, { status: 400 });
+    throw ApiError.badRequest("还款金额需为正整数（分）");
   }
   const paidAt = body.paidAt ?? new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt)) {
-    return NextResponse.json({ error: "还款日期需为 YYYY-MM-DD" }, { status: 400 });
+    throw ApiError.badRequest("还款日期需为 YYYY-MM-DD");
   }
 
   const liab = (
     await pool.query(`select * from liabilities where id = $1 and user_id = $2`, [id, user.id])
   ).rows[0];
-  if (!liab) return NextResponse.json({ error: "负债不存在" }, { status: 404 });
+  if (!liab) throw ApiError.notFound("负债不存在");
   if (liab.status !== "active") {
-    return NextResponse.json({ error: "仅进行中的负债可记还款" }, { status: 400 });
+    throw ApiError.badRequest("仅进行中的负债可记还款");
   }
 
   const dup = await pool.query(
@@ -47,7 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     [id, paidAt, body.amountCents],
   );
   if (dup.rows[0]) {
-    return NextResponse.json({ error: "当天已有一笔相同金额的还款，请勿重复提交" }, { status: 409 });
+    throw ApiError.conflict("当天已有一笔相同金额的还款，请勿重复提交");
   }
 
   // 可选：联动资产账户记一笔支出（避免与既有记账重复时可关掉）
@@ -57,7 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       `select id from accounts where id = $1 and user_id = $2 and archived = false`,
       [body.accountId, user.id],
     );
-    if (!owned.rows[0]) return NextResponse.json({ error: "账户不存在" }, { status: 400 });
+    if (!owned.rows[0]) throw ApiError.badRequest("账户不存在");
     accountId = owned.rows[0].id;
   }
 
@@ -103,25 +106,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ payment: serializePayment(payment), debt: serializeDebt(updated), transactionId: txId });
   } catch (e) {
     await client.query("rollback");
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    throw e;
   } finally {
     client.release();
   }
-}
+});
 
 /** GET /api/debts/[id]/payments —— 还款记录（余额曲线数据源，时间升序） */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getModuleUser("debt");
-  if (!user) {
-    const cur = await getCurrentUser();
-    return NextResponse.json(
-      { error: cur ? "未开通负债管理模块" : "未登录" },
-      { status: cur ? 403 : 401 },
-    );
-  }
+export const GET = withDebtParams(async (_req, { user, params }) => {
   const { id } = await params;
   const owned = await pool.query(`select id from liabilities where id = $1 and user_id = $2`, [id, user.id]);
-  if (!owned.rows[0]) return NextResponse.json({ error: "负债不存在" }, { status: 404 });
+  if (!owned.rows[0]) throw ApiError.notFound("负债不存在");
   const { rows } = await pool.query(
     `select * from liability_payments
      where liability_id = $1 and user_id = $2
@@ -129,4 +124,4 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     [id, user.id],
   );
   return NextResponse.json({ payments: rows.map(serializePayment) });
-}
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { ApiError } from "@/server/platform/http/errors";
+import { withAuth } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,14 +14,12 @@ const KEY_RE = /^\d{4}(-\d{2})?(-\d{2})?$/;
  * period：day=YYYY-MM-DD / week=周一 YYYY-MM-DD（与 POST 缓存键一致）/ month=YYYY-MM / year=YYYY。
  * 无论缓存新旧都返回上次的小结（供卡片挂载时展示）；无则 review=null。
  */
-export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const GET = withAuth(async (req, { user }) => {
   const { searchParams } = new URL(req.url);
   const kind = searchParams.get("kind") as (typeof KINDS)[number] | null;
   const period = searchParams.get("period");
   if (!kind || !KINDS.includes(kind) || !period || !KEY_RE.test(period)) {
-    return NextResponse.json({ error: "kind/period 参数不合法" }, { status: 400 });
+    throw ApiError.badRequest("kind/period 参数不合法");
   }
   const { rows } = await pool.query(
     `select review, updated_at from review_caches where user_id = $1 and kind = $2 and period_key = $3`,
@@ -31,4 +30,4 @@ export async function GET(req: Request) {
     review: row?.review ?? null,
     generatedAt: row?.updated_at ?? null,
   });
-}
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
@@ -9,14 +10,12 @@ export const dynamic = "force-dynamic";
 const TZ = "Asia/Shanghai";
 
 /** GET /api/transactions?month=YYYY-MM&status=all|draft|confirmed —— 月度流水列表 */
-export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const GET = withAuth(async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
   const status = url.searchParams.get("status") ?? "all";
   if (!/^\d{4}-\d{2}$/.test(month)) {
-    return NextResponse.json({ error: "month 需为 YYYY-MM" }, { status: 400 });
+    throw ApiError.badRequest("month 需为 YYYY-MM");
   }
   const draftCond =
     status === "draft" ? " and t.is_draft = true" : status === "confirmed" ? " and t.is_draft = false" : "";
@@ -33,12 +32,10 @@ export async function GET(req: Request) {
     [user.id, TZ, month],
   );
   return NextResponse.json({ transactions: rows });
-}
+});
 
 /** POST /api/transactions —— 手动记账（直接为已确认流水） */
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const POST = withAuth(async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     direction?: "out" | "in";
     amountCents?: number;
@@ -50,18 +47,18 @@ export async function POST(req: Request) {
   };
 
   if (body.direction !== "out" && body.direction !== "in") {
-    return NextResponse.json({ error: "方向需为 out/in" }, { status: 400 });
+    throw ApiError.badRequest("方向需为 out/in");
   }
   if (!Number.isInteger(body.amountCents) || (body.amountCents ?? 0) <= 0) {
-    return NextResponse.json({ error: "金额必须大于 0" }, { status: 400 });
+    throw ApiError.badRequest("金额必须大于 0");
   }
   const category = body.category?.trim() || "其他";
   if (!TX_CATEGORIES.includes(category)) {
-    return NextResponse.json({ error: "无效分类" }, { status: 400 });
+    throw ApiError.badRequest("无效分类");
   }
   const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
   if (isNaN(occurredAt.getTime())) {
-    return NextResponse.json({ error: "时间格式不正确" }, { status: 400 });
+    throw ApiError.badRequest("时间格式不正确");
   }
 
   // 账户归属校验（只能挂自己的账户）
@@ -72,7 +69,7 @@ export async function POST(req: Request) {
       [body.accountId, user.id],
     );
     if (owned.rows.length === 0) {
-      return NextResponse.json({ error: "账户不存在" }, { status: 400 });
+      throw ApiError.badRequest("账户不存在");
     }
     accountId = owned.rows[0].id;
   }
@@ -94,4 +91,4 @@ export async function POST(req: Request) {
     )
   ).rows[0];
   return NextResponse.json({ transaction: created });
-}
+});

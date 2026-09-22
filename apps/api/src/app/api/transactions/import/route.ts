@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
 import { dedupeKey, parseBill, type ImportRow } from "@shiguangri/shared/csv-import";
 
 export const runtime = "nodejs";
@@ -11,10 +12,7 @@ export const dynamic = "force-dynamic";
  * body: { text, platform?, accountId?, dryRun? }
  * dryRun=true 只解析与去重做预览，不落库；false 时直接入账（is_draft=false, source=csv_import）
  */
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-
+export const POST = withAuth(async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
     platform?: "alipay" | "wechat";
@@ -23,10 +21,10 @@ export async function POST(req: Request) {
   };
   const text = body.text ?? "";
   if (text.trim().length < 10) {
-    return NextResponse.json({ error: "账单内容为空 —— 请上传 CSV 文件或粘贴账单文本" }, { status: 400 });
+    throw ApiError.badRequest("账单内容为空 —— 请上传 CSV 文件或粘贴账单文本");
   }
   if (text.length > 5_000_000) {
-    return NextResponse.json({ error: "账单文件过大（>5MB），请分段导出后导入" }, { status: 400 });
+    throw ApiError.badRequest("账单文件过大（>5MB），请分段导出后导入");
   }
 
   // 解析（平台自动识别；解析失败抛中文错误）
@@ -34,7 +32,7 @@ export async function POST(req: Request) {
   try {
     parsed = parseBill(text, body.platform);
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+    throw ApiError.badRequest(e instanceof Error ? e.message : String(e));
   }
   const { platform, rows, skips } = parsed;
 
@@ -46,7 +44,7 @@ export async function POST(req: Request) {
       [body.accountId, user.id],
     );
     if (owned.rows.length === 0) {
-      return NextResponse.json({ error: "账户不存在" }, { status: 400 });
+      throw ApiError.badRequest("账户不存在");
     }
     accountId = owned.rows[0].id;
   }
@@ -172,4 +170,4 @@ export async function POST(req: Request) {
     skipSummary,
     categories,
   });
-}
+});

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAdmin } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,13 +12,7 @@ interface Usage {
 }
 
 /** GET /api/tokens/usage —— 管理员查看自己与被邀请人的 GLM token 消耗（全部累计 + 近 30 天） */
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.role !== "admin") {
-    return NextResponse.json({ error: "仅管理员可查看消耗" }, { status: 403 });
-  }
-
+export const GET = withAdmin(async (_req, { user }) => {
   // 一个聚合同时出两个时间窗（近 30 天 / 全部累计）；parse/review/asr 全阶段
   const { rows: selfRows } = await pool.query(
     `select count(*)::int as calls,
@@ -85,4 +79,4 @@ export async function GET() {
   }));
 
   return NextResponse.json({ self, invitees, byModel });
-}
+});

@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/identity/auth";
 import { hasApiKey } from "@shiguangri/ai";
-import { getOrGenerateReview } from "@/server/insight/review-cache";
-import { checkAiQuota } from "@/server/ai/quota";
-import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight/review-quota";
-import { getPromptBundle } from "@/server/ai/prompts";
+import { withAuth } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
+import { checkAiQuota, getPromptBundle } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight/review-input";
 import { buildReviewCtx } from "@/server/insight/review-ctx";
 
@@ -24,9 +23,7 @@ interface DayReview {
  * 聚合当天时间/待办/收支/人际/心情事实 → LLM 归因解读；只依据真实记录，不落库（每次即时生成）。
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const POST = withAuth(async (req, { user }) => {
   if (user.role !== "admin") {
     const q = await checkAiQuota(user.id);
     if (!q.allowed) {
@@ -38,7 +35,7 @@ export async function POST(req: Request) {
   }
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
   if (!date || !DATE_RE.test(date)) {
-    return NextResponse.json({ error: "date 需为 YYYY-MM-DD" }, { status: 400 });
+    throw ApiError.badRequest("date 需为 YYYY-MM-DD");
   }
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
@@ -57,7 +54,7 @@ export async function POST(req: Request) {
         timeoutMs: 45_000,
         onUsage: capture,
       });
-    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 30)).filter(Boolean).slice(0, n) : []);
+      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 30)).filter(Boolean).slice(0, n) : []);
       await consumeGeneration(user.id, "day", date);
       return {
         summary:
@@ -75,4 +72,4 @@ export async function POST(req: Request) {
   const { review, cached, generatedAt } = result;
 
   return NextResponse.json({ review, cached, generatedAt, facts: { timeParts: built.summary.timeParts, todoDone: built.summary.todoDone } });
-}
+});

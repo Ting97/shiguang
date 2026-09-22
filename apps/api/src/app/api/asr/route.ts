@@ -3,9 +3,9 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/identity/auth";
 import { hasApiKey, transcribeAudio, asrModel } from "@shiguangri/ai";
-import { writeAuditRecord } from "@/server/ai/audit";
+import { withAuth } from "@/server/platform/http/route";
+import { writeAuditRecord } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,9 +51,7 @@ async function toWav(buffer: Buffer, contentType: string): Promise<Buffer> {
  * 转发智谱 GLM-ASR；返回 { text }，空音频返回空文本由前端提示。
  * Web 端已重采样为 wav；安卓受 MediaRecorder 限制产出 m4a 等，由 FFMPEG_PATH 转码兜底。
  */
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const POST = withAuth(async (req, { user }) => {
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
   const form = await req.formData().catch(() => null);
@@ -116,4 +114,4 @@ export async function POST(req: Request) {
       : `语音识别失败：${msg}`;
     return NextResponse.json({ error: friendly }, { status: 502 });
   }
-}
+});

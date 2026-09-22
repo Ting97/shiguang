@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,9 +9,7 @@ export const dynamic = "force-dynamic";
 const TZ = "Asia/Shanghai";
 
 /** GET /api/today —— 工作台数据：今日 TODO（标记今日的，含子任务）+ 今日已完成待办 + 今日时间块 */
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const GET = withAuth(async (_req, { user }) => {
   // 主页今日区只展示「手动标记今日」的待办（微软 To Do「我的一天」语义）：
   // today_tag_date = 北京今天，跨零点自动失效，由用户每天自行规划
   const { rows: parents } = await pool.query(
@@ -76,4 +74,4 @@ export async function GET() {
   );
   const todayKcal = kcalRows[0]?.kcal ?? 0;
   return NextResponse.json({ todos, doneToday, blocks, activities, todayKcal });
-}
+});

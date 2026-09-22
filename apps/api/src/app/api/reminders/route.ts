@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,10 +11,7 @@ export const dynamic = "force-dynamic";
  * - remind_at 已到、仍未完成的待办（创建待办时 remind_at = due - 15 分钟）
  * 条目筛选/排序由 lib/reminders.pickReminders 完成
  */
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-
+export const GET = withAuth(async (_req, { user }) => {
   const { rows: contacts } = await pool.query(
     `select id, name,
             to_char(birthday, 'YYYY-MM-DD') as birthday,
@@ -35,4 +32,4 @@ export async function GET() {
   );
 
   return NextResponse.json({ contacts, todos });
-}
+});

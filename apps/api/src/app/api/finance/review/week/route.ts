@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/identity/auth";
 import { pool } from "@/server/platform/db";
 import { hasApiKey } from "@shiguangri/ai";
-import { getModuleUser } from "@/server/platform/modules";
-import { getOrGenerateReview } from "@/server/insight/review-cache";
-import { checkAiQuota } from "@/server/ai/quota";
-import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight/review-quota";
-import { getPromptBundle, assembleUserPrompt } from "@/server/ai/prompts";
+import { withModule } from "@/server/platform/http/route";
+import { getOrGenerateReview, acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight";
+import { checkAiQuota, getPromptBundle, assembleUserPrompt } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight/review-input";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 
@@ -26,15 +23,7 @@ interface WeekReview {
 }
 
 /** GET /api/finance/review/week?date= —— 只读缓存（不调 LLM、不耗配额）；无缓存返回 {review:null} */
-export async function GET(req: Request) {
-  const user = await getModuleUser("trade_review");
-  if (!user) {
-    const cur = await getCurrentUser();
-    return NextResponse.json(
-      { error: cur ? "未开通交易复盘模块" : "未登录" },
-      { status: cur ? 403 : 401 },
-    );
-  }
+export const GET = withModule("trade_review", async (req, { user }) => {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("date") ?? bjToday();
   const anchor = DATE_RE.test(q) ? q : bjToday();
@@ -50,19 +39,11 @@ export async function GET(req: Request) {
     generatedAt: new Date(hit.rows[0].updated_at).toISOString(),
     range: { from, to: bjAddDays(from, 6) },
   });
-}
+});
 
 /** POST /api/finance/review/week {date?, refresh?} —— AI 交易周报（FR-C2.7 ②）
  * 复用复盘管线：review_caches(kind='trade_week') 缓存 + review_gen_quotas 周池 + /admin 可调 prompt。 */
-export async function POST(req: Request) {
-  const user = await getModuleUser("trade_review");
-  if (!user) {
-    const cur = await getCurrentUser();
-    return NextResponse.json(
-      { error: cur ? "未开通交易复盘模块" : "未登录" },
-      { status: cur ? 403 : 401 },
-    );
-  }
+export const POST = withModule("trade_review", async (req, { user }) => {
   if (user.role !== "admin") {
     const q = await checkAiQuota(user.id);
     if (!q.allowed) {
@@ -204,4 +185,4 @@ export async function POST(req: Request) {
   }
   const { review, cached, generatedAt } = result;
   return NextResponse.json({ review, cached, generatedAt, range: { from, to } });
-}
+});

@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/identity/auth";
 import { chat, activeModel } from "@shiguangri/ai";
-import { PROMPT_KEYS, PROMPT_META, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/server/ai/prompts";
-import { writeAuditRecord } from "@/server/ai/audit";
+import { withAuthParams } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import {
+  assembleUserPrompt,
+  getPrompt,
+  getPromptBundle,
+  PROMPT_KEYS,
+  PROMPT_META,
+  writeAuditRecord,
+  type PromptKey,
+} from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,15 +20,13 @@ export const dynamic = "force-dynamic";
  * 用 prompt_optimizer 元 prompt 组装：用途 + 契约约束 + 当前内容 + 意图 → chat()
  * 纯建议：不落库、不写版本、不动缓存；记 audit_logs stage='prompt_optimize'
  */
-export async function POST(req: Request, ctx: { params: Promise<{ key: string }> }) {
+export const POST = withAuthParams(async (req, { user, params }) => {
   const startedAt = Date.now();
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "仅管理员" }, { status: 403 });
+  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
 
-  const { key } = await ctx.params;
+  const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
-    return NextResponse.json({ error: "未知的 prompt key" }, { status: 404 });
+    throw ApiError.notFound("未知的 prompt key");
   }
   const { hint } = (await req.json().catch(() => ({}))) as { hint?: string };
   const target = (await getPrompt(key as PromptKey)).slice(0, 30_000);
@@ -73,7 +79,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
     });
     return NextResponse.json({ error: `AI 优化失败：${e instanceof Error ? e.message : String(e).slice(0, 200)}` }, { status: 502 });
   }
-}
+});
 
 /** 各 key 的契约要点：拼进优化器输入，硬约束 LLM 不许改输出结构 */
 const CONTRACT_HINTS: Partial<Record<PromptKey, string>> = {

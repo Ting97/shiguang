@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuthParams } from "@/server/platform/http/route";
 import { chat, extractJson, activeModel } from "@shiguangri/ai";
 import { z } from "zod";
 import { getPromptBundle, assembleUserPrompt } from "@/server/ai/prompts";
@@ -23,10 +23,8 @@ const ActionList = z.object({
  *   （前端弹「追加 / 重新生成」）；mode=replace 仅清空未完成行动（已完成与重复计数保留）
  * - 行动（有 parent）：细化 ≤3 个同级更小行动，插入到该行动之后（原行动保留，后续 sort 平移）
  */
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export const POST = withAuthParams(async (req, { user, params }) => {
   const t0 = Date.now();
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
   const q = await checkAiQuota(user.id);
   if (!q.allowed) {
     return NextResponse.json(
@@ -34,7 +32,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       { status: 402 },
     );
   }
-  const { id } = await ctx.params;
+  const { id } = await params;
   const { mode } = (await req.json().catch(() => ({}))) as { mode?: "append" | "replace" };
 
   const todo = (
@@ -213,4 +211,4 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   } finally {
     client.release();
   }
-}
+});

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
-import { PROMPT_KEYS, PROMPT_META, defaultPrompt, type PromptKey } from "@/server/ai/prompts";
-import { AI_INPUT_REGISTRY, mergeContextConfig } from "@/server/ai/ai-inputs";
+import { withAdmin } from "@/server/platform/http/route";
+import { AI_INPUT_REGISTRY, defaultPrompt, mergeContextConfig, PROMPT_KEYS, PROMPT_META, type PromptKey } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,11 +9,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/admin/prompts —— prompt 清单：key 元信息 + 生效来源 + DB 覆盖内容 + 默认值全文（前端做对比）。
  * 3-A 扩展：user 模板/注入配置的 DB 覆盖原值（userTemplate/contextConfig，未覆盖为 null）、
  * 注册表全文（registry：默认模板/占位符/注入项/参数范围）——前端据此渲染三段详情。 */
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "仅管理员" }, { status: 403 });
-
+export const GET = withAdmin(async () => {
   const { rows } = await pool.query(
     `select key, content, enabled, remark, updated_at, updated_by, user_template, context_config from ai_prompts`,
   );
@@ -43,4 +38,4 @@ export async function GET() {
     };
   });
   return NextResponse.json({ items });
-}
+});

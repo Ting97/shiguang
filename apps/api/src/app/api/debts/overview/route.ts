@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
-import { getModuleUser } from "@/server/platform/modules";
+import { withModule } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,16 +9,7 @@ const TZ = "Asia/Shanghai";
 
 /** GET /api/debts/overview —— 总览聚合（FR-C2.5）：
  * 总负债双口径/月供合计+到期提示/加权利率/净资产/到期墙（≤3月 danger、≤6月 warn）/现金流月视图 */
-export async function GET() {
-  const user = await getModuleUser("debt");
-  if (!user) {
-    const cur = await getCurrentUser();
-    return NextResponse.json(
-      { error: cur ? "未开通负债管理模块" : "未登录" },
-      { status: cur ? 403 : 401 },
-    );
-  }
-
+export const GET = withModule("debt", async (_req, { user }) => {
   const active = (
     await pool.query(
       `select id, name, type, balance_cents, rate_pct::float8 as rate_pct, monthly_cents, due_date
@@ -148,4 +138,4 @@ export async function GET() {
     },
     hints,
   });
-}
+});

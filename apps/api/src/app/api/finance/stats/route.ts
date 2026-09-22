@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
-import { getModuleUser } from "@/server/platform/modules";
+import { withModule } from "@/server/platform/http/route";
 import { categoryBreakdown } from "@shiguangri/shared/finance";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 
@@ -13,15 +12,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 
 /** GET /api/finance/stats?period=day|week&date=YYYY-MM-DD —— 交易统计（纯 SQL，零 AI 消耗，FR-C2.7 ①） */
-export async function GET(req: Request) {
-  const user = await getModuleUser("trade_review");
-  if (!user) {
-    const cur = await getCurrentUser();
-    return NextResponse.json(
-      { error: cur ? "未开通交易复盘模块" : "未登录" },
-      { status: cur ? 403 : 401 },
-    );
-  }
+export const GET = withModule("trade_review", async (req, { user }) => {
   const url = new URL(req.url);
   const period = url.searchParams.get("period") === "week" ? "week" : "day";
   const date = DATE_RE.test(url.searchParams.get("date") ?? "") ? url.searchParams.get("date")! : bjToday();
@@ -119,4 +110,4 @@ export async function GET(req: Request) {
     })),
     daily,
   });
-}
+});

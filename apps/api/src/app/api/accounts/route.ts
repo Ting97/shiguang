@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/accounts —— 全部账户（含动态余额） */
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const GET = withAuth(async (_req, { user }) => {
   const { rows } = await pool.query(
     `select a.id, a.name, a.icon, a.sort_order, a.opening_balance_cents,
             (a.opening_balance_cents + coalesce((
@@ -22,22 +21,20 @@ export async function GET() {
     [user.id],
   );
   return NextResponse.json({ accounts: rows });
-}
+});
 
 /** POST /api/accounts —— 新建账户 {name, icon?, openingBalanceCents?} */
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const POST = withAuth(async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
     icon?: string;
     openingBalanceCents?: number;
   };
   const name = body.name?.trim();
-  if (!name) return NextResponse.json({ error: "账户名称必填" }, { status: 400 });
-  if (name.length > 20) return NextResponse.json({ error: "账户名称过长" }, { status: 400 });
+  if (!name) throw ApiError.badRequest("账户名称必填");
+  if (name.length > 20) throw ApiError.badRequest("账户名称过长");
   const opening = body.openingBalanceCents ?? 0;
-  if (!Number.isInteger(opening)) return NextResponse.json({ error: "期初余额需为整数（分）" }, { status: 400 });
+  if (!Number.isInteger(opening)) throw ApiError.badRequest("期初余额需为整数（分）");
 
   try {
     const created = (
@@ -51,8 +48,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ account: created });
   } catch (e) {
     if (String(e).includes("accounts_user_id_name_key")) {
-      return NextResponse.json({ error: "已存在同名账户" }, { status: 400 });
+      throw ApiError.badRequest("已存在同名账户");
     }
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    throw e;
   }
-}
+});

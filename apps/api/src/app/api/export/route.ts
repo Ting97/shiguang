@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,9 +11,7 @@ const TZ = "Asia/Shanghai";
  * GET /api/export?format=json|md —— 导出我的全部数据（docs/06 P8：数据可携带）
  * json=全量备份（所有表）；md=可读的动态日记。生产环境建议定期下载 json 备份。
  */
-export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const GET = withAuth(async (req, { user }) => {
   const format = new URL(req.url).searchParams.get("format") ?? "json";
 
   const [entries, blocks, todos, transactions, diets, contacts, interactions, accounts, budgets] = await Promise.all([
@@ -129,4 +127,4 @@ export async function GET(req: Request) {
     budgets: budgets.rows,
   };
   return download(JSON.stringify(backup, null, 2), "json", "application/json");
-}
+});

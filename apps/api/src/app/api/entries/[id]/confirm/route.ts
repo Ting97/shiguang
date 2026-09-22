@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { withAuthParams } from "@/server/platform/http/route";
 import { confirmPending } from "@/server/timeline";
 
 export const runtime = "nodejs";
-
-const schema = z.object({
-  domain: z.enum(["schedule", "todo", "finance", "mood", "diet"]).optional(),
-  ignore: z.boolean().default(false),
-});
 
 /** POST /api/entries/:id/confirm —— 确认 pending 识别落库；ignore=true 丢弃 */
 export const POST = withAuthParams(async (req, { user, params }) => {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
-import { PROMPT_KEYS, invalidatePrompts, type PromptKey } from "@/server/ai/prompts";
+import { withAuthParams } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { invalidatePrompts, PROMPT_KEYS, type PromptKey } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,22 +18,20 @@ interface VersionPayload {
  * 3-A：优先取版本 payload（三件套整体回滚：system + user 模板 + 注入配置）；
  * 老版本（无 payload）仅回滚 system content，user 模板/配置保持当前覆盖不变。
  */
-export async function POST(req: Request, ctx: { params: Promise<{ key: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "仅管理员" }, { status: 403 });
+export const POST = withAuthParams(async (req, { user, params }) => {
+  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
 
-  const { key } = await ctx.params;
+  const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
-    return NextResponse.json({ error: "未知的 prompt key" }, { status: 404 });
+    throw ApiError.notFound("未知的 prompt key");
   }
   const { versionId } = (await req.json().catch(() => ({}))) as { versionId?: number };
-  if (!versionId) return NextResponse.json({ error: "缺少 versionId" }, { status: 400 });
+  if (!versionId) throw ApiError.badRequest("缺少 versionId");
 
   const ver = (
     await pool.query(`select id, content, payload from ai_prompt_versions where id = $1 and key = $2`, [versionId, key])
   ).rows[0];
-  if (!ver) return NextResponse.json({ error: "版本不存在" }, { status: 404 });
+  if (!ver) throw ApiError.notFound("版本不存在");
 
   const payload = (ver.payload ?? null) as VersionPayload | null;
   const content = payload?.system ?? ver.content;
@@ -61,4 +60,4 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
   );
   invalidatePrompts(key as PromptKey);
   return NextResponse.json({ ok: true, prompt: rows[0] });
-}
+});

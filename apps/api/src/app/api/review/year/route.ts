@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/server/identity/auth";
 import { hasApiKey } from "@shiguangri/ai";
-import { getOrGenerateReview } from "@/server/insight/review-cache";
-import { checkAiQuota } from "@/server/ai/quota";
-import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight/review-quota";
-import { getPromptBundle } from "@/server/ai/prompts";
+import { withAuth } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
+import { checkAiQuota, getPromptBundle } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight/review-input";
 import { buildReviewCtx } from "@/server/insight/review-ctx";
 
@@ -25,9 +24,7 @@ interface YearReview {
  * year 为 YYYY；聚合全年时间/待办/收支/人际/心情事实 → LLM 解读，不落库即时生成。
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
-export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const POST = withAuth(async (req, { user }) => {
   if (user.role !== "admin") {
     const q = await checkAiQuota(user.id);
     if (!q.allowed) {
@@ -39,7 +36,7 @@ export async function POST(req: Request) {
   }
   const { year, refresh } = (await req.json().catch(() => ({}))) as { year?: string; refresh?: boolean };
   if (!year || !YEAR_RE.test(year)) {
-    return NextResponse.json({ error: "year 需为 YYYY" }, { status: 400 });
+    throw ApiError.badRequest("year 需为 YYYY");
   }
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
@@ -58,13 +55,13 @@ export async function POST(req: Request) {
         timeoutMs: 90_000,
         onUsage: capture,
       });
-    const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 48)).filter(Boolean).slice(0, n) : []);
-    const sections = Array.isArray(parsed.sections)
-      ? parsed.sections
-          .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
-          .slice(0, 5)
-          .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 300) }))
-      : [];
+      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 48)).filter(Boolean).slice(0, n) : []);
+      const sections = Array.isArray(parsed.sections)
+        ? parsed.sections
+            .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
+            .slice(0, 5)
+            .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 300) }))
+        : [];
       await consumeGeneration(user.id, "year", year);
       return {
         summary:
@@ -83,4 +80,4 @@ export async function POST(req: Request) {
   const { review, cached, generatedAt } = result;
 
   return NextResponse.json({ review, cached, generatedAt, range: { from, to } });
-}
+});

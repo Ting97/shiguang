@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
-import { PROMPT_KEYS, getPromptBundle, assembleUserPrompt, getPrompt, type PromptKey } from "@/server/ai/prompts";
-import { writeAuditRecord } from "@/server/ai/audit";
+import { withAuthParams } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { assembleUserPrompt, getPrompt, getPromptBundle, PROMPT_KEYS, writeAuditRecord, type PromptKey } from "@/server/ai";
 import { listContactNames } from "@/server/timeline/analyze";
 import { loadProfileBlock } from "@/server/insight/review-input";
 import { buildReviewCtx, type ReviewKind } from "@/server/insight/review-ctx";
@@ -17,15 +17,13 @@ export const dynamic = "force-dynamic";
  * 不调 LLM、零 token；结果不落库；audit 仅记 stage='prompt_preview' 计数，不记内容。
  * sample 缺省时取管理员最近真实数据；period 供复盘类指定期间（日/周 YYYY-MM-DD、月 YYYY-MM、年 YYYY）。
  */
-export async function POST(req: Request, ctx: { params: Promise<{ key: string }> }) {
+export const POST = withAuthParams(async (req, { user, params }) => {
   const startedAt = Date.now();
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "仅管理员" }, { status: 403 });
+  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
 
-  const { key } = await ctx.params;
+  const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
-    return NextResponse.json({ error: "未知的 prompt key" }, { status: 404 });
+    throw ApiError.notFound("未知的 prompt key");
   }
   const { sample, period } = (await req.json().catch(() => ({}))) as { sample?: string; period?: string };
   const bundle = await getPromptBundle(key as PromptKey);
@@ -245,4 +243,4 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
     latencyMs: Date.now() - startedAt, ok: true,
   });
   return NextResponse.json({ ok: true, userPrompt, ctx: ctxOut, config: bundle.config });
-}
+});

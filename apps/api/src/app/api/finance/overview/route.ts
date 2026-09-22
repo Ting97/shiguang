@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { getCurrentUser } from "@/server/identity/auth";
+import { withAuth } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/finance/overview?month=YYYY-MM —— 月度概览：收支/储蓄率/分类占比/预算进度/环比/草稿数/账户余额 */
-export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
+export const GET = withAuth(async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
   if (!/^\d{4}-\d{2}$/.test(month)) {
-    return NextResponse.json({ error: "month 需为 YYYY-MM" }, { status: 400 });
+    throw ApiError.badRequest("month 需为 YYYY-MM");
   }
   const TZ = "Asia/Shanghai"; // 与时间模块一致：按北京日期切月
 
@@ -100,7 +99,7 @@ export async function GET(req: Request) {
     budget: budgetRows[0] ?? { monthly_limit_cents: 0, alert_threshold: 80 },
     accounts,
   });
-}
+});
 
 /** 月份平移（-1 上月） */
 function monthOf(key: string, delta: number): string {
