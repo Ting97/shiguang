@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { getCurrentUser } from "@/server/identity/auth";
-import { chat, extractJson } from "@shiguangri/ai";
+import { chat, extractJson, activeModel } from "@shiguangri/ai";
 import { z } from "zod";
 import { getPromptBundle, assembleUserPrompt } from "@/server/ai/prompts";
 import { loadProfileBlock } from "@/server/insight/review-input";
@@ -126,7 +126,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   } catch (e) {
     void writeAuditRecord({
       userId: user.id, entryId: null, stage: "decompose",
-      model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "decompose",
+      model: activeModel(), engine: "decompose",
       latencyMs: Date.now() - t0, ok: false, error: String(e).slice(0, 300),
       promptTokens, completionTokens,
     });
@@ -134,7 +134,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   void writeAuditRecord({
     userId: user.id, entryId: null, stage: "decompose",
-    model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "decompose",
+    model: activeModel(), engine: "decompose",
     latencyMs: Date.now() - t0, ok: true,
     promptTokens, completionTokens,
   });

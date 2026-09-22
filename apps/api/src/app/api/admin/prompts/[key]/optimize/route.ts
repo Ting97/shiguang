@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/identity/auth";
-import { chat } from "@shiguangri/ai";
+import { chat, activeModel } from "@shiguangri/ai";
 import { PROMPT_KEYS, PROMPT_META, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/server/ai/prompts";
 import { writeAuditRecord } from "@/server/ai/audit";
 
@@ -48,7 +48,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
       onUsage: (u) => {
         void writeAuditRecord({
           userId: user.id, entryId: null, stage: "prompt_optimize",
-          model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "prompt-optimize",
+          model: activeModel(), engine: "prompt-optimize",
           latencyMs: Date.now() - t0, ok: true,
           promptTokens: u.prompt_tokens, completionTokens: u.completion_tokens,
         });
@@ -68,7 +68,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
   } catch (e) {
     void writeAuditRecord({
       userId: user.id, entryId: null, stage: "prompt_optimize",
-      model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "prompt-optimize",
+      model: activeModel(), engine: "prompt-optimize",
       latencyMs: Date.now() - t0, ok: false, error: String(e).slice(0, 300),
     });
     return NextResponse.json({ error: `AI 优化失败：${e instanceof Error ? e.message : String(e).slice(0, 200)}` }, { status: 502 });

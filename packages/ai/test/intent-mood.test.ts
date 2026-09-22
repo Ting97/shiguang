@@ -136,15 +136,22 @@ test("心情词识别（正/负向）", () => {
 // ---------- 复合句：五域独立命中 ----------
 
 test("复合句：日程+金额+人物+心情同时命中", async () => {
-  const r = await parse("中午和老王吃饭花了260，吃得挺开心");
+  // FR-D2.3：演示人名移除——人物识别改由联系人名单驱动（contactNames）
+  const r = await parseInput("中午和老王吃饭花了260，吃得挺开心", {
+    now: NOW, forceRules: true, contactNames: ["老王"],
+  });
   assert.equal(r.intent, "schedule");
   assert.equal(r.activity, "social");
   assert.equal(r.finance.amountCents, 26000); // 金额恒为正，方向在 direction
   assert.equal(r.finance.direction, "out");
-  assert.deepEqual(r.people.map((p) => p.name), ["老王"]);
+  assert.deepEqual(r.people.map((p) => p.name), ["老王"], "名单命中 → 产出人物");
   assert.equal(r.mood.label, "开心");
   assert.ok((r.mood.score ?? 0) > 0);
   assert.equal(r.diet.applicable, true, "吃饭话术饮食域应命中");
+
+  // 空名单：规则引擎不产人物（同名话术）
+  const r2 = await parse("中午和老王吃饭花了260，吃得挺开心");
+  assert.deepEqual(r2.people.map((p) => p.name), [], "空名单不产人物");
 });
 
 // ---------- 置信度结构 ----------

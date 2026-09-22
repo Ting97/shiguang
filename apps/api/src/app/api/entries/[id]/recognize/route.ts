@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import { getCurrentUser } from "@/server/identity/auth";
-import { parseInput, DOMAIN_LABELS, type Domain, type ParseResult } from "@shiguangri/ai";
+import { parseInput, DOMAIN_LABELS, type Domain, type ParseResult, activeModel } from "@shiguangri/ai";
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/server/ai/quota";
 import { writeAuditRecord } from "@/server/ai/audit";
@@ -73,7 +73,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型
   void writeAuditRecord({
     userId: user.id, entryId: id, stage: "parse",
-    model: r.engine !== "rules" || promptTokens > 0 ? process.env.GLM_MODEL ?? "glm-5.3-flash" : null,
+    model: r.engine !== "rules" || promptTokens > 0 ? activeModel() : null,
     engine: r.engine,
     latencyMs: Date.now() - t0, ok: true,
     promptTokens, completionTokens,

@@ -54,7 +54,11 @@ const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["schedule"]["activity"]]> = [
   [/吃饭|聊|电话|爸妈|老王|小李|朋友|同事|随礼|满月|搬家|帮忙/, "social"],
 ];
 
-const PEOPLE_RE = [/老王/g, /爸妈/g, /小李/g, /朋友/g, /同事(?:小李)?/g];
+/** 规则人物识别（FR-D2.3）：演示人名已移除——由调用方传入的联系人名单动态生成；空名单不产人物 */
+function peopleRegexFrom(names: string[] | undefined): RegExp[] {
+  if (!names || names.length === 0) return [];
+  return names.slice(0, 100).map((n) => new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"));
+}
 
 const DIET_RE = /(吃了|吃了个|吃了点|吃了顿|吃饭|喝了一?杯|喝了杯|喝了瓶|早茶|早饭|早餐|午饭|晚餐|晚饭|下午茶|加餐|夜宵|宵夜|奶茶|咖啡|汉堡|烧烤|火锅|面条|牛肉面|米饭|泡面|外卖|零食|可乐|雪碧|啤酒|水果|苹果|香蕉|火腿肠)/;
 /** 明确无热量的饮品不计入饮食 */
@@ -79,14 +83,14 @@ function makeTitle(text: string): string {
   return (cleaned || text).slice(0, 20);
 }
 
-function ruleExtract(text: string): LlmExtractionT {
+function ruleExtract(text: string, contactNames?: string[]): LlmExtractionT {
   let activity: LlmExtractionT["schedule"]["activity"] = "other";
   for (const [re, act] of RULE_KEYWORDS) {
     if (re.test(text)) { activity = act; break; }
   }
   const amount = parseAmountCents(text);
   // 人物去重："同事小李"与"小李"同时命中时保留更短的称呼
-  const rawNames = PEOPLE_RE.map((re) => [...text.matchAll(re)].map((m) => m[0])).flat();
+  const rawNames = peopleRegexFrom(contactNames).map((re) => [...text.matchAll(re)].map((m) => m[0])).flat();
   const people = [...new Set(rawNames)]
     .filter((n) => !rawNames.some((m) => m !== n && m.includes(n)))
     .map((name) => ({ name, event: undefined }));
@@ -436,7 +440,7 @@ function rulesPipeline(
   opts: ParseOptions,
   fallbackReason: string,
 ): ParseResultT {
-  const ext = ruleExtract(text);
+  const ext = ruleExtract(text, opts.contactNames);
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
   const durationFromText = parseDuration(text);
   const durationMin = ext.schedule.durationMin ?? durationFromText ?? defaults[ext.schedule.activity];

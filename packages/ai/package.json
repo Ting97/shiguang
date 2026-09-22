@@ -12,6 +12,8 @@
     "poc:jev:live": "ZHIPUAI_LIVE=1 tsx --env-file-if-exists=../../.env src/run-jev-poc.ts --glm-live"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^0.2.16",
+    "ai": "^4.3.19",
     "zod": "^3.24.0"
   },
   "devDependencies": {

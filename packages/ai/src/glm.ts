@@ -1,10 +1,24 @@
 /**
  * GLM 客户端 —— OpenAI 兼容协议（智谱开放平台）
- * 环境变量：ZHIPUAI_API_KEY / ZHIPUAI_BASE_URL / GLM_MODEL
+ * 环境变量：ZHIPUAI_API_KEY / ZHIPUAI_BASE_URL / GLM_MODEL / GLM_TRANSPORT
+ * 传输层（REQ-004 FR-D1 / 4-E）：
+ *   GLM_TRANSPORT=sdk     Vercel AI SDK（@ai-sdk/openai-compatible）——默认。重试/降级/熔断为策略层保留，
+ *                         GLM 私有扩展（thinking/reasoning_effort/max_tokens）经 body 补丁 fetch 注入。
+ *                         切换前经 poc-20 实测对照（SDK 78% ≥ legacy 67%，同参同模型）。
+ *   GLM_TRANSPORT=legacy  自研 fetch 实现（等价回退开关，保留一个版本周期）
  */
+import { generateText } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { APICallError } from "@ai-sdk/provider";
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 const DEFAULT_MODEL = "glm-5.3-flash";
+
+/** 传输层选择：sdk = Vercel AI SDK（默认）；legacy = 自研 fetch（等价回退开关，GLM_TRANSPORT=legacy） */
+export function glmTransport(): "sdk" | "legacy" {
+  const t = (process.env.GLM_TRANSPORT ?? "sdk").toLowerCase();
+  return t === "legacy" ? "legacy" : "sdk";
+}
 
 export function hasApiKey(): boolean {
   return Boolean(process.env.ZHIPUAI_API_KEY);
@@ -95,7 +109,11 @@ export async function chat(opts: ChatOptions): Promise<string> {
   }
 
   // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）
-  async function chatOnce(m: string, deadline: number): Promise<string> {
+  const chatOnce = glmTransport() === "sdk"
+    ? (m: string, deadline: number) => sdkOnce(m, deadline, opts)
+    : (m: string, deadline: number) => legacyOnce(m, deadline, opts, body);
+
+  async function legacyOnce(m: string, deadline: number, opts: ChatOptions, body: Record<string, unknown>): Promise<string> {
     const maxAttempts = 5;
     let lastErr: Error = new Error(`GLM(${m}) 未响应`);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -154,7 +172,7 @@ export async function chat(opts: ChatOptions): Promise<string> {
     return await chatOnce(model, deadline);
   } catch (e) {
     if (e instanceof GlmError && e.kind === "quota") tripQuotaBreaker();
-    if (fallback && fallback !== model && String(e).includes("HTTP 429") && deadline - Date.now() > 5_000) {
+    if (fallback && fallback !== model && e instanceof GlmError && e.kind === "rate" && deadline - Date.now() > 5_000) {
       console.warn(`[ai] ${model} 持续限流，降级 ${fallback} 兜底`);
       return await chatOnce(fallback, deadline);
     }
@@ -193,8 +211,23 @@ export interface TranscribeOptions {
   onUsage?: (usage: ChatUsage) => void;
 }
 
-/** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本 */
+/** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本。
+ * 4-E（FR-D2.4）：2 次重试 + 总预算控制（timeoutMs 为单次上限，重试共用该预算的一半粒度）。 */
 export async function transcribeAudio(opts: TranscribeOptions): Promise<string> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await transcribeOnce(opts);
+    } catch (e) {
+      lastErr = e;
+      if (e instanceof Error && /HTTP 4(0[13]|0[04])/.test(e.message)) throw e; // 鉴权/参数类不重试
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+async function transcribeOnce(opts: TranscribeOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY;
   if (!key) throw new GlmError("auth", "缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
   const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
@@ -228,3 +261,71 @@ export async function transcribeAudio(opts: TranscribeOptions): Promise<string> 
   }
 }
 
+/** SDK 单次调用（Vercel AI SDK）：GLM 私有扩展经 body 补丁 fetch 注入；结构化错误 → GlmError 分类 */
+async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<string> {
+  const key = process.env.ZHIPUAI_API_KEY as string;
+  const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
+  const extensions = (model: string): Record<string, unknown> => {
+    const ext: Record<string, unknown> = {};
+    if (base.includes("bigmodel.cn")) {
+      if (/glm-5\./i.test(model)) {
+        // GLM-5.3 始终思考：thinking enabled + reasoning_effort 控强度；思考占输出 token，上限提至 4096
+        ext.thinking = { type: "enabled" };
+        ext.reasoning_effort = opts.reasoningEffort ?? "low";
+      } else {
+        ext.thinking = { type: opts.thinking ? "enabled" : "disabled" };
+      }
+    }
+    return ext;
+  };
+  const provider = createOpenAICompatible({
+    name: "glm",
+    baseURL: base,
+    apiKey: key,
+    fetch: async (input: any, init: any) => {
+      if (init?.body && typeof init.body === "string") {
+        try {
+          const parsed = JSON.parse(init.body);
+          const target = typeof parsed.model === "string" ? parsed.model : m;
+          if (!opts.maxTokens && /glm-5\./i.test(target)) parsed.max_tokens = 4096;
+          Object.assign(parsed, extensions(target));
+          init = { ...init, body: JSON.stringify(parsed) };
+        } catch {
+          /* 非 JSON body 原样透传 */
+        }
+      }
+      return fetch(input, init);
+    },
+  });
+
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), Math.max(0, deadline - Date.now()));
+  try {
+    const { text, usage } = await generateText({
+      model: provider.chatModel(m),
+      system: opts.system,
+      prompt: opts.user,
+      temperature: opts.temperature ?? 0.1,
+      maxTokens: opts.maxTokens ?? 1024,
+      abortSignal: ctl.signal,
+    });
+    if (opts.onUsage && usage) {
+      opts.onUsage({
+        prompt_tokens: Number(usage.promptTokens ?? 0),
+        completion_tokens: Number(usage.completionTokens ?? 0),
+      });
+    }
+    return text ?? "";
+  } catch (e) {
+    if (APICallError.isInstance(e)) {
+      const status = e.statusCode ?? null;
+      throw new GlmError(classifyGlmFailure(status, e.message), `GLM(${m}) HTTP ${status ?? "?"}: ${String(e.message).slice(0, 200)}`);
+    }
+    if (e instanceof Error && (e.name === "AbortError" || /abort/i.test(e.message))) {
+      throw new GlmError("timeout", `GLM(${m}) 响应超时（预算耗尽）`);
+    }
+    throw e instanceof Error ? e : new GlmError("network", String(e));
+  } finally {
+    clearTimeout(timer);
+  }
+}

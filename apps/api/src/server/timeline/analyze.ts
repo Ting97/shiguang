@@ -1,7 +1,7 @@
 import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import {
   parseInput, parseHybridInput, SpaceClassification, chat, jevAsk, jevEnabled,
-  spaceClassifyQuestions, HybridUnavailableError,
+  spaceClassifyQuestions, HybridUnavailableError, activeModel, extractJson,
 } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
@@ -85,7 +85,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
       maxTokens: 256,
       timeoutMs: 45_000,
     });
-    const parsed = SpaceClassification.safeParse(JSON.parse(extractJsonLoose(raw)));
+    const parsed = SpaceClassification.safeParse(extractJson(raw));
     if (!parsed.success) return;
     const { spaceId, confidence } = parsed.data;
     if (!spaceId || confidence < SPACE_CONFIDENCE_THRESHOLD) return;
@@ -100,26 +100,17 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
     ]);
     void writeAuditRecord({
       userId, entryId, stage: "space_classify",
-      model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "space-classify",
+      model: activeModel(), engine: "space-classify",
       latencyMs: Date.now() - t0, ok: true,
     });
   } catch (e) {
     console.warn("[space-classify] 归属失败（静默忽略）:", String(e).slice(0, 160));
     void writeAuditRecord({
       userId, entryId, stage: "space_classify",
-      model: process.env.GLM_MODEL ?? "glm-5.3-flash", engine: "space-classify",
+      model: activeModel(), engine: "space-classify",
       ok: false, error: String(e).slice(0, 300),
     });
   }
-}
-
-/** 宽松提取 JSON（分类输出可能带代码围栏） */
-function extractJsonLoose(raw: string): string {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const body = fenced ? fenced[1] : raw;
-  const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  return start >= 0 && end > start ? body.slice(start, end + 1) : body;
 }
 
 /** 登记簿 upsert：每次识别写一行（entry+domain 唯一） */
@@ -271,7 +262,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     engine = r.engine;
     if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
     // 规则兜底但 LLM 已被调用过（如输出不合格重问后仍失败）时也记模型名：token 消耗要如实归属
-    if (r.engine !== "rules" || promptTokens > 0) model = process.env.GLM_MODEL ?? "glm-5.3-flash";
+    if (r.engine !== "rules" || promptTokens > 0) model = activeModel();
     const pendingDomains: string[] = [];
 
     await client.query("begin");
