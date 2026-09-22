@@ -109,6 +109,33 @@ test("星型图谱：空联系人返回空图不抛错", () => {
   assert.equal(g.center.x, 300);
 });
 
+test("星型图谱：外圈节点名字不超出画布（label 高度入边距）", () => {
+  // 简单档(1)节点在最外圈：名字画在节点下方 r+15，不得越过 viewBox 下边界
+  const g = buildStarGraph([c("1", "点头之交", "同学", 0, 0, 1)], 600);
+  const nd = g.nodes[0];
+  assert.ok(
+    nd.y + nd.labelDy + 12 <= g.height,
+    `名字底缘 ${nd.y + nd.labelDy + 12} 应 ≤ 画布高 ${g.height}`,
+  );
+});
+
+test("星型图谱：同轨相邻角度过近时 label 上下错位", () => {
+  // 24 个同档节点挤同一轨道（角距 0.26rad < 0.3 阈值）→ 交替上下错位
+  const input = Array.from({ length: 24 }, (_, i) => c(`u${i}`, `联系人${i}`, "朋友", 50, 1, 3));
+  const g = buildStarGraph(input, 480);
+  const ups = g.nodes.filter((n) => n.labelDy < 0);
+  const downs = g.nodes.filter((n) => n.labelDy > 0);
+  assert.ok(ups.length > 0, "应有 label 被翻到上方");
+  assert.ok(downs.length > 0, "应仍有 label 留在下方");
+  // 翻上方的节点与前一节点角度差必然小于 0.3rad
+  const angleOf = (n: (typeof g.nodes)[0]) => Math.atan2(n.y - g.center.y, n.x - g.center.x);
+  for (const up of ups) {
+    const sorted = [...g.nodes].sort((a, b) => angleOf(a) - angleOf(b));
+    const i = sorted.indexOf(up);
+    if (i > 0) assert.ok(angleOf(up) - angleOf(sorted[i - 1]) < 0.3, "翻上方者与前一节点过近");
+  }
+});
+
 test("星型图谱：布局确定性 —— 同输入同输出", () => {
   const input = [c("1", "老王", "朋友", 60, 3, 4), c("2", "张总", "客户", 40, 1, 2), c("3", "同事小李", "同事", 50, 2, 3)];
   const a = buildStarGraph(input, 600);

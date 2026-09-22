@@ -26,6 +26,8 @@ export interface GraphNode {
   x: number;
   y: number;
   r: number;
+  /** 名字标签的纵向偏移（相对节点中心）：默认在下方 r+15；同轨相邻过近时翻到上方 -(r+13) */
+  labelDy: number;
   /** 归一化互动频率 0~1（边透明度/提示用） */
   heat: number;
   intimacy: number;
@@ -70,7 +72,8 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
     return Math.min(26, 14 + (intimacy / 100) * 12 + count);
   };
   const maxR = n ? Math.max(...contacts.map(nodeR)) : 20;
-  const outer = size / 2 - maxR - 26; // 最外圈（简单档）
+  // 边距 44 = 名字标签高度入账（26 时代外圈下方名字会被 viewBox 下边界裁掉）
+  const outer = size / 2 - maxR - 44; // 最外圈（简单档）
   const inner = outer * 0.4; // 最内圈（亲密档）
   const ringGap = (outer - inner) / (IMPORTANCE_TIERS.length - 1);
   /** 重要程度 → 轨道半径：5(亲密)=inner 最近，1(简单)=outer 最远 */
@@ -107,6 +110,7 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
         x,
         y,
         r,
+        labelDy: r + 15, // 默认在下方；同轨过近错位在下方统一修正
         heat: count / maxCount,
         intimacy: Math.min(100, Math.max(0, Number(c.intimacy) || 0)),
         count,
@@ -122,6 +126,23 @@ export function buildStarGraph(contacts: GraphContact[], size: number = DEFAULT_
       slot += 1;
     }
     slot += 0.5; // 组间空隙
+  }
+
+  // 同轨道相邻角度过近（<0.3rad）时，名字标签交替翻到节点上方，避免相互叠字
+  const byTier = new Map<number, GraphNode[]>();
+  for (const nd of nodes) {
+    const arr = byTier.get(nd.tier) ?? [];
+    arr.push(nd);
+    byTier.set(nd.tier, arr);
+  }
+  const angleOf = (nd: GraphNode) => Math.atan2(nd.y - cy, nd.x - cx);
+  for (const arr of byTier.values()) {
+    arr.sort((a, b) => angleOf(a) - angleOf(b));
+    let flip = false;
+    for (let i = 1; i < arr.length; i++) {
+      flip = angleOf(arr[i]) - angleOf(arr[i - 1]) < 0.3 ? !flip : false;
+      if (flip) arr[i].labelDy = -(arr[i].r + 13);
+    }
   }
 
   return {
