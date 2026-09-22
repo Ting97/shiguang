@@ -551,6 +551,7 @@ export default function TodoBoard() {
                             className={`min-w-0 flex-1 truncate text-left text-sm transition ${done ? "text-ink-dim line-through" : ""}`}
                             title={t.title}
                           >
+                            {t.kind === "action" && <span className="mr-1.5 inline-flex shrink-0 items-center rounded-lg bg-slate-500/15 px-1.5 py-0.5 align-middle text-[10px] font-medium text-ink-dim" title="独立行动（不属于任何 todo）">行动</span>}
                               {t.title}
                             </button>
                           {t.activity_name && <span className="hidden shrink-0 text-[11px] text-ink-faint sm:inline">{t.icon} {t.activity_name}</span>}
@@ -813,7 +814,7 @@ export default function TodoBoard() {
                         onClick={() => patchTodo(menuRow.todo.id, { today: !menuRow.todo.today_tag_date }, menuRow.todo.today_tag_date ? "已移出今日" : "☀️ 已加入今日")}
                       />
                     )}
-                    {!isDoneRow(menuRow.todo) && (
+                    {!isDoneRow(menuRow.todo) && menuRow.todo.kind === "todo" && (
                       <MenuItem
                         icon="＋"
                         label="添加行动"

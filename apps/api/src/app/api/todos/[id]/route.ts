@@ -88,12 +88,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       return NextResponse.json({ error: "行动不支持单独标记，请标记父 todo" }, { status: 400 });
     }
   }
-  // 每日重复仅对行动生效（顶层待办不设重复）
+  // 每日重复仅对行动生效（kind='action'，N6 后含独立行动；顶层待办不设重复）
   if (body.repeatDaily !== undefined) {
-    const isChild = (
-      await pool.query(`select parent_todo_id from todos where id = $1 and user_id = $2`, [id, user.id])
-    ).rows[0]?.parent_todo_id;
-    if (!isChild) {
+    const kind = (
+      await pool.query(`select kind from todos where id = $1 and user_id = $2`, [id, user.id])
+    ).rows[0]?.kind;
+    if (kind !== "action") {
       return NextResponse.json({ error: "每日重复仅支持行动" }, { status: 400 });
     }
   }

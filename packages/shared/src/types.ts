@@ -46,6 +46,8 @@ export interface TodoRow {
   repeat_daily: boolean;
   repeat_done_count: number;
   last_done_date: string | null;
+  /* —— REQ-002 N6 行动解耦 —— */
+  kind: "todo" | "action"; // todo=一级任务；action=行动（可挂父，也可无父独立存在）
 }
 
 /** 目标空间（REQ-001 R3）：宏大目标容器 */
@@ -68,9 +70,9 @@ export interface Space {
   entry_count?: number;
 }
 
-/** 今日行动清单条目：行动 + 父待办上下文 */
+/** 今日行动清单条目：行动 + 父待办上下文（独立行动无父，parent_title 为 null） */
 export interface TodayAction extends TodoRow {
-  parent_title: string;
+  parent_title: string | null;
   parent_due: string | null;
 }
 

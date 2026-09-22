@@ -47,25 +47,27 @@ export async function GET(req: Request) {
     done: countRows[0]?.done ?? 0,
   };
 
-  // 首页「今日行动清单」：行动级 + 今天到期的顶层待办 + 过期未完成（拖欠的也要还）
-  // 行动：① 每日重复 ② 父待办标记今日 ③ 父待办今日到期 ④ 行动自身今日到期 ⑤ 行动自身已过期
-  // 顶层待办：自身今日到期（含已完成——进「今日已完成」可恢复区）或 已过期未完成
+  // 首页「今日行动清单」v2（REQ-002 N6）：全部行动（kind='action'，含独立行动）+ 今天到期/过期的顶层 todo
+  // 行动：① 每日重复 ② 独立行动标记今日 ③ 行动自身今日到期（含已完成）④ 行动自身已过期未完成
+  //       ⑤ 父待办标记今日 ⑥ 父待办今日到期（有父行动随父，现状规则）
+  // 顶层 todo：自身今日到期（含已完成——进「今日已完成」可恢复区）或 已过期未完成
   if (view === "today-actions") {
     await restoreRepeating(user.id);
     const { rows } = await pool.query(
       `select x.* from (
          select a.*, p.title as parent_title, p.due_at as parent_due
-         from todos a join todos p on p.id = a.parent_todo_id
-         where a.user_id = $1
+         from todos a left join todos p on p.id = a.parent_todo_id
+         where a.user_id = $1 and a.kind = 'action'
            and ( a.repeat_daily
+              or a.today_tag_date = ${BJ_TODAY}
+              or ((a.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY})
+              or ((a.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY} and a.status = 'pending')
               or p.today_tag_date = ${BJ_TODAY}
-              or ((p.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and p.status = 'pending')
-              or ((a.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and a.status = 'pending')
-              or ((a.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY} and a.status = 'pending') )
+              or ((p.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and p.status = 'pending') )
          union all
          select t.*, null::text as parent_title, t.due_at as parent_due
          from todos t
-         where t.user_id = $1 and t.parent_todo_id is null
+         where t.user_id = $1 and t.parent_todo_id is null and t.kind = 'todo'
            and (
              (t.status in ('pending', 'done') and (t.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY})
              or (t.status = 'pending' and t.due_at is not null and (t.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY})
@@ -132,19 +134,21 @@ export async function POST(req: Request) {
     spaceId?: string | null;
     afterId?: string | null;
     repeatDaily?: boolean;
+    kind?: "todo" | "action"; // N6 行动解耦：kind='action' 且不传 parentId = 独立行动
   };
   const title = (body.title ?? "").trim();
   if (!title) return NextResponse.json({ error: "标题不能为空" }, { status: 400 });
   if (title.length > 200) return NextResponse.json({ error: "标题太长了（≤200 字）" }, { status: 400 });
   const note = body.note?.trim() ? body.note.trim() : null;
   if (note && note.length > 1000) return NextResponse.json({ error: "详情内容太长了（≤1000 字）" }, { status: 400 });
+  const kind = body.kind === "action" ? "action" : "todo";
 
-  // 行动：校验父属主 + 最多一层（父自身不得再有 parent，且须未完成）；行动空间缺省继承父待办
+  // 行动：校验父属主 + 最多一层（父自身不得再有 parent、须 kind='todo' 且未完成）；行动空间缺省继承父待办
   let parentId: string | null = null;
   let parentSpaceId: string | null = null;
   if (body.parentId) {
     const hit = await pool.query(
-      `select id, space_id from todos where id = $1 and user_id = $2 and parent_todo_id is null and status = 'pending'`,
+      `select id, space_id from todos where id = $1 and user_id = $2 and parent_todo_id is null and kind = 'todo' and status = 'pending'`,
       [body.parentId, user.id],
     );
     if (!hit.rows[0]) {
@@ -216,15 +220,16 @@ export async function POST(req: Request) {
 
   const todo = (
     await pool.query(
-      `insert into todos (user_id, title, activity_id, source, parent_todo_id, is_important, today_tag_date, due_at, remind_at, note, space_id, sort, repeat_daily)
+      `insert into todos (user_id, title, activity_id, source, parent_todo_id, is_important, today_tag_date, due_at, remind_at, note, space_id, sort, repeat_daily, kind)
        values ($1, $2, $3, 'manual', $4, $5,
                ${marked && body.today ? BJ_TODAY : "null"},
-               $6, $7, $8, $9, $10, $11) returning *`,
+               $6, $7, $8, $9, $10, $11, $12) returning *`,
       [
         user.id, title, activityId, parentId, marked && body.important ? true : false,
         dueAt, dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000).toISOString() : null,
         note, spaceId, sort,
-        parentId ? body.repeatDaily === true : false, // 每日重复仅对行动生效
+        parentId || kind === "action" ? body.repeatDaily === true : false, // 每日重复仅对行动生效（含独立行动）
+        kind,
       ],
     )
   ).rows[0];

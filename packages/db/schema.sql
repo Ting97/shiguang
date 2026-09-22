@@ -170,12 +170,18 @@ create table if not exists public.todos (
   parent_todo_id uuid references public.todos(id) on delete cascade, -- 子待办（仅一层，应用层校验；migrations/020）
   is_important boolean not null default false,                        -- ⭐ 重要（微软 To Do 式标记）
   today_tag_date date,                                                -- ☀️ 今日标记（=标记当天北京日期，跨零点惰性失效）
-  note text,                                                          -- 子任务详情内容（≤1000 字，应用层校验；列表只展示标题，点开看详情；migrations/021）
+  sort         int not null default 0,                                -- 行动排序（插入式拆解平移；migrations/022）
+  repeat_daily boolean not null default false,                        -- 🔁 每日重复行动（完成后次日 06:00 惰性恢复；migrations/022）
+  repeat_done_count int not null default 0,                           -- 每日重复累计完成次数（migrations/022）
+  last_done_date date,                                                -- 最近完成记录日（同记录日去重；migrations/022）
+  kind         text not null default 'todo' check (kind in ('todo','action')), -- 类型：todo=一级任务 / action=行动（可无父独立存在；migrations/027）
+  note text,                                                          -- 行动详情内容（≤1000 字，应用层校验；列表只展示标题，点开看详情；migrations/021）
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_todos_user_due on public.todos (user_id, due_at);
 create index if not exists idx_todos_user_parent on public.todos (user_id, parent_todo_id);
 create index if not exists idx_todos_user_today on public.todos (user_id, today_tag_date);
+create index if not exists idx_todos_user_kind on public.todos (user_id, kind);
 create index if not exists idx_todos_user_important on public.todos (user_id, is_important);
 
 create index if not exists idx_blocks_user_range on public.time_blocks (user_id, start_at desc);

@@ -42,7 +42,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   ).rows[0];
   if (!todo) return NextResponse.json({ error: "todo 不存在" }, { status: 404 });
 
-  const isAction = !!todo.parent_todo_id;
+  const isAction = todo.kind === "action"; // N6：行动（有父或独立）均 kind='action'
+  const hasParent = !!todo.parent_todo_id;
   const isDecomposable = todo.status === "pending";
   if (!isDecomposable) return NextResponse.json({ error: "已完成的 todo 不再拆解" }, { status: 400 });
 
@@ -50,17 +51,36 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const space = todo.space_id
     ? (await pool.query(`select name, description from goal_spaces where id = $1`, [todo.space_id])).rows[0]
     : null;
-  const parent = isAction
+  const parent = isAction && hasParent
     ? (await pool.query(`select title, note, due_at from todos where id = $1`, [todo.parent_todo_id])).rows[0]
     : null;
-  const siblings = (
-    await pool.query(
-      `select id, title, status from todos
-       where user_id = $1 and parent_todo_id = $2 and id <> $3
-       order by sort`,
-      [user.id, isAction ? todo.parent_todo_id : todo.id, todo.id],
-    )
-  ).rows;
+  // 去重范围：有父行动=同父兄弟；独立行动=全部独立行动；顶层 todo=其子行动
+  const siblings = isAction && hasParent
+    ? (
+        await pool.query(
+          `select id, title, status from todos
+           where user_id = $1 and parent_todo_id = $2 and kind = 'action' and id <> $3
+           order by sort`,
+          [user.id, todo.parent_todo_id, todo.id],
+        )
+      ).rows
+    : isAction
+      ? (
+          await pool.query(
+            `select id, title, status from todos
+             where user_id = $1 and parent_todo_id is null and kind = 'action' and id <> $2
+             order by sort`,
+            [user.id, todo.id],
+          )
+        ).rows
+      : (
+          await pool.query(
+            `select id, title, status from todos
+             where user_id = $1 and parent_todo_id = $2 and kind = 'action'
+             order by sort`,
+            [user.id, todo.id],
+          )
+        ).rows;
   const existingTitles = siblings.filter((s) => s.status === "pending").map((s) => s.title);
   const profileBlock = await loadProfileBlock(user.id);
 
@@ -118,16 +138,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     await client.query("begin");
 
     let insertSort: number;
-    if (isAction) {
-      // 插入到锚点行动之后：后续行动 sort 平移
+    let insertParent: string | null;
+    if (isAction && hasParent) {
+      // 有父行动：插入到锚点行动之后，后续同父行动 sort 平移
       await client.query(
         `update todos set sort = sort + $1
-         where user_id = $2 and parent_todo_id = $3 and sort > $4`,
+         where user_id = $2 and parent_todo_id = $3 and kind = 'action' and sort > $4`,
         [actions.length, user.id, todo.parent_todo_id, todo.sort],
       );
       insertSort = todo.sort + 1;
+      insertParent = todo.parent_todo_id;
+    } else if (isAction) {
+      // 独立行动：产出独立行动插入其后，后续独立行动 sort 平移（顶层 todo 恒 sort=0，不受扰动）
+      await client.query(
+        `update todos set sort = sort + $1
+         where user_id = $2 and parent_todo_id is null and kind = 'action' and sort > $3`,
+        [actions.length, user.id, todo.sort],
+      );
+      insertSort = todo.sort + 1;
+      insertParent = null;
     } else {
-      // 拆待办：mode 处理已有未完成行动
+      // 拆顶层 todo：mode 处理已有未完成行动
       const { rows: pendingRows } = await client.query(
         `select id from todos where user_id = $1 and parent_todo_id = $2 and status = 'pending'`,
         [user.id, todo.id],
@@ -149,14 +180,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         )
       ).rows[0];
       insertSort = maxRow.m + 1;
+      insertParent = todo.id;
     }
 
     const inserted: { id: string; title: string; sort: number }[] = [];
     for (const a of actions) {
       const { rows } = await client.query(
-        `insert into todos (user_id, title, source, parent_todo_id, activity_id, space_id, sort, repeat_daily)
-         values ($1, $2, 'ai', $3, $4, $5, $6, false) returning id, title, sort`,
-        [user.id, a.title, isAction ? todo.parent_todo_id : todo.id, todo.activity_id, todo.space_id, insertSort++],
+        `insert into todos (user_id, title, source, parent_todo_id, activity_id, space_id, sort, repeat_daily, kind)
+         values ($1, $2, 'ai', $3, $4, $5, $6, false, 'action') returning id, title, sort`,
+        [user.id, a.title, insertParent, todo.activity_id, todo.space_id, insertSort++],
       );
       inserted.push(rows[0]);
     }
