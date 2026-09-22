@@ -66,7 +66,7 @@ function validateTpl(tpl: string, placeholders: string[]): { missing: string[]; 
   return { missing: placeholders.filter((p) => !found.has(p)), unknown: [...found].filter((p) => !known.has(p)) };
 }
 
-type Section = "system" | "input" | "versions";
+type _Section = "system" | "input" | "versions";
 
 /** 调用引擎模式（REQ-003 3-C 管理台开关）：off=全 GLM / shadow=影子对照 / on=实时接管（3-D 已上线） */
 type EngineMode = "off" | "shadow" | "on";

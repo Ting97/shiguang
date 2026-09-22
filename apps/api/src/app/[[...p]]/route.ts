@@ -43,7 +43,7 @@ function fileStream(path: string): ReadableStream | null {
   return Readable.toWeb(createReadStream(path)) as unknown as ReadableStream;
 }
 
-function respond(path: string, req: Request): NextResponse {
+function respond(path: string, _req: Request): NextResponse {
   const immutable = path.includes(`${join("_next", "static")}`) || path.includes("_next/static");
   const stream = fileStream(path);
   if (!stream) return new NextResponse(null, { status: 404 });

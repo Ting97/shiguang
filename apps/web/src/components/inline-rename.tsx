@@ -20,7 +20,7 @@ export default function InlineRename({
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(value);
-  const [busy, setBusy] = useState(false);
+  const [_busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

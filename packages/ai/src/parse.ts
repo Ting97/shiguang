@@ -142,7 +142,7 @@ export function toCstWallClock(d: Date): string {
 
 /** 从原话确定性恢复饮食条目（规则路径整句当 name 时的兜底）：已不再用于 AI 路径（v2 schema 直接校验拒绝） */
 export function recoverDietItemsFromText(text: string): { name: string | null; amount: string | null; kcal: number | null }[] | null {
-  let t = text.trim()
+  const t = text.trim()
     .replace(/^(今天|今日|刚才|刚刚|现在|早上|中午|晚上)/, "")
     .replace(/^(喝了|吃了|喝|吃|点了|点了)/, "")
     .replace(/^(了)/, "");

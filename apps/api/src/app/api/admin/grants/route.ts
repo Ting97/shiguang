@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getAdminUser, getCurrentUser } from "@/lib/auth";
-import { MODULES, listUserModules, type ModuleKey } from "@/lib/modules";
+import { MODULES, listUserModules } from "@/lib/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

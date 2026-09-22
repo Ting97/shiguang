@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { chat } from "@shiguangri/ai";
-import { PROMPT_KEYS, PROMPT_META, defaultPrompt, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
+import { PROMPT_KEYS, PROMPT_META, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
 import { writeAuditRecord } from "@/lib/audit";
 
 export const runtime = "nodejs";

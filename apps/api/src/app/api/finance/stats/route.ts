@@ -87,7 +87,7 @@ export async function GET(req: Request) {
   ]);
 
   // 周内日趋势（缺失日补零）
-  let daily: { date: string; inCents: number; outCents: number }[] = [];
+  const daily: { date: string; inCents: number; outCents: number }[] = [];
   if (period === "week") {
     const rows = (
       await pool.query(

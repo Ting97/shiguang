@@ -5,7 +5,7 @@ import {
 } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle } from "./prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
-import { inferGroupFromContext, inferInteractionType } from "@shiguangri/shared/social";
+import { inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
 import { jevShadowCompare } from "@/lib/jev-shadow";

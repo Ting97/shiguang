@@ -15,7 +15,7 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
   const [review, setReview] = useState<{
     summary: string; sections?: { title: string; text: string }[]; highlights: string[]; suggestions: string[];
   } | null>(null);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [_generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const shown = review ?? cached;

@@ -13,7 +13,7 @@ export default function WeekReviewCard({ weekStart, weekEnd, hasRecords, notify 
 }) {
   const cached = useCachedReview("week", weekStart);
   const [review, setReview] = useState<{ summary: string; highlights: string[]; suggestions: string[] } | null>(null);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [_generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const shown = review ?? cached;

@@ -51,8 +51,8 @@ export default function Home() {
   // 空间切换条（REQ-001 R3）：all=全部 / none=未归属 / <id>=某空间
   const [spaceFilter, setSpaceFilter] = useState("all");
   const [spaces, setSpaces] = useState<Space[]>([]);
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [doneToday, setDoneToday] = useState<TodoRow[]>([]);
+  const [_todos, setTodos] = useState<TodoItem[]>([]);
+  const [_doneToday, setDoneToday] = useState<TodoRow[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [editing, setEditing] = useState<BlockDraft | null>(null);

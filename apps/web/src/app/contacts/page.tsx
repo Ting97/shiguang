@@ -33,7 +33,7 @@ interface Contact {
   gift_net_cents: number;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
+const _pad = (n: number) => String(n).padStart(2, "0");
 /** 相对时间：刚刚/N分钟前/N小时前/昨天/M月D日 */
 function relTime(iso: string): string {
   const d = new Date(iso);

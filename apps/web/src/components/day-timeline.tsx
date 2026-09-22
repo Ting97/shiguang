@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseYmd, todayStr, ymd } from "@/lib/date";
+import { parseYmd, todayStr } from "@/lib/date";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import type { Activity, Block } from "@/lib/types";
 
@@ -33,7 +33,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     return n.getHours() * 60 + n.getMinutes();
   });
   const [draft, setDraft] = useState<BlockDraftValue | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, _setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   // 表单打开时滚入视口：时间轴自动定位到当前时刻后，点击深处缺口时表单在区域顶部、视口之外，看起来像"没反应"

@@ -79,7 +79,7 @@ export default function Detail() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkItems, setLinkItems] = useState<TodoItem[]>([]);
   const [linkQuery, setLinkQuery] = useState("");
-  const [linkLoading, setLinkLoading] = useState(false);
+  const [_linkLoading, setLinkLoading] = useState(false);
   // C1：手动添加行动（per-todo 草稿）
   const [actionDrafts, setActionDrafts] = useState<Record<string, string>>({});
   // C1：关联动态浮层（浏览未归属动态并关联到本空间）

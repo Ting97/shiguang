@@ -61,7 +61,7 @@ export async function getSessionToken(): Promise<string | null> {
 }
 
 /** 非任意包一层 fetch：可选 JSON body；返回解析后的 JSON（默认 any——历史调用点直接取字段） */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export async function api<T = any>(url: string, method: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";

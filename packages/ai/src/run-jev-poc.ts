@@ -33,7 +33,7 @@ interface Case {
 }
 
 /** Jev 问题组（02 §7.2）：一次调用并行评估全部闭集问题 */
-function questionsFor(text: string): JevQuestions {
+function questionsFor(_text: string): JevQuestions {
   return {
     sched_applicable: qNoul("这句话记录了一个已经发生或正在进行的、有具体内容的事件或活动（不是纯感想，不是未来计划，也不只是吃喝）"),
     todo_applicable: qNoul("这句话表达了一个计划要做、还没发生的事情"),
@@ -243,7 +243,7 @@ async function main() {
   const gT = total(glmScore);
   const jT = total(jevScore);
   const actJ = jevScore["activity"] ?? { n: 0, ok: 0 };
-  const actG = glmScore["activity"] ?? { n: 0, ok: 0 };
+  const _actG = glmScore["activity"] ?? { n: 0, ok: 0 };
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
   const passOverall = gT.n > 0 && jT.pct >= gT.pct * 0.95;
   const passActivity = actJ.n > 0 && actJ.ok / actJ.n >= 0.8;

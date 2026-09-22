@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
-const pad = (n: number) => String(n).padStart(2, "0");
+const _pad = (n: number) => String(n).padStart(2, "0");
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"password" | "sms">("password"); // 登录方式：密码/验证码

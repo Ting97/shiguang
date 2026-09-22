@@ -15,7 +15,11 @@
     "build:api": "npm run build -w @shiguangri/api",
     "test": "npm test --workspaces --if-present",
     "poc": "npm run poc -w @shiguangri/ai",
-    "poc:live": "npm run poc:live -w @shiguangri/ai"
+    "poc:live": "npm run poc:live -w @shiguangri/ai",
+    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/api && tsc --noEmit -p packages/ai",
+    "lint": "eslint . --quiet",
+    "db:migrate": "tsx packages/db/runner.ts",
+    "db:migrate:status": "tsx packages/db/runner.ts --status"
   },
   "engines": {
     "node": ">=20"
@@ -25,7 +29,10 @@
     "react-dom": "19.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "typescript-eslint": "^8.70.1"
   }
 }

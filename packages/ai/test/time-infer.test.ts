@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange, anchorRangeToToday, hasExplicitDayRef } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef } from "../src/time-infer.js";
 import { toCstWallClock } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间

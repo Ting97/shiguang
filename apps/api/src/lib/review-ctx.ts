@@ -356,7 +356,7 @@ function buildSubLines(
   period: ReviewPeriod,
   sub: { rows: Record<string, unknown>[] },
   from: string,
-  to: string,
+  _to: string,
 ): string[] {
   if (kind === "day") return [];
   const timeRows = { rows: sub.rows.filter((r) => "mins" in r) };

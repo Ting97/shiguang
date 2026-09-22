@@ -267,7 +267,7 @@ export function inferTimeBlock(
     // 无相对日且在凌晨（<5点）补记白天的区间 → 归昨天
     const back = dayRef !== null ? -dayRef * 24 * 3600_000 : cstHour(now) < 5 ? 24 * 3600_000 : 0;
     const base = new Date(now.getTime() - back);
-    let start = atHour(base, range.start.hour, range.start.minute);
+    const start = atHour(base, range.start.hour, range.start.minute);
     let end = atHour(base, range.end.hour, range.end.minute);
     if (end <= start) end = new Date(end.getTime() + 24 * 3600_000); // 跨天区间（如 22.30-6.30）
     return {

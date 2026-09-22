@@ -35,6 +35,7 @@ export function middleware(req: NextRequest) {
     const pass =
       bearer !== null ||
       pathname.startsWith("/api/auth") ||
+      pathname.startsWith("/api/health") || // 探活不鉴权（REQ-004 FR-G1.2）
       req.cookies.has("shiguang_session");
     const resp = pass ? NextResponse.next() : NextResponse.json({ error: "未登录" }, { status: 401 });
     for (const [k, v] of Object.entries(cors.headers)) resp.headers.set(k, v);

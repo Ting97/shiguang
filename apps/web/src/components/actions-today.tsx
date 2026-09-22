@@ -15,7 +15,7 @@ import type { TodayAction } from "@/lib/types";
  */
 export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; text: string } | null) => void }) {
   const [actions, setActions] = useState<TodayAction[] | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [_busyId, setBusyId] = useState<string | null>(null);
   // N6 添加行动
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
@@ -206,7 +206,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
               <ul className="space-y-0.5">
                 {pending.map((a) => {
                   // 到期提示：行动自身优先，父待办兜底（独立行动只有自身 due）
-                  const tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
+                  const _tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
                   const isEditing = editingId === a.id;
                   return (
                     <li key={a.id} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-elevated/60">

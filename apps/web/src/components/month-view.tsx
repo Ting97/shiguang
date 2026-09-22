@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity, DayStat } from "@/lib/types";
-import { todayStr, zhDuration, zhDate } from "@/lib/date";
+import { todayStr, zhDuration } from "@/lib/date";
 
 interface Props {
   month: string; // YYYY-MM-01

@@ -152,7 +152,7 @@ export async function getPromptBundle(key: PromptKey): Promise<PromptBundle> {
     return { system: hit.content, userTemplate: hit.userTemplate, config: hit.config };
   }
   const spec = AI_INPUT_REGISTRY[key];
-  let bundle: PromptBundle = {
+  const bundle: PromptBundle = {
     system: DEFAULT_PROMPTS[key],
     userTemplate: spec.userTemplate,
     config: mergeContextConfig(key, null),

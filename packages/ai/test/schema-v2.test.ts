@@ -7,7 +7,7 @@ import { parseInput } from "../src/parse.js";
 const NOW = new Date(2026, 8, 20, 15, 0); // 2026-09-20 15:00 本地
 
 /** 全量金标准：五域齐答、命中域字段齐全 */
-const GOLD_FULL = {
+const GOLD_FULL: /* 测试夹具需可写 null 以构造非法样本（zod 输入面比输出面宽） */ Record<string, any> = {
   reasoning: { schedule: "复合句", todo: "无", finance: "有金额", mood: "有情绪", diet: "无" },
   schedule: {
     applicable: true, activity: "social", title: "和小李吃饭",

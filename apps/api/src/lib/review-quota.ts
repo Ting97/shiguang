@@ -12,7 +12,7 @@ import { pool } from "@/lib/db";
 export const REVIEW_LIMITS = { day: 2, week: 5, month: 10, year: 24, trade_week: 5 } as const;
 export type ReviewKind = keyof typeof REVIEW_LIMITS;
 
-const UNLOCK_HOUR = 20; // 晚 8 点（北京时间）统一解锁点
+const _UNLOCK_HOUR = 20; // 晚 8 点（北京时间）统一解锁点
 
 // ---- 北京时间纯函数（UTC+8 手动偏移，用 getUTC* 读，不依赖服务器时区） ----
 const bj = (ms = Date.now()) => new Date(ms + 8 * 3600_000);

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap, overlapError } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { inferInteractionType } from "@shiguangri/shared/social";
 
 export const runtime = "nodejs";
 

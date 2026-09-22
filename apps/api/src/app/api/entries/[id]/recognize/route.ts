@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, findOverlap, overlapError } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { parseInput, CONFIDENCE_THRESHOLD, DOMAIN_LABELS, type Domain, type ParseResult } from "@shiguangri/ai";
+import { parseInput, DOMAIN_LABELS, type Domain, type ParseResult } from "@shiguangri/ai";
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/lib/quota";
 import { writeAuditRecord } from "@/lib/audit";

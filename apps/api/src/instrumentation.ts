@@ -1,13 +1,32 @@
 /**
- * Next.js instrumentation：未捕获错误统一落 journald（stderr）。
- * 已被路由 try/catch 的 500 会经 Caddy 访问日志留痕（status 500 + 耗时），
- * 这里兜底记录"没有 catch 的"那些，附请求方法/路径与完整堆栈。
+ * Next.js instrumentation：
+ * - 启动期 config fail-fast 校验（REQ-004 FR-A2）
+ * - 未捕获错误统一落结构化日志（stderr → journald），带请求 id 与完整堆栈
  */
 import type { Instrumentation } from "next";
+import { initConfig } from "./server/platform/config";
+import { log } from "./server/platform/http/logger";
+
+export async function register() {
+  // Next 会在构建期也加载 instrumentation：仅运行时执行校验（构建环境缺 env 是正常的）
+  if (process.env.NEXT_PHASE !== "phase-production-build") {
+    try {
+      initConfig();
+    } catch (e) {
+      console.error(String(e instanceof Error ? e.message : e));
+      // fail-fast：配置不合法拒绝启动（standalone 下直接退出进程）
+      process.exit(1);
+    }
+  }
+}
 
 export const onRequestError: Instrumentation.onRequestError = async (err, request) => {
-  console.error(
-    `[api-error] ${request.method} ${request.path}`,
-    err instanceof Error ? err.stack : err,
+  log.error(
+    {
+      method: request.method,
+      path: request.path,
+      stack: err instanceof Error ? err.stack : String(err),
+    },
+    "unhandled-api-error",
   );
 };

@@ -6,7 +6,7 @@ import { pool } from "./db";
 import { generateSmsCode, hashToken } from "./auth-crypto";
 
 const CODE_TTL_MS = 5 * 60_000;
-const RESEND_INTERVAL_MS = 60_000;
+const _RESEND_INTERVAL_MS = 60_000;
 const DAILY_LIMIT = 10;
 
 export function smsConfigured(): boolean {
