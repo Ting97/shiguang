@@ -27,7 +27,7 @@ export async function GET() {
             count(*) filter (where created_at > now() - interval '30 days')::int as calls_30d,
             coalesce(sum(prompt_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as prompt_30d,
             coalesce(sum(completion_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as completion_30d
-     from audit_logs where user_id = $1`,
+     from audit_logs where user_id = $1 and coalesce(model, '') not like 'jev%'`,
     [user.id],
   );
   const s = selfRows[0];
@@ -46,7 +46,7 @@ export async function GET() {
             coalesce(sum(a.completion_tokens) filter (where a.created_at > now() - interval '30 days'), 0)::bigint as completion_30d
      from invite_codes i
      join profiles p on p.id = i.used_by
-     left join audit_logs a on a.user_id = p.id
+     left join audit_logs a on a.user_id = p.id and coalesce(a.model, '') not like 'jev%'
      where i.created_by = $1 and i.used_by is not null
      group by p.id
      order by sum(a.prompt_tokens) + sum(a.completion_tokens) desc nulls last, p.created_at desc`,
@@ -70,8 +70,9 @@ export async function GET() {
             coalesce(sum(prompt_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as prompt_30d,
             coalesce(sum(completion_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as completion_30d
      from audit_logs
-     where user_id = $1
-        or user_id in (select used_by from invite_codes where created_by = $1 and used_by is not null)
+     where (user_id = $1
+        or user_id in (select used_by from invite_codes where created_by = $1 and used_by is not null))
+       and coalesce(model, '') not like 'jev%'
      group by model
      order by sum(prompt_tokens) + sum(completion_tokens) desc`,
     [user.id],

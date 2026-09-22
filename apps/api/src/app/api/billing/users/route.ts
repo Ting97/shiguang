@@ -15,7 +15,8 @@ export async function GET() {
   const { rows } = await pool.query(
     `select p.id, p.nickname, p.phone, p.plan, p.plan_expires_at, p.created_at,
             (select count(*)::int from audit_logs a
-              where a.user_id = p.id and a.created_at > now() - interval '30 days') as used_30d
+              where a.user_id = p.id and a.created_at > now() - interval '30 days'
+                and coalesce(a.model, '') not like 'jev%') as used_30d
      from profiles p
      order by p.created_at asc`,
   );

@@ -37,7 +37,8 @@ export async function getQuota(userId: string): Promise<QuotaInfo> {
 
   const { rows: usedRows } = await pool.query(
     `select count(*)::int as n from audit_logs
-     where user_id = $1 and created_at > now() - interval '30 days'`,
+     where user_id = $1 and created_at > now() - interval '30 days'
+       and coalesce(model, '') not like 'jev%'`,
     [userId],
   );
   const used = Number(usedRows[0]?.n ?? 0);

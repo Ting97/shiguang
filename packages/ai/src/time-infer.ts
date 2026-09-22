@@ -32,7 +32,7 @@ const PERIOD_SPAN: Record<Exclude<PeriodHint, "now">, [number, number]> = {
 /** 现在是否处于该时段的常识窗口内（跨午夜窗口折返判断） */
 function periodOngoing(period: Exclude<PeriodHint, "now">, now: Date): boolean {
   const [ws, we] = PERIOD_SPAN[period];
-  const h = now.getHours();
+  const h = cstHour(now); // 北京钟点，不依赖宿主机时区
   if (we <= 24) return h >= ws && h < we;
   return h >= ws || h < we - 24; // 跨午夜：night [21,26) → 21..23 或 0..1
 }
@@ -265,7 +265,7 @@ export function inferTimeBlock(
   const dayRef = detectDayRef(text, now);
   if (range) {
     // 无相对日且在凌晨（<5点）补记白天的区间 → 归昨天
-    const back = dayRef !== null ? -dayRef * 24 * 3600_000 : now.getHours() < 5 ? 24 * 3600_000 : 0;
+    const back = dayRef !== null ? -dayRef * 24 * 3600_000 : cstHour(now) < 5 ? 24 * 3600_000 : 0;
     const base = new Date(now.getTime() - back);
     let start = atHour(base, range.start.hour, range.start.minute);
     let end = atHour(base, range.end.hour, range.end.minute);

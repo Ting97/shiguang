@@ -5,6 +5,7 @@ import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { inferGroupFromContext, inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
+import { jevShadowCompare } from "@/lib/jev-shadow";
 
 /** 空间自动归属置信阈值（低于不写入） */
 const SPACE_CONFIDENCE_THRESHOLD = 0.7;
@@ -287,6 +288,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     });
     // 空间归属（失败静默）：有 active 空间即发起轻量分类（依据是原文本身，与是否落库产物无关）
     void classifySpace(userId, entryId, rawText).catch(() => {});
+    // Jev 影子对照（3-C：JEV_MODE=shadow 时与 GLM 结果逐闭集字段比对，仅审计，零用户影响）
+    void jevShadowCompare(userId, entryId, rawText, r);
     return {
       conflictTitle,
       pendingDomains,

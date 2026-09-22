@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange, anchorRangeToToday, hasExplicitDayRef } from "../src/time-infer.js";
+import { toCstWallClock } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
 
@@ -243,4 +244,11 @@ test("锚定：未来话术（无日期词但有'要去'）→ 不动", () => {
 test("锚定：AI 已给今天 → 原样返回", () => {
   const r = anchorRangeToToday(mk(20, 14), "下午2点到6点在写代码", T920);
   assert.equal(r.start.getDate(), 20);
+});
+
+test("toCstWallClock：UTC 时刻 → 北京墙钟，且与宿主机时区无关", () => {
+  // 2026-09-22 13:43 UTC = 21:43 北京时间；在 UTC/CST 任何机器上结果都必须一致
+  assert.equal(toCstWallClock(new Date("2026-09-22T13:43:00Z")), "2026-09-22 21:43（北京时间）");
+  // 北京 00:30（UTC 前一天 16:30）→ 日期必须还是当天（旧 bug 会回退到前一天）
+  assert.equal(toCstWallClock(new Date("2026-09-22T16:30:00Z")), "2026-09-23 00:30（北京时间）");
 });

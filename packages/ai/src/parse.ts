@@ -131,11 +131,11 @@ function ruleExtract(text: string): LlmExtractionT {
   };
 }
 
-/** GLM 提示词用北京时间墙钟：toISOString 是 UTC，北京 00:00–08:00 间的记录会让模型把"今天"算成前一天 */
+/** GLM 提示词用北京时间墙钟：+8h 后必须读 UTC getter（getHours 等读宿主机时区，CST 机器上会二次 +8） */
 export function toCstWallClock(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   const c = new Date(d.getTime() + 8 * 3600_000);
-  return `${c.getFullYear()}-${p(c.getMonth() + 1)}-${p(c.getDate())} ${p(c.getHours())}:${p(c.getMinutes())}（北京时间）`;
+  return `${c.getUTCFullYear()}-${p(c.getUTCMonth() + 1)}-${p(c.getUTCDate())} ${p(c.getUTCHours())}:${p(c.getUTCMinutes())}（北京时间）`;
 }
 
 /** 从原话确定性恢复饮食条目（规则路径整句当 name 时的兜底）：已不再用于 AI 路径（v2 schema 直接校验拒绝） */
