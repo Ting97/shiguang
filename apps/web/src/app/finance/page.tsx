@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
+import FinanceTabs from "@/components/finance-tabs";
 import { TagChip } from "@/components/tag-chip";
 import { useDismiss, Dismissable } from "@/components/dismissable";
-import { TX_CATEGORIES, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
+import { TX_CATEGORIES, TX_COLORS, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
 
 interface Account {
   id: string;
@@ -171,12 +172,14 @@ export default function FinancePage() {
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
         <Nav />
-        <header className="mb-6 text-center">
+        <header className="mb-5 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">财务</span>
           </h1>
           <p className="mt-2 text-xs text-ink-dim">动态里说的钱都在这里 —— 确认草稿、管账户、看月度结构</p>
         </header>
+
+        <FinanceTabs />
 
         {/* 月份导航 + 记一笔（窄屏自动换行，避免按钮溢出） */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -505,18 +508,6 @@ export default function FinancePage() {
 }
 
 /* ---------- 子组件 ---------- */
-
-const TX_COLORS: Record<string, string> = {
-  餐饮: "#f97316",
-  交通: "#78716c",
-  人情往来: "#ec4899",
-  学习: "#10b981",
-  购物: "#8b5cf6",
-  娱乐: "#eab308",
-  医疗: "#14b8a6",
-  居住: "#0ea5e9",
-  其他: "#64748b",
-};
 
 function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () => void; onEdit?: () => void; onDelete?: () => void }) {
   const d = new Date(t.occurred_at);

@@ -10,6 +10,7 @@ import { TagChip } from "./tag-chip";
  */
 export default function AdminMarketingPanel({ notify }: { notify: (text: string, ok?: boolean) => void }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [grants, setGrants] = useState<Record<string, string[]>>({});
 
   interface AdminUser {
     id: string;
@@ -24,9 +25,37 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
     fetch("/api/billing/users").then(async (r) => setUsers(r.ok ? (await r.json()).users : null));
   }, []);
 
+  // 模块授权矩阵（031）：user_id → module[]
+  const loadGrants = useCallback(() => {
+    fetch("/api/admin/grants").then(async (r) => {
+      if (!r.ok) return;
+      const map: Record<string, string[]> = {};
+      for (const g of (await r.json()).grants ?? []) {
+        (map[g.user_id] ??= []).push(g.module);
+      }
+      setGrants(map);
+    });
+  }, []);
+
   useEffect(() => {
     loadUsers();
-  }, [loadUsers]);
+    loadGrants();
+  }, [loadUsers, loadGrants]);
+
+  async function toggleModule(userId: string, module: "debt" | "trade_review", on: boolean) {
+    const r = await fetch(
+      on ? "/api/admin/grants" : `/api/admin/grants?userId=${userId}&module=${module}`,
+      on
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, module }) }
+        : { method: "DELETE" },
+    );
+    if (!r.ok) {
+      notify("模块授权失败", false);
+      return;
+    }
+    notify(on ? "✅ 已授权" : "已撤销授权");
+    loadGrants();
+  }
 
   async function setPlan(userId: string, plan: "free" | "pro") {
     const r = await fetch("/api/billing/plan", {
@@ -47,8 +76,11 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
       {/* 用户套餐管理 */}
       <section className="glass rounded-2xl p-5">
         <h2 className="text-sm font-semibold text-ink-soft">
-          <TagChip icon="👤" label="用户套餐管理" tone="sky" />
+          <TagChip icon="👤" label="用户套餐与模块授权" tone="sky" />
         </h2>
+        <p className="mt-1.5 text-[10px] text-ink-faint">
+          🏦负债 / 📈复盘 = 模块授权（点按钮切换，即时生效）；授权后用户财务页出现对应 tab
+        </p>
         {!users ? (
           <p className="mt-2 text-xs text-ink-dim">加载中…</p>
         ) : (
@@ -62,6 +94,23 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                 <span className={u.plan === "pro" ? "font-medium text-amber-400" : "text-ink-mute"}>
                   {u.plan === "pro" ? "Pro" : "免费"}·30天{u.used30d}次
                 </span>
+                {(["debt", "trade_review"] as const).map((m) => {
+                  const on = grants[u.id]?.includes(m) ?? false;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => toggleModule(u.id, m, !on)}
+                      title={on ? "点击撤销授权" : "点击授权该模块"}
+                      className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                        on
+                          ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-sm"
+                          : "border border-line-soft bg-surface/60 text-ink-faint hover:border-sky-500/50 hover:text-ink-soft"
+                      }`}
+                    >
+                      {m === "debt" ? "🏦负债" : "📈复盘"} {on ? "✓" : ""}
+                    </button>
+                  );
+                })}
                 {u.plan === "pro" ? (
                   <button
                     onClick={() => setPlan(u.id, "free")}

@@ -7,6 +7,7 @@ import {
   Sparkles, PencilLine, X, Check, Plus,
 } from "lucide-react";
 import type { Activity, FeedMoment } from "@/lib/types";
+import { TX_CATEGORIES } from "@/lib/finance";
 import { COMMON_MOODS } from "./moment-feed";
 
 const SIX = [
@@ -140,7 +141,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
               {wrap(
                 "类别",
                 <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
-                  {["餐饮", "交通", "人情往来", "学习", "购物", "娱乐", "医疗", "居住", "其他"].map((c) => (
+                  {TX_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>,

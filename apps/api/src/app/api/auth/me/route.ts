@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { listUserModules } from "@/lib/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export async function GET() {
     phone: user.phone,
     authDisabled: process.env.AUTH_DISABLED === "1",
     isAdmin: user.role === "admin", // migrations/024：profiles.role
+    modules: await listUserModules(user.id, user.role), // 031：模块授权（实时查库，撤销即时生效）
     phoneVerified: rows[0]?.phone_verified ?? false,
     createdAt: rows[0]?.created_at ?? null,
   });

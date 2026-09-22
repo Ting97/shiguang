@@ -16,7 +16,7 @@ export interface Review {
  */
 export async function getOrGenerateReview(
   userId: string,
-  kind: "day" | "week" | "month" | "year",
+  kind: "day" | "week" | "month" | "year" | "trade_week",
   periodKey: string,
   refresh: boolean,
   latestDataAt: Date | null,

@@ -9,7 +9,7 @@ import { pool } from "@/lib/db";
  * bonus 不提前解锁日/周的晚 8 点预留份额。
  */
 
-export const REVIEW_LIMITS = { day: 2, week: 5, month: 10, year: 24 } as const;
+export const REVIEW_LIMITS = { day: 2, week: 5, month: 10, year: 24, trade_week: 5 } as const;
 export type ReviewKind = keyof typeof REVIEW_LIMITS;
 
 const UNLOCK_HOUR = 20; // 晚 8 点（北京时间）统一解锁点
@@ -34,7 +34,8 @@ export function timeCeiling(kind: ReviewKind, periodKey: string, nowMs = Date.no
       if (periodKey < today) return M; // 历史日：全开
       if (periodKey > today) return 0; // 未来
       return nowMs < eveningOf(today) ? 1 : M; // 当天 20:00 前留 1 次
-    case "week": {
+    case "week":
+    case "trade_week": {
       if (periodKey < monday) return M; // 历史周：全开
       if (periodKey > monday) return 0;
       const sunday = ymd(new Date(Date.parse(`${monday}T00:00:00Z`) + 6 * 86_400_000));
@@ -72,6 +73,11 @@ function gateMessage(kind: ReviewKind, periodKey: string, ceiling: number, M: nu
         ? `该日小结生成次数已用完（上限 ${M} 次）`
         : `今日小结可用次数已用完（今日 20:00 后解锁第 ${M} 次）`;
     case "week":
+    case "trade_week":
+      if (kind === "trade_week")
+        return past
+          ? `该周交易周报生成次数已用完（上限 ${M} 次）`
+          : `本周交易周报可用次数已用完（周日晚 20:00 后解锁预留的 2 次）`;
       return past
         ? `该周小结生成次数已用完（上限 ${M} 次）`
         : `本周小结可用次数已用完（周日晚 20:00 后解锁预留的 2 次）`;
@@ -126,7 +132,7 @@ export async function acquireGeneration(
     [userId, kind, periodKey, latestDataAt],
   );
   // 日/周的晚 8 点预留是硬边界：bonus 只对月/年的进度解锁生效
-  const hardReserve = kind === "day" || kind === "week";
+  const hardReserve = kind === "day" || kind === "week" || kind === "trade_week";
   const ceiling = timeCeiling(kind, periodKey);
   const effectiveBonus = hardReserve ? 0 : rows[0].bonus;
   const available = Math.min(M, ceiling + effectiveBonus) - rows[0].used;

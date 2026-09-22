@@ -183,6 +183,17 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     injects: [...REVIEW_INJECTS(true), ...REVIEW_REQUIRED],
     caps: REVIEW_CAPS(60, 100, 100),
   },
+  trade_review_week: {
+    userTemplate: `{facts}
+
+{txDetail}`,
+    placeholders: ["facts", "txDetail"],
+    injects: [
+      OPT("txDetail", "流水明细", "本周已确认流水逐条（日期+分类+对方+金额+备注），大额与结构异动的判断依据", "transactions 表当周范围"),
+      REQ("facts", "收支事实", "本周总收支/环比上周/分类 Top 聚合行", "transactions 实时聚合"),
+    ],
+    caps: [CAP_LINES("txCap", "流水明细行上限（0=不设限）", 150)],
+  },
   profile_merge: {
     userTemplate: `旧画像：
 {oldProfile}

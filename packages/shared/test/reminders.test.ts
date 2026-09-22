@@ -85,9 +85,9 @@ test("到期待办：过期标红排序最前（remind_at 过滤在 SQL，纯函
   const items = pickReminders([], [overdue, future, notYet], NOW);
   assert.equal(items.length, 3);
   assert.equal(items[0].overdue, true); // 过期排最前
-  assert.match(items[0].label, /待办已过期：交房租（08:00）/);
+  assert.match(items[0].label, /todo 已过期：交房租（08:00）/);
   assert.equal(items[1].overdue, false);
-  assert.match(items[1].label, /待办即将到期：看牙（15:00）/);
+  assert.match(items[1].label, /todo 即将到期：看牙（15:00）/);
 });
 
 test("排序：已过期待办 < 今天的生日 < N 天后", () => {
@@ -108,7 +108,7 @@ test("空数据与无效日期防御", () => {
   // 无效生日：跳过；无效 due_at 的待办：仍提醒但不带时间（不产生 NaN）
   const items = pickReminders([contact({ birthday: "乱写的" })], [todo({ due_at: "不是日期", remind_at: new Date(2026, 8, 18, 9).toISOString() })], NOW);
   assert.equal(items.length, 1);
-  assert.equal(items[0].label, "待办即将到期：看牙");
+  assert.equal(items[0].label, "todo 即将到期：看牙");
 });
 
 test("displaySummary：兼容旧数据「X：X」重复拼接", () => {

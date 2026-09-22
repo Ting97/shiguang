@@ -144,6 +144,9 @@ const KEYWORD_RULES: [RegExp, string][] = [
 
 /** 由平台交易分类 + 商家/商品关键词推断我们的分类 */
 export function classify(platformType: string, counterparty: string, goods: string): string {
+  const hayAll = `${platformType} ${counterparty} ${goods}`;
+  // 还款类优先于平台分类映射（支付宝的信用卡还款挂在「充值缴费」下，微信靠交易类型关键词）
+  if (/还款|花呗|白条/.test(hayAll)) return "还款";
   if (platformType && ALIPAY_TYPE_MAP[platformType]) return ALIPAY_TYPE_MAP[platformType];
   const hay = `${platformType} ${counterparty} ${goods}`;
   for (const [re, cat] of KEYWORD_RULES) {
