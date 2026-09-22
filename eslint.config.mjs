@@ -43,24 +43,21 @@ export default tseslint.config(
     },
   },
   {
-    // 4-C/4-D 迁移期：路由文件将整体重写为薄适配器，未用变量先降 warn；迁移完成后此覆盖删除并升 error
-    files: ["apps/api/src/app/api/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-unused-vars": "warn",
-    },
-  },
-  {
-    // 领域依赖规则（FR-B1.3）：路由只准调 server/<domain>/index 与 server/platform/*
+    // 领域依赖规则（FR-B1.3，lib 已清零）：
+    // ① 业务域深路径禁止直引——路由只准引用域 index（对外 service 面）
+    // ② @/lib/* 防御性禁止（lib 已删除）
+    // platform/* 是共享基建层放行。批③路由迁移完成后 severity 升 error。
     files: ["apps/api/src/app/api/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "warn",
         {
           patterns: [
-            {
-              group: ["@/lib/*"],
-              message: "路由层禁止直接引用 lib 业务件（4-C/4-D 迁移期先 warn，lib 清零后升 error）",
-            },
+            { group: ["@/lib/*"], message: "lib 已清零（FR-B1.4）" },
+            ...["identity", "timeline", "time", "goal", "finance", "people", "insight", "ai"].map((d) => ({
+              group: [`@/server/${d}/*`, `!@/server/${d}/index`],
+              message: `路由只准引用 @/server/${d}（index service 面），禁止深路径（FR-B1.3）`,
+            })),
           ],
         },
       ],

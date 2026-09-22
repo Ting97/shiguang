@@ -23,9 +23,12 @@ export async function ingest(userId: string, text: string) {
     );
   }
   const entry = (await entriesRepo.insert(userId, "keyboard", text.trim())).rows[0];
+  // FR-C2.4：识别失败不再打 analyzed_at（失败留痕由巡检补跑）；成功路径 analyzeAndPersist 内部落 analyzed_at
   void analyzeAndPersist(userId, entry.id, text.trim())
-    .catch((e) => console.error("[analyze] 后台识别失败:", e))
-    .finally(() => entriesRepo.setAnalyzedAt(entry.id).catch(() => {}));
+    .catch((e) => {
+      console.error("[analyze] 后台识别失败（巡检将补跑）:", e);
+      return pool.query(`update entries set analyze_retries = analyze_retries + 1 where id = $1`, [entry.id]);
+    });
   return { entry };
 }
 
@@ -269,10 +272,9 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
     } finally {
       client.release();
     }
-    // 后台全域重识别（同发动态：秒回 + fire-and-forget），成败都打 analyzed_at
+    // 后台全域重识别（同发动态：秒回 + fire-and-forget）；成功自打 analyzed_at，失败留巡检
     void analyzeAndPersist(userId, entryId, text)
-      .catch((e) => console.error(`[analyze] entry ${entryId} 编辑重识别失败:`, e))
-      .finally(() => entriesRepo.setAnalyzedAt(entryId).catch(() => {}));
+      .catch((e) => console.error(`[analyze] entry ${entryId} 编辑重识别失败（巡检将补跑）:`, e));
     return { ok: true as const, entry: updated };
   }
 

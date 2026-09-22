@@ -189,7 +189,7 @@ async function writeAudit(
 
 /**
  * 对一条已存在的动态做完整五域识别并落库（发布后后台执行，也被确认/重识别复用）。
- * 心情直接回写 entries；识别结束（成功或失败）由调用方/finally 写 entries.analyzed_at。
+ * 心情直接回写 entries；成功自写 entries.analyzed_at（失败留 null 供巡检补跑，FR-C2.4）。
  */
 export async function analyzeAndPersist(userId: string, entryId: string, rawText: string): Promise<AnalyzeOutcome> {
   const startedAt = Date.now();
@@ -355,6 +355,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     }
 
     await client.query("commit");
+    // FR-C2.4：成功才打 analyzed_at（失败留 null 供巡检补跑；调用方不再无脑 finally 打点）
+    await pool.query(`update entries set analyzed_at = now() where id = $1 and analyzed_at is null`, [entryId]);
     void writeAudit(userId, entryId, {
       engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: true,
       promptTokens, completionTokens,

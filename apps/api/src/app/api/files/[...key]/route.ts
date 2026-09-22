@@ -2,19 +2,12 @@ import { NextResponse } from "next/server";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { getCurrentUser } from "@/server/identity/auth";
 import { pool } from "@/server/platform/db";
-import { storagePath } from "@/server/timeline/storage";
+import { storagePath, mimeForPath } from "@/server/timeline/storage";
 import { Readable } from "node:stream";
-import { extname } from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MIME: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-};
 
 /**
  * GET /api/files/<yyyy/mm/uuid.ext> —— 图片访问门禁
@@ -48,7 +41,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ key: str
   if (req.headers.get("if-none-match") === etag) {
     return new NextResponse(null, { status: 304 });
   }
-  const mime = MIME[extname(path).toLowerCase()] ?? row.mime ?? "application/octet-stream";
+  const mime = mimeForPath(path) === "application/octet-stream" ? row.mime ?? "application/octet-stream" : mimeForPath(path);
   return new NextResponse(Readable.toWeb(createReadStream(path)) as unknown as ReadableStream, {
     headers: {
       "Content-Type": mime,

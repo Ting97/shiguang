@@ -63,3 +63,19 @@ export async function deleteImageFile(key: string): Promise<void> {
     console.warn(`[storage] 删除文件失败（忽略）${key}:`, String(e).slice(0, 120));
   }
 }
+
+/** 路径扩展名 → Content-Type（004 FR-B2.1：MIME 表单源，files 静态托管与图片路由共用） */
+export function mimeForPath(path: string): string {
+  const ext = path.slice(path.lastIndexOf(".")).toLowerCase();
+  const map: Record<string, string> = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
+    ".gif": "image/gif", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+    ".html": "text/html; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".json": "application/json",
+    ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+    ".webmanifest": "application/manifest+json", ".xml": "application/xml",
+    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".webm": "audio/webm", ".mp4": "video/mp4",
+    ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf",
+    ".map": "application/json", ".md": "text/markdown; charset=utf-8",
+  };
+  return map[ext] ?? "application/octet-stream";
+}
