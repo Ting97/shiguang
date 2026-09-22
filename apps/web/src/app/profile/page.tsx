@@ -209,6 +209,24 @@ export default function ProfilePage() {
               {msgPwd && <p className={`mt-3 text-xs ${msgPwd.ok ? "text-success" : "text-danger"}`}>{msgPwd.text}</p>}
             </section>
 
+            {/* 会话安全（4-B FR-C1.3 全端登出） */}
+            <section className="glass rounded-2xl p-5">
+              <h2 className="mb-2 text-sm font-semibold text-ink-soft">会话安全</h2>
+              <p className="mb-3 text-[11px] text-ink-dim">
+                吊销本账号在所有设备（网页/App）上的登录状态，适合怀疑账号异常时使用；本机也会一并退出。
+              </p>
+              <button
+                onClick={async () => {
+                  if (!window.confirm("在所有设备上退出登录？")) return;
+                  await fetch("/api/auth/logout-all", { method: "POST" });
+                  window.location.href = "/login";
+                }}
+                className="w-full rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-medium text-danger transition hover:bg-rose-500/20"
+              >
+                全端登出
+              </button>
+            </section>
+
             {/* 套餐与 AI 用量（M3 商业化） */}
             <section className="glass rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon="💎" label="套餐与 AI 用量" tone="violet" /></h2>

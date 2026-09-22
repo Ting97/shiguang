@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractBearerToken } from "@shiguangri/shared/bearer";
 import { resolveCors } from "@shiguangri/shared/cors";
+import { verifyWriteOrigin } from "@/server/platform/security/csrf";
 
 /**
  * 浅层会话门卫：无会话凭证时页面跳 /login、API 返回 401。
  * 凭证两种：cookie shiguang_session（Web 同域）或 Authorization: Bearer（原生端，
  * 格式合法即放行，有效性由各 API 的 getCurrentUser 深层校验——Edge 中间件不连数据库）。
+ * 4-B：Cookie 会话写请求强制 Origin/Sec-Fetch-Site 同源（CSRF，Bearer 豁免）。
  * CORS 策略见 lib/cors.ts：预检 204、白名单/Bearer origin 回显。
  */
 const PUBLIC_PAGES = ["/login", "/setup"];
@@ -32,6 +34,22 @@ export function middleware(req: NextRequest) {
       return resp;
     }
     const bearer = extractBearerToken(req.headers.get("authorization"));
+    // CSRF（REQ-004 FR-C2.2）：Cookie 会话的写请求强制 Origin/Sec-Fetch-Site 同源；Bearer 豁免
+    if (!bearer && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      const verdict = verifyWriteOrigin(
+        req.method,
+        {
+          origin: req.headers.get("origin"),
+          secFetchSite: req.headers.get("sec-fetch-site"),
+        },
+        [req.headers.get("x-forwarded-host"), req.headers.get("host"), req.nextUrl.host],
+      );
+      if (verdict !== "ok") {
+        const resp = NextResponse.json({ error: "跨站写请求被拒绝" }, { status: 403 });
+        for (const [k, v] of Object.entries(cors.headers)) resp.headers.set(k, v);
+        return resp;
+      }
+    }
     const pass =
       bearer !== null ||
       pathname.startsWith("/api/auth") ||
