@@ -31,15 +31,21 @@ export default function SpacesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // 加载失败态：给出重试入口，避免网络异常时永远停在"加载中"
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    fetch("/api/spaces").then(async (r) => {
+  const load = useCallback(async () => {
+    setLoadErr(null);
+    try {
+      const r = await fetch("/api/spaces");
       if (r.status === 401) {
         location.href = "/login";
         return;
       }
       setSpaces(r.ok ? (await r.json()).spaces : []);
-    });
+    } catch (e) {
+      setLoadErr(e instanceof Error ? e.message : String(e));
+    }
   }, []);
 
   useEffect(() => {
@@ -134,7 +140,16 @@ export default function SpacesPage() {
         </div>
 
         {spaces === null ? (
-          <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+          loadErr ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-danger">加载失败：{loadErr}</p>
+              <button onClick={() => void load()} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs">
+                重试
+              </button>
+            </div>
+          ) : (
+            <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+          )
         ) : active.length === 0 ? (
           <div className="glass rounded-2xl p-10 text-center empty-state">
             <p className="text-4xl">🎯</p>

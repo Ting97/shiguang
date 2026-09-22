@@ -36,28 +36,36 @@ export default function Detail() {
   // 行操作菜单卡片（点「⋯」弹出；桌面锚定浮层 / 移动端底部弹层）
   const [menuRow, setMenuRow] = useState<{ todo: TodoRow; isChild: boolean } | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  // 数据加载失败态（网络抖动/接口异常）：给出重试入口，避免永远停在"加载中"
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const sr = await fetch("/api/spaces");
-    if (sr.status === 401) {
-      location.href = "/login";
-      return;
+    setLoadErr(null);
+    try {
+      const sr = await fetch("/api/spaces");
+      if (sr.status === 401) {
+        location.href = "/login";
+        return;
+      }
+      const sj = await sr.json();
+      const s = (sj.spaces as Space[]).find((x) => x.id === id);
+      if (!s) {
+        setNotFound(true);
+        return;
+      }
+      setSpace(s);
+      // 该空间的待办（全视图取全部再前端过滤）
+      const tr = await fetch("/api/todos?view=all");
+      if (tr.ok) {
+        const tj = await tr.json();
+        setTodos((tj.todos as TodoItem[]).filter((t) => t.space_id === id));
+      }
+      const fr = await fetch("/api/feed?limit=20&spaceId=" + id);
+      if (fr.ok) setMoments((await fr.json()).moments as FeedMoment[]);
+    } catch (e) {
+      // 网络抖动/接口异常不能停在加载态（历史 bug：无 catch 时永远"加载中"只能强刷）
+      setLoadErr(e instanceof Error ? e.message : String(e));
     }
-    const sj = await sr.json();
-    const s = (sj.spaces as Space[]).find((x) => x.id === id);
-    if (!s) {
-      setNotFound(true);
-      return;
-    }
-    setSpace(s);
-    // 该空间的待办（全视图取全部再前端过滤）
-    const tr = await fetch("/api/todos?view=all");
-    if (tr.ok) {
-      const tj = await tr.json();
-      setTodos((tj.todos as TodoItem[]).filter((t) => t.space_id === id));
-    }
-    const fr = await fetch("/api/feed?limit=20&spaceId=" + id);
-    if (fr.ok) setMoments((await fr.json()).moments as FeedMoment[]);
   }, [id]);
 
   useEffect(() => {
@@ -183,7 +191,22 @@ export default function Detail() {
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
           <Nav />
-          <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+          {loadErr ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-danger">加载失败：{loadErr}</p>
+              <button
+                onClick={() => {
+                  setSpace(null);
+                  void load();
+                }}
+                className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs"
+              >
+                重试
+              </button>
+            </div>
+          ) : (
+            <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+          )}
         </div>
       </main>
     );

@@ -1,4 +1,5 @@
 import type { Viewport } from "next";
+import ChunkErrorReloader from "@/components/chunk-error-reloader";
 import "./globals.css";
 
 export const metadata = {
@@ -24,7 +25,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-screen antialiased text-ink">{children}</body>
+      <body className="min-h-screen antialiased text-ink">
+        <ChunkErrorReloader />
+        {children}
+      </body>
     </html>
   );
 }
