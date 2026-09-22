@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Nav from "@/components/nav";
 import { Dismissable } from "@/components/dismissable";
+import InlineRename from "@/components/inline-rename";
 import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
 
@@ -108,7 +109,8 @@ export default function SpacesPage() {
   }
 
   async function remove(s: Space) {
-    if (!window.confirm(`删除空间「${s.name}」？\n动态与 todo 不会被删除，仅解除归属。`)) return;
+    const refN = s.reflection_count ?? 0;
+    if (!window.confirm(`删除空间「${s.name}」？\n含 ${refN} 篇感悟（将一并删除）；${s.todo_total ?? 0} 条关联 todo、${s.entry_count ?? 0} 条动态仅解除归属。`)) return;
     await fetch(`/api/spaces/${s.id}`, { method: "DELETE" });
     setMsg({ ok: true, text: `「${s.name}」已删除` });
     load();
@@ -179,7 +181,27 @@ export default function SpacesPage() {
                       {s.icon}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
+                      <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="block min-w-0 flex-1">
+              <InlineRename
+                value={s.name}
+                onSave={async (name) => {
+                  const r = await fetch(`/api/spaces/${s.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name }),
+                  });
+                  if (!r.ok) {
+                    const j = await r.json().catch(() => ({}) as { error?: string });
+                    setMsg({ ok: false, text: j.error ?? "重命名失败" });
+                    return false;
+                  }
+                  setMsg({ ok: true, text: "已重命名" });
+                  await load();
+                  return true;
+                }}
+                className="w-full text-sm font-semibold text-ink"
+              />
+            </span>
                       <p className="mt-0.5 text-[11px] text-ink-dim">
                         {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
                       </p>

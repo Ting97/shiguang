@@ -97,11 +97,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       return NextResponse.json({ error: "每日重复仅支持行动" }, { status: 400 });
     }
   }
-  // 空间归属校验（null=移除归属）
+  // 空间归属校验（REQ-002 N1）：
+  // ① 有父行动不可单独关联空间（409，随父 todo）；② 新关联/切换只允许 active 空间（400，归档空间可移除不可新挂）
+  // ③ spaceId:null 移除关联恒允许
   let spaceId: string | null = null;
   if (body.spaceId) {
-    const hit = await pool.query(`select id from goal_spaces where id = $1 and user_id = $2`, [body.spaceId, user.id]);
+    const own = await pool.query(`select parent_todo_id from todos where id = $1 and user_id = $2`, [id, user.id]);
+    if (own.rows[0]?.parent_todo_id) {
+      return NextResponse.json({ error: "行动随父 todo 关联空间，不可单独设置" }, { status: 409 });
+    }
+    const hit = await pool.query(`select id, status from goal_spaces where id = $1 and user_id = $2`, [body.spaceId, user.id]);
     if (!hit.rows[0]) return NextResponse.json({ error: "空间不存在" }, { status: 400 });
+    if (hit.rows[0].status !== "active") return NextResponse.json({ error: "空间已归档，不可新关联" }, { status: 400 });
     spaceId = hit.rows[0].id;
   }
   const sets: string[] = [];
@@ -146,7 +153,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     )
   ).rows[0];
   if (!updated) return NextResponse.json({ error: "todo 不存在" }, { status: 404 });
-  return NextResponse.json({ todo: updated });
+  // N1：归属变更时带最新空间摘要，供行内徽标即时更新
+  let space: { id: string; name: string; icon: string; color: string; status: string } | null = null;
+  if (body.spaceId !== undefined && updated.space_id) {
+    space =
+      (
+        await pool.query(
+          `select id, name, icon, color, status from goal_spaces where id = $1 and user_id = $2`,
+          [updated.space_id, user.id],
+        )
+      ).rows[0] ?? null;
+  }
+  return NextResponse.json({ todo: updated, space });
 }
 
 /** DELETE /api/todos/:id —— 删除待办（已完成的也可删） */

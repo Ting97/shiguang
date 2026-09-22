@@ -9,7 +9,7 @@ const MAX_ACTIVE_SPACES = 20;
 
 /**
  * GET /api/spaces —— 空间列表（active 在前）+ 聚合统计：
- * todoTotal/todoDone（顶层待办）、actionTotal/actionDone（行动=子待办）、entryCount
+ * todoTotal/todoDone（顶层待办）、actionTotal/actionDone（行动=子待办）、entryCount、reflectionCount（REQ-002 N2）
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -18,9 +18,12 @@ export async function GET() {
     `select s.*,
             coalesce((select count(*)::int from todos t where t.space_id = s.id and t.parent_todo_id is null), 0) as todo_total,
             coalesce((select count(*)::int from todos t where t.space_id = s.id and t.parent_todo_id is null and t.status = 'done'), 0) as todo_done,
+            coalesce((select count(*)::int from todos t where t.space_id = s.id), 0) as todo_all_total,
+            coalesce((select count(*)::int from todos t where t.space_id = s.id and t.status = 'done'), 0) as todo_all_done,
             coalesce((select count(*)::int from todos t where t.space_id = s.id and t.parent_todo_id is not null), 0) as action_total,
             coalesce((select count(*)::int from todos t where t.space_id = s.id and t.parent_todo_id is not null and t.status = 'done'), 0) as action_done,
-            coalesce((select count(*)::int from entries e where e.space_id = s.id), 0) as entry_count
+            coalesce((select count(*)::int from entries e where e.space_id = s.id), 0) as entry_count,
+            coalesce((select count(*)::int from space_reflections r where r.space_id = s.id), 0) as reflection_count
      from goal_spaces s
      where s.user_id = $1
      order by (s.status = 'active') desc, s.sort, s.created_at`,

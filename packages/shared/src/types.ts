@@ -68,6 +68,10 @@ export interface Space {
   action_total?: number;
   action_done?: number;
   entry_count?: number;
+  /* —— REQ-002 —— */
+  reflection_count?: number; // 感悟篇数（N2）
+  todo_all_total?: number; // 空间内全部 todo 行数（含独立行动）
+  todo_all_done?: number;
 }
 
 /** 今日行动清单条目：行动 + 父待办上下文（独立行动无父，parent_title 为 null） */

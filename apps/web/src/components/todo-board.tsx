@@ -6,6 +6,7 @@ import type { Activity, Space, TodoItem, TodoRow } from "@/lib/types";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { FilterChip } from "./tag-chip";
 import { useDismiss, Dismissable } from "./dismissable";
+import SpacePicker from "./space-picker";
 
 /**
  * TODO 管理视图（微软 To Do 式，日程页 TODO 子页）：
@@ -77,6 +78,8 @@ export default function TodoBoard() {
   // 行操作菜单卡片（点「⋯」弹出，带文字标签；桌面锚定浮层 / 移动端底部弹层）
   const [menuRow, setMenuRow] = useState<{ todo: TodoRow; isChild: boolean; parentTitle?: string } | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  // N1 行级空间关联浮层
+  const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
   // 行动详情面板（点标题展开）：标题 + 详细内容（≤1000 字）+ 截止
   const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
@@ -814,6 +817,11 @@ export default function TodoBoard() {
                         onClick={() => patchTodo(menuRow.todo.id, { today: !menuRow.todo.today_tag_date }, menuRow.todo.today_tag_date ? "已移出今日" : "☀️ 已加入今日")}
                       />
                     )}
+                    <MenuItem
+                      icon="🎯"
+                      label="关联空间"
+                      onClick={() => { setPickerRow({ id: menuRow.todo.id, spaceId: menuRow.todo.space_id }); setMenuRow(null); }}
+                    />
                     {!isDoneRow(menuRow.todo) && menuRow.todo.kind === "todo" && (
                       <MenuItem
                         icon="＋"
@@ -842,6 +850,24 @@ export default function TodoBoard() {
                 )}
               </div>
           </Dismissable>,
+          document.body,
+        )}
+      {pickerRow &&
+        createPortal(
+          <SpacePicker
+            spaces={spaces}
+            currentId={pickerRow.spaceId}
+            busy={false}
+            onPick={async (sid) => {
+              setPickerRow(null);
+              await patchTodo(pickerRow.id, { spaceId: sid }, "🎯 已关联空间");
+            }}
+            onRemove={async () => {
+              setPickerRow(null);
+              await patchTodo(pickerRow.id, { spaceId: null }, "已移除空间归属");
+            }}
+            onClose={() => setPickerRow(null)}
+          />,
           document.body,
         )}
     </div>

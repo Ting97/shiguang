@@ -6,6 +6,11 @@ import { useParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import Nav from "@/components/nav";
 import { Dismissable } from "@/components/dismissable";
+import { FilterChip } from "@/components/tag-chip";
+import InlineRename from "@/components/inline-rename";
+import SpaceReflections from "@/components/space-reflections";
+import ReflectionEditor from "@/components/reflection-editor";
+import SpacePicker from "@/components/space-picker";
 import { TagChip } from "@/components/tag-chip";
 import { TodoCircle, childProgress, dueTag, zhTime } from "@/components/todo-bits";
 import type { FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
@@ -39,6 +44,14 @@ export default function Detail() {
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   // 数据加载失败态（网络抖动/接口异常）：给出重试入口，避免永远停在"加载中"
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  // N2：分区 tab + 感悟编辑器
+  const [tab, setTab] = useState<"todo" | "reflection" | "moments">("todo");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingReflection, setEditingReflection] = useState<{ id: string; content: string } | null>(null);
+  const [refEditorBusy, setRefEditorBusy] = useState(false);
+  // N1：行级空间关联浮层（待办行）
+  const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
+  const [allSpaces, setAllSpaces] = useState<Space[]>([]);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -49,6 +62,7 @@ export default function Detail() {
         return;
       }
       const sj = await sr.json();
+      setAllSpaces((sj.spaces as Space[]) ?? []);
       const s = (sj.spaces as Space[]).find((x) => x.id === id);
       if (!s) {
         setNotFound(true);
@@ -163,9 +177,53 @@ export default function Detail() {
     location.href = "/spaces";
   }
 
+  /** N1：行级关联/切换/移除空间 */
+  async function pickSpace(todoId: string, target: string | null) {
+    setPickerRow(null);
+    const r = await fetch(`/api/todos/${todoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ spaceId: target }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}) as { error?: string });
+      setMsg({ ok: false, text: j.error ?? "关联失败" });
+      return;
+    }
+    setMsg({ ok: true, text: target ? "🎯 已关联空间" : "已移除空间归属" });
+    await load();
+  }
+
+  /** N2：保存感悟（新建/编辑） */
+  async function saveReflection(content: string): Promise<boolean> {
+    setRefEditorBusy(true);
+    try {
+      const url = editingReflection
+        ? `/api/spaces/${id}/reflections/${editingReflection.id}`
+        : `/api/spaces/${id}/reflections`;
+      const r = await fetch(url, {
+        method: editingReflection ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}) as { error?: string });
+        setMsg({ ok: false, text: j.error ?? "保存失败" });
+        return false;
+      }
+      setMsg({ ok: true, text: editingReflection ? "✏️ 感悟已更新" : "📝 感悟已保存" });
+      setEditorOpen(false);
+      await load();
+      return true;
+    } finally {
+      setRefEditorBusy(false);
+    }
+  }
+
   async function removeSpace() {
     if (!space) return;
-    if (!window.confirm(`删除空间「${space.name}」？\n动态与 todo 不会被删除，仅解除归属。`)) return;
+    const refN = space.reflection_count ?? 0;
+    if (!window.confirm(`删除空间「${space.name}」？\n含 ${refN} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`)) return;
     await fetch(`/api/spaces/${space.id}`, { method: "DELETE" });
     location.href = "/spaces";
   }
@@ -234,7 +292,26 @@ export default function Detail() {
               {space.icon}
             </span>
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-bold text-ink">{space.name}</h1>
+              <h1 className="text-xl font-bold text-ink">
+                <InlineRename
+                  value={space.name}
+                  onSave={async (name) => {
+                    const r = await fetch(`/api/spaces/${id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name }),
+                    });
+                    if (!r.ok) {
+                      const j = await r.json().catch(() => ({}) as { error?: string });
+                      setMsg({ ok: false, text: j.error ?? "重命名失败" });
+                      return false;
+                    }
+                    setSpace({ ...space, name });
+                    setMsg({ ok: true, text: "已重命名" });
+                    return true;
+                  }}
+                />
+              </h1>
               {space.description && <p className="mt-1 text-xs leading-relaxed text-ink-mute">{space.description}</p>}
               <p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-ink-dim">
                 {space.started_at && <span>{bjDate(space.started_at)} 开始</span>}
@@ -277,7 +354,15 @@ export default function Detail() {
           </div>
         </div>
 
+        {/* 分区 tab（REQ-002 N2）：待办 / 感悟 / 动态 */}
+        <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1">
+          <FilterChip label="待办" count={todos.length} active={tab === "todo"} onClick={() => setTab("todo")} />
+          <FilterChip label="感悟" count={space.reflection_count ?? 0} active={tab === "reflection"} onClick={() => setTab("reflection")} />
+          <FilterChip label="动态" count={moments.length} active={tab === "moments"} onClick={() => setTab("moments")} />
+        </div>
+
         {/* 关联 todo */}
+        {tab === "todo" && (
         <section className="glass mb-4 rounded-2xl p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
             <TagChip icon="📋" label="关联 todo" tone="sky" />
@@ -396,8 +481,45 @@ export default function Detail() {
             </ul>
           )}
         </section>
+        )}
+
+        {/* 感悟（REQ-002 N2） */}
+        {tab === "reflection" && (
+          <div className="mb-4">
+            <div className="mb-3 flex justify-end">
+              <button
+                onClick={() => {
+                  setEditingReflection(null);
+                  setEditorOpen(true);
+                }}
+                className="btn-primary rounded-xl px-4 py-2 text-sm font-medium"
+              >
+                ✍️ 写感悟
+              </button>
+            </div>
+            <SpaceReflections
+              spaceId={id}
+              notify={setMsg}
+              onChanged={() => void load()}
+              onEdit={({ id: rid }) => {
+                // 打开编辑器前拉取全文
+                void (async () => {
+                  const r = await fetch(`/api/spaces/${id}/reflections/${rid}`);
+                  const j = await r.json();
+                  if (!r.ok) {
+                    setMsg({ ok: false, text: j.error ?? "全文加载失败" });
+                    return;
+                  }
+                  setEditingReflection({ id: rid, content: j.reflection.content });
+                  setEditorOpen(true);
+                })();
+              }}
+            />
+          </div>
+        )}
 
         {/* 关联动态 */}
+        {tab === "moments" && (
         <section className="glass rounded-2xl p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
             <TagChip icon="🌱" label="相关动态" tone="emerald" />
@@ -418,6 +540,7 @@ export default function Detail() {
             </ul>
           )}
         </section>
+        )}
 
         {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层）；点空白关闭由 useDismiss 处理（N3） */}
         {menuRow &&
@@ -455,6 +578,13 @@ export default function Detail() {
                     </>
                   ) : (
                     <>
+                      <button
+                        onClick={() => { const t = menuRow.todo; setMenuRow(null); setPickerRow({ id: t.id, spaceId: t.space_id }); }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
+                      >
+                        <span className="w-5 shrink-0 text-center text-sm leading-none">🎯</span>
+                        <span className="min-w-0 flex-1">关联空间</span>
+                      </button>
                       {menuRow.todo.status !== "done" && (
                         <button
                           onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: false }); }}
@@ -482,6 +612,30 @@ export default function Detail() {
                   )}
                 </div>
             </Dismissable>,
+            document.body,
+          )}
+
+        {/* N2 感悟编辑器（底部抽屉，N3 点空白取消） */}
+        <ReflectionEditor
+          open={editorOpen}
+          initial={editingReflection?.content ?? ""}
+          busy={refEditorBusy}
+          notify={setMsg}
+          onCancel={() => setEditorOpen(false)}
+          onSave={saveReflection}
+        />
+
+        {/* N1 行级空间关联浮层 */}
+        {pickerRow &&
+          createPortal(
+            <SpacePicker
+              spaces={allSpaces}
+              currentId={pickerRow.spaceId}
+              busy={false}
+              onPick={(sid) => void pickSpace(pickerRow.id, sid)}
+              onRemove={() => void pickSpace(pickerRow.id, null)}
+              onClose={() => setPickerRow(null)}
+            />,
             document.body,
           )}
       </div>
