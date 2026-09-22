@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拾光 · 产品与技术架构总览（2026-09）</title>
+<style>
+  :root{
+    --bg:#0b1120;--panel:#111a2e;--panel2:#0e1628;--line:#22304d;--ink:#e2e8f0;--dim:#94a3b8;--faint:#64748b;
+    --sky:#38bdf8;--indigo:#818cf8;--emerald:#34d399;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.7;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 24px 80px}
+  header.hero{text-align:center;padding:56px 0 40px;border-bottom:1px solid var(--line);margin-bottom:40px}
+  h1.title{font-size:44px;letter-spacing:2px;background:linear-gradient(120deg,var(--sky),var(--indigo),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .subtitle{color:var(--dim);margin-top:10px;font-size:16px}
+  .meta{margin-top:14px;font-size:12px;color:var(--faint)}
+  h2{font-size:24px;margin:48px 0 18px;padding-left:12px;border-left:4px solid var(--sky)}
+  h3{font-size:17px;margin:24px 0 10px;color:var(--sky)}
+  p{margin:8px 0}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .card h4{font-size:15px;margin-bottom:6px}
+  .card p{font-size:13px;color:var(--dim)}
+  .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+  .kpi .card{text-align:center}
+  .kpi b{font-size:26px;color:var(--sky)}
+  .kpi span{display:block;font-size:12px;color:var(--dim);margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;background:var(--panel2);border-radius:10px;overflow:hidden}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{background:#152238;color:var(--sky);font-weight:600;white-space:nowrap}
+  td{color:var(--dim)} td b{color:var(--ink)}
+  .tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;margin:2px 4px 2px 0;background:#1a2740;border:1px solid var(--line);color:var(--dim)}
+  .tag.on{background:linear-gradient(120deg,rgba(56,189,248,.18),rgba(129,140,248,.18));border-color:var(--sky);color:var(--sky)}
+  .arch{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:22px;overflow-x:auto;margin:14px 0}
+  .arch pre{font-family:Consolas,"Courier New",monospace;font-size:12.5px;line-height:1.55;color:#b6c5e1;white-space:pre}
+  .arch pre .hl{color:var(--sky)} .arch pre .hl2{color:var(--emerald)} .arch pre .hl3{color:var(--amber)}
+  ul{margin:8px 0 8px 20px;color:var(--dim);font-size:14px}
+  li{margin:4px 0}
+  li b{color:var(--ink)}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+  .flow .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}
+  .flow .arr{color:var(--sky);font-weight:700}
+  footer{margin-top:60px;text-align:center;color:var(--faint);font-size:12px;border-top:1px solid var(--line);padding-top:20px}
+  @media (max-width:640px){ h1.title{font-size:32px} .wrap{padding:24px 14px 60px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1 class="title">拾光 · shiguangri</h1>
+  <div class="subtitle">一句话记录你的人生 —— 个人经营系统：时间 · 目标 · 人际 · 财务，以 AI 为内核</div>
+  <div class="meta">架构与产品总览 · 2026-09 · v1.4（003 综合迭代 + 004 模块化重构后的最新形态） · <a href="https://shiguang.ting97.cn" style="color:var(--sky)">shiguang.ting97.cn</a></div>
+</header>
+
+<!-- ================= 产品介绍 ================= -->
+<h2>一、产品介绍</h2>
+<p>「拾光」是一款面向个人经营的四轴记录系统。核心理念：<b>说一句话，AI 帮你记完一切</b>——发一条动态（文字/语音/照片），AI 自动识别其中的<b>日程、待办、收支、心情、饮食、人物</b>六个维度，确认后自动写入时间轴、待办清单、账本和人际档案。长期积累后，AI 再以日/周/月/年四级复盘把数据变成洞察。</p>
+
+<div class="grid g4">
+  <div class="card"><h4>⏳ 时间轴</h4><p>日程块自动落轴，日/周/月/年四视图日历，手动补录缺口，时长统计。</p></div>
+  <div class="card"><h4>🎯 目标空间</h4><p>TODO·行动两级任务，目标空间容器（含目标日期、感悟、关联动态），AI 拆解行动。</p></div>
+  <div class="card"><h4>🤝 人际</h4><p>联系人档案、往来记录、亲密度/重要程度五档星型图谱、生日农历提醒、人情账。</p></div>
+  <div class="card"><h4>💰 财务</h4><p>账户/流水/预算/储蓄率，账单导入（支付宝/微信 CSV），负债管理（到期墙、雪球/雪崩策略模拟），交易复盘。</p></div>
+</div>
+
+<h3>AI 内核能力</h3>
+<table>
+  <tr><th>能力</th><th>说明</th><th>引擎</th></tr>
+  <tr><td><b>五域识别</b></td><td>一句话并行识别六维信息；闭集判断与开放词汇抽取分离</td><td>GLM（开放词汇）+ Jev（闭集，可选接管）+ 规则兜底</td></tr>
+  <tr><td><b>空间归属</b></td><td>动态自动归入目标空间，待办继承</td><td>Jev / GLM（模式可切）</td></tr>
+  <tr><td><b>四级复盘</b></td><td>日/周/月/年小结，小结链逐级聚合，用户画像沉淀</td><td>GLM</td></tr>
+  <tr><td><b>行动拆解</b></td><td>TODO → 行动清单（动词开头、单次专注、可判定）</td><td>GLM</td></tr>
+  <tr><td><b>语音转写</b></td><td>按住说话，GLM-ASR 转写后进入同一条识别管线</td><td>GLM-ASR</td></tr>
+  <tr><td><b>交易周报</b></td><td>收支结构与环比解读（统计纯 SQL，零 AI 消耗）</td><td>GLM</td></tr>
+  <tr><td><b>Prompt 纳管</b></td><td>18 个 prompt 的 system/user 模板/注入开关/参数 全部后台可调、版本化、可回滚、装配预览零 token</td><td>—</td></tr>
+</table>
+
+<!-- ================= 业务架构 ================= -->
+<h2>二、业务架构（9 领域）</h2>
+<p>004 重构后，后端按领域模块化单体组织。九个领域模块，跨域只走 service 接口，insight 为显式 CQRS 读侧。</p>
+<div class="arch"><pre>
+                        ┌──────────────────────────────────────────────┐
+   web(PWA) / Expo / 壳 ──► │  Next.js Route 层（app/api/**，withRoute 薄适配）  │
+                        └───────────────┬──────────────────────────────┘
+                                        │ 只调各域 index 导出的 service
+   ┌───────────┬────────────┬───────────┼────────────┬────────────┬────────────┐
+   │ identity  │  timeline  │   time    │    goal    │  finance   │   people   │
+   │ 身份与访问  │  时光流 ★  │   日程     │   目标      │  财务+debt  │   人际      │
+   └─────┬─────┘─────┬─────┘─────┬─────┘─────┬──────┘─────┬──────┘─────┬──────┘
+         │           │   跨域只走 service 接口（confirm 编排四域写入）  │
+   ┌─────┴───────────┴───────────┴───────────┴────────────┴────────────┘
+   │  insight（复盘·工作台·提醒：CQRS 读侧，跨域只读集中声明） │  ai（识别编排·prompt·计量） │
+   └──────────────────────────────────────────────────────────────────┘
+         │                                     │
+   ┌─────┴───────────────────┐     ┌─────────┴──────────────┐
+   │ platform（邀请/授权/套餐/   │     │ packages/ai            │
+   │ 文件/导出/静态/health）     │     │ Vercel AI SDK · GLM ◄► Jev │
+   └─────────────────────────┘     └────────────────────────┘
+   共同下沉：packages/shared（类型+zod 契约+日期/农历工具）· packages/db（SQL 迁移+runner）
+</pre></div>
+
+<h3>领域职责与数据表</h3>
+<table>
+  <tr><th>模块</th><th>职责</th><th>核心表</th><th>代表路由</th></tr>
+  <tr><td><b>identity</b></td><td>登录/注册/会话/验证码通道/个人资料/登录防护</td><td>profiles, sessions, sms_codes, email_codes, login_attempts</td><td>/api/auth/*</td></tr>
+  <tr><td><b>timeline ★</b></td><td>动态采集、五域识别编排、图片语音、确认流</td><td>entries, entry_recognitions, entry_images, voice_logs, diet_records</td><td>/api/parse · /api/feed* · /api/entries/*</td></tr>
+  <tr><td><b>time</b></td><td>时间块、活动分类、时长统计</td><td>time_blocks, activities</td><td>/api/blocks* · /api/activities* · /api/stats/range</td></tr>
+  <tr><td><b>goal</b></td><td>TODO·行动、目标空间、感悟</td><td>todos, goal_spaces, space_reflections</td><td>/api/todos* · /api/spaces*</td></tr>
+  <tr><td><b>finance</b></td><td>账户/流水/预算/导入/报表；负债子域</td><td>accounts, transactions, budgets, liabilities, liability_payments</td><td>/api/accounts* · /api/transactions* · /api/debts* · /api/finance/*</td></tr>
+  <tr><td><b>people</b></td><td>联系人档案、往来记录、AI 画像</td><td>contacts, interactions</td><td>/api/contacts* · /api/interactions/*</td></tr>
+  <tr><td><b>insight</b></td><td>四级复盘、今日工作台、提醒（跨域只读）</td><td>review_caches, review_gen_quotas, user_ai_profiles</td><td>/api/review* · /api/today · /api/reminders</td></tr>
+  <tr><td><b>ai</b></td><td>prompt/输入装配管理、识别管线、影子对照、计量配额</td><td>ai_prompts, ai_prompt_versions, audit_logs</td><td>/api/asr · /api/admin/prompts* · /api/admin/ai-mode</td></tr>
+  <tr><td><b>platform</b></td><td>邀请码、模块授权、套餐计费、文件、导出、健康检查</td><td>invite_codes, user_module_grants, app_config</td><td>/api/admin/invites · /api/admin/grants · /api/billing/* · /api/health</td></tr>
+</table>
+
+<h3>核心数据流</h3>
+<div class="flow">
+  <span class="step">发动态（文字/语音/图）</span><span class="arr">→</span>
+  <span class="step">/api/parse 落库秒回</span><span class="arr">→</span>
+  <span class="step">AI 五域识别（Jev 闭集 + GLM 开放词汇）</span><span class="arr">→</span>
+  <span class="step">识别登记簿 pending</span><span class="arr">→</span>
+  <span class="step">用户确认</span><span class="arr">→</span>
+  <span class="step">时间/待办/账本/人际 四域落库</span>
+</div>
+<div class="flow">
+  <span class="step">日/周/月/年聚合（CQRS 读侧）</span><span class="arr">→</span>
+  <span class="step">复盘生成（缓存+配额）</span><span class="arr">→</span>
+  <span class="step">画像沉淀 → 反哺识别个性化</span>
+</div>
+
+<!-- ================= 技术架构 ================= -->
+<h2>三、技术架构</h2>
+<div class="kpi">
+  <div class="card"><b>9</b><span>领域模块</span></div>
+  <div class="card"><b>75+</b><span>API 路由</span></div>
+  <div class="card"><b>35</b><span>DB 迁移（runner 管理）</span></div>
+  <div class="card"><b>18</b><span>受纳管 Prompt</span></div>
+  <div class="card"><b>4 端</b><span>Web PWA / Expo / Android / iOS 壳</span></div>
+</div>
+
+<h3>3.1 技术栈</h3>
+<table>
+  <tr><th>层</th><th>技术</th><th>说明</th></tr>
+  <tr><td>前端</td><td>Next.js 15（App Router · output:export）+ React 19 + Tailwind</td><td>纯静态导出，PWA；SessionProvider/useApi/ErrorBoundary 数据层基座</td></tr>
+  <tr><td>后端</td><td>Next.js standalone（Node ≥20）+ 手写参数化 SQL（pg）</td><td>模块化单体；withRoute/withAuth/withAdmin/withModule/withSchema(zod) 统一基座</td></tr>
+  <tr><td>AI</td><td>Vercel AI SDK（@ai-sdk/openai-compatible）+ zod 契约 + 自研 Jev 协议 + 规则引擎兜底</td><td>GLM_TRANSPORT=sdk/legacy 双通道；重试/降级/熔断策略层</td></tr>
+  <tr><td>数据库</td><td>PostgreSQL 16 + 35 个幂等 SQL 迁移 + runner（checksum 防篡改）</td><td>npm run db:migrate / :status</td></tr>
+  <tr><td>安全</td><td>会话 Cookie（sha256 存储）+ Bearer 双通道；登录双层限流锁定；Origin/Sec-Fetch-Site CSRF 硬校验；setup 一次性令牌</td><td>middleware 集中门卫 + 路由深层校验</td></tr>
+  <tr><td>可观测</td><td>结构化 JSON 日志（requestId 贯穿）+ audit_logs AI 计量 + /api/health</td><td>探活不鉴权；审计失败重试+可感知</td></tr>
+  <tr><td>工程</td><td>npm workspaces + ESLint 9 + Prettier + GitHub Actions（lint→typecheck→test→build）+ AGENTS.md</td><td>CI 红不过合</td></tr>
+  <tr><td>部署</td><td>腾讯云单机 + Caddy + 双 tar 发布 + systemctl 交换（秒级回滚：保留 /opt/shiguangri_old 逐版快照）</td><td>APP_ENV=production fail-fast 配置校验</td></tr>
+</table>
+
+<h3>3.2 AI 识别管线（三引擎 + 降级链）</h3>
+<div class="arch"><pre>
+一句话 → <span class="hl">Jev 闭集问题组</span>（一次并行 12 问：适用性/活动分类/收支方向分类/餐次/时段/记录类型，校准概率）
+       → <span class="hl">GLM 瘦身提取</span>（开放词汇：标题/起止时间/人名/饮食条目/心情/金额对方）
+       → <span class="hl2">合并层</span>（闭集信 Jev·概率作置信；开放字段信 GLM；不一致宁漏勿错）
+       → <span class="hl2">确定性后处理</span>（时间合法性/区间→时长/ongoing 推导/kcal 求和）
+       → <span class="hl3">v2 zod 契约</span> 校验（不合格自动带错误清单重问一次）
+
+模式开关（管理台「调用引擎模式」，即时生效）：
+  <span class="hl">off</span>    全 GLM 全量识别
+  <span class="hl">shadow</span> GLM 行为不变 + 后台同题调 Jev 只写一致率审计（观察期机制）
+  <span class="hl">on</span>     实时接管（混合引擎 + 空间归属切 Jev）
+降级链：Jev 失败/瘦身不合格 → 全量 GLM → 规则引擎（打卡永不失败）；额度熔断 5 分钟防欠费重放
+</pre></div>
+
+<h3>3.3 安全设计</h3>
+<table>
+  <tr><th>威胁</th><th>措施</th></tr>
+  <tr><td>登录暴力破解</td><td>双层：IP 内存滑动窗口（15min/20 次）+ 身份 DB 锁定（30min/20 次，423）；失败文案统一模糊，不暴露账号存在性；成功即清失败记录</td></tr>
+  <tr><td>CSRF</td><td>Cookie 会话写请求强制 Origin/Sec-Fetch-Site 同源（middleware 层全覆盖），Bearer 豁免；与 SameSite=Lax 叠加</td></tr>
+  <tr><td>配置后门</td><td>APP_ENV=production 时 AUTH_DISABLED 非空 / 弱默认连接串 → 启动即拒绝（fail-fast）</td></tr>
+  <tr><td>初始化抢占</td><td>SETUP_TOKEN 一次性令牌（成败都作废，app_config 留痕）</td></tr>
+  <tr><td>会话盗用</td><td>全端登出（吊销全部会话）；会话 token 明文不落库（存 sha256）</td></tr>
+  <tr><td>审计可靠性</td><td>AI 审计写入失败重试一次 + 结构化错误日志 + 连续失败计数（健康降级信号）</td></tr>
+  <tr><td>模块越权</td><td>模块级授权（debt/trade_review）：me.modules 前端可见性 + getModuleUser API 双层门禁</td></tr>
+</table>
+
+<h3>3.4 可观测与工程化</h3>
+<ul>
+  <li><b>结构化日志</b>：AsyncLocalStorage requestId 贯穿请求/AI 调用/审计，JSON 到 stdout（journald 收集）</li>
+  <li><b>/api/health</b>：DB 连通 / 上传目录可写 / AI 配置 / 迁移待执行——探活不鉴权</li>
+  <li><b>AI 计量</b>：audit_logs 记录每次调用的 stage/engine/model/耗时/token；shadow 一致率、配额口径排除影子调用</li>
+  <li><b>CI</b>：lint(0 error) → typecheck(3 端) → test(140+ 用例) → build；测试栈 node:test + tsx</li>
+  <li><b>迁移 runner</b>：schema_migrations 台账 + checksum 防手改 + 首跑自举回填</li>
+</ul>
+
+<!-- ================= 部署拓扑 ================= -->
+<h2>四、部署拓扑</h2>
+<div class="arch"><pre>
+用户 ──HTTPS──► Caddy（TLS/反代） ──► systemd: shiguangri.service
+                                     Node standalone（apps/api，:3000）
+                                       ├── /api/**      领域路由（withRoute 基座）
+                                       ├── /**          web 静态导出托管（out/）
+                                       └── /api/health  探活
+                                          │
+                              ┌───────────┴───────────┐
+                              │ PostgreSQL 16（本机）    │  uploads /opt/shiguangri_data
+                              └───────────────────────┘
+外部依赖：智谱开放平台（GLM/GLM-ASR）· TypeSafe SystemOne（Jev）· SMTP/SMS 通道
+发布：双 tar（standalone + web out）→ 解包交换 → 冒烟（/api/health · /login 200 · 鉴权 401）
+回滚：/opt/shiguangri_old 保留逐版快照，mv 即回；DB 变更前 pg_dump 快照
+</pre></div>
+
+<!-- ================= 演进里程碑 ================= -->
+<h2>五、演进里程碑</h2>
+<table>
+  <tr><th>需求包</th><th>内容</th><th>状态</th></tr>
+  <tr><td>001</td><td>动态图片 · 视觉升级 · 目标空间 · 后台管理</td><td><span class="tag on">已上线</span></td></tr>
+  <tr><td>002</td><td>空间感悟 · 待办关联空间 · 浮层交互 · 术语统一 · 行动解耦</td><td><span class="tag on">已上线</span></td></tr>
+  <tr><td>003</td><td>AI 输入装配纳管（3-A）· Jev 接入 PoC/影子/接管（3-B/3-C/3-D）· 体验快修（3-E）· 模块授权+负债管理+交易复盘+财务二级 tab（3-F）· 图谱升级（3-G）</td><td><span class="tag on">已上线（除 3-D 观察期开关）</span></td></tr>
+  <tr><td>004</td><td>模块化领域重构 · 工程加固：config fail-fast、迁移 runner(035)、/api/health、结构化日志、CI/ESLint、AGENTS.md、登录防护(034)、CSRF、九域结构、lib 清零、AI SDK 迁移、前端数据层基建、finance 页拆分示范</td><td><span class="tag on">核心已上线</span> <span class="tag">持续项：路由 service 抽取 / 全量 fetch 收编 / Top10 拆分 / MCP(P2) / 用量台账(P2)</span></td></tr>
+</table>
+
+<h2>六、设计决策记录（要点）</h2>
+<ul>
+  <li><b>模块化单体而非微服务</b>：单机部署下收益/成本最优；跨域只走 service 面，为未来拆分留缝。</li>
+  <li><b>不引 ORM</b>：手写参数化 SQL 是既有安全资产，仅以 repo 层收口。</li>
+  <li><b>CSRF 用 Origin/Sec-Fetch-Site 硬校验而非 token</b>：现代浏览器全覆盖，免改全部写路由与前端。</li>
+  <li><b>AI 双引擎</b>：Jev 概率校准的闭集判断（快 ~6×）+ GLM 开放词汇生成，各取所长；三模式开关一键切换/回退。</li>
+  <li><b>AI 传输层双通道</b>：Vercel AI SDK（默认）+ 自研 fetch（legacy 回退开关），PoC 实测对照后切换。</li>
+  <li><b>迁移 runner + checksum</b>：终结手工 psql，防手改已上线迁移；幂等可回滚。</li>
+  <li><b>复盘缓存+配额+数据新鲜度</b>：同一周期秒回缓存；数据更新自动失效；时间解锁预留份额防「刚过 0 点就烧光」。</li>
+</ul>
+
+<footer>
+  拾光 shiguangri · 个人经营系统 · 本文档由 004 重构完成后自动归档生成（docs/13-产品与架构总览.html）<br>
+  数据截至 2026-09-23 · 生产 https://shiguang.ting97.cn
+</footer>
+</div>
+</body>
+</html>
