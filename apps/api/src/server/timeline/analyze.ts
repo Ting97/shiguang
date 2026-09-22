@@ -3,13 +3,13 @@ import {
   parseInput, parseHybridInput, SpaceClassification, chat, jevAsk, jevEnabled,
   spaceClassifyQuestions, HybridUnavailableError,
 } from "@shiguangri/ai";
-import { assembleUserPrompt, getPromptBundle } from "./prompts";
+import { assembleUserPrompt, getPromptBundle } from "@/lib/prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
 import { jevShadowCompare } from "@/lib/jev-shadow";
-import { getJevMode } from "./ai-mode";
+import { getJevMode } from "@/lib/ai-mode";
 
 /** 空间自动归属置信阈值（低于不写入） */
 const SPACE_CONFIDENCE_THRESHOLD = 0.7;
@@ -151,6 +151,7 @@ export interface AnalyzeOutcome {
   kind: "todo" | "block" | "moment";
 }
 
+/** 以下常量/函数与五域识别编排相关（timeline 核心域，004 4-C 自 lib 迁入） */
 /** 用户已有联系人名单（按最近往来排序，人物识别时供 AI 对齐称呼，条数上限由注入配置控制，默认 100） */
 export async function listContactNames(userId: string, limit = 100): Promise<string[]> {
   const { rows } = await pool.query(

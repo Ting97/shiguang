@@ -6,7 +6,7 @@ import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/lib/quota";
 import { writeAuditRecord } from "@/lib/audit";
 import { getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
-import { listContactNames } from "@/lib/analyze";
+import { listContactNames } from "@/server/timeline/analyze";
 import { toCstWallClock } from "@shiguangri/ai";
 
 export const runtime = "nodejs";

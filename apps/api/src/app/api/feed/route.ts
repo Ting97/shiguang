@@ -1,105 +1,20 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { z } from "zod";
+import { withAuthQuery } from "@/server/platform/http/route";
+import { listFeed } from "@/server/timeline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * GET /api/feed?limit=10&offset=0&q=关键字&spaceId=all|none|<uuid>
- * 动态流：entries 按记录时刻倒序，聚合 AI 识别出的日程/待办/金额/人物/饮食/图片/识别登记簿。
- * q 非空时按关键字检索：原文 + 识别产物（日程/待办标题、交易类别与对方、联系人、饮食条目）。
- * spaceId：空间切换条过滤（all=不过滤 / none=未归属 / 具体值=该空间）。
- */
-export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const url = new URL(req.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 10), 1), 200);
-  const offset = Math.min(Math.max(Number(url.searchParams.get("offset") ?? 0), 0), 100_000);
-  const q = (url.searchParams.get("q") ?? "").trim();
-  const spaceId = url.searchParams.get("spaceId") ?? "all";
+const schema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(10),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+  q: z.string().default(""),
+  spaceId: z.string().default("all"),
+});
 
-  let spaceSql = "";
-  const spaceParamIndex = 4;
-  if (spaceId === "none") spaceSql = ` and e.space_id is null`;
-  else if (spaceId !== "all" && /^[0-9a-f-]{36}$/.test(spaceId)) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
-
-  // 关键字检索：动态原文命中，或任一识别产物命中（中英文均可，ilike 不区分大小写）
-  const searchSql = q
-    ? `and (
-         e.raw_text ilike $4
-         or exists (select 1 from time_blocks b where b.entry_id = e.id and b.title ilike $4)
-         or exists (select 1 from todos t where t.entry_id = e.id and t.title ilike $4)
-         or exists (select 1 from transactions x where x.entry_id = e.id
-                    and (x.category ilike $4 or x.counterparty ilike $4 or x.note ilike $4))
-         or exists (select 1 from interactions i join contacts c on c.id = i.contact_id
-                    where i.entry_id = e.id and c.name ilike $4)
-         or exists (select 1 from diet_records d where d.entry_id = e.id and d.items::text ilike $4)
-       )`
-    : "";
-
-  const { rows } = await pool.query(
-    `select e.id, e.raw_text, e.source, e.mood, e.mood_score, e.created_at, e.analyzed_at,
-       -- 识别超时兜底：analyzed_at 为空且发布超 10 分钟，前端显示「识别未完成」而非无限转圈
-       case when e.analyzed_at is null and e.created_at < now() - interval '10 minutes' then 'timeout' end as recognize_state,
-       (select jsonb_build_object('id', gs.id, 'name', gs.name, 'icon', gs.icon, 'color', gs.color)
-          from goal_spaces gs where gs.id = e.space_id) as space,
-       count(*) over () as total_count,
-       coalesce((
-         select jsonb_agg(jsonb_build_object(
-           'id', b.id, 'title', b.title, 'startAt', b.start_at, 'endAt', b.end_at,
-           'durationMin', b.duration_min, 'activityId', b.activity_id,
-           'activityName', a.name, 'icon', a.icon, 'color', a.color
-         ) order by b.start_at)
-         from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
-         where b.entry_id = e.id
-       ), '[]') as blocks,
-       coalesce((
-         select jsonb_agg(jsonb_build_object(
-           'id', t.id, 'title', t.title, 'dueAt', t.due_at, 'startAt', t.start_at, 'status', t.status, 'activityId', t.activity_id
-         ) order by t.created_at)
-         from todos t where t.entry_id = e.id
-       ), '[]') as todos,
-       coalesce((
-         select jsonb_agg(jsonb_build_object(
-           'id', x.id, 'amountCents', x.amount_cents, 'direction', x.direction,
-           'category', x.category, 'counterparty', x.counterparty
-         ))
-         from transactions x where x.entry_id = e.id
-       ), '[]') as transactions,
-       coalesce((
-         select jsonb_agg(jsonb_build_object('interactionId', i.id, 'name', c.name, 'summary', i.summary))
-         from interactions i join contacts c on c.id = i.contact_id
-         where i.entry_id = e.id
-       ), '[]') as people,
-       coalesce((
-         select jsonb_agg(jsonb_build_object(
-           'id', g.id, 'storageKey', g.storage_key, 'mime', g.mime, 'width', g.width, 'height', g.height, 'sort', g.sort
-         ) order by g.sort, g.created_at)
-         from entry_images g where g.entry_id = e.id
-       ), '[]') as images,
-       (select jsonb_build_object('id', d.id, 'meal', d.meal, 'items', d.items, 'totalKcal', d.total_kcal)
-         from diet_records d where d.entry_id = e.id) as diet,
-       coalesce((
-         select jsonb_object_agg(rg.domain, jsonb_build_object(
-           'status', rg.status, 'confidence', rg.confidence, 'reason', rg.result->>'reason', 'engine', rg.engine,
-           'reasonDismissed', coalesce(rg.result->>'reasonDismissed', 'false')::boolean))
-         from entry_recognitions rg where rg.entry_id = e.id
-       ), '{}'::jsonb) as recognitions
-     from entries e
-     where e.user_id = $1 ${searchSql} ${spaceSql}
-     order by e.created_at desc
-     limit $2 offset $3`,
-    // 转义 ilike 通配符，避免用户输入的 % _ 被当模糊匹配
-    q
-      ? spaceId !== "all" && spaceId !== "none"
-        ? [user.id, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`, spaceId]
-        : [user.id, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`]
-      : spaceId !== "all" && spaceId !== "none"
-        ? [user.id, limit, offset, spaceId]
-        : [user.id, limit, offset],
-  );
-  const total = rows[0] ? Number(rows[0].total_count) : 0;
-  return NextResponse.json({ moments: rows, total });
-}
+/** GET /api/feed —— 动态流（聚合识别产物/关键字检索/空间过滤） */
+export const GET = withAuthQuery(schema, async (_req, { user, valid }) => {
+  const q = valid.q.trim();
+  return NextResponse.json(await listFeed(user.id, { ...valid, q }));
+});

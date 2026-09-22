@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { PROMPT_KEYS, getPromptBundle, assembleUserPrompt, getPrompt, type PromptKey } from "@/lib/prompts";
 import { writeAuditRecord } from "@/lib/audit";
-import { listContactNames } from "@/lib/analyze";
+import { listContactNames } from "@/server/timeline/analyze";
 import { loadProfileBlock } from "@/lib/review-input";
 import { buildReviewCtx, type ReviewKind } from "@/lib/review-ctx";
 
