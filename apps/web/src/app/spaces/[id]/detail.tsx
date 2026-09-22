@@ -73,6 +73,11 @@ export default function Detail() {
   const [noteDoneCount, setNoteDoneCount] = useState(0);
   // 活动分类（编辑器下拉用）
   const [activities, setActivities] = useState<Activity[]>([]);
+  // 「关联已有」浮层：浏览未关联空间的顶层 TODO/独立行动并关联到本空间
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkItems, setLinkItems] = useState<TodoItem[]>([]);
+  const [linkQuery, setLinkQuery] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -264,6 +269,32 @@ export default function Detail() {
     }, "💾 行动已保存");
     if (ok) setNoteOpen(null);
     return ok;
+  }
+
+  /** 打开「关联已有」浮层：拉取未关联空间且未完成的顶层 TODO/独立行动（有父行动随父走，不在顶层） */
+  async function openLinkPicker() {
+    setLinkLoading(true);
+    try {
+      const r = await fetch("/api/todos?view=all");
+      if (!r.ok) {
+        setMsg({ ok: false, text: "加载失败，请稍后再试" });
+        return;
+      }
+      const j = await r.json();
+      setLinkItems(((j.todos as TodoItem[]) ?? []).filter((t) => !t.space_id && t.status === "pending"));
+      setLinkQuery("");
+      setLinkOpen(true);
+    } catch {
+      setMsg({ ok: false, text: "加载失败，请稍后再试" });
+    } finally {
+      setLinkLoading(false);
+    }
+  }
+
+  /** 浮层内关联一条到本空间（成功后从浮层移除，可连续关联多条） */
+  async function linkExisting(todoId: string) {
+    const ok = await patchTodo(todoId, { spaceId: id }, "🎯 已关联到本空间");
+    if (ok) setLinkItems((list) => list.filter((x) => x.id !== todoId));
   }
 
   /** N1：行级关联/切换/移除空间 */
@@ -494,19 +525,25 @@ export default function Detail() {
           </div>
         </div>
 
-        {/* 分区 tab（REQ-002 N2）：待办 / 感悟 / 动态 */}
+        {/* 分区 tab（REQ-002 N2）：TODO·行动 / 感悟 / 动态 */}
         <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1">
-          <FilterChip label="待办" count={todos.length} active={tab === "todo"} onClick={() => setTab("todo")} />
+          <FilterChip label="TODO·行动" count={todos.length} active={tab === "todo"} onClick={() => setTab("todo")} />
           <FilterChip label="感悟" count={space.reflection_count ?? 0} active={tab === "reflection"} onClick={() => setTab("reflection")} />
           <FilterChip label="动态" count={moments.length} active={tab === "moments"} onClick={() => setTab("moments")} />
         </div>
 
-        {/* 关联 todo */}
+        {/* 关联 TODO·行动 */}
         {tab === "todo" && (
         <section className="glass mb-4 rounded-2xl p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
-            <TagChip icon="📋" label="关联 todo" tone="sky" />
+            <TagChip icon="📋" label="TODO·行动" tone="sky" />
             <span className="text-xs font-normal text-ink-dim">{todos.length} 条</span>
+            <button
+              onClick={() => void openLinkPicker()}
+              className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-[11px] font-normal text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
+            >
+              🔗 关联已有
+            </button>
           </h2>
           {/* 添加 todo */}
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-dashed border-line-strong px-3 py-2 focus-within:border-sky-500/60">
@@ -517,14 +554,14 @@ export default function Detail() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) void addTodo();
               }}
-              placeholder="添加服务于该空间的 todo，回车保存"
+              placeholder="添加服务于该空间的 TODO，回车保存"
               maxLength={200}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
             />
           </div>
 
           {todos.length === 0 ? (
-            <p className="py-4 text-center text-xs text-ink-faint">还没有关联 todo —— 在上面添加，或在「日程 · todo」里选择该空间</p>
+            <p className="py-4 text-center text-xs text-ink-faint">还没有 TODO/行动 —— 在上面添加、用「关联已有」归属未关联的，或在「日程 · todo」里选择该空间</p>
           ) : (
             <ul className="space-y-2">
               {todos.map((t) => {
@@ -805,6 +842,72 @@ export default function Detail() {
         )}
 
         {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层）；点空白关闭由 useDismiss 处理（N3） */}
+        {/* 关联已有 TODO/行动浮层（桌面居中 / 移动端底部弹层） */}
+        {linkOpen &&
+          createPortal(
+            <Dismissable
+              onClose={() => setLinkOpen(false)}
+              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:w-80 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-3"
+            >
+              {(() => {
+                const q = linkQuery.trim().toLowerCase();
+                const shown = linkItems.filter((t) => !q || t.title.toLowerCase().includes(q));
+                return (
+                  <>
+                    <p className="mb-2 flex items-center justify-between px-0.5">
+                      <span className="text-xs font-semibold text-ink">关联已有 TODO / 行动</span>
+                      <span className="text-[10px] tabular-nums text-ink-faint">{linkItems.length} 条未关联</span>
+                    </p>
+                    <input
+                      autoFocus
+                      value={linkQuery}
+                      onChange={(e) => setLinkQuery(e.target.value)}
+                      placeholder="搜索标题…"
+                      className="mb-2 w-full rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-sky-500"
+                    />
+                    <div className="max-h-[46dvh] space-y-0.5 overflow-y-auto sm:max-h-72">
+                      {shown.map((t) => {
+                        const tag = dueTag(t.due_at);
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => void linkExisting(t.id)}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
+                          >
+                            <span className="w-5 shrink-0 text-center text-sm leading-none">{t.is_important ? "⭐" : "○"}</span>
+                            <span className="min-w-0 flex-1 truncate" title={t.title}>
+                              {t.kind === "action" && (
+                                <span className="mr-1 inline-flex items-center rounded bg-slate-500/15 px-1 py-0.5 align-middle text-[10px] text-ink-dim">
+                                  行动
+                                </span>
+                              )}
+                              {t.title}
+                            </span>
+                            {tag && <span className={`shrink-0 text-[10px] ${tag.cls}`}>{tag.text}</span>}
+                          </button>
+                        );
+                      })}
+                      {shown.length === 0 && (
+                        <p className="px-2 py-6 text-center text-[11px] text-ink-faint">
+                          {linkItems.length === 0
+                            ? "没有未关联的 TODO/行动 —— 顶层条目都已归属空间"
+                            : "没有匹配的 TODO/行动"}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setLinkOpen(false)}
+                      className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-[11px] text-ink-mute transition hover:bg-soft"
+                    >
+                      关闭
+                    </button>
+                  </>
+                );
+              })()}
+            </Dismissable>,
+            document.body,
+          )}
+
         {/* 空间操作菜单（⋯ 收纳归档/删除；桌面锚定浮层 / 移动端底部弹层） */}
         {spaceMenu && space &&
           createPortal(
