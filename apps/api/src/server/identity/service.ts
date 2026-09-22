@@ -4,12 +4,12 @@
  */
 import { ApiError } from "../platform/http/errors";
 import { assertLoginAllowed, recordLoginAttempt, clientIp } from "../platform/security/login-guard";
-import { createSession, destroySession } from "@/lib/auth";
-import { verifyPassword, hashPassword, isValidPhone } from "@/lib/auth-crypto";
-import { isValidEmail, verifyEmailCode, emailConfigured, sendEmailCode } from "@/lib/email";
-import { verifySmsCode, smsConfigured, sendSmsCode } from "@/lib/sms";
-import { seedPresetActivities } from "@/lib/seed";
-import { pool } from "@/lib/db";
+import { createSession, destroySession } from "@/server/identity/auth";
+import { verifyPassword, hashPassword, isValidPhone } from "@/server/identity/auth-crypto";
+import { isValidEmail, verifyEmailCode, emailConfigured, sendEmailCode } from "@/server/identity/email";
+import { verifySmsCode, smsConfigured, sendSmsCode } from "@/server/identity/sms";
+import { seedPresetActivities } from "@/server/time/seed";
+import { pool } from "@/server/platform/db";
 import { profilesRepo } from "./repo";
 
 export interface LoginInput {
@@ -102,7 +102,7 @@ export async function me(user: {
 }) {
   const { rows } = await profilesRepo.info(user.id);
   // 模块授权（031）在 platform；4-D 迁移后由 server/platform/modules 提供
-  const { listUserModules } = await import("@/lib/modules");
+  const { listUserModules } = await import("@/server/platform/modules");
   return {
     id: user.id,
     nickname: user.nickname,

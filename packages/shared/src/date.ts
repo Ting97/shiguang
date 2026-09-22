@@ -64,3 +64,21 @@ export function zhDuration(min: number): string {
   if (m === 0) return `${h}小时`;
   return `${h}小时${m}分`;
 }
+
+// ===== 北京时区（UTC+8）日历日工具：不依赖宿主时区（004 FR-B2.1 单源化，REQ-003 起的多份副本收敛于此） =====
+
+/** 当前北京日历日 YYYY-MM-DD */
+export function bjToday(): string {
+  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+}
+
+/** 北京日历日加 n 天 */
+export function bjAddDays(dateStr: string, n: number): string {
+  return new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** 北京日历日所属周的周一（周一为周界） */
+export function bjMondayOf(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+}

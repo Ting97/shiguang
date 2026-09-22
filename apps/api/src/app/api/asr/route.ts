@@ -3,9 +3,9 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/server/identity/auth";
 import { hasApiKey, transcribeAudio, asrModel } from "@shiguangri/ai";
-import { writeAuditRecord } from "@/lib/audit";
+import { writeAuditRecord } from "@/server/ai/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

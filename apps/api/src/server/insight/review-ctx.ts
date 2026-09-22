@@ -6,11 +6,11 @@
  *   「（另有 N 条…未展示）」截断注记的真实条数语义
  * - year 动态明细维持心情强度优先抽样（entryCap = 抽样条数，0 = 全量不抽样）
  */
-import { pool } from "./db";
+import { pool } from "@/server/platform/db";
 import {
   blockLines, entryLines, fetchChainSummaries, loadProfileBlock, sampleEntryRows, todoDoneLines,
 } from "./review-input";
-import { assembleUserPrompt, type PromptBundle, type PromptKey } from "./prompts";
+import { assembleUserPrompt, type PromptBundle, type PromptKey } from "@/server/ai/prompts";
 
 const TZ = "Asia/Shanghai";
 

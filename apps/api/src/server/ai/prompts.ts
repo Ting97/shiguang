@@ -4,7 +4,7 @@
  * - getPrompt(key)：ai_prompts(enabled) → 代码默认值；进程内缓存 60s，保存后主动失效
  * - 管理端 API：/api/admin/prompts*
  */
-import { pool } from "./db";
+import { pool } from "@/server/platform/db";
 import { EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS } from "@shiguangri/ai";
 import {
   REVIEW_DAY_SYSTEM,
@@ -13,7 +13,7 @@ import {
   REVIEW_YEAR_SYSTEM,
   PROFILE_MERGE_SYSTEM,
   TRADE_REVIEW_WEEK_SYSTEM,
-} from "./review-prompts";
+} from "@/server/insight/review-prompts";
 import { OPEN_VOCAB_SYSTEM_PROMPT } from "@shiguangri/ai";
 import { AI_INPUT_REGISTRY, mergeContextConfig } from "./ai-inputs";
 

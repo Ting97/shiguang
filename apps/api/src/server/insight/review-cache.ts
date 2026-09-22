@@ -1,6 +1,6 @@
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 import { activeModel } from "@shiguangri/ai";
-import { writeAuditRecord } from "@/lib/audit";
+import { writeAuditRecord } from "@/server/ai/audit";
 
 export interface Review {
   summary: string;

@@ -5,7 +5,7 @@
  * 持续 ≥1 周后统计一致率：空间分类 ≥90% 且五域闭集 ≥85% 才进入接管（3-D）。
  * 3-D 起问题组单源自 packages/ai（questions/jev-sets），影子与接管同字典。
  */
-import { extractClosedSetQuestions, jevAsk, type ParseResult } from "@shiguangri/ai";
+import { extractClosedSetQuestions, jevAsk, toCstWallClock, type ParseResult } from "@shiguangri/ai";
 import { getJevMode } from "./ai-mode";
 import { writeAuditRecord } from "./audit";
 
@@ -28,12 +28,8 @@ export async function jevShadowCompare(userId: string, entryId: string, rawText:
   if ((await getJevMode()) !== "shadow") return;
   const t0 = Date.now();
   try {
-    // 北京时间墙钟：+8h 后必须读 UTC getter（getHours 等读宿主机时区，CST 机器上会二次 +8）
-    const nowCst = (() => {
-      const d = new Date(Date.now() + 8 * 3600_000);
-      const p = (n: number) => String(n).padStart(2, "0");
-      return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}（北京时间）`;
-    })();
+    // 北京时间墙钟：单源 packages/ai toCstWallClock（UTC getter，宿主时区无关）
+    const nowCst = toCstWallClock(new Date());
     const state = `用户随口记录了一句话（当前时间：${nowCst}）：\n「${rawText}」`;
     const res = await jevAsk(state, questions);
     const A = (k: string) => res.answers[k]?.value ?? null;

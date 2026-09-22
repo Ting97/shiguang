@@ -2,8 +2,8 @@
  * 邮箱验证码：SMTP 发送（nodemailer 懒加载，避免纯静态引入）+ 校验；与短信链路（lib/sms.ts）同构。
  * 未配置 EMAIL_SMTP_* 环境变量时 send 返回 503 语义（通道未开通），不影响邮箱密码登录。
  */
-import { pool } from "./db";
-import { generateSmsCode, hashToken } from "./auth-crypto";
+import { pool } from "@/server/platform/db";
+import { generateSmsCode, hashToken } from "@/server/identity/auth-crypto";
 
 const CODE_TTL_MS = 10 * 60_000;
 const DAILY_LIMIT = 10;

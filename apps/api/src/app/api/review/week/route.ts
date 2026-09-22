@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/server/identity/auth";
 import { hasApiKey } from "@shiguangri/ai";
-import { getOrGenerateReview } from "@/lib/review-cache";
-import { checkAiQuota } from "@/lib/quota";
-import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
-import { getPromptBundle } from "@/lib/prompts";
-import { chatReviewJson } from "@/lib/review-input";
-import { buildReviewCtx } from "@/lib/review-ctx";
+import { getOrGenerateReview } from "@/server/insight/review-cache";
+import { checkAiQuota } from "@/server/ai/quota";
+import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight/review-quota";
+import { getPromptBundle } from "@/server/ai/prompts";
+import { chatReviewJson } from "@/server/insight/review-input";
+import { buildReviewCtx } from "@/server/insight/review-ctx";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

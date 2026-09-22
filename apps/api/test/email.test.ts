@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isValidEmail } from "../src/lib/email.js";
+import { isValidEmail } from "../src/server/identity/email.js";
 
 test("邮箱格式：常规地址通过", () => {
   assert.equal(isValidEmail("user@example.com"), true);

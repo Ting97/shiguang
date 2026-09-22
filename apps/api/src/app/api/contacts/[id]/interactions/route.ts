@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
 import { INTERACTION_TYPES } from "@shiguangri/shared/social";
 
 export const runtime = "nodejs";

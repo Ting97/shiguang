@@ -1,5 +1,5 @@
 /** identity 域 repo：SQL 唯一发生地（REQ-004 FR-B1.2） */
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 
 export const profilesRepo = {
   byIdentity(identity: string, byEmail: boolean) {

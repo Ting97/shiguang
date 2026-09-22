@@ -1,6 +1,6 @@
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 import { chat, extractJson } from "@shiguangri/ai";
-import { assembleUserPrompt, getPromptBundle } from "@/lib/prompts";
+import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
 
 /**
  * 复盘输入基建（review v3）：原始明细行格式化、下层小结链、用户画像读写。

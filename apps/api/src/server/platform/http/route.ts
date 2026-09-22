@@ -9,8 +9,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, type SessionUser } from "@/lib/auth";
-import { getModuleUser, type ModuleKey } from "@/lib/modules";
+import { getCurrentUser, type SessionUser } from "@/server/identity/auth";
+import { getModuleUser, type ModuleKey } from "@/server/platform/modules";
 import { ApiError, toApiError } from "./errors";
 import { log, newRequestId, runWithRequestContext } from "./logger";
 

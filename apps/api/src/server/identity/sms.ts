@@ -2,8 +2,8 @@
  * 短信验证码：发送（腾讯云 SMS，TC3 签名，零 SDK 依赖）+ 校验
  * 未配置 SMS 环境变量时 send 返回 503 语义（通道未开通），不影响密码登录
  */
-import { pool } from "./db";
-import { generateSmsCode, hashToken } from "./auth-crypto";
+import { pool } from "@/server/platform/db";
+import { generateSmsCode, hashToken } from "@/server/identity/auth-crypto";
 
 const CODE_TTL_MS = 5 * 60_000;
 const _RESEND_INTERVAL_MS = 60_000;

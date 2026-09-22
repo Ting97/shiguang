@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool, findOverlap, overlapError } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool, findOverlap, overlapError } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
 
 export const runtime = "nodejs";
 

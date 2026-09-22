@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { deleteImageFile } from "@/lib/storage";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { deleteImageFile } from "@/server/timeline/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

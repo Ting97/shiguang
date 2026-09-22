@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { PROMPT_KEYS, PROMPT_META, defaultPrompt, type PromptKey } from "@/lib/prompts";
-import { AI_INPUT_REGISTRY, mergeContextConfig } from "@/lib/ai-inputs";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { PROMPT_KEYS, PROMPT_META, defaultPrompt, type PromptKey } from "@/server/ai/prompts";
+import { AI_INPUT_REGISTRY, mergeContextConfig } from "@/server/ai/ai-inputs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

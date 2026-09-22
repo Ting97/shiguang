@@ -1,5 +1,5 @@
 /** timeline 域 repo：entries/识别登记簿/子表 SQL 唯一发生地（REQ-004 FR-B1.2） */
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 
 export const entriesRepo = {
   async rawTextOf(entryId: string, userId: string): Promise<{ raw_text: string } | undefined> {

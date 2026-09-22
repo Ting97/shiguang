@@ -1,4 +1,4 @@
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 
 /** 预设活动分类（与 packages/db/schema.sql 同源：新用户注册后播种自己的九大分类） */
 export const PRESET_ACTIVITIES: Array<{

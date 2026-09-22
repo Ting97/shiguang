@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
-import { envJevMode, getJevMode, setJevMode, type JevModeValue } from "@/lib/ai-mode";
+import { getCurrentUser } from "@/server/identity/auth";
+import { envJevMode, getJevMode, setJevMode, type JevModeValue } from "@/server/ai/ai-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

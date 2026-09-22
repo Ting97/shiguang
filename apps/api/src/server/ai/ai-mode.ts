@@ -4,7 +4,7 @@
  * - /admin 可写 DB 覆盖（app_config key='jev_mode'），保存即生效（60s 进程缓存 + 主动失效）
  * - on = 实时接管：3-D 未上线前仅作存储位（行为等同 off，UI 明确标注"未上线"）
  */
-import { pool } from "./db";
+import { pool } from "@/server/platform/db";
 
 export type JevModeValue = "off" | "shadow" | "on";
 

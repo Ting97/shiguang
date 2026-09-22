@@ -4,8 +4,8 @@
  * - AUTH_DISABLED=1 仅限本地开发：跳过登录，直接以开发用户身份运行（生产禁止设置）
  */
 import { cookies, headers } from "next/headers";
-import { pool, DEV_USER_ID } from "./db";
-import { generateSessionToken, hashToken } from "./auth-crypto";
+import { pool, DEV_USER_ID } from "@/server/platform/db";
+import { generateSessionToken, hashToken } from "@/server/identity/auth-crypto";
 import { extractBearerToken } from "@shiguangri/shared/bearer";
 
 export const SESSION_COOKIE = "shiguang_session";

@@ -1,4 +1,4 @@
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 
 /**
  * 复盘生成次数管控（review v3.1）。

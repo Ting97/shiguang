@@ -1,15 +1,15 @@
-import { pool, findOverlap, overlapError } from "@/lib/db";
+import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import {
   parseInput, parseHybridInput, SpaceClassification, chat, jevAsk, jevEnabled,
   spaceClassifyQuestions, HybridUnavailableError,
 } from "@shiguangri/ai";
-import { assembleUserPrompt, getPromptBundle } from "@/lib/prompts";
+import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
-import { writeAuditRecord } from "@/lib/audit";
-import { jevShadowCompare } from "@/lib/jev-shadow";
-import { getJevMode } from "@/lib/ai-mode";
+import { writeAuditRecord } from "@/server/ai/audit";
+import { jevShadowCompare } from "@/server/ai/jev-shadow";
+import { getJevMode } from "@/server/ai/ai-mode";
 
 /** 空间自动归属置信阈值（低于不写入） */
 const SPACE_CONFIDENCE_THRESHOLD = 0.7;

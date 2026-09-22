@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
 import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
 
 export const runtime = "nodejs";

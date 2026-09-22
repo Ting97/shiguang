@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractBearerToken } from "@shiguangri/shared/bearer";
-import { generateSessionToken } from "../src/lib/auth-crypto.js";
+import { generateSessionToken } from "../src/server/identity/auth-crypto.js";
 import { resolveCors } from "@shiguangri/shared/cors";
 
 function req(method: string, headers: Record<string, string>) {

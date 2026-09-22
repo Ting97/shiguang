@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { getQuota } from "@/lib/quota";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { getQuota } from "@/server/ai/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

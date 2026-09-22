@@ -1,4 +1,4 @@
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 import { log } from "@/server/platform/http/logger";
 
 /**

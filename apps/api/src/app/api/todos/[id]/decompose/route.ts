@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
 import { chat, extractJson } from "@shiguangri/ai";
 import { z } from "zod";
-import { getPromptBundle, assembleUserPrompt } from "@/lib/prompts";
-import { loadProfileBlock } from "@/lib/review-input";
-import { checkAiQuota } from "@/lib/quota";
-import { writeAuditRecord } from "@/lib/audit";
+import { getPromptBundle, assembleUserPrompt } from "@/server/ai/prompts";
+import { loadProfileBlock } from "@/server/insight/review-input";
+import { checkAiQuota } from "@/server/ai/quota";
+import { writeAuditRecord } from "@/server/ai/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

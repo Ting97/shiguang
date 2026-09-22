@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { getCurrentUser } from "@/lib/auth";
-import { pool } from "@/lib/db";
-import { storagePath } from "@/lib/storage";
+import { getCurrentUser } from "@/server/identity/auth";
+import { pool } from "@/server/platform/db";
+import { storagePath } from "@/server/timeline/storage";
 import { Readable } from "node:stream";
 import { extname } from "node:path";
 

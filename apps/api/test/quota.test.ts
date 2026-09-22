@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isProValid, FREE_AI_CALLS_30D } from "../src/lib/quota.js";
+import { isProValid, FREE_AI_CALLS_30D } from "../src/server/ai/quota.js";
 
 test("Pro 有效性：无到期时间 = 永久有效", () => {
   assert.equal(isProValid("pro", null), true);

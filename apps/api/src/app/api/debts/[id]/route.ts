@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { getModuleUser } from "@/lib/modules";
-import { validateDebtBody, serializeDebt } from "@/lib/debts";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { getModuleUser } from "@/server/platform/modules";
+import { validateDebtBody, serializeDebt } from "@/server/finance/debt/debts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const GATE = async () => {
+const GATE = async (): Promise<
+  { user: null; res: NextResponse } | { user: NonNullable<Awaited<ReturnType<typeof getModuleUser>>>; res: null }
+> => {
   const user = await getModuleUser("debt");
   if (!user) {
     const cur = await getCurrentUser();

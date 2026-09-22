@@ -3,10 +3,10 @@
  * timeline 是核心域：parse 编排持有识别产物落库的唯一入口（analyzeAndPersist），
  * confirm/edit 时清理并重写各域子表（四域域表写入的既有语义逐行保留）。
  */
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 import { ruleMood } from "@shiguangri/ai";
-import { checkAiQuota } from "@/lib/quota";
-import { deleteImageFile } from "@/lib/storage";
+import { checkAiQuota } from "@/server/ai/quota";
+import { deleteImageFile } from "@/server/timeline/storage";
 import { ApiError } from "../platform/http/errors";
 import { analyzeAndPersist } from "./analyze";
 import { entriesRepo } from "./repo";

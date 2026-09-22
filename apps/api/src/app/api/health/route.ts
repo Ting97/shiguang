@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 import { loadConfig } from "@/server/platform/config";
 import { log } from "@/server/platform/http/logger";
 

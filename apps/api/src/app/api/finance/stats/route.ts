@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { getModuleUser } from "@/lib/modules";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { getModuleUser } from "@/server/platform/modules";
 import { categoryBreakdown } from "@shiguangri/shared/finance";
+import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,15 +11,6 @@ export const dynamic = "force-dynamic";
 const TZ = "Asia/Shanghai";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** 北京时区 YYYY-MM-DD（UTC+8 手动偏移，不依赖服务器时区） */
-const bjToday = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-/** 某北京日历日所属周的周一（周一为周界） */
-const mondayOf = (dateStr: string) => {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
-};
-const addDays = (dateStr: string, n: number) =>
-  new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** GET /api/finance/stats?period=day|week&date=YYYY-MM-DD —— 交易统计（纯 SQL，零 AI 消耗，FR-C2.7 ①） */
 export async function GET(req: Request) {
@@ -48,12 +40,12 @@ export async function GET(req: Request) {
   let from: string, to: string, prevFrom: string, prevTo: string;
   if (period === "day") {
     from = to = date;
-    prevFrom = prevTo = addDays(date, -1);
+    prevFrom = prevTo = bjAddDays(date, -1);
   } else {
-    from = mondayOf(date);
-    to = addDays(from, 6);
-    prevFrom = addDays(from, -7);
-    prevTo = addDays(from, -1);
+    from = bjMondayOf(date);
+    to = bjAddDays(from, 6);
+    prevFrom = bjAddDays(from, -7);
+    prevTo = bjAddDays(from, -1);
   }
   const rangeCond = `(occurred_at at time zone $2)::date between $3::date and $4::date`;
 
@@ -101,7 +93,7 @@ export async function GET(req: Request) {
     ).rows;
     const map = new Map(rows.map((r) => [r.d, r]));
     for (let i = 0; i < 7; i++) {
-      const d = addDays(from, i);
+      const d = bjAddDays(from, i);
       const r = map.get(d);
       daily.push({ date: d, inCents: Number(r?.inc ?? 0), outCents: Number(r?.out ?? 0) });
     }

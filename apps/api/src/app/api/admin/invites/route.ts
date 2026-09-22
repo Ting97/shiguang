@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getAdminUser } from "@/lib/auth";
-import { generateInviteCode } from "@/lib/auth-crypto";
+import { pool } from "@/server/platform/db";
+import { getAdminUser } from "@/server/identity/auth";
+import { generateInviteCode } from "@/server/identity/auth-crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

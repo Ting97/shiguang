@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { getModuleUser } from "@/lib/modules";
-import { simulateStrategy, type SimDebt } from "@/lib/debts-sim";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { getModuleUser } from "@/server/platform/modules";
+import { simulateStrategy, type SimDebt } from "@/server/finance/debt/debts-sim";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

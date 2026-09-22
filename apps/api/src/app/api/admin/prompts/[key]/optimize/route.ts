@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser } from "@/server/identity/auth";
 import { chat } from "@shiguangri/ai";
-import { PROMPT_KEYS, PROMPT_META, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
-import { writeAuditRecord } from "@/lib/audit";
+import { PROMPT_KEYS, PROMPT_META, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/server/ai/prompts";
+import { writeAuditRecord } from "@/server/ai/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -4,7 +4,7 @@
  * - 身份层：DB 持久（login_attempts，034）——30 分钟内 20 次失败 → 锁定 30 分钟
  * 统一模糊文案：不区分「账号不存在/密码错/被锁细节」（锁定的 423 文案单独给重试语义）。
  */
-import { pool } from "@/lib/db";
+import { pool } from "@/server/platform/db";
 import { hitRateLimit } from "./rate-limit";
 import { log } from "../http/logger";
 

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
-import { PROMPT_KEYS, getPromptBundle, assembleUserPrompt, getPrompt, type PromptKey } from "@/lib/prompts";
-import { writeAuditRecord } from "@/lib/audit";
+import { PROMPT_KEYS, getPromptBundle, assembleUserPrompt, getPrompt, type PromptKey } from "@/server/ai/prompts";
+import { writeAuditRecord } from "@/server/ai/audit";
 import { listContactNames } from "@/server/timeline/analyze";
-import { loadProfileBlock } from "@/lib/review-input";
-import { buildReviewCtx, type ReviewKind } from "@/lib/review-ctx";
+import { loadProfileBlock } from "@/server/insight/review-input";
+import { buildReviewCtx, type ReviewKind } from "@/server/insight/review-ctx";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

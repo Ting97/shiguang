@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
-import { pool } from "@/lib/db";
+import { getCurrentUser } from "@/server/identity/auth";
+import { pool } from "@/server/platform/db";
 import { hasApiKey } from "@shiguangri/ai";
-import { getModuleUser } from "@/lib/modules";
-import { getOrGenerateReview } from "@/lib/review-cache";
-import { checkAiQuota } from "@/lib/quota";
-import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
-import { getPromptBundle, assembleUserPrompt } from "@/lib/prompts";
-import { chatReviewJson } from "@/lib/review-input";
+import { getModuleUser } from "@/server/platform/modules";
+import { getOrGenerateReview } from "@/server/insight/review-cache";
+import { checkAiQuota } from "@/server/ai/quota";
+import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight/review-quota";
+import { getPromptBundle, assembleUserPrompt } from "@/server/ai/prompts";
+import { chatReviewJson } from "@/server/insight/review-input";
+import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,13 +16,6 @@ export const dynamic = "force-dynamic";
 const TZ = "Asia/Shanghai";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const bjToday = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-const mondayOf = (dateStr: string) => {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
-};
-const addDays = (dateStr: string, n: number) =>
-  new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(0)}`;
 
@@ -44,7 +38,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("date") ?? bjToday();
   const anchor = DATE_RE.test(q) ? q : bjToday();
-  const from = mondayOf(anchor);
+  const from = bjMondayOf(anchor);
   const hit = await pool.query(
     `select review, updated_at from review_caches where user_id = $1 and kind = 'trade_week' and period_key = $2`,
     [user.id, from],
@@ -54,7 +48,7 @@ export async function GET(req: Request) {
     review: hit.rows[0].review,
     cached: true,
     generatedAt: new Date(hit.rows[0].updated_at).toISOString(),
-    range: { from, to: addDays(from, 6) },
+    range: { from, to: bjAddDays(from, 6) },
   });
 }
 
@@ -85,8 +79,8 @@ export async function POST(req: Request) {
   }
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
-  const from = mondayOf(anchor);
-  const to = addDays(from, 6);
+  const from = bjMondayOf(anchor);
+  const to = bjAddDays(from, 6);
 
   const bundle = await getPromptBundle("trade_review_week");
   const injectTx = bundle.config.inject.txDetail;
@@ -111,7 +105,7 @@ export async function POST(req: Request) {
        from transactions
        where user_id = $1 and is_draft = false
          and (occurred_at at time zone $2)::date between $3::date and $4::date`,
-      [user.id, TZ, addDays(from, -7), addDays(from, -1)],
+      [user.id, TZ, bjAddDays(from, -7), bjAddDays(from, -1)],
     )
   ).rows[0];
   const cats = (

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { pool, findOverlap, overlapError } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { pool, findOverlap, overlapError } from "@/server/platform/db";
+import { getCurrentUser } from "@/server/identity/auth";
 import { parseInput, DOMAIN_LABELS, type Domain, type ParseResult } from "@shiguangri/ai";
 import { inferInteractionType } from "@shiguangri/shared/social";
-import { checkAiQuota } from "@/lib/quota";
-import { writeAuditRecord } from "@/lib/audit";
-import { getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
+import { checkAiQuota } from "@/server/ai/quota";
+import { writeAuditRecord } from "@/server/ai/audit";
+import { getPromptBundle, assembleUserPrompt, type PromptKey } from "@/server/ai/prompts";
 import { listContactNames } from "@/server/timeline/analyze";
 import { toCstWallClock } from "@shiguangri/ai";
 

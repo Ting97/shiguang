@@ -4,7 +4,7 @@
  * - 管理员（profiles.role = 'admin'）不受限
  * - plan_expires_at 到期自动回落 free（读取时判断，无需定时任务）
  */
-import { pool } from "./db";
+import { pool } from "@/server/platform/db";
 
 /** 免费套餐：30 天滚动窗口内 AI 调用上限 */
 export const FREE_AI_CALLS_30D = 30;

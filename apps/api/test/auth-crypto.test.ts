@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   hashPassword, verifyPassword, generateSessionToken, hashToken,
   generateSmsCode, generateInviteCode, isValidPhone,
-} from "../src/lib/auth-crypto.js";
+} from "../src/server/identity/auth-crypto.js";
 
 test("密码哈希：正确密码通过、错误密码拒绝", () => {
   const stored = hashPassword("hunter2安全密码");
