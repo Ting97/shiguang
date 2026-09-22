@@ -116,7 +116,7 @@ export default function SpaceReflections({
               const full = expanded[it.id];
               const day = fmtDay(it.created_at);
               return (
-                <li key={it.id} className="rounded-xl border border-line-soft bg-bg/30 px-3 py-2.5">
+                <li key={it.id} className="group rounded-xl border border-line-soft bg-bg/30 px-3 py-2.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] text-ink-faint">
                       {day} {fmtTime(it.created_at)}

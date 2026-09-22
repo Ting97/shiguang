@@ -697,46 +697,102 @@ function TxForm({
   );
 }
 
-/** 账户管理：新增 + 期初余额 + 归档 */
+/** 账户管理：新增（含期初余额）+ 行内改名/改图标 + 期初余额 + 归档（C1 FR-C1.5） */
 function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChanged: () => Promise<void> }) {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("💳");
   const [opening, setOpening] = useState("");
   const [busy, setBusy] = useState(false);
   const ICONS = ["💵", "🅰", "💬", "💳", "🏦", "📈", "🎓", "🏠"];
+  // 行内改名草稿与错误提示（重名 400 就地显示）
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
+  const [rowErr, setRowErr] = useState<Record<string, string | null>>({});
+  // 图标选择浮层（打开的账户 id）
+  const [iconPick, setIconPick] = useState<string | null>(null);
+
+  async function saveName(a: Account) {
+    const draft = (nameDrafts[a.id] ?? a.name).trim();
+    setRowErr((e) => ({ ...e, [a.id]: null }));
+    if (!draft || draft === a.name) return;
+    try {
+      await api(`/api/accounts/${a.id}`, "PATCH", { name: draft });
+      await onChanged();
+    } catch (err) {
+      setRowErr((e) => ({ ...e, [a.id]: err instanceof Error ? err.message : "改名失败" }));
+    }
+  }
 
   return (
     <div className="space-y-3">
       <ul className="space-y-1.5">
         {accounts.map((a) => (
-          <li key={a.id} className="group flex items-center gap-2 rounded-lg border border-line-soft bg-bg/40 px-3 py-2">
-            <span className="text-lg">{a.icon}</span>
-            <span className="flex-1 truncate text-sm">{a.name}</span>
-            <input
-              type="number"
-              step="0.01"
-              defaultValue={a.opening_balance_cents / 100}
-              title="期初余额（元）"
-              onBlur={async (e) => {
-                const v = Math.round(parseFloat(e.target.value) * 100);
-                if (Number.isFinite(v) && v !== a.opening_balance_cents) {
-                  await api(`/api/accounts/${a.id}`, "PATCH", { openingBalanceCents: v });
+          <li key={a.id} className="group rounded-lg border border-line-soft bg-bg/40 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIconPick(iconPick === a.id ? null : a.id)}
+                title="点击更换图标"
+                className="shrink-0 rounded px-0.5 text-lg transition hover:bg-soft"
+              >
+                {a.icon}
+              </button>
+              <input
+                value={nameDrafts[a.id] ?? a.name}
+                onChange={(e) => setNameDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
+                onBlur={() => void saveName(a)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveName(a);
+                }}
+                maxLength={20}
+                title="点击编辑账户名，回车或移开焦点保存"
+                className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm outline-none transition focus:border-sky-500 focus:bg-surface"
+              />
+              <input
+                type="number"
+                step="0.01"
+                defaultValue={a.opening_balance_cents / 100}
+                title="期初余额（元）"
+                onBlur={async (e) => {
+                  const v = Math.round(parseFloat(e.target.value) * 100);
+                  if (Number.isFinite(v) && v !== a.opening_balance_cents) {
+                    await api(`/api/accounts/${a.id}`, "PATCH", { openingBalanceCents: v });
+                    await onChanged();
+                  }
+                }}
+                className="w-24 rounded border border-line bg-surface px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-sky-500"
+              />
+              <button
+                title="归档账户（历史流水保留）"
+                onClick={async () => {
+                  if (!window.confirm(`归档「${a.name}」？归档后不再显示，历史流水保留。`)) return;
+                  await api(`/api/accounts/${a.id}`, "DELETE");
                   await onChanged();
-                }
-              }}
-              className="w-24 rounded border border-line bg-surface px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-sky-500"
-            />
-            <button
-              title="归档账户（历史流水保留）"
-              onClick={async () => {
-                if (!window.confirm(`归档「${a.name}」？归档后不再显示，历史流水保留。`)) return;
-                await api(`/api/accounts/${a.id}`, "DELETE");
-                await onChanged();
-              }}
-              className="row-actions-hidden hidden text-xs text-ink-dim hover:text-danger group-hover:block"
-            >
-              🗑
-            </button>
+                }}
+                className="row-actions-hidden hidden text-xs text-ink-dim hover:text-danger group-hover:block"
+              >
+                🗑
+              </button>
+            </div>
+            {rowErr[a.id] && <p className="mt-1 text-[11px] text-danger">{rowErr[a.id]}</p>}
+            {iconPick === a.id && (
+              <Dismissable onClose={() => setIconPick(null)} className="mt-2 rounded-lg border border-line-soft bg-surface p-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {ICONS.map((i) => (
+                    <button
+                      key={i}
+                      onClick={async () => {
+                        setIconPick(null);
+                        if (i === a.icon) return;
+                        await api(`/api/accounts/${a.id}`, "PATCH", { icon: i });
+                        await onChanged();
+                      }}
+                      className={`h-8 w-8 rounded-lg text-lg transition hover:bg-soft ${i === a.icon ? "bg-sky-500/15 ring-1 ring-sky-500" : ""}`}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+              </Dismissable>
+            )}
           </li>
         ))}
       </ul>
@@ -751,6 +807,15 @@ function AccountManager({ accounts, onChanged }: { accounts: Account[]; onChange
           onChange={(e) => setName(e.target.value)}
           placeholder="新账户名（如：招行储蓄卡）"
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
+        />
+        <input
+          value={opening}
+          onChange={(e) => setOpening(e.target.value)}
+          type="number"
+          step="0.01"
+          placeholder="期初余额"
+          title="期初余额（元），可留空"
+          className="w-24 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-right text-xs tabular-nums outline-none focus:border-sky-500"
         />
         <button
           disabled={busy || !name.trim()}

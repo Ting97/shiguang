@@ -44,7 +44,8 @@ export default function Nav() {
   }
 
   const linkCls = (active: boolean) =>
-    `shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-[13px] transition-all duration-200 sm:px-5 sm:py-1.5 sm:text-sm ${
+    // 固定 min-width + 居中：激活态 font-medium 变宽时占位宽度不变（消除切换跳动）
+    `shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-center text-[13px] transition-all duration-200 min-w-[3.5rem] sm:min-w-[4.5rem] sm:px-5 sm:py-1.5 sm:text-sm ${
       active
         ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
         : "text-ink-mute hover:bg-wash hover:text-ink"

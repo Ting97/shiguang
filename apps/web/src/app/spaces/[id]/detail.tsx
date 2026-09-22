@@ -80,6 +80,14 @@ export default function Detail() {
   const [linkItems, setLinkItems] = useState<TodoItem[]>([]);
   const [linkQuery, setLinkQuery] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
+  // C1：手动添加行动（per-todo 草稿）
+  const [actionDrafts, setActionDrafts] = useState<Record<string, string>>({});
+  // C1：关联动态浮层（浏览未归属动态并关联到本空间）
+  const [momentLinkOpen, setMomentLinkOpen] = useState(false);
+  const [momentItems, setMomentItems] = useState<FeedMoment[]>([]);
+  const [momentTotal, setMomentTotal] = useState(0);
+  const [momentQuery, setMomentQuery] = useState("");
+  const [momentLoading, setMomentLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -303,6 +311,70 @@ export default function Detail() {
   async function linkExisting(todoId: string) {
     const ok = await patchTodo(todoId, { spaceId: id }, "🎯 已关联到本空间");
     if (ok) setLinkItems((list) => list.filter((x) => x.id !== todoId));
+  }
+
+  /** C1：手动添加行动（回车保存；行动经 parentId 继承空间归属） */
+  async function addAction(t: { id: string }) {
+    const title = (actionDrafts[t.id] ?? "").trim();
+    if (!title) return;
+    const r = await fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, parentId: t.id }),
+    });
+    if (!r.ok) {
+      const j = await r.json();
+      setMsg({ ok: false, text: j.error ?? "添加失败" });
+      return;
+    }
+    setActionDrafts((d) => ({ ...d, [t.id]: "" }));
+    setMsg({ ok: true, text: "📌 行动已添加" });
+    await load();
+  }
+
+  /** C1：加载未归属动态（关联动态浮层数据源；offset=-1 表示重查第一页） */
+  async function loadUnlinkedMoments(q: string, offset: number) {
+    setMomentLoading(true);
+    try {
+      const r = await fetch(`/api/feed?spaceId=none&limit=20&offset=${Math.max(0, offset)}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+      if (!r.ok) {
+        setMsg({ ok: false, text: "加载失败，请稍后再试" });
+        return;
+      }
+      const j = await r.json();
+      const list = (j.moments as FeedMoment[]) ?? [];
+      setMomentTotal(j.total ?? list.length);
+      setMomentItems((prev) => (offset <= 0 ? list : [...prev, ...list]));
+    } finally {
+      setMomentLoading(false);
+    }
+  }
+
+  /** C1：打开关联动态浮层（重置搜索与列表） */
+  function openMomentLink() {
+    setMomentQuery("");
+    setMomentItems([]);
+    setMomentTotal(0);
+    setMomentLinkOpen(true);
+    void loadUnlinkedMoments("", 0);
+  }
+
+  /** C1：把未归属动态关联到本空间（成功后从浮层移除并刷新计数） */
+  async function linkMoment(momentId: string) {
+    const r = await fetch(`/api/feed/${momentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ spaceId: id }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}) as { error?: string });
+      setMsg({ ok: false, text: j.error ?? "关联失败" });
+      return;
+    }
+    setMomentItems((list) => list.filter((m) => m.id !== momentId));
+    setMomentTotal((n) => Math.max(0, n - 1));
+    setMsg({ ok: true, text: "🌱 动态已关联到本空间" });
+    await load();
   }
 
   /** N1：行级关联/切换/移除空间 */
@@ -659,9 +731,11 @@ export default function Detail() {
                       >
                         ⋯
                       </button>
-                      {t.children.length > 0 && (
+                      {/* C1：未完成 todo 始终可展开行动区（含添加行动入口）；已完成的仅在有行动时可展开查看 */}
+                      {(t.children.length > 0 || !done) && (
                         <button
                           onClick={() => setExpanded((s) => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
+                          title={open ? "收起行动" : "展开行动"}
                           className={`shrink-0 text-[10px] text-ink-mute transition-transform ${open ? "rotate-180" : ""}`}
                         >
                           ▼
@@ -695,6 +769,22 @@ export default function Detail() {
                             </div>
                           );
                         })}
+                        {/* C1：手动添加行动（回车保存；已完成 todo 不可再加） */}
+                        {!done && (
+                          <div className="flex items-center gap-2.5 px-1.5 py-1">
+                            <span className="h-5 w-5 shrink-0 rounded-full border-2 border-dashed border-line-strong" />
+                            <input
+                              value={actionDrafts[t.id] ?? ""}
+                              onChange={(e) => setActionDrafts((d) => ({ ...d, [t.id]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.nativeEvent.isComposing) void addAction(t);
+                              }}
+                              placeholder="＋ 添加行动，回车保存"
+                              maxLength={200}
+                              className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-ink-faint"
+                            />
+                          </div>
+                        )}
                         {t.children.length === 0 && (
                           <button
                             onClick={() => decompose({ id: t.id, title: t.title, isAction: false })}
@@ -863,6 +953,12 @@ export default function Detail() {
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
             <TagChip icon="🌱" label="相关动态" tone="emerald" />
             <span className="text-xs font-normal text-ink-dim">{moments.length} 条</span>
+            <button
+              onClick={openMomentLink}
+              className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-[11px] font-normal text-ink-mute transition hover:border-emerald-500/50 hover:text-accent"
+            >
+              🔗 关联动态
+            </button>
           </h2>
           {moments.length === 0 ? (
             <p className="py-4 text-center text-xs text-ink-faint">
@@ -944,6 +1040,65 @@ export default function Detail() {
                   </>
                 );
               })()}
+            </Dismissable>,
+            document.body,
+          )}
+
+        {/* C1 关联动态浮层（桌面居中 / 移动端底部弹层） */}
+        {momentLinkOpen &&
+          createPortal(
+            <Dismissable
+              onClose={() => setMomentLinkOpen(false)}
+              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:w-80 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:p-3"
+            >
+              <p className="mb-2 flex items-center justify-between px-0.5">
+                <span className="text-xs font-semibold text-ink">关联未归属动态</span>
+                <span className="text-[10px] tabular-nums text-ink-faint">{momentTotal} 条未归属</span>
+              </p>
+              <input
+                autoFocus
+                value={momentQuery}
+                onChange={(e) => {
+                  setMomentQuery(e.target.value);
+                  void loadUnlinkedMoments(e.target.value, 0);
+                }}
+                placeholder="搜索原文关键字…"
+                className="mb-2 w-full rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-sky-500"
+              />
+              <div className="max-h-[46dvh] space-y-0.5 overflow-y-auto sm:max-h-72">
+                {momentItems.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => void linkMoment(m.id)}
+                    className="w-full rounded-lg px-2.5 py-2 text-left transition hover:bg-wash"
+                  >
+                    <span className="block text-[10px] text-ink-faint">
+                      {new Date(m.created_at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-xs text-ink">{m.raw_text}</span>
+                  </button>
+                ))}
+                {momentItems.length === 0 && !momentLoading && (
+                  <p className="px-2 py-6 text-center text-[11px] text-ink-faint">
+                    {momentQuery ? "没有匹配的动态" : "没有未归属的动态 —— 全部都已归入空间"}
+                  </p>
+                )}
+                {momentLoading && <p className="px-2 py-4 text-center text-[11px] text-ink-faint">加载中…</p>}
+              </div>
+              {momentItems.length < momentTotal && (
+                <button
+                  onClick={() => void loadUnlinkedMoments(momentQuery, momentItems.length)}
+                  className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-[11px] text-ink-mute transition hover:bg-soft"
+                >
+                  加载更多（还有 {momentTotal - momentItems.length} 条）
+                </button>
+              )}
+              <button
+                onClick={() => setMomentLinkOpen(false)}
+                className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-[11px] text-ink-mute transition hover:bg-soft"
+              >
+                关闭
+              </button>
             </Dismissable>,
             document.body,
           )}
