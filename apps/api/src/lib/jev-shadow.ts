@@ -4,7 +4,8 @@
  * 用户行为零变化、零阻塞；shadow 行 model='jev-latest'，配额/用量统计口径已排除该模型。
  * 持续 ≥1 周后统计一致率：空间分类 ≥90% 且五域闭集 ≥85% 才进入接管（3-D）。
  */
-import { jevAsk, qChoice, qNoul, jevMode, type ParseResult } from "@shiguangri/ai";
+import { jevAsk, qChoice, qNoul, type ParseResult } from "@shiguangri/ai";
+import { getJevMode } from "./ai-mode";
 import { writeAuditRecord } from "./audit";
 
 const questions = {
@@ -66,7 +67,7 @@ function hourBucket(iso: string): string {
 
 /** 影子对照：与 GLM 落库结果逐闭集字段比对，审计一行（ok=全一致，error=差异摘要）。绝不抛错。 */
 export async function jevShadowCompare(userId: string, entryId: string, rawText: string, r: ParseResult): Promise<void> {
-  if (jevMode() !== "shadow") return;
+  if ((await getJevMode()) !== "shadow") return;
   const t0 = Date.now();
   try {
     const nowCst = (() => {

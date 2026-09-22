@@ -68,6 +68,14 @@ function validateTpl(tpl: string, placeholders: string[]): { missing: string[]; 
 
 type Section = "system" | "input" | "versions";
 
+/** 调用引擎模式（REQ-003 3-C 管理台开关）：off=全 GLM / shadow=影子对照 / on=实时接管（未上线） */
+type EngineMode = "off" | "shadow" | "on";
+const MODE_META: Record<EngineMode, { label: string; desc: string }> = {
+  off: { label: "关闭", desc: "全部走 GLM，Jev 不参与" },
+  shadow: { label: "影子对照", desc: "GLM 行为不变；每次识别后台同题调 Jev，只写一致率审计" },
+  on: { label: "实时接管", desc: "闭集判断切 Jev（3-D 未上线，一致率达标后开放）" },
+};
+
 export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: boolean) => void }) {
   const [items, setItems] = useState<PromptItem[] | null>(null);
   const [sel, setSel] = useState<PromptItem | null>(null);
@@ -79,6 +87,10 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
   const [optHint, setOptHint] = useState("");
   const [optimizing, setOptimizing] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  // 引擎模式开关
+  const [engineMode, setEngineMode] = useState<EngineMode>("off");
+  const [engineEnvDefault, setEngineEnvDefault] = useState<EngineMode>("off");
+  const [engineSaving, setEngineSaving] = useState(false);
   // 3-A 输入装配
   const [tplDraft, setTplDraft] = useState("");
   const [injectDraft, setInjectDraft] = useState<Record<string, boolean>>({});
@@ -111,8 +123,34 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
     load().then((list) => {
       if (list?.length) pick(list[0]);
     });
+    fetch("/api/admin/ai-mode").then(async (r) => {
+      if (!r.ok) return;
+      const j = await r.json();
+      setEngineMode(j.mode);
+      setEngineEnvDefault(j.envDefault);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function switchEngineMode(mode: EngineMode) {
+    if (engineSaving || mode === engineMode) return;
+    setEngineSaving(true);
+    try {
+      const r = await fetch("/api/admin/ai-mode", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "切换失败");
+      setEngineMode(mode);
+      notify(`调用引擎已切换为「${MODE_META[mode].label}」，立即生效`);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), false);
+    } finally {
+      setEngineSaving(false);
+    }
+  }
 
   function pick(item: PromptItem) {
     setSel(item);
@@ -245,7 +283,47 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
   const periodPlaceholder = sel?.key === "review_month" ? "期间 YYYY-MM（空=本月）" : sel?.key === "review_year" ? "期间 YYYY（空=今年）" : "期间 YYYY-MM-DD（空=今天）";
 
   return (
-    <div className="lg:grid lg:grid-cols-[230px_1fr] lg:gap-5">
+    <div>
+      {/* 调用引擎模式开关（REQ-003 3-C 管理台开关） */}
+      <div className="glass mb-4 rounded-2xl p-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-ink">🧭 调用引擎模式</h3>
+          <TagChip label="Jev 影子观察期" tone="amber" size="sm" />
+          <span className="flex-1" />
+          <span className="text-[10px] text-ink-faint">服务器 env 默认：{MODE_META[engineEnvDefault].label}</span>
+        </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          {(Object.keys(MODE_META) as EngineMode[]).map((m) => {
+            const active = engineMode === m;
+            const disabled = m === "on";
+            return (
+              <button
+                key={m}
+                onClick={() => void switchEngineMode(m)}
+                disabled={disabled || engineSaving}
+                title={disabled ? "3-D 接管上线后开放" : "点击切换，立即生效"}
+                className={`rounded-xl border p-3 text-left transition disabled:cursor-not-allowed ${
+                  active
+                    ? "border-sky-500/60 bg-sky-500/10"
+                    : disabled
+                      ? "border-line-soft bg-bg/30 opacity-50"
+                      : "border-line-soft bg-bg/30 hover:border-sky-500/40"
+                }`}
+              >
+                <span className={`flex items-center gap-1.5 text-xs font-medium ${active ? "text-accent" : "text-ink"}`}>
+                  {MODE_META[m].label}
+                  {active && <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] text-accent">生效中</span>}
+                  {disabled && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] text-warn">未上线</span>}
+                  {engineSaving && <span className="text-[9px] text-ink-faint">切换中…</span>}
+                </span>
+                <span className="mt-1 block text-[10px] leading-relaxed text-ink-dim">{MODE_META[m].desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="lg:grid lg:grid-cols-[230px_1fr] lg:gap-5">
       {/* prompt 清单：移动横滑 / PC 左栏 */}
       <div className="scrollbar-none -mx-5 mb-3 flex gap-1.5 overflow-x-auto px-5 pb-1 lg:mx-0 lg:mb-0 lg:block lg:space-y-2.5 lg:overflow-visible lg:px-0">
         {categories.map((cat) => {
@@ -607,6 +685,7 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
           </section>
         </div>
       )}
+      </div>
     </div>
   );
 }
