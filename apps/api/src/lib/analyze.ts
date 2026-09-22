@@ -1,6 +1,7 @@
 import { pool, findOverlap, overlapError } from "@/lib/db";
 import { parseInput, SpaceClassification, chat } from "@shiguangri/ai";
-import { getPrompt } from "./prompts";
+import { assembleUserPrompt, getPromptBundle } from "./prompts";
+import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { inferGroupFromContext, inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
@@ -15,18 +16,19 @@ const SPACE_CONFIDENCE_THRESHOLD = 0.7;
  */
 async function classifySpace(userId: string, entryId: string, rawText: string): Promise<void> {
   try {
+    const bundle = await getPromptBundle("space_classify");
     const { rows: spaces } = await pool.query(
-      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit 20`,
+      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit ${bundle.config.caps.spaceCount}`,
       [userId],
     );
     if (spaces.length === 0) return; // 无 active 空间：跳过分类调用
 
-    const system = await getPrompt("space_classify");
     const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`).join("\n");
+    const userPrompt = assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) });
     const t0 = Date.now();
     const raw = await chat({
-      system,
-      user: `候选空间：\n${candidates}\n\n用户记录：「${rawText.slice(0, 500)}」`,
+      system: bundle.system,
+      user: userPrompt,
       temperature: 0,
       maxTokens: 256,
       timeoutMs: 45_000,
@@ -97,16 +99,16 @@ export interface AnalyzeOutcome {
   kind: "todo" | "block" | "moment";
 }
 
-/** 用户已有联系人名单（按最近往来排序，人物识别时供 AI 对齐称呼，封顶 100 人控制 token） */
-export async function listContactNames(userId: string): Promise<string[]> {
+/** 用户已有联系人名单（按最近往来排序，人物识别时供 AI 对齐称呼，条数上限由注入配置控制，默认 100） */
+export async function listContactNames(userId: string, limit = 100): Promise<string[]> {
   const { rows } = await pool.query(
     `select c.name from contacts c
      left join (select contact_id, max(occurred_at) as last_at from interactions where user_id = $1 group by contact_id) i
        on i.contact_id = c.id
      where c.user_id = $1
      order by i.last_at desc nulls last, c.created_at desc
-     limit 100`,
-    [userId],
+     limit $2`,
+    [userId, limit],
   );
   return rows.map((r) => r.name).filter(Boolean);
 }
@@ -153,11 +155,30 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   let completionTokens = 0;
   const client = await pool.connect();
   try {
-    const contactNames = await listContactNames(userId);
-    const systemPrompt = await getPrompt("extract_full");
+    // 输入装配（3-A）：按 DB 配置开关/参数组装 user prompt；联系人注入关闭时不取数
+    const bundle = await getPromptBundle("extract_full");
+    const contactsOn = bundle.config.inject.contactList;
+    const contactNames = contactsOn ? await listContactNames(userId, bundle.config.caps.contactCount) : [];
+    const catList = bundle.config.inject.catList
+      ? (Object.keys(ACTIVITY_NAMES) as (keyof typeof ACTIVITY_NAMES)[])
+          .slice(0, bundle.config.caps.catCount)
+          .map((k) => `${k}=${ACTIVITY_NAMES[k]}`)
+          .join("、")
+      : "";
+    const contactList =
+      contactsOn && contactNames.length
+        ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
+        : "";
+    const userPrompt = assembleUserPrompt("extract_full", bundle, {
+      nowCst: toCstWallClock(new Date()),
+      catList,
+      contactList,
+      text: rawText,
+    });
     const r = await parseInput(rawText, {
-      contactNames,
-      systemPrompt,
+      contactNames: contactsOn ? contactNames : undefined,
+      systemPrompt: bundle.system,
+      userPrompt,
       onUsage: (u) => {
         // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
         promptTokens += u.prompt_tokens;

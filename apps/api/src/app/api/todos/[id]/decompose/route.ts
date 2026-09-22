@@ -3,7 +3,7 @@ import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { chat, extractJson } from "@shiguangri/ai";
 import { z } from "zod";
-import { getPrompt } from "@/lib/prompts";
+import { getPromptBundle, assembleUserPrompt } from "@/lib/prompts";
 import { loadProfileBlock } from "@/lib/review-input";
 import { checkAiQuota } from "@/lib/quota";
 import { writeAuditRecord } from "@/lib/audit";
@@ -82,18 +82,30 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           )
         ).rows;
   const existingTitles = siblings.filter((s) => s.status === "pending").map((s) => s.title);
-  const profileBlock = await loadProfileBlock(user.id);
 
-  // ---- 组装 prompt（system 来自 DB 纳管，缺省用代码默认） ----
-  const system = await getPrompt(isAction ? "action_decompose" : "todo_decompose");
-  const contextLines = [
-    isAction ? `所属 todo：${parent?.title ?? ""}` : `todo：${todo.title}`,
-    todo.note || (isAction ? parent?.note : null) ? `相关描述：${todo.note || parent?.note}` : null,
-    space ? `所属空间：${space.name}${space.description ? `（${space.description}）` : ""}` : null,
-    existingTitles.length ? `已有行动（禁止生成语义重复项）：\n${existingTitles.map((t) => `- ${t}`).join("\n")}` : "已有行动：无",
-    profileBlock ? `用户画像（供参考）：\n${profileBlock}` : null,
-  ].filter(Boolean);
-  const userPrompt = `${contextLines.join("\n\n")}\n\n请拆解：${isAction ? `「${todo.title}」` : "上述 todo"}${mode === "replace" ? "（重新生成：只输出新的行动清单）" : ""}`;
+  // ---- 组装 prompt（3-A：system/user 模板/注入配置三件套按 DB 覆盖装配） ----
+  const promptKey = isAction ? "action_decompose" : "todo_decompose";
+  const bundle = await getPromptBundle(promptKey);
+  const existingOn = bundle.config.inject.existingBlock;
+  const cap = bundle.config.caps.existingCount;
+  const listed = existingOn ? existingTitles.slice(0, cap) : [];
+  const spaceCtxOn = bundle.config.inject.spaceBlock;
+  const profileCtxOn = bundle.config.inject.profileBlock;
+  const profileBlock = profileCtxOn ? await loadProfileBlock(user.id) : null;
+  const note = todo.note || (isAction ? parent?.note : null) || null;
+  const userPrompt = assembleUserPrompt(promptKey, bundle, {
+    todoBlock: `${isAction ? `所属 todo：${parent?.title ?? ""}` : `todo：${todo.title}`}${note ? `\n相关描述：${note}` : ""}`,
+    spaceBlock: spaceCtxOn && space ? `所属空间：${space.name}${space.description ? `（${space.description}）` : ""}` : "",
+    existingBlock: listed.length
+      ? `已有行动（禁止生成语义重复项）：\n${listed.map((t) => `- ${t}`).join("\n")}`
+      : existingOn
+        ? "已有行动：无"
+        : "",
+    profileBlock: profileCtxOn && profileBlock ? `用户画像（供参考）：\n${profileBlock}` : "",
+    target: isAction ? `「${todo.title}」` : "上述 todo",
+    modeSuffix: mode === "replace" ? "（重新生成：只输出新的行动清单）" : "",
+  });
+  const system = bundle.system;
 
   // ---- 调 LLM（temperature 0.3；失败走一次 repair 风格重试） ----
   let raw = "";

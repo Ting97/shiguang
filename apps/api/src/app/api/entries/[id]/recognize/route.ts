@@ -5,8 +5,9 @@ import { parseInput, CONFIDENCE_THRESHOLD, DOMAIN_LABELS, type Domain, type Pars
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/lib/quota";
 import { writeAuditRecord } from "@/lib/audit";
-import { getPrompt, type PromptKey } from "@/lib/prompts";
+import { getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
 import { listContactNames } from "@/lib/analyze";
+import { toCstWallClock } from "@shiguangri/ai";
 
 export const runtime = "nodejs";
 
@@ -44,12 +45,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const t0 = Date.now();
   let promptTokens = 0;
   let completionTokens = 0;
-  const contactNames = domain === "people" ? await listContactNames(user.id) : undefined;
-  const systemPrompt = await getPrompt(`extract_domain_${domain}` as PromptKey);
+  // 输入装配（3-A）：单域 key 按 DB 配置组装 user prompt；people 域联系人受开关控制
+  const key = `extract_domain_${domain}` as PromptKey;
+  const bundle = await getPromptBundle(key);
+  const contactsOn = domain === "people" && bundle.config.inject.contactList;
+  const contactNames = contactsOn ? await listContactNames(user.id, bundle.config.caps.contactCount) : undefined;
+  const contactList =
+    contactsOn && contactNames && contactNames.length
+      ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
+      : "";
+  const userPrompt = assembleUserPrompt(key, bundle, {
+    nowCst: toCstWallClock(new Date()),
+    contactList,
+    text: entry.raw_text,
+  });
   const r: ParseResult = await parseInput(entry.raw_text, {
     domain, // 单域专属提示词：只判本域，更准更省
     contactNames,
-    systemPrompt,
+    systemPrompt: bundle.system,
+    userPrompt,
     onUsage: (u) => {
       // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
       promptTokens += u.prompt_tokens;

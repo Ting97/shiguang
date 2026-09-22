@@ -30,6 +30,8 @@ export interface ParseOptions {
   contactNames?: string[];
   /** 覆盖 system prompt（DB 纳管值注入；缺省用包内默认）。仅影响 LLM 路径，规则兜底不受影响 */
   systemPrompt?: string;
+  /** 覆盖完整 user prompt（REQ-003 3-A：apps/api 按 DB 配置装配后传入；缺省用包内默认装配）。仅影响 LLM 路径 */
+  userPrompt?: string;
   /** LLM 成功响应后回调 token 用量（审计/成本核算用） */
   onUsage?: (usage: { prompt_tokens: number; completion_tokens: number }) => void;
 }
@@ -130,7 +132,7 @@ function ruleExtract(text: string): LlmExtractionT {
 }
 
 /** GLM 提示词用北京时间墙钟：toISOString 是 UTC，北京 00:00–08:00 间的记录会让模型把"今天"算成前一天 */
-function toCstWallClock(d: Date): string {
+export function toCstWallClock(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   const c = new Date(d.getTime() + 8 * 3600_000);
   return `${c.getFullYear()}-${p(c.getMonth() + 1)}-${p(c.getDate())} ${p(c.getHours())}:${p(c.getMinutes())}（北京时间）`;
@@ -166,10 +168,12 @@ export async function aiExtract(
   onUsage?: ParseOptions["onUsage"],
   contactNames?: string[],
   systemOverride?: string,
+  userOverride?: string,
 ): Promise<{ ext: LlmExtractionT; engine: "llm" | "llm-repaired" }> {
   const system = systemOverride ?? (domain ? DOMAIN_PROMPTS[domain] : EXTRACT_SYSTEM_PROMPT);
   const schema = domain ? domainExtractionV2(domain) : FullExtractionV2;
-  const base = buildExtractUserPrompt(text, toCstWallClock(now), contactNames);
+  // user prompt 覆盖优先（3-A 输入装配）；缺省用包内默认装配
+  const base = userOverride ?? buildExtractUserPrompt(text, toCstWallClock(now), contactNames);
 
   let raw = await chat({ system, user: base, onUsage });
   let parsed = schema.safeParse(extractJson(raw));
@@ -376,7 +380,7 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
   }
 
   try {
-    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage, opts.contactNames, opts.systemPrompt);
+    const { ext, engine } = await aiExtract(text, domain, now, opts.onUsage, opts.contactNames, opts.systemPrompt, opts.userPrompt);
     return mapAiResult(ext, text, now, engine);
   } catch (e) {
     // 灾难降级：GLM 不可用（网络/超时/额度/鉴权）或重问后输出仍不合格 → 规则引擎接管，打卡入口永不失败

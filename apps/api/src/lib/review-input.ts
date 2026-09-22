@@ -1,6 +1,6 @@
 import { pool } from "@/lib/db";
 import { chat, extractJson } from "@shiguangri/ai";
-import { getPrompt } from "@/lib/prompts";
+import { assembleUserPrompt, getPromptBundle } from "@/lib/prompts";
 
 /**
  * 复盘输入基建（review v3）：原始明细行格式化、下层小结链、用户画像读写。
@@ -152,7 +152,7 @@ export async function loadProfileBlock(userId: string): Promise<string | null> {
   return parts.length ? parts.join("\n") : null;
 }
 
-function validProfile(p: unknown): UserProfileShape | null {
+function validProfile(p: unknown, budgetMax = 40): UserProfileShape | null {
   if (typeof p !== "object" || p === null) return null;
   const out: UserProfileShape = {};
   let total = 0;
@@ -167,8 +167,8 @@ function validProfile(p: unknown): UserProfileShape | null {
     }
   }
   if (total === 0) return null;
-  // 总量裁剪：最多 40 条
-  let budget = 40;
+  // 总量裁剪：上限由注入配置控制（profileItems，默认 40）
+  let budget = budgetMax;
   for (const [k] of PROFILE_BUCKETS) {
     const list = out[k];
     if (!list) continue;
@@ -223,16 +223,23 @@ export async function updateProfileFromReview(
   reviewText: string,
 ): Promise<void> {
   try {
+    // 输入装配（3-A）：profile_merge 三要素必需；画像条数上限可调（caps.profileItems）
+    const bundle = await getPromptBundle("profile_merge");
     const old = await loadProfileBlock(userId);
-    const system = await getPrompt("profile_merge");
+    const userPrompt = assembleUserPrompt("profile_merge", bundle, {
+      oldProfile: old ?? "（暂无，首次建立）",
+      period,
+      factsText: clip(factsText, 1600),
+      reviewText: clip(reviewText, 1200),
+    });
     const raw = await chat({
-      system,
-      user: `旧画像：\n${old ?? "（暂无，首次建立）"}\n\n本月（${period}）事实：\n${clip(factsText, 1600)}\n\n本月复盘：\n${clip(reviewText, 1200)}`,
+      system: bundle.system,
+      user: userPrompt,
       temperature: 0.2,
       maxTokens: 1200,
       timeoutMs: 45_000,
     });
-    const profile = validProfile(extractJson(raw));
+    const profile = validProfile(extractJson(raw), bundle.config.caps.profileItems);
     if (!profile) return;
     await pool.query(
       `insert into user_ai_profiles (user_id, profile, updated_at) values ($1,$2,now())

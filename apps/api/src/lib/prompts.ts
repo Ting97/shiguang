@@ -13,6 +13,7 @@ import {
   REVIEW_YEAR_SYSTEM,
   PROFILE_MERGE_SYSTEM,
 } from "./review-prompts";
+import { AI_INPUT_REGISTRY, mergeContextConfig } from "./ai-inputs";
 
 export const PROMPT_KEYS = [
   "extract_full",
@@ -111,7 +112,13 @@ const DEFAULT_PROMPTS: Record<PromptKey, string> = {
 
 // ---- 进程内缓存（60s；standalone 常驻进程，保存后同进程 Map.delete 即时生效） ----
 const CACHE_TTL_MS = 60_000;
-const cache = new Map<PromptKey, { content: string; fetchedAt: number }>();
+interface BundleCacheEntry {
+  content: string;
+  userTemplate: string;
+  config: { inject: Record<string, boolean>; caps: Record<string, number> };
+  fetchedAt: number;
+}
+const cache = new Map<PromptKey, BundleCacheEntry>();
 
 /** 代码默认值全文（管理端对比/回退用） */
 export function defaultPrompt(key: PromptKey): string {
@@ -126,17 +133,63 @@ export function invalidatePrompts(key?: PromptKey): void {
 
 /** 生效中的 prompt：DB 覆盖（enabled=true）优先，否则代码默认值 */
 export async function getPrompt(key: PromptKey): Promise<string> {
+  return (await getPromptBundle(key)).system;
+}
+
+/** 生效中的 system + user 模板 + 注入配置三件套（REQ-003 3-A）。
+ * DB 覆盖（enabled=true）优先；user_template/config 为空 = 代码默认；60s 缓存，保存主动失效 */
+export async function getPromptBundle(key: PromptKey): Promise<PromptBundle> {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.content;
-  let content = DEFAULT_PROMPTS[key];
+  if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) {
+    return { system: hit.content, userTemplate: hit.userTemplate, config: hit.config };
+  }
+  const spec = AI_INPUT_REGISTRY[key];
+  let bundle: PromptBundle = {
+    system: DEFAULT_PROMPTS[key],
+    userTemplate: spec.userTemplate,
+    config: mergeContextConfig(key, null),
+  };
   try {
-    const { rows } = await pool.query(`select content, enabled from ai_prompts where key = $1`, [key]);
-    if (rows[0]?.enabled && typeof rows[0].content === "string" && rows[0].content.trim()) {
-      content = rows[0].content;
+    const { rows } = await pool.query(
+      `select content, enabled, user_template, context_config from ai_prompts where key = $1`,
+      [key],
+    );
+    const row = rows[0];
+    if (row?.enabled) {
+      if (typeof row.content === "string" && row.content.trim()) bundle.system = row.content;
+      if (typeof row.user_template === "string" && row.user_template.trim()) bundle.userTemplate = row.user_template;
+      // context_config 为 JSONB（node-pg 已 parse 为对象）；与注册表默认合并（required 强制 true、caps 钳制范围）
+      bundle.config = mergeContextConfig(key, (row.context_config ?? null) as { inject?: Record<string, boolean>; caps?: Record<string, number> } | null);
     }
   } catch (e) {
-    console.warn(`[prompts] 读取 ${key} 覆盖失败，用代码默认：`, String(e).slice(0, 120));
+    console.warn(`[prompts] 读取 ${key} 三件套覆盖失败，用代码默认：`, String(e).slice(0, 120));
   }
-  cache.set(key, { content, fetchedAt: Date.now() });
-  return content;
+  cache.set(key, {
+    content: bundle.system,
+    userTemplate: bundle.userTemplate,
+    config: bundle.config,
+    fetchedAt: Date.now(),
+  });
+  return bundle;
+}
+
+export interface PromptBundle {
+  system: string;
+  userTemplate: string;
+  config: { inject: Record<string, boolean>; caps: Record<string, number> };
+}
+
+/** 统一装配器（REQ-003 FR-A3）：按模板替换占位符 + 空块折叠。
+ * ctx 由调用方按 bundle.config 构造（开关关闭的注入项不取数、cap 在查询层生效），关闭项传空串即可。 */
+export function assembleUserPrompt(key: PromptKey, bundle: PromptBundle, ctx: Record<string, string>): string {
+  const spec = AI_INPUT_REGISTRY[key];
+  let out = bundle.userTemplate;
+  for (const ph of spec.placeholders) {
+    out = out.split(`{${ph}}`).join(ctx[ph] ?? "");
+  }
+  // 清理空块留下的行尾空白与 3+ 连续换行（段落间距保留为空行）
+  return out
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

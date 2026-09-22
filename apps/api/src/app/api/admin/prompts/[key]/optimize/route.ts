@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { chat } from "@shiguangri/ai";
-import { PROMPT_KEYS, PROMPT_META, defaultPrompt, getPrompt, type PromptKey } from "@/lib/prompts";
+import { PROMPT_KEYS, PROMPT_META, defaultPrompt, getPrompt, getPromptBundle, assembleUserPrompt, type PromptKey } from "@/lib/prompts";
 import { writeAuditRecord } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -25,23 +25,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string }>
   }
   const { hint } = (await req.json().catch(() => ({}))) as { hint?: string };
   const target = (await getPrompt(key as PromptKey)).slice(0, 30_000);
-  const optimizer = await getPrompt("prompt_optimizer");
-
+  // 优化器自身也走三件套装配（3-A：prompt_optimizer 的 user 模板/注入可在后台调）
+  const optBundle = await getPromptBundle("prompt_optimizer");
   const contract = CONTRACT_HINTS[key as PromptKey]
     ? `【必须保留的契约约束】\n${CONTRACT_HINTS[key as PromptKey]}`
     : "【必须保留的契约约束】\n保持原文中的输出 JSON 结构、字段名、枚举值与占位符完全不变。";
 
-  const userPrompt = [
-    `【用途】${PROMPT_META[key as PromptKey].title}（key=${key}）——「拾光」系统的 AI 提示词`,
+  const userPrompt = assembleUserPrompt("prompt_optimizer", optBundle, {
+    purpose: `${PROMPT_META[key as PromptKey].title}（key=${key}）——「拾光」系统的 AI 提示词`,
     contract,
-    `【当前 prompt】\n${target}`,
-    `【优化意图】${hint?.trim() ? hint.trim().slice(0, 500) : "（无，按专家判断全面优化）"}`,
-  ].join("\n\n");
+    current: target,
+    intent: hint?.trim() ? hint.trim().slice(0, 500) : "（无，按专家判断全面优化）",
+  });
 
   const t0 = Date.now();
   try {
     const suggestion = await chat({
-      system: optimizer,
+      system: optBundle.system,
       user: userPrompt,
       temperature: 0.3,
       maxTokens: 8000,

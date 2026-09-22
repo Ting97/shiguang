@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasApiKey } from "@shiguangri/ai";
 import { getOrGenerateReview } from "@/lib/review-cache";
 import { checkAiQuota } from "@/lib/quota";
 import { acquireGeneration, consumeGeneration, ReviewGateError } from "@/lib/review-quota";
-import { getPrompt } from "@/lib/prompts";
-import { blockLines, chatReviewJson, entryLines, loadProfileBlock, todoDoneLines, withCap } from "@/lib/review-input";
+import { getPromptBundle } from "@/lib/prompts";
+import { chatReviewJson } from "@/lib/review-input";
+import { buildReviewCtx } from "@/lib/review-ctx";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TZ = "Asia/Shanghai";
 
 interface DayReview {
   summary: string;
@@ -23,6 +22,7 @@ interface DayReview {
 /**
  * POST /api/review/day {date} —— AI 日小结（Phase 4 复盘引擎 MVP）
  * 聚合当天时间/待办/收支/人际/心情事实 → LLM 归因解读；只依据真实记录，不落库（每次即时生成）。
+ * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -42,120 +42,17 @@ export async function POST(req: Request) {
   }
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
-  // ---- 当天事实聚合（全部按北京日切）----
-  const [timeRows, todoRows, txRows, interactRows, entryRows, kcalRows, rawEntryRows, blockRows, todoListRows] = await Promise.all([
-    pool.query(
-      `select a.name, a.icon,
-              sum(floor(extract(epoch from least((b.end_at at time zone $2), ($3::date + 1))
-                       - greatest((b.start_at at time zone $2), $3::date)) / 60))::int as mins
-       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
-       where b.user_id = $1
-         and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($3::date + 1)
-       group by 1, 2 order by mins desc`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select count(*)::int as n from todos
-       where user_id = $1 and status = 'done'
-         and (done_at at time zone $2)::date = $3::date`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::int as out_cents,
-              coalesce(sum(case when direction='in' then amount_cents else 0 end),0)::int as in_cents
-       from transactions
-       where user_id = $1 and is_draft = false and (occurred_at at time zone $2)::date = $3::date`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select c.name, count(*)::int as n from interactions i join contacts c on c.id = i.contact_id
-       where i.user_id = $1 and (i.occurred_at at time zone $2)::date = $3::date
-       group by 1 order by n desc limit 5`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select count(*)::int as n, coalesce(array_agg(mood) filter (where mood is not null), '{}') as moods
-       from entries where user_id = $1 and (created_at at time zone $2)::date = $3::date`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select coalesce(sum(d.total_kcal), 0)::int as kcal
-       from diet_records d join entries e on e.id = d.entry_id
-       where d.user_id = $1 and (e.created_at at time zone $2)::date = $3::date`,
-      [user.id, TZ, date],
-    ),
-    // ---- 原始明细（v3：动态原文+发布时间+心情 / 日程块 / 完成待办）----
-    pool.query(
-      `select raw_text, mood, mood_score, created_at from entries
-       where user_id = $1 and (created_at at time zone $2)::date = $3::date
-       order by created_at`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select b.title, b.start_at, b.end_at, a.icon, a.name
-       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
-       where b.user_id = $1
-         and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($3::date + 1)
-       order by b.start_at`,
-      [user.id, TZ, date],
-    ),
-    pool.query(
-      `select title, done_at from todos
-       where user_id = $1 and status = 'done' and (done_at at time zone $2)::date = $3::date
-       order by done_at`,
-      [user.id, TZ, date],
-    ),
-  ]);
-
-  const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
-  const timeParts = timeRows.rows.map((r) => `${r.icon}${r.name} ${fmtMin(r.mins)}`);
-  const facts = [
-    `日期：${date}`,
-    `时间块：${timeParts.length ? timeParts.join("、") : "无"}`,
-    `完成 todo：${todoRows.rows[0].n} 件`,
-    `支出 ¥${(txRows.rows[0].out_cents / 100).toFixed(0)} · 收入 ¥${(txRows.rows[0].in_cents / 100).toFixed(0)}`,
-    interactRows.rows.length
-      ? `人际互动：${interactRows.rows.map((r) => `${r.name}${r.n}次`).join("、")}`
-      : "人际互动：无",
-    `动态 ${entryRows.rows[0].n} 条${entryRows.rows[0].moods.length ? `（心情：${entryRows.rows[0].moods.join("、")}）` : ""}`,
-    kcalRows.rows[0].kcal > 0 ? `饮食约 ${kcalRows.rows[0].kcal} kcal` : "",
-  ].filter(Boolean);
-
-  const system = await getPrompt("review_day");
-
-  // ---- 画像注入（越用越懂用户）：有画像才拼入，无则跳过 ----
-  const profileBlock = await loadProfileBlock(user.id);
-
-  const latest = (
-    await pool.query(
-      `select greatest(
-         (select max(created_at) from entries where user_id = $1 and (created_at at time zone $2)::date = $3::date),
-         (select max(done_at) from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date = $3::date),
-         (select max(occurred_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date = $3::date),
-         (select max(start_at) from time_blocks where user_id = $1 and (start_at at time zone $2)::date = $3::date and start_at <= now()),
-         (select max(occurred_at) from interactions where user_id = $1 and (occurred_at at time zone $2)::date = $3::date)
-       ) as latest`,
-      [user.id, TZ, date],
-    )
-  ).rows[0].latest;
-
-  // ---- 原始明细文本块（在聚合 facts 之外给模型全部一手记录）----
-  const detailText = [
-    ["原始动态（时间 原文 心情）：", ...withCap(entryLines(rawEntryRows.rows), 500, "条动态")].join("\n"),
-    ["日程块：", blockLines(blockRows.rows).join("\n") || "无"].join("\n"),
-    ["完成 todo：", todoDoneLines(todoListRows.rows).join("\n") || "无"].join("\n"),
-  ].join("\n\n");
-  const userPrompt = [facts.join("\n"), detailText, profileBlock ? `该用户的已知画像（供理解参考，不要复述）：\n${profileBlock}` : null]
-    .filter(Boolean)
-    .join("\n\n");
+  const bundle = await getPromptBundle("review_day");
+  const built = await buildReviewCtx(user.id, "day", { date }, bundle);
+  const { latest } = built;
 
   let result;
   try {
     result = await getOrGenerateReview(user.id, "day", date, refresh === true, latest ? new Date(latest) : null, async (capture) => {
       await acquireGeneration(user.id, "day", date, latest ? new Date(latest) : null);
       const parsed = await chatReviewJson<Partial<DayReview>>({
-        system,
-        user: userPrompt,
+        system: bundle.system,
+        user: built.userPrompt,
         maxTokens: 700,
         timeoutMs: 45_000,
         onUsage: capture,
@@ -177,5 +74,5 @@ export async function POST(req: Request) {
   }
   const { review, cached, generatedAt } = result;
 
-  return NextResponse.json({ review, cached, generatedAt, facts: { timeParts, todoDone: todoRows.rows[0].n } });
+  return NextResponse.json({ review, cached, generatedAt, facts: { timeParts: built.summary.timeParts, todoDone: built.summary.todoDone } });
 }
