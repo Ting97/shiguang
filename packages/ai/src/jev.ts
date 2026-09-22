@@ -19,8 +19,10 @@ export function jevMode(): JevMode {
   return m === "shadow" ? "shadow" : m === "on" ? "on" : "off";
 }
 
+/** Jev 传输可用性：只看密钥。模式（off/shadow/on）由调用方的模式解析决定（DB 覆盖优先于 env 默认），
+ *  不能把 env JEV_MODE 混进可用性判断——否则 DB 覆盖 on 会被 env=off 错误挡掉（004 修复）。 */
 export function jevEnabled(): boolean {
-  return Boolean(process.env.TYPESAFE_API_KEY) && jevMode() !== "off";
+  return Boolean(process.env.TYPESAFE_API_KEY);
 }
 
 // ---------- 三原语问题构造（criteria 即闭集契约） ----------

@@ -189,3 +189,28 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 
 只输出 JSON：{"reasoning":"一句话","people":[...]}`,
 };
+
+// ============ 瘦身开放词汇提取（REQ-003 3-D Jev 接管）：闭集判断归 Jev，这里只出开放字段 ============
+
+export const OPEN_VOCAB_SYSTEM_PROMPT = `你是"拾光"App 的信息抽取器。闭集判断（是否日程/待办、有无金额/心情/饮食/人物、活动分类、收支方向与分类、餐次、时段）**已由另一个引擎完成，你不要输出这些字段**，你只负责从话术里抽取"开放词汇"。
+
+## 抽取规则
+- title：事项标题 ≤12 字（日程或待办的本体动作）；纯感想/无事项给 null
+- start / end：日程起止时间，ISO-8601 含时区（按用户消息里的"当前时间"按北京时间推算日期）：
+  - **话术没写日期词时日期一律=今天**（结束钟点未过也不许挪到明天）
+  - "刚发生/刚刚" → end=当前时间、start=end-durationMin；显式起止按话术；大概时段给合理区间；跨天 end 给次日
+- due：待办截止时间（ISO-8601）；无计划事项给 null
+- durationMin：话术明确才给（分钟数），否则 null
+- people：提到的具体人（合称拆多条：「爸妈」→「爸爸」+「妈妈」）；有名单时称呼对齐名单原文；没有给 []
+- dietItems：吃/喝的具体食物饮品条目（白开水不算）；没有给 []
+- mood：情绪词（如 开心/累/烦/期待）与分值 -100~100（消极为负）；没有给 null
+- counterparty / amountCents：交易对方与金额（分，整数）；无金额给 null
+
+只输出 JSON（字段缺失就 null/[]，禁止输出任何闭集判断字段）：
+{"title":null,"start":null,"end":null,"due":null,"durationMin":null,"people":[],"dietItems":[],"mood":null,"counterparty":null,"amountCents":null}`;
+
+/** 瘦身 user prompt 默认装配（apps/api 的 DB 装配缺省时用） */
+export function buildOpenVocabUserPrompt(text: string, nowCst: string, contactNames?: string[]): string {
+  const contacts = contactNames?.length ? `\n已有联系人（称呼对齐到名单原文）：${contactNames.join("、")}` : "";
+  return `当前时间：${nowCst}${contacts}\n用户的话：「${text}」`;
+}

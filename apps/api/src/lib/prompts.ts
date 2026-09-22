@@ -14,10 +14,12 @@ import {
   PROFILE_MERGE_SYSTEM,
   TRADE_REVIEW_WEEK_SYSTEM,
 } from "./review-prompts";
+import { OPEN_VOCAB_SYSTEM_PROMPT } from "@shiguangri/ai";
 import { AI_INPUT_REGISTRY, mergeContextConfig } from "./ai-inputs";
 
 export const PROMPT_KEYS = [
   "extract_full",
+  "extract_open_vocab",
   "extract_domain_schedule",
   "extract_domain_todo",
   "extract_domain_finance",
@@ -39,6 +41,7 @@ export type PromptKey = (typeof PROMPT_KEYS)[number];
 
 export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" | "复盘" | "目标" | "系统" }> = {
   extract_full: { title: "全量五域提取", category: "识别" },
+  extract_open_vocab: { title: "瘦身开放词汇提取（Jev 接管）", category: "识别" },
   extract_domain_schedule: { title: "单域 · 日程", category: "识别" },
   extract_domain_todo: { title: "单域 · todo", category: "识别" },
   extract_domain_finance: { title: "单域 · 收支", category: "识别" },
@@ -59,6 +62,7 @@ export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" 
 
 const DEFAULT_PROMPTS: Record<PromptKey, string> = {
   extract_full: EXTRACT_SYSTEM_PROMPT,
+  extract_open_vocab: OPEN_VOCAB_SYSTEM_PROMPT,
   extract_domain_schedule: DOMAIN_PROMPTS.schedule,
   extract_domain_todo: DOMAIN_PROMPTS.todo,
   extract_domain_finance: DOMAIN_PROMPTS.finance,

@@ -1,11 +1,15 @@
 import { pool, findOverlap, overlapError } from "@/lib/db";
-import { parseInput, SpaceClassification, chat } from "@shiguangri/ai";
+import {
+  parseInput, parseHybridInput, SpaceClassification, chat, jevAsk, jevEnabled,
+  spaceClassifyQuestions, HybridUnavailableError,
+} from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle } from "./prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { inferGroupFromContext, inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/lib/audit";
 import { jevShadowCompare } from "@/lib/jev-shadow";
+import { getJevMode } from "./ai-mode";
 
 /** 空间自动归属置信阈值（低于不写入） */
 const SPACE_CONFIDENCE_THRESHOLD = 0.7;
@@ -23,6 +27,53 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
       [userId],
     );
     if (spaces.length === 0) return; // 无 active 空间：跳过分类调用
+
+    // 3-D：接管模式下空间分类整切 Jev（闭集 noul + choice）；失败静默回落下方 GLM 路径
+    if ((await getJevMode()) === "on" && jevEnabled()) {
+      try {
+        const t0 = Date.now();
+        const jevCandidates: Record<string, string> = {};
+        for (const s of spaces) jevCandidates[s.id] = `${s.name}${s.description ? `：${s.description}` : ""}`;
+        const state = `用户随口记录了一句话：\n「${rawText.slice(0, 500)}」`;
+        const res = await jevAsk(state, spaceClassifyQuestions(jevCandidates));
+        const belongs = res.answers["space_belongs"];
+        const which = res.answers["space_which"];
+        const pBelongs =
+          belongs?.probabilities && typeof belongs.probabilities.true === "number" ? belongs.probabilities.true : null;
+        const choice = typeof which?.value === "string" ? which.value : null;
+        const confidence =
+          choice && choice !== "__none__" ? which?.probabilities?.[choice] ?? which?.confidence ?? null : null;
+        const accepted =
+          pBelongs !== null &&
+          pBelongs >= 0.5 &&
+          choice !== null &&
+          choice !== "__none__" &&
+          confidence !== null &&
+          confidence >= SPACE_CONFIDENCE_THRESHOLD &&
+          spaces.some((s) => s.id === choice);
+        if (accepted) {
+          await pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3`, [choice, entryId, userId]);
+          await pool.query(`update todos set space_id = $1 where entry_id = $2 and user_id = $3 and space_id is null`, [
+            choice, entryId, userId,
+          ]);
+        }
+        void writeAuditRecord({
+          userId, entryId, stage: "space_classify",
+          model: process.env.JEV_MODEL ?? "jev-latest", engine: "space-classify-jev",
+          latencyMs: Date.now() - t0, ok: true,
+          error: accepted ? undefined : `skip: p=${pBelongs?.toFixed(2) ?? "null"} choice=${choice} conf=${confidence === null ? "null" : confidence.toFixed(2)}`,
+        });
+        return;
+      } catch (e) {
+        // Jev 调用失败：记审计后静默落回 GLM 分类（不进外层 catch——那里语义是「整体失败」）
+        console.warn("[space-classify] Jev 归属失败，回落 GLM:", String(e).slice(0, 120));
+        void writeAuditRecord({
+          userId, entryId, stage: "space_classify",
+          model: process.env.JEV_MODEL ?? "jev-latest", engine: "space-classify-jev",
+          ok: false, error: String(e).slice(0, 200),
+        });
+      }
+    }
 
     const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`).join("\n");
     const userPrompt = assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) });
@@ -176,16 +227,46 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       contactList,
       text: rawText,
     });
-    const r = await parseInput(rawText, {
+    // 3-D：管理台模式 on 且 Jev 可用 → 混合引擎（Jev 闭集 + GLM 瘦身开放词汇）；
+    // 混合任一环失败 → 回落全量 GLM（其内部再失败才 rules），降级链 Jev→GLM→rules 完整
+    const mode = await getJevMode();
+    const onUsage = (u: { prompt_tokens: number; completion_tokens: number }) => {
+      // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
+      promptTokens += u.prompt_tokens;
+      completionTokens += u.completion_tokens;
+    };
+    const fullOpts = {
       contactNames: contactsOn ? contactNames : undefined,
       systemPrompt: bundle.system,
       userPrompt,
-      onUsage: (u) => {
-        // 历史消耗口径：修复重问等多轮调用逐次累加，不取最后一次
-        promptTokens += u.prompt_tokens;
-        completionTokens += u.completion_tokens;
-      },
-    });
+      onUsage,
+    };
+    const r =
+      mode === "on" && jevEnabled()
+        ? await (async () => {
+            const slimBundle = await getPromptBundle("extract_open_vocab");
+            const slimUserPrompt = assembleUserPrompt("extract_open_vocab", slimBundle, {
+              nowCst: toCstWallClock(new Date()),
+              contactList:
+                slimBundle.config.inject.contactList && contactNames.length
+                  ? `\n已有联系人（称呼对齐到名单原文）：${contactNames.join("、")}`
+                  : "",
+              text: rawText,
+            });
+            try {
+              return await parseHybridInput(rawText, {
+                contactNames: slimBundle.config.inject.contactList ? contactNames : undefined,
+                slimSystemPrompt: slimBundle.system,
+                slimUserPrompt,
+                onUsage,
+              });
+            } catch (e) {
+              const reason = e instanceof HybridUnavailableError ? e.reason : String(e).slice(0, 120);
+              console.warn(`[ai] 混合引擎不可用（${reason}），回落全量 GLM，entry=${entryId}`);
+              return parseInput(rawText, fullOpts);
+            }
+          })()
+        : await parseInput(rawText, fullOpts);
     engine = r.engine;
     if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
     // 规则兜底但 LLM 已被调用过（如输出不合格重问后仍失败）时也记模型名：token 消耗要如实归属

@@ -68,12 +68,12 @@ function validateTpl(tpl: string, placeholders: string[]): { missing: string[]; 
 
 type Section = "system" | "input" | "versions";
 
-/** 调用引擎模式（REQ-003 3-C 管理台开关）：off=全 GLM / shadow=影子对照 / on=实时接管（未上线） */
+/** 调用引擎模式（REQ-003 3-C 管理台开关）：off=全 GLM / shadow=影子对照 / on=实时接管（3-D 已上线） */
 type EngineMode = "off" | "shadow" | "on";
 const MODE_META: Record<EngineMode, { label: string; desc: string }> = {
   off: { label: "关闭", desc: "全部走 GLM，Jev 不参与" },
   shadow: { label: "影子对照", desc: "GLM 行为不变；每次识别后台同题调 Jev，只写一致率审计" },
-  on: { label: "实时接管", desc: "闭集判断切 Jev（3-D 未上线，一致率达标后开放）" },
+  on: { label: "实时接管", desc: "闭集判断与空间归属切 Jev，开放词汇由 GLM 瘦身提取；Jev 失败自动回落全量 GLM" },
 };
 
 export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: boolean) => void }) {
@@ -295,25 +295,21 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
         <div className="grid gap-2 md:grid-cols-3">
           {(Object.keys(MODE_META) as EngineMode[]).map((m) => {
             const active = engineMode === m;
-            const disabled = m === "on";
             return (
               <button
                 key={m}
                 onClick={() => void switchEngineMode(m)}
-                disabled={disabled || engineSaving}
-                title={disabled ? "3-D 接管上线后开放" : "点击切换，立即生效"}
+                disabled={engineSaving}
+                title="点击切换，立即生效"
                 className={`rounded-xl border p-3 text-left transition disabled:cursor-not-allowed ${
                   active
                     ? "border-sky-500/60 bg-sky-500/10"
-                    : disabled
-                      ? "border-line-soft bg-bg/30 opacity-50"
-                      : "border-line-soft bg-bg/30 hover:border-sky-500/40"
+                    : "border-line-soft bg-bg/30 hover:border-sky-500/40"
                 }`}
               >
                 <span className={`flex items-center gap-1.5 text-xs font-medium ${active ? "text-accent" : "text-ink"}`}>
                   {MODE_META[m].label}
                   {active && <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] text-accent">生效中</span>}
-                  {disabled && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] text-warn">未上线</span>}
                   {engineSaving && <span className="text-[9px] text-ink-faint">切换中…</span>}
                 </span>
                 <span className="mt-1 block text-[10px] leading-relaxed text-ink-dim">{MODE_META[m].desc}</span>

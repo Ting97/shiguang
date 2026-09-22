@@ -79,6 +79,30 @@ export const SpaceClassification = z.object({
 });
 export type SpaceClassificationT = z.infer<typeof SpaceClassification>;
 
+/**
+ * 瘦身开放词汇提取契约（REQ-003 3-D）：闭集判断由 Jev 并行完成，GLM 只出本契约字段。
+ * 时间字段直接出 ISO-8601（与 FullExtractionV2 同标准）；缺字段按空处理（passthrough 禁止——防闭集字段混入）。
+ */
+export const OpenVocabExtraction = z.object({
+  title: z.string().max(40).nullish(),
+  start: z.string().min(1).nullish(),
+  end: z.string().min(1).nullish(),
+  due: z.string().min(1).nullish(),
+  durationMin: z.coerce.number().int().positive().max(24 * 60).nullish(),
+  people: z
+    .array(z.object({ name: z.string().min(1).max(20), event: z.string().max(30).nullish() }))
+    .max(10)
+    .nullish(),
+  dietItems: z
+    .array(z.object({ name: z.string().min(1).max(20), amount: z.string().max(20).nullish(), kcal: z.coerce.number().int().positive().max(5000).nullish() }))
+    .max(20)
+    .nullish(),
+  mood: z.object({ label: z.string().max(10).nullish(), score: z.coerce.number().int().min(-100).max(100).nullish() }).nullish(),
+  counterparty: z.string().max(20).nullish(),
+  amountCents: z.coerce.number().int().positive().max(100_000_000).nullish(),
+});
+export type OpenVocabExtractionT = z.infer<typeof OpenVocabExtraction>;
+
 export const ParseResult = z.object({
   activity: ActivityId,
   title: z.string().max(30),
@@ -101,8 +125,8 @@ export const ParseResult = z.object({
   finance: FinanceDraft.default({ hasAmount: false }),
   people: z.array(PersonDraft).default([]),
   ambiguity: z.string().nullish(),
-  /** dry-run（规则引擎）还是 LLM 产出；llm-repaired = 输出不合格经一次重问修复 */
-  engine: z.enum(["llm", "llm-repaired", "rules"]),
+  /** dry-run（规则引擎）还是 LLM 产出；llm-repaired = 输出不合格经一次重问修复；jev-hybrid = Jev 闭集 + GLM 开放词汇混合（3-D） */
+  engine: z.enum(["llm", "llm-repaired", "rules", "jev-hybrid"]),
   /** 灾难降级原因（engine=rules 时有值）：quota/auth/network/timeout/schema… 供日志与排查 */
   fallbackReason: z.string().nullish(),
 });

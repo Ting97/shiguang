@@ -9,11 +9,13 @@
  * 成功路径不做任何规则语义干预——仅保留确定性后处理（时间合法性校验、区间→时长换算、ongoing 推导、kcal 求和）。
  */
 import { chat, extractJson, hasApiKey, isQuotaTripped, GlmError } from "./glm";
-import { EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS, buildExtractUserPrompt, buildRepairUserPrompt } from "./prompt";
+import { EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS, OPEN_VOCAB_SYSTEM_PROMPT, buildExtractUserPrompt, buildRepairUserPrompt, buildOpenVocabUserPrompt } from "./prompt";
 import {
-  ParseResult, FullExtractionV2, domainExtractionV2, ACTIVITY_IDS,
-  type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT,
+  ParseResult, FullExtractionV2, OpenVocabExtraction, domainExtractionV2, ACTIVITY_IDS,
+  type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT, type OpenVocabExtractionT,
 } from "./schema";
+import { jevAsk, jevEnabled, JevError } from "./jev";
+import { extractClosedSetQuestions } from "./questions/jev-sets";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment, anchorRangeToToday, anchorMomentToToday } from "./time-infer";
 import { parseAmountCents, parseDuration } from "./duration";
 import { ruleMood } from "./mood-rules";
@@ -191,8 +193,141 @@ export async function aiExtract(
   return { ext: assembleExtraction(parsed.data, domain), engine: "llm" };
 }
 
-/** 把全量/单域的 v2 校验结果拼装回统一 Extraction 形状（单域模式其余域为中性"不适用"） */
-function assembleExtraction(data: unknown, domain: string | undefined): LlmExtractionT {
+// ---------- Jev 混合引擎（REQ-003 3-D：Jev 闭集 + GLM 开放词汇瘦身提取） ----------
+
+/** 混合引擎不可用（Jev 未启用/调用失败、或瘦身提取失败）——调用方降级全量 GLM */
+export class HybridUnavailableError extends Error {
+  constructor(public reason: string) {
+    super(`[hybrid] ${reason}`);
+    this.name = "HybridUnavailableError";
+  }
+}
+
+export interface HybridParseOptions extends ParseOptions {
+  /** 瘦身开放词汇提取的 system/user prompt（apps/api 按 DB 配置装配传入；缺省用包内默认） */
+  slimSystemPrompt?: string;
+  slimUserPrompt?: string;
+}
+
+/** GLM 瘦身提取：只出开放词汇字段（校验不过自动带错误清单重问一次，与 aiExtract 同策略） */
+async function openVocabExtract(text: string, now: Date, opts: HybridParseOptions): Promise<OpenVocabExtractionT> {
+  const system = opts.slimSystemPrompt ?? OPEN_VOCAB_SYSTEM_PROMPT;
+  const base = opts.slimUserPrompt ?? buildOpenVocabUserPrompt(text, toCstWallClock(now), opts.contactNames);
+  let raw = await chat({ system, user: base, onUsage: opts.onUsage });
+  let parsed = OpenVocabExtraction.safeParse(extractJson(raw));
+  if (!parsed.success) {
+    const issues = parsed.error.issues.slice(0, 6).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+    console.warn(`[hybrid] 瘦身输出未通过校验，重问：${issues.join("；").slice(0, 200)}`);
+    raw = await chat({ system, user: buildRepairUserPrompt(base, raw, issues), onUsage: opts.onUsage });
+    parsed = OpenVocabExtraction.safeParse(extractJson(raw));
+    if (!parsed.success) {
+      throw new GlmError("badOutput", `瘦身重问后仍不合格：${parsed.error.issues.slice(0, 3).map((i) => i.message).join("；")}`);
+    }
+  }
+  return parsed.data;
+}
+
+/** noul 答案 → 布尔 + 校准概率（概率缺失时按阈值给保守值） */
+function noulOf(jev: Awaited<ReturnType<typeof jevAsk>>, key: string): { v: boolean; p: number } {
+  const a = jev.answers[key];
+  const v = a?.value === true;
+  const p = a?.probabilities && typeof a.probabilities.true === "number" ? a.probabilities.true : v ? 0.9 : 0.5;
+  return { v, p };
+}
+
+/**
+ * 混合解析（3-D 接管路径）：Jev 一次并行回答闭集 12 问，GLM 瘦身提取只出开放词汇，合并层拼装后走与全量
+ * GLM 完全相同的确定性后处理（mapAiResult）。Jev 未启用/调用失败、或瘦身提取失败 → 抛 HybridUnavailableError，
+ * 由调用方降级全量 GLM（rules 兜底仍在 parseInput 内）。
+ */
+export async function parseHybridInput(text: string, opts: HybridParseOptions = {}): Promise<ParseResultT> {
+  const now = opts.now ?? new Date();
+  now.setSeconds(0, 0);
+  if (opts.forceRules) throw new HybridUnavailableError("force-rules");
+  if (!hasApiKey() || isQuotaTripped()) throw new HybridUnavailableError("glm-unavailable");
+  if (!jevEnabled()) throw new HybridUnavailableError("jev-not-enabled");
+
+  // 1) Jev 闭集（一次并行；网络/超时/鉴权失败即整体不可用）
+  let jev: Awaited<ReturnType<typeof jevAsk>>;
+  try {
+    const state = `用户随口记录了一句话（当前时间：${toCstWallClock(now)}）：\n「${text}」`;
+    jev = await jevAsk(state, extractClosedSetQuestions());
+  } catch (e) {
+    throw new HybridUnavailableError(e instanceof JevError ? e.kind : String(e).slice(0, 120));
+  }
+
+  // 2) GLM 瘦身开放词汇
+  let g: OpenVocabExtractionT;
+  try {
+    g = await openVocabExtract(text, now, opts);
+  } catch (e) {
+    throw new HybridUnavailableError(`open-vocab: ${e instanceof GlmError ? e.kind : String(e).slice(0, 100)}`);
+  }
+
+  // 3) 合并：闭集信 Jev，开放字段信 GLM
+  const sched = noulOf(jev, "sched_applicable");
+  const todo = noulOf(jev, "todo_applicable");
+  const fin = noulOf(jev, "fin_applicable");
+  const moodA = noulOf(jev, "mood_applicable");
+  const dietA = noulOf(jev, "diet_applicable");
+  const peopleA = noulOf(jev, "people_applicable");
+  const recordFuture = jev.answers["record_type"]?.value === "future";
+  const activityRaw = jev.answers["activity"]?.value;
+  const activity = (ACTIVITY_IDS as readonly string[]).includes(activityRaw as string)
+    ? (activityRaw as LlmExtractionT["schedule"]["activity"])
+    : "other";
+  const dirRaw = jev.answers["fin_direction"]?.value;
+  const mealRaw = jev.answers["diet_meal"]?.value;
+  const meal = (["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"] as readonly string[]).includes(mealRaw as string)
+    ? (mealRaw as LlmExtractionT["diet"]["meal"])
+    : "未知";
+  const periodRaw = jev.answers["period"]?.value;
+  const periodHint = (["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"] as readonly string[]).includes(periodRaw as string)
+    ? (periodRaw as LlmExtractionT["schedule"]["periodHint"])
+    : null;
+
+  const ext: LlmExtractionT = {
+    reasoning: {},
+    schedule: {
+      applicable: sched.v && !recordFuture,
+      activity,
+      title: g.title ?? "",
+      durationMin: g.durationMin ?? null,
+      // 瘦身模型给出的起止（ISO）；mapAiResult 的确定性校验兜住不合法区间（域降级）
+      start: g.start ?? null,
+      end: g.end ?? null,
+      periodHint,
+      confidence: sched.p,
+    },
+    todo: { applicable: todo.v || recordFuture, due: g.due ?? null, confidence: Math.max(todo.p, recordFuture ? 0.9 : 0) },
+    finance: {
+      // 有金额判定信 Jev；但金额数只能来自 GLM——闭集说有而开放字段没抽出金额时按无金额处理（宁漏勿错）
+      hasAmount: fin.v && g.amountCents != null,
+      direction: dirRaw === "income" ? "in" : "out",
+      amountCents: g.amountCents ?? null,
+      category: fin.v ? (jev.answers["fin_category"]?.value as string | null) ?? "其他" : null,
+      counterparty: g.counterparty ?? null,
+      confidence: fin.p,
+    },
+    mood: {
+      label: moodA.v ? g.mood?.label ?? null : null,
+      score: moodA.v ? g.mood?.score ?? null : null,
+      confidence: moodA.v ? Math.max(moodA.p, 0.6) : moodA.p,
+    },
+    diet: {
+      applicable: dietA.v,
+      meal,
+      items: dietA.v ? g.dietItems ?? [] : [],
+      totalKcal: null,
+      confidence: dietA.p,
+    },
+    people: peopleA.v ? g.people ?? [] : [],
+    ambiguity: null,
+  };
+  return mapAiResult(ext, text, now, "jev-hybrid");
+}
+
+/** 把全量/单域的 v2 校验结果拼装回统一 Extraction 形状（单域模式其余域为中性"不适用"） */function assembleExtraction(data: unknown, domain: string | undefined): LlmExtractionT {
   const d = data as Record<string, unknown>;
   const neutralSchedule = { applicable: false, activity: "other" as const, title: "", durationMin: null, periodHint: null, confidence: 0.9 };
   const neutralTodo = { applicable: false, due: null, confidence: 0.9 };
@@ -213,7 +348,7 @@ function assembleExtraction(data: unknown, domain: string | undefined): LlmExtra
 }
 
 /** AI 结果 → ParseResult：确定性后处理（校验/换算），无规则语义 */
-function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm" | "llm-repaired"): ParseResultT {
+function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm" | "llm-repaired" | "jev-hybrid"): ParseResultT {
   const future = ext.todo.applicable; // AI 判定即最终判定
   // 日期锚定：话术无日期词时模型偶发把当天区间挪到明天（17:22 说"下午2点到6点"→次日），
   // 按用户规则「没写哪一天都按当天算」整天平移回今天（凌晨补记昨天除外）

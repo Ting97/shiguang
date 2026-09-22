@@ -52,6 +52,8 @@ const EXTRACT_PLAIN_TEMPLATE = `当前时间：{nowCst}
 用户的话：「{text}」`;
 const EXTRACT_PEOPLE_TEMPLATE = `当前时间：{nowCst}{contactList}
 用户的话：「{text}」`;
+/** 瘦身开放词汇提取（3-D）：闭集归 Jev，无需分类对照 */
+const OPEN_VOCAB_TEMPLATE = EXTRACT_PEOPLE_TEMPLATE;
 
 const CONTACT_INJECT = (withCat: boolean): InjectSpec[] => [
   ...(withCat
@@ -122,6 +124,16 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     placeholders: ["nowCst", "catList", "contactList", "text"],
     injects: [...EXTRACT_FULL_INJECTS, REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对时间推算基准", "服务端时钟"), REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入")],
     caps: EXTRACT_FULL_CAPS,
+  },
+  extract_open_vocab: {
+    userTemplate: OPEN_VOCAB_TEMPLATE,
+    placeholders: ["nowCst", "contactList", "text"],
+    injects: [
+      OPT("contactList", "联系人名单", "用户已有联系人，人物称呼对齐到名单原文、避免重复建档", "contacts 表按最近往来排序"),
+      REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"),
+      REQ("text", "用户话术", "动态原文，抽取对象本体", "本次输入"),
+    ],
+    caps: [{ key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 100 }],
   },
   extract_domain_schedule: {
     userTemplate: EXTRACT_PLAIN_TEMPLATE,
