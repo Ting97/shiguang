@@ -22,6 +22,8 @@ import type { FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
 
 /** pg date 字段经 node-pg 序列化为 UTC ISO（北京时间零点 → 前一日 16:00Z），按北京日期还原 */
 const bjDate = (iso: string) => new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+/** 北京今天（YYYY-MM-DD），用于判断目标是否已过期 */
+const bjToday = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
 export default function Detail() {
   // 静态导出壳页的水合参数是构建期占位 "__shell__"，此时从真实地址解析 id（同 contacts/[id] 先例）
@@ -52,6 +54,9 @@ export default function Detail() {
   // N1：行级空间关联浮层（待办行）
   const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
   const [allSpaces, setAllSpaces] = useState<Space[]>([]);
+  // 目标到期时间就地编辑（头部 ⏳ 日期可点击调整/清除）
+  const [dateEdit, setDateEdit] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -175,6 +180,24 @@ export default function Detail() {
       body: JSON.stringify({ status }),
     });
     location.href = "/spaces";
+  }
+
+  /** 调整/清除目标到期时间（头部就地编辑；null=清除） */
+  async function saveTargetDate(v: string | null): Promise<boolean> {
+    const r = await fetch(`/api/spaces/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetDate: v }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}) as { error?: string });
+      setMsg({ ok: false, text: j.error ?? "保存失败" });
+      return false;
+    }
+    setSpace((s) => (s ? { ...s, target_date: v } : s));
+    setAllSpaces((list) => list.map((x) => (x.id === id ? { ...x, target_date: v } : x)));
+    setMsg({ ok: true, text: v ? `⏳ 目标到期时间已调整为 ${v}` : "目标到期时间已清除" });
+    return true;
   }
 
   /** N1：行级关联/切换/移除空间 */
@@ -313,9 +336,55 @@ export default function Detail() {
                 />
               </h1>
               {space.description && <p className="mt-1 text-xs leading-relaxed text-ink-mute">{space.description}</p>}
-              <p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-ink-dim">
+              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-dim">
                 {space.started_at && <span>{bjDate(space.started_at)} 开始</span>}
-                {space.target_date && <span>目标 {bjDate(space.target_date)}</span>}
+                {dateEdit ? (
+                  <Dismissable onClose={() => setDateEdit(false)} className="inline-flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      autoFocus
+                      value={dateDraft}
+                      onChange={(e) => setDateDraft(e.target.value)}
+                      className="rounded-lg border border-sky-500/50 bg-elevated px-1.5 py-0.5 text-[11px] text-ink"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (await saveTargetDate(dateDraft || null)) setDateEdit(false);
+                      }}
+                      className="rounded-lg bg-sky-500/20 px-1.5 py-0.5 text-accent transition hover:bg-sky-500/30"
+                    >
+                      保存
+                    </button>
+                    {space.target_date && (
+                      <button
+                        onClick={async () => {
+                          if (await saveTargetDate(null)) setDateEdit(false);
+                        }}
+                        className="rounded-lg px-1.5 py-0.5 text-ink-mute transition hover:bg-soft hover:text-danger"
+                      >
+                        清除
+                      </button>
+                    )}
+                  </Dismissable>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setDateDraft(space.target_date ? bjDate(space.target_date) : "");
+                      setDateEdit(true);
+                    }}
+                    className="-mx-1 rounded px-1 text-left transition hover:bg-soft hover:text-accent"
+                    title={space.target_date ? "点击调整目标到期时间" : "设置目标到期时间"}
+                  >
+                    {space.target_date ? (
+                      <span className={bjDate(space.target_date) < bjToday() ? "text-danger" : undefined}>
+                        ⏳ {bjDate(space.target_date)}
+                        {bjDate(space.target_date) < bjToday() && " 已过期"}
+                      </span>
+                    ) : (
+                      <span className="text-ink-faint">＋ 设目标</span>
+                    )}
+                  </button>
+                )}
                 {days != null && <span>第 {days} 天</span>}
               </p>
             </div>

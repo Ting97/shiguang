@@ -120,6 +120,8 @@ export default function SpacesPage() {
   const archived = (spaces ?? []).filter((s) => s.status === "archived");
 
   const daysOf = (s: Space) => (s.started_at ? Math.max(1, Math.ceil((Date.now() - new Date(s.started_at).getTime()) / 86_400_000)) : null);
+  /** pg date 字段按北京日期还原（node-pg 序列化为 UTC ISO，直接 slice 会差一天） */
+  const bjDay = (iso: string) => new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
   const progressOf = (s: Space) => (s.todo_total ? Math.round((s.todo_done ?? 0) / s.todo_total * 100) : null);
 
   return (
@@ -204,6 +206,7 @@ export default function SpacesPage() {
             </span>
                       <p className="mt-0.5 text-[11px] text-ink-dim">
                         {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
+                        {s.target_date && ` · ⏳ ${bjDay(s.target_date).slice(5)}`}
                       </p>
                     </div>
                   </div>
