@@ -54,7 +54,7 @@
 ## 环境与已知坑（累积）
 
 - 本地体验服务：`cd apps/api/.next/standalone/apps/api && set -a && source /d/project/shiguang/shiguangri/.env && set +a && PORT=3100 AUTH_DISABLED=1 nohup /d/nodejs/node.exe server.js`（**必须 source 根 .env 并 echo 校验 ZHIPUAI_API_KEY=SET**，否则 AI 拆解/识别静默失败，audit_logs 可查）。
-- 部署红线：构建 API 前必须杀掉 3100 node 进程；**刷新 out 必须 `rm -rf …/out && cp -r apps/web/out …/out`**（目标存在时 cp -r 会嵌套成 out/out，服务继续供旧构建，04 轮实测踩坑）；构建后冒烟 /login 200。
+- 部署红线：构建 API 前必须杀掉 3100 node 进程；**每次重新构建后 standalone 内 out 会被清掉，本地测试前必须重新 `rm -rf …/out && cp -r apps/web/out …/out`**（build:api 重建 standalone 目录；目标存在时 cp -r 会嵌套成 out/out，04 轮实测踩坑）；构建后冒烟 /login 200。
 - 生产登录密码未入库（STATE.md 无记录时，生产只做未登录冒烟：/login 200、核心 API 401；不阻塞本轮）。
 - Bash 工具偶发 `spawn bash.exe ENOENT`：用 node REPL `cp.spawnSync("C:\\Program Files\\Git\\bin\\bash.exe", ["-c", "..."])` 应急。
 - IAB 标签易卡「正在加载拾光…」：reload 无效直接换新标签；改前端后验证必须 cache-bust（URL 加 &cb=时间戳）。
