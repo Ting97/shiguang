@@ -1,6 +1,7 @@
-# APP 体验轮训状态（定时任务已暂停；002 需求包开发中，见 docs/requirements/002-*）
+# APP 体验轮训状态（定时任务已暂停；002 需求包已交付，见 docs/requirements/002-*）
 
 > 2026-09-22 07:32 添加的保护声明已移除：002 需求文档已正式入库（47ce712）并进入开发。轮训任务已暂停（runCount=maxRuns=6）。
+> 2026-09-19：002 全量交付，用户追加两项已上线——「空间加载卡死」自愈 v2（efac0c2）、「目标到期时间就地编辑」（54e436d）；生产双 tar 冒烟均通过。
 
 > 每轮定时任务必读本文件。项目根：`D:\project\shiguang\shiguangri`（monorepo：apps/web Next.js 15 静态导出、apps/api Next.js standalone、packages/{ai,db,shared}；apps/mobile 本轮一律不动）。
 > 生产：https://shiguang.ting97.cn（远程 git@github.com:Ting97/shiguang.git main）。部署流程与红线见 `docs/08-部署文档.md`。
