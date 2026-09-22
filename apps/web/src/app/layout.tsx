@@ -1,5 +1,7 @@
 import type { Viewport } from "next";
 import ChunkErrorReloader from "@/components/chunk-error-reloader";
+import ErrorBoundary from "@/shared/ui/error-boundary";
+import Providers from "@/shared/providers";
 import "./globals.css";
 
 export const metadata = {
@@ -26,8 +28,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen antialiased text-ink">
-        <ChunkErrorReloader />
-        {children}
+        <Providers>
+          <ChunkErrorReloader />
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </Providers>
       </body>
     </html>
   );

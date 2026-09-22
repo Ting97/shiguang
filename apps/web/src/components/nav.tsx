@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ThemeToggle from "./theme-toggle";
+import { useSession } from "@/shared/session";
 
 const LINKS = [
   { href: "/", label: "动态" },
@@ -38,10 +39,8 @@ export default function Nav() {
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [pathname]);
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    location.href = "/login";
-  }
+  // 4-F：登出走 useSession（唯一 401/跳转点）
+  const { logout } = useSession();
 
   const linkCls = (active: boolean) =>
     // 固定 min-width + 居中：激活态 font-medium 变宽时占位宽度不变（消除切换跳动）

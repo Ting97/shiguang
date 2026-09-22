@@ -7,7 +7,6 @@ import { verifyWriteOrigin } from "../src/server/platform/security/csrf";
 test("限流：窗口内超过上限即 blocked，窗口滑动后解封", () => {
   resetRateLimits();
   let now = 1_000_000;
-  const realNow = Date.now;
   mock.method(Date, "now", () => now);
   try {
     for (let i = 0; i < 20; i++) {

@@ -6,6 +6,8 @@
  */
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
+import nextPlugin from "@next/eslint-plugin-next";
 
 export default tseslint.config(
   { ignores: ["**/node_modules/**", "**/.next/**", "**/out/**", "**/dist/**", "apps/mobile/**", "docs/**", ".zcode/**", "**/next-env.d.ts"] },
@@ -20,10 +22,20 @@ export default tseslint.config(
     files: ["**/*.ts", "**/*.tsx"],
   })),
   {
+    files: ["**/*.tsx"],
+    plugins: { "react-hooks": reactHooks, "@next/next": nextPlugin },
+    rules: {
+      "react-hooks/exhaustive-deps": "off",
+      "react-hooks/rules-of-hooks": "error",
+      "@next/next/no-img-element": "off",
+    },
+  },
+  {
     // TS 项目关闭 no-undef（类型系统已覆盖）；现库基线先关噪项，增量收紧（4-C/4-D 逐步开启）
     files: ["**/*.ts", "**/*.tsx"],
     rules: {
       "no-undef": "off",
+      "@typescript-eslint/no-unused-expressions": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "no-empty": ["error", { allowEmptyCatch: true }],

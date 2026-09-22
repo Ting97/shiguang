@@ -230,7 +230,7 @@ export default function FinanceReviewPage() {
                   ))}
                 </div>
                 <p className="mt-2 text-center text-[9px] text-ink-faint">
-                  <span className="text-danger">▮</span> 支出　<span className="text-success">▮</span> 收入
+                  <span className="text-danger">▮</span> 支出 <span className="text-success">▮</span> 收入
                 </p>
               </section>
             )}
