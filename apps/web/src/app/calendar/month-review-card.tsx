@@ -56,10 +56,10 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
           {busy ? "解读中…" : shown ? "重新生成" : "生成本月小结"}
         </button>
       </div>
-      {busy && <p className="mt-3 animate-pulse text-xs text-ai/80">正在通读本月的时间/待办/收支/人际…</p>}
+      {busy && <p className="mt-3 animate-pulse text-xs text-ai/80">正在通读本月的时间/todo/收支/人际…</p>}
       {!busy && !shown && !hasRecords && <p className="mt-3 text-xs text-ink-faint">本月还没有记录</p>}
       {!busy && !shown && hasRecords && (
-        <p className="mt-3 text-xs text-ink-faint">让 AI 通读本月的时间投入/待办/收支/人际，总结这一个月</p>
+        <p className="mt-3 text-xs text-ink-faint">让 AI 通读本月的时间投入/todo/收支/人际，总结这一个月</p>
       )}
       {!busy && shown && (
         <div className="mt-3 space-y-2">

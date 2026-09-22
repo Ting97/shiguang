@@ -24,7 +24,7 @@ export interface ReminderItem {
   kind: "birthday" | "anniversary" | "todo";
   label: string;
   contactId?: string; // 联系人类条目 → 跳 TA 档案
-  todoId?: string; // 待办条目 → 锚到工作台待办区
+  todoId?: string; // todo 条目 → 锚到工作台 todo 区
   overdue?: boolean;
   /** 排序权重：越紧迫越小（已过期待办 -1，今天 0，N 天后 N） */
   sort: number;
@@ -75,7 +75,7 @@ export function pickReminders(
       todoId: t.id,
       sort: overdue ? -1 : 0,
       overdue,
-      label: `${overdue ? "待办已过期" : "待办即将到期"}：${t.title}${hm}`,
+      label: `${overdue ? "todo 已过期" : "todo 即将到期"}：${t.title}${hm}`,
     });
   }
 

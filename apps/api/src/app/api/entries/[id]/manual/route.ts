@@ -82,7 +82,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           [user.id, id, title, activityId, dueAt, dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000) : null],
         );
         result = { title, dueAt };
-        message = `📋 已手动添加待办「${title}」`;
+        message = `📋 已手动添加 todo「${title}」`;
         break;
       }
       case "finance": {

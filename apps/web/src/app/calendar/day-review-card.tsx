@@ -52,7 +52,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
       </div>
       {busy && <p className="mt-2 animate-pulse text-[11px] text-ai/80">正在通读当天记录…</p>}
       {!busy && !shown && !hasRecords && <p className="mt-2 text-[11px] text-ink-faint">当天还没有记录</p>}
-      {!busy && !shown && hasRecords && <p className="mt-2 text-[11px] text-ink-faint">让 AI 通读当天的时间/待办/收支/人际，写一份小结</p>}
+      {!busy && !shown && hasRecords && <p className="mt-2 text-[11px] text-ink-faint">让 AI 通读当天的时间/todo/收支/人际，写一份小结</p>}
       {!busy && shown && (
         <div className="mt-2 space-y-2">
           <p className="text-xs leading-relaxed text-ink">{shown.summary}</p>

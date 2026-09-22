@@ -37,7 +37,7 @@ export type PromptKey = (typeof PROMPT_KEYS)[number];
 export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" | "复盘" | "目标" | "系统" }> = {
   extract_full: { title: "全量五域提取", category: "识别" },
   extract_domain_schedule: { title: "单域 · 日程", category: "识别" },
-  extract_domain_todo: { title: "单域 · 待办", category: "识别" },
+  extract_domain_todo: { title: "单域 · todo", category: "识别" },
   extract_domain_finance: { title: "单域 · 收支", category: "识别" },
   extract_domain_mood: { title: "单域 · 心情", category: "识别" },
   extract_domain_diet: { title: "单域 · 饮食", category: "识别" },
@@ -48,7 +48,7 @@ export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" 
   review_year: { title: "年复盘", category: "复盘" },
   profile_merge: { title: "月报画像合并", category: "复盘" },
   space_classify: { title: "空间归属分类", category: "目标" },
-  todo_decompose: { title: "待办 AI 拆解", category: "目标" },
+  todo_decompose: { title: "todo AI 拆解", category: "目标" },
   action_decompose: { title: "行动细化拆解", category: "目标" },
   prompt_optimizer: { title: "Prompt 优化器", category: "系统" },
 };
@@ -74,7 +74,7 @@ const DEFAULT_PROMPTS: Record<PromptKey, string> = {
 
 ## 输出
 只输出 JSON：{"spaceId":"<候选列表中的id或null>","confidence":0~1}`,
-  todo_decompose: `你是"拾光"App 的任务拆解引擎。把一个待办拆解为若干可执行的「行动」。
+  todo_decompose: `你是"拾光"App 的任务拆解引擎。把一个 todo 拆解为若干可执行的「行动」。
 
 ## 行动定义（严格）
 - 以动词开头、单一产出、一次专注（25 分钟~2 小时）内可完成、完成与否可判定

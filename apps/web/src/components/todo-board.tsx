@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { Activity, Space, TodoItem, TodoRow } from "@/lib/types";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { FilterChip } from "./tag-chip";
+import { useDismiss, Dismissable } from "./dismissable";
 
 /**
  * TODO 管理视图（微软 To Do 式，日程页 TODO 子页）：
@@ -51,6 +52,13 @@ export default function TodoBoard() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [draftOpen, setDraftOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  // N3：添加行展开后点空白收起；有未提交标题则轻提示
+  const addRowRef = useDismiss<HTMLDivElement>(() => {
+    if (!draftOpen) return;
+    if (draft.title.trim()) setMsg({ ok: true, text: "已取消，未保存" });
+    setDraftOpen(false);
+    setDraft((d) => ({ ...EMPTY_DRAFT, activityId: d.activityId }));
+  }, draftOpen);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -211,7 +219,7 @@ export default function TodoBoard() {
   }
 
   async function removeTodo(t: TodoRow, isChild: boolean) {
-    if (!window.confirm(`删除${isChild ? "行动" : "待办"}？${isChild ? "" : "\n其下行动将一并删除。"}\n「${t.title}」`)) return;
+    if (!window.confirm(`删除${isChild ? "行动" : "todo"}？${isChild ? "" : "\n其下行动将一并删除。"}\n「${t.title}」`)) return;
     const r = await fetch(`/api/todos/${t.id}`, { method: "DELETE" });
     const j = await r.json();
     if (!r.ok) {
@@ -305,10 +313,10 @@ export default function TodoBoard() {
   }
 
   const emptyText: Record<View, string> = {
-    today: "今天还没安排 ☀️ —— 在上面添加任务（会自动标记今日），或把 ⭐重要 / 📋全部 里的任务标为今日",
-    important: "还没有重要任务 ⭐ —— 添加时勾选「重要」，或把现有任务标为重要",
-    all: "暂无待办 —— 在上面添加一个，或在主页随口说一句（AI 会自动识别待办）",
-    done: "还没有已完成的任务 ✓",
+    today: "今天还没安排 ☀️ —— 在上面添加 todo（会自动标记今日），或把 ⭐重要 / 📋全部 里的todo 标为今日",
+    important: "还没有重要 todo ⭐ —— 添加时勾选「重要」，或把现有todo 标为重要",
+    all: "暂无 todo —— 在上面添加一个，或在主页随口说一句（AI 会自动识别 todo）",
+    done: "还没有已完成的 todo ✓",
   };
 
   /** 菜单卡片单项：点击即关菜单再执行动作（danger 红、active 已开启徽标、busy 转圈文案） */
@@ -386,9 +394,12 @@ export default function TodoBoard() {
 
         {/* 主列表 */}
         <div className="min-w-0">
-          {/* 添加任务行（已完成视图不显示） */}
+          {/* 添加任务行（已完成视图不显示）；N3：展开后点空白收起，有未提交内容轻提示 */}
           {view !== "done" && (
-            <div className="glass mb-3 rounded-2xl p-2.5 transition focus-within:border-sky-500/50">
+            <div
+              ref={addRowRef}
+              className="glass mb-3 rounded-2xl p-2.5 transition focus-within:border-sky-500/50"
+            >
               <div className="flex items-center gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-500 opacity-70" />
                 <input
@@ -397,12 +408,8 @@ export default function TodoBoard() {
                   onFocus={() => setDraftOpen(true)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) addTodo();
-                    if (e.key === "Escape") {
-                      setDraftOpen(false);
-                      setDraft({ ...EMPTY_DRAFT, activityId: draft.activityId });
-                    }
                   }}
-                  placeholder="添加任务，回车保存"
+                  placeholder="添加 todo，回车保存"
                   maxLength={200}
                   className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
                 />
@@ -487,8 +494,15 @@ export default function TodoBoard() {
                 return (
                   <li key={t.id} className="group rounded-xl px-2 py-1 transition hover:bg-elevated/60">
                     {isEditing ? (
-                      /* ---- 行内编辑器 ---- */
-                      <div className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
+                      /* ---- 行内编辑器（N3：点空白/Esc 取消，有改动轻提示） ---- */
+                      <Dismissable
+                        onClose={() => {
+                          const dirty = editTitle !== t.title || editDue !== isoToLocalInput(t.due_at) || editActivity !== (t.activity_id ?? "other");
+                          if (dirty) setMsg({ ok: true, text: "已取消，未保存" });
+                          setEditingId(null);
+                        }}
+                        className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3"
+                      >
                         <div className="flex flex-wrap items-center gap-2">
                           <input
                             autoFocus
@@ -527,7 +541,7 @@ export default function TodoBoard() {
                             保存
                           </button>
                         </div>
-                      </div>
+                      </Dismissable>
                     ) : (
                       <>
                         <div className="flex items-center gap-3">
@@ -572,7 +586,7 @@ export default function TodoBoard() {
                           {(t.children.length > 0) && (
                               <button
                               onClick={() => toggleExpand(t.id)}
-                              title={open ? "收起子任务" : "展开子任务"}
+                              title={open ? "收起行动" : "展开行动"}
                               className={`tap-lg shrink-0 text-[10px] text-ink-mute transition-transform duration-200 ${open ? "rotate-180" : ""}`}
                             >
                               ▼
@@ -588,8 +602,19 @@ export default function TodoBoard() {
                               return (
                                 <div key={c.id} className="group/child rounded-lg px-1.5 py-1 transition hover:bg-elevated/60">
                                   {noteOpenId === c.id ? (
-                                    /* ---- 行动详情面板：标题 + 详细内容（≤1000 字）+ 截止 ---- */
-                                    <div className="rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5">
+                                    /* ---- 行动详情面板（N3：点空白/Esc 取消，有改动轻提示） ---- */
+                                    <Dismissable
+                                      onClose={() => {
+                                        const dirty =
+                                          noteTitle !== c.title ||
+                                          noteText !== (c.note ?? "") ||
+                                          noteDue !== isoToLocalInput(c.due_at) ||
+                                          noteRepeat !== c.repeat_daily;
+                                        if (dirty) setMsg({ ok: true, text: "已取消，未保存" });
+                                        setNoteOpenId(null);
+                                      }}
+                                      className="rounded-lg border border-sky-500/40 bg-elevated/60 p-2.5"
+                                    >
                                       <input
                                         autoFocus
                                         value={noteTitle}
@@ -645,7 +670,7 @@ export default function TodoBoard() {
                                           </button>
                                         </div>
                                       </div>
-                                    </div>
+                                    </Dismissable>
                                   ) : (
                                     <div className="flex items-center gap-2.5">
                                       <TodoCircle size="sm" done={cDone} onClick={() => toggleDone(c)} />
@@ -693,7 +718,11 @@ export default function TodoBoard() {
                                   autoFocus
                                   value={subTitle}
                                   onChange={(e) => setSubTitle(e.target.value)}
-                                  onBlur={() => setSubParentId(null)}
+                                  onBlur={() => {
+                                    // blur 即"点空白"（N3）；有未提交内容轻提示
+                                    if (subTitle.trim()) setMsg({ ok: true, text: "已取消，未保存" });
+                                    setSubParentId(null);
+                                  }}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.nativeEvent.isComposing) addSubtask(t.id);
                                     if (e.key === "Escape") setSubParentId(null);
@@ -707,7 +736,7 @@ export default function TodoBoard() {
                             {t.children.length === 0 && subParentId !== t.id && (
                               <p className="px-1.5 py-1 text-[11px] text-ink-faint">还没有行动 —— 行右侧「⋯」里添加，或让 AI 拆解</p>
                             )}
-                            {done && <p className="px-1.5 py-0.5 text-[11px] text-ink-faint">已完成的待办不可再添加行动</p>}
+                            {done && <p className="px-1.5 py-0.5 text-[11px] text-ink-faint">已完成的 todo 不可再添加行动</p>}
                           </div>
                         )}
                       </>
@@ -716,7 +745,7 @@ export default function TodoBoard() {
                 );
               })}
               {view === "done" && (
-                <li className="px-2 pt-3 text-center text-[11px] text-ink-faint">最多显示最近 200 条已完成的顶层任务</li>
+                <li className="px-2 pt-3 text-center text-[11px] text-ink-faint">最多显示最近 200 条已完成的顶层 todo</li>
               )}
             </ul>
           )}
@@ -726,21 +755,19 @@ export default function TodoBoard() {
       {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层） */}
       {menuRow &&
         createPortal(
-          <>
-            <div className="fixed inset-0 z-[60]" onClick={() => setMenuRow(null)} />
-            <div
-              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
-              style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* 移动端拖拽指示条 */}
-              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
-              <p className="mb-1.5 flex items-center gap-1.5 px-1.5">
-                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</span>
-                {menuRow.isChild && menuRow.parentTitle && (
-                  <span className="max-w-24 shrink-0 truncate text-[10px] text-ink-faint">{menuRow.parentTitle}</span>
-                )}
-              </p>
+          <Dismissable
+            onClose={() => setMenuRow(null)}
+            className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+            style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+          >
+            {/* 移动端拖拽指示条 */}
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
+            <p className="mb-1.5 flex items-center gap-1.5 px-1.5">
+              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</span>
+              {menuRow.isChild && menuRow.parentTitle && (
+                <span className="max-w-24 shrink-0 truncate text-[10px] text-ink-faint">{menuRow.parentTitle}</span>
+              )}
+            </p>
               <div className="space-y-0.5">
                 {menuRow.isChild ? (
                   <>
@@ -809,12 +836,11 @@ export default function TodoBoard() {
                     {isDoneRow(menuRow.todo) && (
                       <MenuItem icon="↩️" label="恢复为未完成" onClick={() => patchTodo(menuRow.todo.id, { undone: true }, `↩️ 「${menuRow.todo.title}」已恢复`)} />
                     )}
-                    <MenuItem icon="🗑" label="删除待办" hint="其下行动一并删除" danger onClick={() => removeTodo(menuRow.todo, false)} />
+                    <MenuItem icon="🗑" label="删除 todo" hint="其下行动一并删除" danger onClick={() => removeTodo(menuRow.todo, false)} />
                   </>
                 )}
               </div>
-            </div>
-          </>,
+          </Dismissable>,
           document.body,
         )}
     </div>

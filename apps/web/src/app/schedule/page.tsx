@@ -16,7 +16,7 @@ import { FilterChip } from "@/components/tag-chip";
 type Tab = "calendar" | "todo" | "categories";
 const TABS: [Tab, string][] = [
   ["calendar", "📅 日历"],
-  ["todo", "TODO"],
+  ["todo", "todo"],
   ["categories", "🏷️ 分类"],
 ];
 
@@ -43,7 +43,7 @@ export default function SchedulePage() {
         <div className="glass mb-5 flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-gradient text-xl font-bold tracking-wide">
             日程
-            <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">日历 · TODO · 分类</span>
+            <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">日历 · todo · 分类</span>
           </h1>
           <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
             {TABS.map(([v, label]) => (

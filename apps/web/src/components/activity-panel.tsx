@@ -63,7 +63,7 @@ export default function ActivityPanel() {
   }
 
   async function remove(a: Activity) {
-    if (!window.confirm(`删除分类「${a.name}」？\n其历史时间块与待办将归入「其他」。`)) return;
+    if (!window.confirm(`删除分类「${a.name}」？\n其历史时间块与 todo 将归入「其他」。`)) return;
     const r = await fetch(`/api/activities/${a.id}`, { method: "DELETE" });
     const j = await r.json();
     if (!r.ok) { setMsg({ ok: false, text: j.error ?? "删除失败" }); return; }

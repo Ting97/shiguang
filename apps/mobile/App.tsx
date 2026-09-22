@@ -634,7 +634,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
         <Text style={[s.headTitle, { color: t.title }]}>
           拾光 <Text style={[s.headSub, { color: t.inkDim }]}>动态</Text>
         </Text>
-        <Text style={[s.headDesc, { color: t.inkMute }]}>随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办</Text>
+        <Text style={[s.headDesc, { color: t.inkMute }]}>随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来 todo</Text>
       </View>
 
       {msg && (
@@ -765,7 +765,7 @@ function Home({ onLogout }: { onLogout: () => void }) {
               value={text} onChangeText={setText} multiline
             />
             <View style={s.sheetFoot}>
-              <Text style={[s.sheetHint, { color: t.inkFaint }]}>发布后 AI 自动识别日程 / 待办 / 收支 / 心情</Text>
+              <Text style={[s.sheetHint, { color: t.inkFaint }]}>发布后 AI 自动识别日程 / todo / 收支 / 心情</Text>
               <Pressable
                 style={[s.gradBtnWrapSheet, (!text.trim() || sending) && { opacity: 0.45 }]}
                 onPress={send} disabled={!text.trim() || sending}
@@ -818,7 +818,7 @@ function MomentCard({ m, t }: { m: Moment; t: Theme }) {
               )}
               {m.todos.length > 0 && (
                 <Text style={[s.chip, { color: t.accent, borderColor: t.lineSoft, backgroundColor: t.bg }]}>
-                  📋 {m.todos.length} 待办
+                  📋 {m.todos.length} todo
                 </Text>
               )}
               {m.transactions.map((tx) => (

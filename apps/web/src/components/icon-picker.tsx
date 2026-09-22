@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Dismissable } from "./dismissable";
 
 /** 分类图标候选（emoji 网格，按主题分组） */
 const ICON_GROUPS: Array<[string, string[]]> = [
@@ -31,11 +32,8 @@ export default function IconPicker({ value, onChange }: { value: string; onChang
         {value || "🏷"}
       </button>
       {open && (
-        <>
-          {/* 点击空白处关闭 */}
-          <button type="button" aria-label="关闭" className="fixed inset-0 z-20 cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-10 z-30 max-h-[65vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-xl">
-            {ICON_GROUPS.map(([group, icons]) => (
+        <Dismissable onClose={() => setOpen(false)} className="absolute left-0 top-10 z-30 max-h-[65vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-xl">
+          {ICON_GROUPS.map(([group, icons]) => (
               <div key={group} className="mb-1.5 last:mb-0">
                 <p className="mb-1 text-[10px] text-ink-dim">{group}</p>
                 <div className="flex flex-wrap gap-1">
@@ -73,8 +71,7 @@ export default function IconPicker({ value, onChange }: { value: string; onChang
                 className="flex-1 rounded border border-line-strong bg-bg px-2 py-1 text-xs outline-none focus:border-sky-500"
               />
             </div>
-          </div>
-        </>
+        </Dismissable>
       )}
     </span>
   );

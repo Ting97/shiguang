@@ -5,6 +5,7 @@ import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
 import { TagChip } from "@/components/tag-chip";
+import { useDismiss, Dismissable } from "@/components/dismissable";
 import { TX_CATEGORIES, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
 
 interface Account {
@@ -237,15 +238,17 @@ export default function FinancePage() {
           {/* 预算进度 */}
           <div className="mt-4 border-t border-line-soft pt-3">
             {editingBudget ? (
-              <BudgetEditor
-                ov={ov}
-                onCancel={() => setEditingBudget(false)}
-                onSaved={async () => {
-                  setEditingBudget(false);
-                  setMsg({ ok: true, text: "💾 月度上限已保存" });
-                  await load();
-                }}
-              />
+              <Dismissable onClose={() => setEditingBudget(false)}>
+                <BudgetEditor
+                  ov={ov}
+                  onCancel={() => setEditingBudget(false)}
+                  onSaved={async () => {
+                    setEditingBudget(false);
+                    setMsg({ ok: true, text: "💾 月度上限已保存" });
+                    await load();
+                  }}
+                />
+              </Dismissable>
             ) : (
               <>
                 <div className="flex items-center justify-between text-[11px]">
@@ -366,7 +369,7 @@ export default function FinancePage() {
               </button>
             </div>
             {confirmAll && (
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-bg/50 px-3 py-2.5 text-xs">
+              <Dismissable onClose={() => setConfirmAll(false)} className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-bg/50 px-3 py-2.5 text-xs">
                 <span className="text-ink-soft">把这 {drafts.length} 笔全部记入：</span>
                 {ov.accounts.map((a) => (
                   <button
@@ -383,13 +386,13 @@ export default function FinancePage() {
                 <button onClick={() => setConfirmAll(false)} className="ml-auto text-[11px] text-ink-dim hover:text-ink-soft">
                   取消
                 </button>
-              </div>
+              </Dismissable>
             )}
             <ul className="space-y-2">
               {drafts.map((t) => (
                 <li key={t.id} className="force-actions group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-500/20 bg-bg/50 px-3 py-2.5">
                   {confirming?.id === t.id ? (
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Dismissable onClose={() => setConfirming(null)} className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="text-ink-soft">记入账户：</span>
                       {ov.accounts.map((a) => (
                         <button
@@ -406,7 +409,7 @@ export default function FinancePage() {
                       <button onClick={() => setConfirming(null)} className="ml-auto text-[11px] text-ink-dim hover:text-ink-soft">
                         取消
                       </button>
-                    </div>
+                    </Dismissable>
                   ) : (
                     <TxRow tx={t} onConfirm={() => setConfirming(t)} onEdit={() => setEditing(t)} onDelete={() => removeTx(t)} />
                   )}
@@ -431,17 +434,19 @@ export default function FinancePage() {
             {confirmed.map((t) =>
               editing?.id === t.id ? (
                 <li key={t.id} className="rounded-xl border border-sky-500/40 bg-elevated/60 p-3">
-                  <TxForm
-                    accounts={ov.accounts}
-                    initial={t}
-                    onCancel={() => setEditing(null)}
-                    onSubmit={async (payload) => {
-                      await api(`/api/transactions/${t.id}`, "PATCH", payload);
-                      setEditing(null);
-                      setMsg({ ok: true, text: "💾 流水已更新" });
-                      await load();
-                    }}
-                  />
+                  <Dismissable onClose={() => setEditing(null)}>
+                    <TxForm
+                      accounts={ov.accounts}
+                      initial={t}
+                      onCancel={() => setEditing(null)}
+                      onSubmit={async (payload) => {
+                        await api(`/api/transactions/${t.id}`, "PATCH", payload);
+                        setEditing(null);
+                        setMsg({ ok: true, text: "💾 流水已更新" });
+                        await load();
+                      }}
+                    />
+                  </Dismissable>
                 </li>
               ) : (
                 <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-elevated/60">
@@ -866,15 +871,14 @@ function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel: () =>
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  // N3：点遮罩/空白关闭由面板 useDismiss 统一处理（遮罩保留视觉）
+  const ref = useDismiss<HTMLDivElement>(onClose);
   return (
     /* 移动端底部弹层（键盘不遮提交钮、拇指可达）；桌面居中卡片 */
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
       <div
+        ref={ref}
         className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-ink">{title}</h3>

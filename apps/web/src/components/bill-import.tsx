@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { TX_CATEGORIES, yuan } from "@/lib/finance";
+import { useDismiss } from "./dismissable";
 import { TagChip } from "./tag-chip";
 
 interface ImportPreview {
@@ -65,6 +66,8 @@ export default function BillImport({
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [accountId, setAccountId] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  // N3：点面板外空白关闭
+  const ref = useDismiss<HTMLDivElement>(onClose);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -134,8 +137,8 @@ export default function BillImport({
   const dupTotal = (preview?.batchDup ?? 0) + (preview?.dbDup ?? 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
+      <div ref={ref} className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
           <TagChip icon="📥" label="导入支付宝/微信账单" tone="amber" className="text-sm" />
           <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>

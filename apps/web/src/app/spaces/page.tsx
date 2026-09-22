@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Nav from "@/components/nav";
+import { Dismissable } from "@/components/dismissable";
 import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
 
@@ -107,7 +108,7 @@ export default function SpacesPage() {
   }
 
   async function remove(s: Space) {
-    if (!window.confirm(`删除空间「${s.name}」？\n动态与待办不会被删除，仅解除归属。`)) return;
+    if (!window.confirm(`删除空间「${s.name}」？\n动态与 todo 不会被删除，仅解除归属。`)) return;
     await fetch(`/api/spaces/${s.id}`, { method: "DELETE" });
     setMsg({ ok: true, text: `「${s.name}」已删除` });
     load();
@@ -154,7 +155,7 @@ export default function SpacesPage() {
           <div className="glass rounded-2xl p-10 text-center empty-state">
             <p className="text-4xl">🎯</p>
             <p className="mt-3 text-sm font-medium">还没有目标空间</p>
-            <p className="mt-1 text-xs text-ink-dim">为一个大目标（考研上岸 / 副业过万 / 完成全马…）建一个容器，把相关的动态和待办都聚在它下面</p>
+            <p className="mt-1 text-xs text-ink-dim">为一个大目标（考研上岸 / 副业过万 / 完成全马…）建一个容器，把相关的动态和 todo 都聚在它下面</p>
             <button onClick={openNew} className="btn-primary mt-4 rounded-xl px-5 py-2 text-sm font-medium">
               创建第一个空间
             </button>
@@ -180,15 +181,15 @@ export default function SpacesPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
                       <p className="mt-0.5 text-[11px] text-ink-dim">
-                        {s.todo_total ?? 0} 待办 · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
+                        {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
                       </p>
                     </div>
                   </div>
                   {s.description && <p className="mt-2 line-clamp-2 text-xs text-ink-mute">{s.description}</p>}
                   <div className="mt-3">
                     <div className="mb-1 flex justify-between text-[10px] tabular-nums text-ink-faint">
-                      <span>待办进度</span>
-                      <span>{progress == null ? "暂无待办" : `${progress}%`}</span>
+                      <span>todo 进度</span>
+                      <span>{progress == null ? "暂无 todo" : `${progress}%`}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
                       <div
@@ -226,12 +227,18 @@ export default function SpacesPage() {
           </details>
         )}
 
-        {/* 新建/编辑弹层 */}
+        {/* 新建/编辑弹层（N3：点空白/Esc 取消，有改动轻提示） */}
         {editing && (
-          <>
-            <div className="fixed inset-0 z-[60] bg-scrim/70 backdrop-blur-sm" onClick={() => setEditing(null)} />
-            <div className="fixed inset-x-4 top-1/2 z-[61] -translate-y-1/2 rounded-2xl border border-line-soft bg-surface p-5 shadow-2xl sm:mx-auto sm:max-w-md">
-              <h2 className="mb-3 text-sm font-semibold text-ink">{editingId ? "编辑空间" : "新建目标空间"}</h2>
+          <Dismissable
+            onClose={() => {
+              if (editing.name.trim() !== (spaces?.find((s) => s.id === editingId)?.name ?? "")) {
+                setMsg({ ok: true, text: "已取消，未保存" });
+              }
+              setEditing(null);
+            }}
+            className="fixed inset-x-4 top-1/2 z-[61] -translate-y-1/2 rounded-2xl border border-line-soft bg-surface p-5 shadow-2xl sm:mx-auto sm:max-w-md"
+          >
+            <h2 className="mb-3 text-sm font-semibold text-ink">{editingId ? "编辑空间" : "新建目标空间"}</h2>
               <input
                 autoFocus
                 value={editing.name}
@@ -304,8 +311,7 @@ export default function SpacesPage() {
                   {editingId ? "保存" : "创建"}
                 </button>
               </div>
-            </div>
-          </>
+          </Dismissable>
         )}
 
         <footer className="mt-10 text-center">

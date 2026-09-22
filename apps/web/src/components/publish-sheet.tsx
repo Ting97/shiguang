@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { uploadImages } from "@/lib/image";
+import { useDismiss } from "./dismissable";
 
 /**
  * 移动端发布输入面板（底部抽屉）：悬浮圆圈点按=空面板；长按语音松开=转写文字带入预览，
@@ -20,6 +21,7 @@ export default function PublishSheet({
   busy,
   onPublish,
   onClose,
+  notify,
 }: {
   open: boolean;
   /** 打开时带入的初始文字（语音转写结果或空串） */
@@ -28,6 +30,8 @@ export default function PublishSheet({
   /** 发布文字动态；返回 entry id（供图片上传），失败/无图返回 null */
   onPublish: (text: string) => Promise<string | null>;
   onClose: () => void;
+  /** N3.5 取消且内容有改动时的轻提示（可选） */
+  notify?: (m: { ok: boolean; text: string } | null) => void;
 }) {
   const [value, setValue] = useState("");
   const [images, setImages] = useState<SheetImage[]>([]);
@@ -35,6 +39,10 @@ export default function PublishSheet({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  // 打开时的初始文字快照（取消时判断是否"有改动"）
+  const initialRef = useRef("");
+  // N3：点面板外空白 / Esc → 取消关闭（面板渲染期间生效）
+  const panelRef = useDismiss<HTMLDivElement>(cancel, open);
   // 触屏设备提供「拍照」入口（桌面无摄像头场景隐藏）
   const [canCapture, setCanCapture] = useState(false);
   useEffect(() => setCanCapture(window.matchMedia("(pointer: coarse)").matches), []);
@@ -44,6 +52,7 @@ export default function PublishSheet({
   useEffect(() => {
     if (!open) return;
     setValue(initialText);
+    initialRef.current = initialText;
     setImages([]);
     setSheetMsg(null);
     // 等挂载/键盘弹起后再聚焦，保证光标落在面板输入框
@@ -52,6 +61,14 @@ export default function PublishSheet({
   }, [open, initialText]);
 
   if (!open) return null;
+
+  /** N3 取消：点空白/Esc/×——内容相对打开时有改动则轻提示"已取消，未保存" */
+  function cancel() {
+    if (value.trim() && value.trim() !== initialRef.current.trim()) {
+      notify?.({ ok: true, text: "已取消，未保存" });
+    }
+    onClose();
+  }
 
   function addImages(files: File[], source: "gallery" | "camera") {
     const imgs = files
@@ -108,13 +125,14 @@ export default function PublishSheet({
 
   return (
     <>
-      <div className="fixed inset-0 z-[55] bg-black/50" onClick={onClose} />
-      <div className="safe-bottom fixed inset-x-0 bottom-0 z-[56] rounded-t-2xl border-t border-line-soft bg-surface p-4 pb-5 shadow-2xl">
+      {/* 遮罩仅视觉；点空白关闭由面板 useDismiss 统一处理（N3） */}
+      <div className="fixed inset-0 z-[55] bg-black/50" />
+      <div ref={panelRef} className="safe-bottom fixed inset-x-0 bottom-0 z-[56] rounded-t-2xl border-t border-line-soft bg-surface p-4 pb-5 shadow-2xl">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-ink-soft">记录此刻</h3>
           <button
             type="button"
-            onClick={onClose}
+            onClick={cancel}
             aria-label="关闭"
             className="rounded-full p-1 text-ink-dim hover:bg-white/5 hover:text-ink"
           >
@@ -129,10 +147,8 @@ export default function PublishSheet({
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               void publish();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              onClose();
             }
+            // Esc 取消由 Dismissable 统一处理（N3）
           }}
           rows={3}
           maxLength={2000}

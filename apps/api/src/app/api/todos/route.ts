@@ -148,7 +148,7 @@ export async function POST(req: Request) {
       [body.parentId, user.id],
     );
     if (!hit.rows[0]) {
-      return NextResponse.json({ error: "只能给未完成的顶层任务添加行动" }, { status: 400 });
+      return NextResponse.json({ error: "只能给未完成的顶层 todo 添加行动" }, { status: 400 });
     }
     parentId = hit.rows[0].id;
     parentSpaceId = hit.rows[0].space_id ?? null;

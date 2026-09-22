@@ -216,7 +216,7 @@ export default function Home() {
       // 防御非约定响应（网关错误页/结构变更）：给出可读原因，而不是 TypeError
       if (!r.ok || !j?.entry) throw new Error(j?.error || `服务异常(${r.status})，请稍后重试`);
       // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
-      setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / 待办 / 收支 / 心情 / 饮食…" });
+      setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
       setText("");
       // 新动态要立即可见：搜索过滤中则清空搜索再刷新
       if (query || searchInput) {
@@ -378,11 +378,11 @@ export default function Home() {
             <span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">动态</span>
           </h1>
           <p className="mt-2 text-xs text-ink-dim">
-            随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来待办
+            随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来 todo
           </p>
         </header>
 
-        {/* W12 提醒横幅：生日/纪念日/到期待办（待办可一键加入今日 TODO） */}
+        {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
         <Reminders
           items={reminderItems}
           onMarkToday={async (todoId, label) => {
@@ -392,7 +392,7 @@ export default function Home() {
               body: JSON.stringify({ today: true }),
             });
             if (r.ok) {
-              setMsg({ ok: true, text: `☀️ 已加入今日 TODO` });
+              setMsg({ ok: true, text: `☀️ 已加入今日 todo` });
               await load();
             } else {
               setMsg({ ok: false, text: `加入今日失败（${label.slice(0, 20)}…）` });
@@ -493,7 +493,7 @@ export default function Home() {
           <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
         )}
 
-        {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父待办今日/今日到期），完整管理在「日程 · TODO」 */}
+        {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
         <ActionsToday notify={setMsg} />
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
@@ -516,7 +516,7 @@ export default function Home() {
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setSearchInput("");
                 }}
-                placeholder="🔍 搜索：原文/日程/待办/金额/联系人"
+                placeholder="🔍 搜索：原文/日程/todo/金额/联系人"
                 className="w-full rounded-xl border border-line-soft bg-surface/60 py-1.5 pl-3 pr-8 text-xs outline-none placeholder:text-ink-faint focus:border-sky-500/60"
               />
               {searchInput && (
@@ -633,7 +633,7 @@ export default function Home() {
               </div>
               {blocks.length === 0 && (
                 <p className="py-4 text-center text-xs text-ink-faint">
-                  还没有记录 —— 说句"刚做完…"，点「＋ 新增日程」，或去完成一个待办
+                  还没有记录 —— 说句"刚做完…"，点「＋ 新增日程」，或去完成一个 todo
                 </p>
               )}
               <ul className="space-y-1.5">
@@ -746,6 +746,7 @@ export default function Home() {
         busy={busy}
         onPublish={publish}
         onClose={() => setSheetOpen(false)}
+        notify={setMsg}
       />
     </main>
   );

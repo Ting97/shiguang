@@ -165,7 +165,7 @@ export async function POST(req: Request) {
   const facts = [
     `周期：${year} 年（${from} 至 ${to}）`,
     `时间投入：${timeParts.length ? timeParts.join("、") : "无"}`,
-    `完成待办：${todoRows.rows[0].n} 件`,
+    `完成 todo：${todoRows.rows[0].n} 件`,
     `支出 ¥${(txRows.rows[0].out_cents / 100).toFixed(0)} · 收入 ¥${(txRows.rows[0].in_cents / 100).toFixed(0)}`,
     interactRows.rows.length ? `人际互动：${interactRows.rows.map((r) => `${r.name}${r.n}次`).join("、")}` : "人际互动：无",
     `动态 ${entryRows.rows[0].n} 条（覆盖 ${entryRows.rows[0].days} 天）${entryRows.rows[0].moods.length ? `（心情：${entryRows.rows[0].moods.join("、")}）` : ""}`,
@@ -207,7 +207,7 @@ export async function POST(req: Request) {
   const detailText = [
     ["代表性原始动态（时间 原文 心情）：", entryBlock].join("\n"),
     ["日程块：", ...withCap(blockLines(blockRows.rows), BLOCK_CAPS.year, "个日程")].join("\n") || "日程块：无",
-    ["完成待办：", ...withCap(todoDoneLines(todoListRows.rows), TODO_CAPS.year, "条待办")].join("\n") || "完成待办：无",
+    ["完成 todo：", ...withCap(todoDoneLines(todoListRows.rows), TODO_CAPS.year, "条 todo")].join("\n") || "完成 todo：无",
   ].join("\n\n");
   const userPrompt = [
     facts.join("\n"),

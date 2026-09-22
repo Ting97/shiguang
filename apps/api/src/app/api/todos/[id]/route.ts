@@ -17,7 +17,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     undone?: boolean;
     title?: string;
     dueAt?: string | null; // ISO；null=清除时间
-    startAt?: string | null; // ISO；null=清除起始（区间待办用）
+    startAt?: string | null; // ISO；null=清除起始（区间 todo 用）
     activityId?: string;
     important?: boolean; // ⭐ 重要标记（仅顶层任务，行动随父）
     today?: boolean; // ☀️ 今日标记：true=北京今天，false=清除（跨零点自动失效）
@@ -39,7 +39,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       ).rows[0];
       if (!todo) {
         await client.query("rollback");
-        return NextResponse.json({ error: "待办不存在或未完成" }, { status: 404 });
+        return NextResponse.json({ error: "todo 不存在或未完成" }, { status: 404 });
       }
       if (todo.done_block_id) await client.query(`delete from time_blocks where id = $1`, [todo.done_block_id]);
       const restored = (
@@ -74,7 +74,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         [id, user.id],
       )
     ).rows[0];
-    if (!todo) return NextResponse.json({ error: "待办不存在或已完成" }, { status: 404 });
+    if (!todo) return NextResponse.json({ error: "todo 不存在或已完成" }, { status: 404 });
     return NextResponse.json({ todo });
   }
 
@@ -85,7 +85,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       await pool.query(`select parent_todo_id from todos where id = $1 and user_id = $2`, [id, user.id])
     ).rows[0]?.parent_todo_id;
     if (isChild) {
-      return NextResponse.json({ error: "行动不支持单独标记，请标记父任务" }, { status: 400 });
+      return NextResponse.json({ error: "行动不支持单独标记，请标记父 todo" }, { status: 400 });
     }
   }
   // 每日重复仅对行动生效（顶层待办不设重复）
@@ -145,7 +145,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       vals,
     )
   ).rows[0];
-  if (!updated) return NextResponse.json({ error: "待办不存在" }, { status: 404 });
+  if (!updated) return NextResponse.json({ error: "todo 不存在" }, { status: 404 });
   return NextResponse.json({ todo: updated });
 }
 
@@ -160,6 +160,6 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
       [id, user.id],
     )
   ).rows[0];
-  if (!deleted) return NextResponse.json({ error: "待办不存在" }, { status: 404 });
+  if (!deleted) return NextResponse.json({ error: "todo 不存在" }, { status: 404 });
   return NextResponse.json({ ok: true, title: deleted.title });
 }

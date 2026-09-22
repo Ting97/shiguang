@@ -112,7 +112,7 @@ export async function POST(req: Request) {
   const facts = [
     `日期：${date}`,
     `时间块：${timeParts.length ? timeParts.join("、") : "无"}`,
-    `完成待办：${todoRows.rows[0].n} 件`,
+    `完成 todo：${todoRows.rows[0].n} 件`,
     `支出 ¥${(txRows.rows[0].out_cents / 100).toFixed(0)} · 收入 ¥${(txRows.rows[0].in_cents / 100).toFixed(0)}`,
     interactRows.rows.length
       ? `人际互动：${interactRows.rows.map((r) => `${r.name}${r.n}次`).join("、")}`
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
   const detailText = [
     ["原始动态（时间 原文 心情）：", ...withCap(entryLines(rawEntryRows.rows), 500, "条动态")].join("\n"),
     ["日程块：", blockLines(blockRows.rows).join("\n") || "无"].join("\n"),
-    ["完成待办：", todoDoneLines(todoListRows.rows).join("\n") || "无"].join("\n"),
+    ["完成 todo：", todoDoneLines(todoListRows.rows).join("\n") || "无"].join("\n"),
   ].join("\n\n");
   const userPrompt = [facts.join("\n"), detailText, profileBlock ? `该用户的已知画像（供理解参考，不要复述）：\n${profileBlock}` : null]
     .filter(Boolean)

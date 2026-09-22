@@ -125,10 +125,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           ).rows[0];
           applied = true;
           result = { todoId: todo.id, title: r.title };
-          message = `📋 待办已更新：${r.title}`;
+          message = `📋 todo 已更新：${r.title}`;
         } else {
-          result = { reason: "未识别出待办" };
-          message = "未识别出待办，已移除原待办";
+          result = { reason: "未识别出 todo" };
+          message = "未识别出 todo，已移除原 todo";
         }
         break;
       }

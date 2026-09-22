@@ -40,11 +40,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const todo = (
     await pool.query(`select * from todos where id = $1 and user_id = $2`, [id, user.id])
   ).rows[0];
-  if (!todo) return NextResponse.json({ error: "待办不存在" }, { status: 404 });
+  if (!todo) return NextResponse.json({ error: "todo 不存在" }, { status: 404 });
 
   const isAction = !!todo.parent_todo_id;
   const isDecomposable = todo.status === "pending";
-  if (!isDecomposable) return NextResponse.json({ error: "已完成的任务不再拆解" }, { status: 400 });
+  if (!isDecomposable) return NextResponse.json({ error: "已完成的 todo 不再拆解" }, { status: 400 });
 
   // ---- 行动上下文（空间名/描述、父待办、已有行动清单用于去重） ----
   const space = todo.space_id
@@ -67,13 +67,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   // ---- 组装 prompt（system 来自 DB 纳管，缺省用代码默认） ----
   const system = await getPrompt(isAction ? "action_decompose" : "todo_decompose");
   const contextLines = [
-    isAction ? `所属待办：${parent?.title ?? ""}` : `待办：${todo.title}`,
+    isAction ? `所属 todo：${parent?.title ?? ""}` : `todo：${todo.title}`,
     todo.note || (isAction ? parent?.note : null) ? `相关描述：${todo.note || parent?.note}` : null,
     space ? `所属空间：${space.name}${space.description ? `（${space.description}）` : ""}` : null,
     existingTitles.length ? `已有行动（禁止生成语义重复项）：\n${existingTitles.map((t) => `- ${t}`).join("\n")}` : "已有行动：无",
     profileBlock ? `用户画像（供参考）：\n${profileBlock}` : null,
   ].filter(Boolean);
-  const userPrompt = `${contextLines.join("\n\n")}\n\n请拆解：${isAction ? `「${todo.title}」` : "上述待办"}${mode === "replace" ? "（重新生成：只输出新的行动清单）" : ""}`;
+  const userPrompt = `${contextLines.join("\n\n")}\n\n请拆解：${isAction ? `「${todo.title}」` : "上述 todo"}${mode === "replace" ? "（重新生成：只输出新的行动清单）" : ""}`;
 
   // ---- 调 LLM（temperature 0.3；失败走一次 repair 风格重试） ----
   let raw = "";

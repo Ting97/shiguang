@@ -273,7 +273,7 @@ export default function ProfilePage() {
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
             <section className="glass rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon="📦" label="导出我的数据" tone="slate" /></h2>
-              <p className="mt-1 text-xs text-ink-dim">全量备份包含动态、日程、待办、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
+              <p className="mt-1 text-xs text-ink-dim">全量备份包含动态、日程、todo、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
               <div className="mt-3 flex gap-2">
                 <a
                   href="/api/export?format=json"

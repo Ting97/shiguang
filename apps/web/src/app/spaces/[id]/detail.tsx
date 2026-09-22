@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import Nav from "@/components/nav";
+import { Dismissable } from "@/components/dismissable";
 import { TagChip } from "@/components/tag-chip";
 import { TodoCircle, childProgress, dueTag, zhTime } from "@/components/todo-bits";
 import type { FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
@@ -164,7 +165,7 @@ export default function Detail() {
 
   async function removeSpace() {
     if (!space) return;
-    if (!window.confirm(`删除空间「${space.name}」？\n动态与待办不会被删除，仅解除归属。`)) return;
+    if (!window.confirm(`删除空间「${space.name}」？\n动态与 todo 不会被删除，仅解除归属。`)) return;
     await fetch(`/api/spaces/${space.id}`, { method: "DELETE" });
     location.href = "/spaces";
   }
@@ -257,7 +258,7 @@ export default function Detail() {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
               <div className="mb-1 flex justify-between text-[10px] text-ink-faint">
-                <span>待办完成率</span>
+                <span>todo 完成率</span>
                 <span className="tabular-nums">{todoProgress == null ? "—" : `${space.todo_done}/${space.todo_total} · ${todoProgress}%`}</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
@@ -276,13 +277,13 @@ export default function Detail() {
           </div>
         </div>
 
-        {/* 关联待办 */}
+        {/* 关联 todo */}
         <section className="glass mb-4 rounded-2xl p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
-            <TagChip icon="📋" label="关联待办" tone="sky" />
+            <TagChip icon="📋" label="关联 todo" tone="sky" />
             <span className="text-xs font-normal text-ink-dim">{todos.length} 条</span>
           </h2>
-          {/* 添加待办 */}
+          {/* 添加 todo */}
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-dashed border-line-strong px-3 py-2 focus-within:border-sky-500/60">
             <span className="text-sm opacity-60">＋</span>
             <input
@@ -291,14 +292,14 @@ export default function Detail() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) void addTodo();
               }}
-              placeholder="添加服务于该空间的待办，回车保存"
+              placeholder="添加服务于该空间的 todo，回车保存"
               maxLength={200}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
             />
           </div>
 
           {todos.length === 0 ? (
-            <p className="py-4 text-center text-xs text-ink-faint">还没有关联待办 —— 在上面添加，或在「日程 · TODO」里选择该空间</p>
+            <p className="py-4 text-center text-xs text-ink-faint">还没有关联 todo —— 在上面添加，或在「日程 · todo」里选择该空间</p>
           ) : (
             <ul className="space-y-2">
               {todos.map((t) => {
@@ -382,11 +383,11 @@ export default function Detail() {
                     {noteOpen && t.children.some((c) => c.id === noteOpen) && (() => {
                       const c = t.children.find((x) => x.id === noteOpen)!;
                       return (
-                        <div className="ml-8 mt-1 rounded-lg border border-sky-500/30 bg-elevated/60 p-2.5">
+                        <Dismissable onClose={() => setNoteOpen(null)} className="ml-8 mt-1 rounded-lg border border-sky-500/30 bg-elevated/60 p-2.5">
                           <p className="text-[10px] text-ink-faint">{c.title} · 描述</p>
                           <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-ink-soft">{c.note || "（无描述）"}</p>
                           {c.done_at && <p className="mt-1 text-[10px] text-ink-faint">完成于 {zhTime(c.done_at)}</p>}
-                        </div>
+                        </Dismissable>
                       );
                     })()}
                   </li>
@@ -418,18 +419,16 @@ export default function Detail() {
           )}
         </section>
 
-        {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层） */}
+        {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层）；点空白关闭由 useDismiss 处理（N3） */}
         {menuRow &&
           createPortal(
-            <>
-              <div className="fixed inset-0 z-[60]" onClick={() => setMenuRow(null)} />
-              <div
-                className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
-                style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
-                <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</p>
+            <Dismissable
+              onClose={() => setMenuRow(null)}
+              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+              style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+            >
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
+              <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</p>
                 <div className="space-y-0.5">
                   {menuRow.isChild ? (
                     <>
@@ -475,15 +474,14 @@ export default function Detail() {
                       >
                         <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
                         <span className="min-w-0 flex-1">
-                          删除待办
+                          删除 todo
                           <span className="block truncate text-[10px] text-ink-faint">其下行动一并删除</span>
                         </span>
                       </button>
                     </>
                   )}
                 </div>
-              </div>
-            </>,
+            </Dismissable>,
             document.body,
           )}
       </div>

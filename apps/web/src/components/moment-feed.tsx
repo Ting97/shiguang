@@ -6,6 +6,7 @@ import type { Activity, FeedMoment } from "@/lib/types";
 import { moodEmoji, moodTone } from "@/lib/mood";
 import { TX_CATEGORIES } from "@/lib/finance";
 import EntryMenu from "./entry-menu";
+import { Dismissable } from "./dismissable";
 import { TagChip } from "./tag-chip";
 import { ImageGrid, ImageLightbox } from "./image-grid";
 import { PencilLine, Trash2 } from "lucide-react";
@@ -61,7 +62,7 @@ export const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "
 // 五域/关系域中文名（待确认提示等处使用）
 export const DOMAIN_LABELS: Record<string, string> = {
   schedule: "日程",
-  todo: "待办",
+  todo: "todo",
   finance: "收支",
   mood: "心情",
   diet: "饮食",
@@ -172,7 +173,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
   const emoji = moodEmoji(m.mood);
   const intent =
     m.todos.length > 0
-      ? { icon: "📋", label: "待办", tone: "sky" as const }
+      ? { icon: "📋", label: "todo", tone: "sky" as const }
       : m.blocks.length > 0
         ? { icon: "🕒", label: "日程", tone: "sky" as const }
         : m.mood
@@ -304,26 +305,24 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 </button>
                 {actionsOpen &&
                   createPortal(
-                    <>
-                      <div className="fixed inset-0 z-[60]" onClick={() => setActionsOpen(false)} />
-                      <div
-                        className="fixed z-[60] w-32 overflow-hidden rounded-xl border border-line-soft bg-elevated shadow-lg"
-                        style={{ top: actionsPos?.top, left: actionsPos?.left }}
+                    <Dismissable
+                      onClose={() => setActionsOpen(false)}
+                      className="fixed z-[60] w-32 overflow-hidden rounded-xl border border-line-soft bg-elevated shadow-lg"
+                      style={{ top: actionsPos?.top, left: actionsPos?.left }}
+                    >
+                      <button
+                        onClick={() => { setActionsOpen(false); setEditRaw(m.raw_text); setMenuOpen(false); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink transition hover:bg-wash"
                       >
-                        <button
-                          onClick={() => { setActionsOpen(false); setEditRaw(m.raw_text); setMenuOpen(false); }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink transition hover:bg-wash"
-                        >
-                          <PencilLine size={14} /> 编辑
-                        </button>
-                        <button
-                          onClick={() => { setActionsOpen(false); setConfirming(true); }}
-                          className="flex w-full items-center gap-2 border-t border-line-soft px-3 py-2 text-xs text-danger transition hover:bg-wash"
-                        >
-                          <Trash2 size={14} /> 删除
-                        </button>
-                      </div>
-                    </>,
+                        <PencilLine size={14} /> 编辑
+                      </button>
+                      <button
+                        onClick={() => { setActionsOpen(false); setConfirming(true); }}
+                        className="flex w-full items-center gap-2 border-t border-line-soft px-3 py-2 text-xs text-danger transition hover:bg-wash"
+                      >
+                        <Trash2 size={14} /> 删除
+                      </button>
+                    </Dismissable>,
                     document.body,
                   )}
               </>
@@ -333,7 +332,14 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
 
         {/* 原文：编辑态 textarea；否则点击弹出「识别与补充」菜单 */}
         {editRaw !== null ? (
-          <div className="mt-1.5">
+          <Dismissable
+            onClose={() => {
+              // N3/N3.5：点空白或 Esc 取消编辑；内容有改动则轻提示
+              if (editRaw.trim() !== m.raw_text.trim()) setCardMsg({ ok: true, text: "已取消，未保存" });
+              setEditRaw(null);
+            }}
+            className="mt-1.5"
+          >
             <textarea
               value={editRaw}
               onChange={(e) => setEditRaw(e.target.value)}
@@ -352,7 +358,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 取消
               </button>
             </div>
-          </div>
+          </Dismissable>
         ) : (
           <p
             onClick={(e) => {
@@ -392,11 +398,10 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
           <ImageGrid images={m.images} onOpen={(i) => setLightbox(i)} />
         )}
 
-        {/* 识别与补充菜单：portal 渲染到 body——卡片 hover 位移会让 fixed 遮罩失效、后续卡片盖住菜单 */}
+        {/* 识别与补充菜单：portal 渲染到 body——卡片 hover 位移会让 fixed 遮罩失效、后续卡片盖住菜单；点空白关闭由 EntryMenu 内部 useDismiss 处理（N3） */}
         {menuOpen &&
           createPortal(
             <>
-              <div className="fixed inset-0 z-[60]" onClick={() => setMenuOpen(false)} />
               <EntryMenu
                 m={m}
                 activities={activities}
@@ -430,7 +435,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
           ) : (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-accent/80">
               <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" className="shrink-0" />
-              <span className="min-w-0 truncate">正在提取 日程 / 关系 / 待办 / 收支 / 心情 / 饮食…</span>
+              <span className="min-w-0 truncate">正在提取 日程 / 关系 / todo / 收支 / 心情 / 饮食…</span>
             </p>
           ))}
 
@@ -591,7 +596,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
               ),
             )}
 
-            {/* ---- 待办 ---- */}
+            {/* ---- todo ---- */}
             {m.todos.map((td) =>
               editTodo?.id === td.id ? (
                 <div key={td.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-elevated/60 p-2">
@@ -637,7 +642,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                             activityId: editTodo.activityId,
                           });
                           setEditTodo(null);
-                          return "💾 待办已更新";
+                          return "💾 todo 已更新";
                         })
                       }
                       className="rounded bg-sky-600 px-2 py-1 text-[11px] font-medium hover:bg-sky-500"
@@ -648,7 +653,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                 </div>
               ) : (
                 <p key={td.id} className="group/row flex items-center gap-x-2">
-                  <TagChip icon="📋" label="待办" tone="sky" size="sm" className="shrink-0" />
+                  <TagChip icon="📋" label="todo" tone="sky" size="sm" className="shrink-0" />
                   <span className="truncate">{td.title}</span>
                   <span className="shrink-0 text-ink-mute">
                     {todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}
@@ -664,7 +669,7 @@ function MomentCard({ m, activities, onRefresh }: Props & { m: FeedMoment }) {
                         activityId: activities.some((a) => a.id === td.activityId) ? td.activityId! : activities[0]?.id ?? "",
                       })
                     }
-                    onDelete={() => del(`删除这条待办？\n「${td.title}」`, () => api(`/api/todos/${td.id}`, "DELETE"))}
+                    onDelete={() => del(`删除这条 todo？\n「${td.title}」`, () => api(`/api/todos/${td.id}`, "DELETE"))}
                   />
                 </p>
               ),

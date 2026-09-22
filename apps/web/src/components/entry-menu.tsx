@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDismiss } from "./dismissable";
 import {
   Clock, ListTodo, Wallet, Smile, Users, Utensils,
   Sparkles, PencilLine, X, Check, Plus,
@@ -10,7 +11,7 @@ import { COMMON_MOODS } from "./moment-feed";
 
 const SIX = [
   { key: "schedule", icon: Clock, label: "日程", hint: "做了什么事" },
-  { key: "todo", icon: ListTodo, label: "待办", hint: "之后要做" },
+  { key: "todo", icon: ListTodo, label: "todo", hint: "之后要做" },
   { key: "finance", icon: Wallet, label: "收支", hint: "花了 / 收入" },
   { key: "mood", icon: Smile, label: "心情", hint: "此刻情绪" },
   { key: "people", icon: Users, label: "关系", hint: "和谁在一起" },
@@ -116,7 +117,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
       case "todo":
         return (
           <div className="space-y-1.5">
-            {wrap("待办事项", <input value={text} onChange={(e) => setText(e.target.value)} placeholder="要做什么" className={inputCls} />)}
+            {wrap("todo", <input value={text} onChange={(e) => setText(e.target.value)} placeholder="要做什么" className={inputCls} />)}
             <div className="flex items-end gap-1.5">
               {wrap("截止（可空）", <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} className={`${inputCls} flex-1`} />)}
               <button onClick={() => submitManual(key)} disabled={busy || !text.trim()} className={`${btnMini} mb-0.5`}>
@@ -212,6 +213,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   return (
     /* 移动端：底部弹层（拇指可达、不溢出视口）；桌面（sm:）：锚定卡片的浮层 */
     <div
+      ref={useDismiss<HTMLDivElement>(onClose)}
       className="fade-up fixed inset-x-0 bottom-0 z-[60] max-h-[85dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-4 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:max-h-none sm:w-[300px] sm:rounded-xl sm:p-3"
       style={desktopPos ? { top: desktopPos.top, left: desktopPos.left } : undefined}
       onClick={(e) => e.stopPropagation()}
