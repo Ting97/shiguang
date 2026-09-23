@@ -170,13 +170,14 @@ export default function FinanceReviewPage() {
             <FilterChip label="周" active={period === "week"} onClick={() => setPeriod("week")} variant="pill" />
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <button onClick={() => setAnchor(addDays(anchor, period === "day" ? -1 : -7))} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50">‹</button>
+            <button onClick={() => setAnchor(addDays(anchor, period === "day" ? -1 : -7))} aria-label={period === "day" ? "上一日" : "上一周"} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50">‹</button>
             <span className="min-w-36 text-center font-semibold tabular-nums text-ink">
               {period === "day" ? anchor : `${md(rangeFrom)} ~ ${md(addDays(rangeFrom, 6))}`}
             </span>
             <button
               onClick={() => setAnchor(addDays(anchor, period === "day" ? 1 : 7))}
               disabled={period === "day" ? anchor >= bjToday() : mondayOf(anchor) >= mondayOf(bjToday())}
+              aria-label={period === "day" ? "下一日" : "下一周"}
               className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50 disabled:opacity-30"
             >
               ›

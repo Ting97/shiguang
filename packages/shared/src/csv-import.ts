@@ -148,9 +148,8 @@ export function classify(platformType: string, counterparty: string, goods: stri
   // 还款类优先于平台分类映射（支付宝的信用卡还款挂在「充值缴费」下，微信靠交易类型关键词）
   if (/还款|花呗|白条/.test(hayAll)) return "还款";
   if (platformType && ALIPAY_TYPE_MAP[platformType]) return ALIPAY_TYPE_MAP[platformType];
-  const hay = `${platformType} ${counterparty} ${goods}`;
   for (const [re, cat] of KEYWORD_RULES) {
-    if (re.test(hay)) return cat;
+    if (re.test(hayAll)) return cat;
   }
   return "其他";
 }

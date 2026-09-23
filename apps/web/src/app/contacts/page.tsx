@@ -9,6 +9,7 @@ import ContactGraph from "@/components/contact-graph";
 import { TagChip, FilterChip, TONE_BG } from "@/components/tag-chip";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
+import { yuan } from "@/lib/finance";
 import { GROUP_TONE } from "@/lib/group-tone";
 
 interface Contact {
@@ -32,7 +33,6 @@ interface Contact {
   gift_net_cents: number;
 }
 
-const _pad = (n: number) => String(n).padStart(2, "0");
 /** 北京日历日序号（UTC+8 推算，禁本地 getter） */
 const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 /** 相对时间：刚刚/N分钟前/N小时前/昨天/M月D日（北京时间口径） */
@@ -269,8 +269,9 @@ export default function ContactsPage() {
                   </p>
                   {Number(c.gift_net_cents) !== 0 && (
                     <p className="mt-1 text-[11px] tabular-nums text-ink-dim">
+                      {/* 金额展示统一走共享 yuan()（整数运算），替换原内联浮点除法 */}
                       人情往来 {Number(c.gift_net_cents) > 0 ? "+" : ""}
-                      {`¥${(Math.abs(Number(c.gift_net_cents)) / 100).toFixed(Math.abs(Number(c.gift_net_cents)) % 100 === 0 ? 0 : 2)}`}
+                      {`¥${yuan(Math.abs(Number(c.gift_net_cents)))}`}
                     </p>
                   )}
                 </Link>

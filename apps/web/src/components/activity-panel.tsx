@@ -21,6 +21,8 @@ export default function ActivityPanel() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [adding, setAdding] = useState({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 新增/保存进行中锁，防连点重复提交
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -43,11 +45,17 @@ export default function ActivityPanel() {
 
   async function add() {
     if (!adding.name.trim()) { setMsg({ ok: false, text: "名称必填" }); return; }
+    if (busy) return;
+    setBusy(true);
     try {
       await api<any>("/api/activities", "POST", adding);
     } catch (e) {
+      // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "新增失败" : e.message }); return; }
-      throw e;
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      return;
+    } finally {
+      setBusy(false);
     }
     setMsg({ ok: true, text: `✅ 已新增分类「${adding.name.trim()}」` });
     setAdding({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
@@ -56,11 +64,17 @@ export default function ActivityPanel() {
 
   async function save() {
     if (!editing) return;
+    if (busy) return;
+    setBusy(true);
     try {
       await api<any>(`/api/activities/${editing.id}`, "PATCH", { name: editing.name, icon: editing.icon, color: editing.color, defaultMin: editing.defaultMin });
     } catch (e) {
+      // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message }); return; }
-      throw e;
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      return;
+    } finally {
+      setBusy(false);
     }
     setEditing(null);
     setMsg({ ok: true, text: "💾 已保存" });
@@ -72,8 +86,10 @@ export default function ActivityPanel() {
     try {
       await api<any>(`/api/activities/${a.id}`, "DELETE");
     } catch (e) {
+      // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "删除失败" : e.message }); return; }
-      throw e;
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      return;
     }
     setMsg({ ok: true, text: `🗑 已删除「${a.name}」` });
     await load();

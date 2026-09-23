@@ -124,10 +124,6 @@ export function loadConfig(): AppConfig {
         : null;
     },
   };
-  if (isProd && process.env.AUTH_DISABLED && process.env.AUTH_DISABLED !== "0") {
-    // 不可达（上方已 throw）；双保险防御
-    throw new ConfigValidationError(["生产环境禁止 AUTH_DISABLED"]);
-  }
   return cached;
 }
 

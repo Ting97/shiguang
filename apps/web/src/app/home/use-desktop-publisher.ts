@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { uploadImages } from "@/lib/image";
 import type { DesktopImage, Notify } from "./types";
 
@@ -14,6 +14,23 @@ export function useDesktopPublisher({ setMsg, load }: { setMsg: Notify; load: ()
   const fileInputRef = useRef<HTMLInputElement>(null);
   // 最近一次成功发布的动态 id（图片上传失败补传时使用）
   const lastEntryId = useRef<string | null>(null);
+  // 补传重试进行中锁：防连点并发重复上传同一批图
+  const retryingRef = useRef(false);
+  // 卸载标记：异步回调回来后不再 setState / revoke
+  const unmountedRef = useRef(false);
+  // 镜像当前图片列表供卸载清理读取（cleanup 闭包拿不到最新 state）
+  const imagesRef = useRef<DesktopImage[]>([]);
+  useEffect(() => {
+    imagesRef.current = desktopImages;
+  }, [desktopImages]);
+  useEffect(
+    () => () => {
+      // 卸载时回收尚未消费的 blob URL：正常路径在删除/补传成功时逐个 revoke，这里兜底卸载泄漏
+      unmountedRef.current = true;
+      for (const i of imagesRef.current) URL.revokeObjectURL(i.url);
+    },
+    [],
+  );
 
   /** 随动态附图：选择（≤9 张，超出的忽略并提示） */
   function addDesktopImages(files: File[]) {
@@ -35,18 +52,27 @@ export function useDesktopPublisher({ setMsg, load }: { setMsg: Notify; load: ()
 
   /** 上传失败重试：用暂存的 entryId 重新上传仍处于 error 态的图片 */
   async function retryDesktopUpload() {
-    if (!lastEntryId.current) return;
+    if (!lastEntryId.current || retryingRef.current) return; // 防重入：连点会并发重复上传同一批图
     const retryFiles = desktopImages.filter((i) => i.status === "error").map((i) => i.file);
     if (!retryFiles.length) return;
-    const { failed } = await uploadImages(lastEntryId.current, retryFiles);
-    if (failed.length) {
-      setMsg({ ok: false, text: `仍有 ${failed.length} 张上传失败，请稍后再试` });
+    retryingRef.current = true;
+    try {
+      const { failed } = await uploadImages(lastEntryId.current, retryFiles);
+      if (unmountedRef.current) return; // 卸载后不再提示/刷新
+      if (failed.length) {
+        setMsg({ ok: false, text: `仍有 ${failed.length} 张上传失败，请稍后再试` });
+        void load();
+        return;
+      }
+      setDesktopImages([]);
+      setMsg({ ok: true, text: "✨ 图片已补传完成" });
       void load();
-      return;
+    } catch {
+      // 兜底：上传异常不抛出点击处理器（裸 rejection 会触发整页刷新）
+      if (!unmountedRef.current) setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    } finally {
+      retryingRef.current = false;
     }
-    setDesktopImages([]);
-    setMsg({ ok: true, text: "✨ 图片已补传完成" });
-    void load();
   }
 
   /**

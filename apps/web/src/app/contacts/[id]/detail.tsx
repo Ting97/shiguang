@@ -8,6 +8,7 @@ import ContactFormModal from "@/components/contact-form";
 import { TagChip, TONE_BG } from "@/components/tag-chip";
 import { api, ApiClientError } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
+import { yuan } from "@/lib/finance"; // 金额展示统一走共享 yuan()（整数运算），替换原本地浮点除法版本（¥ 前缀在各调用点拼接）
 import { GROUP_TONE } from "@/lib/group-tone";
 import { InteractionFormModal } from "../../../components/contacts/interaction-form-modal";
 
@@ -64,7 +65,6 @@ const bjMDHM = (iso: string) => {
   const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
   return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
 };
-const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
 export function ContactDetailPage() {
   // 静态导出壳页的水合参数是构建期占位 "__shell__"（硬加载详情 URL 时），此时从真实地址解析 id
@@ -222,7 +222,7 @@ export function ContactDetailPage() {
                 })()}
                 <TagChip icon="📅" label={`${timeline.length} 次往来`} tone="sky" size="sm" />
                 {money.length > 0 && (
-                  <TagChip icon="💰" label={`收 ${yuan(giftIn)} / 送 ${yuan(giftOut)}`} tone="rose" size="sm" className="tabular-nums" />
+                  <TagChip icon="💰" label={`收 ¥${yuan(giftIn)} / 送 ¥${yuan(giftOut)}`} tone="rose" size="sm" className="tabular-nums" />
                 )}
               </div>
             </div>
@@ -354,7 +354,7 @@ export function ContactDetailPage() {
                         <span className="shrink-0 tabular-nums text-ink-dim">{zhDay(when)}</span>
                         {t.tx_amount_cents != null && (
                           <span className={`shrink-0 tabular-nums ${t.tx_direction === "out" ? "text-danger" : "text-success"}`}>
-                            {t.tx_direction === "out" ? "送出" : "收到"} {yuan(t.tx_amount_cents)}
+                            {t.tx_direction === "out" ? "送出" : "收到"} ¥{yuan(t.tx_amount_cents)}
                           </span>
                         )}
                       </div>
@@ -375,7 +375,7 @@ export function ContactDetailPage() {
           <section className="glass rounded-2xl p-5">
             <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
               <TagChip icon="💰" label="关联人情账" tone="rose" />
-              <span className="text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 {yuan(giftIn - giftOut)}</span>
+              <span className="text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 ¥{yuan(giftIn - giftOut)}</span>
             </h2>
             <ul className="space-y-1">
               {money.map((m) => (
@@ -387,7 +387,7 @@ export function ContactDetailPage() {
                   <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">{zhDay(m.occurred_at)}</span>
                   <span className={`shrink-0 text-sm font-semibold tabular-nums ${m.direction === "out" ? "text-danger" : "text-success"}`}>
                     {m.direction === "out" ? "-" : "+"}
-                    {yuan(m.amount_cents)}
+                    ¥{yuan(m.amount_cents)}
                   </span>
                 </li>
               ))}

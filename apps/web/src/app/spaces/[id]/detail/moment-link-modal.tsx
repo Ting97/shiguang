@@ -12,7 +12,7 @@ export default function MomentLinkModal(opts: {
   const { open, momentLink } = opts;
   const {
     setMomentLinkOpen,
-    momentItems, momentTotal, momentQuery, setMomentQuery, momentLoading,
+    momentItems, momentTotal, momentQuery, onMomentQueryChange, momentLoading,
     loadUnlinkedMoments, linkMoment,
   } = momentLink;
   if (!open) return null;
@@ -28,10 +28,7 @@ export default function MomentLinkModal(opts: {
       <input
         autoFocus
         value={momentQuery}
-        onChange={(e) => {
-          setMomentQuery(e.target.value);
-          void loadUnlinkedMoments(e.target.value, 0);
-        }}
+        onChange={(e) => onMomentQueryChange(e.target.value)}
         placeholder="搜索原文关键字…"
         className="mb-2 w-full rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-sky-500"
       />
@@ -42,8 +39,12 @@ export default function MomentLinkModal(opts: {
             onClick={() => void linkMoment(m.id)}
             className="w-full rounded-lg px-2.5 py-2 text-left transition hover:bg-wash"
           >
+            {/* 北京口径时间戳（toLocaleString 按设备时区，海外设备会跨日错位；同 moments-section bjStamp） */}
             <span className="block text-[10px] text-ink-faint">
-              {new Date(m.created_at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              {new Date(new Date(m.created_at).getTime() + 8 * 3600_000)
+                .toISOString()
+                .slice(5, 16)
+                .replace("T", " ")}
             </span>
             <span className="mt-0.5 line-clamp-2 block text-xs text-ink">{m.raw_text}</span>
           </button>

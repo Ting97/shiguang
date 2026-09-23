@@ -10,6 +10,7 @@ import type { Activity, FeedMoment } from "@/lib/types";
 import { TX_CATEGORIES } from "@/lib/finance";
 import { COMMON_MOODS } from "./moment-feed";
 import { api } from "@/shared/api";
+import { bjInputToIso } from "@/lib/bj-time";
 
 const SIX = [
   { key: "schedule", icon: Clock, label: "日程", hint: "做了什么事" },
@@ -76,7 +77,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
     try {
       let payload: Record<string, unknown> = {};
       if (key === "schedule") payload = { title: text, startTime: start, endTime: end, activityId: activities[0]?.id ?? "other" };
-      else if (key === "todo") payload = { title: text, dueAt: due || null };
+      // due 是 datetime-local 裸值：直发会被服务端按宿主时区解析（UTC 容器上统一错 8 小时），显式按北京口径转 ISO
+      else if (key === "todo") payload = { title: text, dueAt: bjInputToIso(due) };
       else if (key === "finance") payload = { direction, yuan: Number(yuan), category };
       else if (key === "mood") payload = { label: mood };
       else if (key === "diet") payload = { meal, text, kcal: null };

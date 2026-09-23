@@ -87,11 +87,11 @@ export default function SpaceReflections({
       onChanged();
       await load(0);
     } catch (e) {
-      // 原 else 分支的固定提示；网络异常仍同原版上抛（静默）
+      // 服务端 4xx/5xx 用固定文案；网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       if (e instanceof ApiClientError) {
         notify({ ok: false, text: "删除失败" });
       } else {
-        throw e;
+        notify({ ok: false, text: "网络异常，请稍后重试" });
       }
     }
   }

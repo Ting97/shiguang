@@ -47,17 +47,23 @@ export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
       setMsg({ ok: false, text: "标题不能为空" });
       return;
     }
-    const ok = await patchTodo(
-      editingId,
-      {
-        title: editTitle.trim(),
-        dueAt: localInputToIso(editDue),
-        activityId: editActivity,
-        ...(isChildId(editingId, todos) ? { repeatDaily: editRepeat } : {}),
-      },
-      "💾 已保存",
-    );
-    if (ok) setEditingId(null);
+    try {
+      const ok = await patchTodo(
+        editingId,
+        {
+          title: editTitle.trim(),
+          dueAt: localInputToIso(editDue),
+          activityId: editActivity,
+          ...(isChildId(editingId, todos) ? { repeatDaily: editRepeat } : {}),
+        },
+        "💾 已保存",
+      );
+      // 失败时不关闭编辑态，保留用户正在编辑的内容
+      if (ok) setEditingId(null);
+    } catch {
+      // 兜底：任何异常只提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    }
   }
 
   return {

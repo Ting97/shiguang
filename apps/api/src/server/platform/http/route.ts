@@ -120,10 +120,8 @@ export function withModuleParams(
 ): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
   return withRoute<{ params: Promise<any> }>(async (req, arg) => {
     const user = await getModuleUser(module);
-    if (!user) {
-      const cur = await getCurrentUser();
-      throw cur ? new ApiError(403, "forbidden", "未开通该模块") : ApiError.unauthorized();
-    }
+    if (user === "unauthenticated") throw ApiError.unauthorized();
+    if (!user) throw new ApiError(403, "forbidden", "未开通该模块");
     return handler(req, { req, user, log, params: arg!.params });
   });
 }
@@ -135,10 +133,8 @@ export function withModule(
 ): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
   return withRoute(async (req) => {
     const user = await getModuleUser(module);
-    if (!user) {
-      const cur = await getCurrentUser();
-      throw cur ? new ApiError(403, "forbidden", "未开通该模块") : ApiError.unauthorized();
-    }
+    if (user === "unauthenticated") throw ApiError.unauthorized();
+    if (!user) throw new ApiError(403, "forbidden", "未开通该模块");
     return handler(req, { req, user, log });
   });
 }

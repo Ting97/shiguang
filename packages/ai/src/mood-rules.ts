@@ -15,10 +15,22 @@ const MOOD_RULES: Array<[RegExp, string, number]> = [
   [/平静|还行|一般|淡淡/, "平静", 10],
 ];
 
+/** 否定前缀：命中词紧邻的前 1~2 字符含这些字 → 视为否定（「不开心」不是「开心」）。
+ *  规则引擎是 GLM 熔断/超时时的唯一兜底，极性反转的误判会以相反情绪分直接入库 */
+const NEGATORS = /[不没别]$/;
+
+export function negated(re: RegExp, text: string): boolean {
+  for (const m of text.matchAll(new RegExp(re.source, "g"))) {
+    const before = text.slice(Math.max(0, (m.index ?? 0) - 2), m.index);
+    if (!NEGATORS.test(before)) return false; // 存在未否定的命中 → 该规则成立
+  }
+  return true; // 所有命中都被否定（或无命中）→ 视为否定/不成立
+}
+
 /** 规则引擎心情识别：返回 null=无情绪色彩 */
 export function ruleMood(text: string): { label: string; score: number } | null {
   for (const [re, label, score] of MOOD_RULES) {
-    if (re.test(text)) return { label, score };
+    if (re.test(text) && !negated(re, text)) return { label, score };
   }
   return null;
 }

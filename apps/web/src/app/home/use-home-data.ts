@@ -112,11 +112,11 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
     }
   }
 
-  /** 发布时清空搜索再刷新（原 publish 内联三行，语义不变） */
+  /** 发布时清空搜索再刷新：只置状态——setQuery("") 让 load 换引用、effect 自动拉取一次，
+   *  原先「置状态后再手动 load({query:""})」会同一参数连发两批请求（changeSpace 同型问题的漏改点） */
   async function resetSearch() {
     setSearchInput("");
     setQuery("");
-    await load({ query: "" });
   }
 
   /** 切换空间筛选：仅置状态，由 effect 随 spaceFilter 变化自动拉取一次——

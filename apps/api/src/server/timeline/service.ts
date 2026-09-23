@@ -64,6 +64,8 @@ export async function confirmPending(
       await client.query("rollback");
       throw ApiError.notFound("动态不存在");
     }
+    // 用户确认 = 在动态上落定数据：打点 analyzed_at（幂等），巡检不再补跑识别清掉本条
+    await entriesRepo.stampAnalyzedAt(client, entryId);
 
     switch (domain) {
       case "mood": {
@@ -114,6 +116,11 @@ export async function confirmPending(
       }
       case "finance": {
         if (result.amountCents != null) {
+          // 快照防御：脏 occurredAt 落 ::timestamptz 会 500，与 schedule/todo 分支同口径 400
+          const occurredAt = result.occurredAt ?? new Date().toISOString();
+          if (Number.isNaN(new Date(occurredAt).getTime())) {
+            throw ApiError.badRequest("识别快照时间无效，请重新识别");
+          }
           await client.query(`delete from transactions where entry_id = $1 and user_id = $2`, [entryId, userId]);
           await client.query(
             `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at)
@@ -125,7 +132,7 @@ export async function confirmPending(
               result.category ?? "其他",
               result.counterparty ?? null,
               entry.raw_text,
-              result.occurredAt ?? new Date().toISOString(),
+              occurredAt,
             ],
           );
         }
@@ -344,6 +351,10 @@ export async function appendManual(
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // 手动补录 = 用户在该动态上落定数据：先打 analyzed_at（幂等，UPDATE 同时取得 entry 行锁，
+    // 与 analyzeAndPersist/confirmPending「先锁 entry 再动子表」同序）。识别若还在飞行中，
+    // 落库阶段看到 analyzed_at 已置会主动放弃清写——否则本条手动数据会被识别结果整体覆盖
+    await entriesRepo.stampAnalyzedAt(client, entryId);
     let message = "";
     let result: unknown = {};
 
@@ -593,6 +604,10 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
         // 冲突检测在删旧块之前做，但必须排除本 entry 自身旧块（重识别为替换式，
         // 否则命中自己的旧块永远 409）。走事务 client 查询：entry_id 可空（on delete set null），
         // 用 is distinct from 同时排除多条自有块且保留 NULL entry_id 的他人块检测。
+        // 快照防御：脏时间落 ::timestamptz 会 500，与 confirmPending 同口径拦 400
+        if (Number.isNaN(new Date(r.time.start).getTime()) || Number.isNaN(new Date(r.time.end).getTime())) {
+          throw ApiError.badRequest("识别结果时间无效，请重试");
+        }
         const conflict = (
           await client.query(
             `select id, title, start_at, end_at

@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 
-const _pad = (n: number) => String(n).padStart(2, "0");
-
 export default function LoginPage() {
   const [mode, setMode] = useState<"password" | "sms">("password"); // 登录方式：密码/验证码
   const [isRegister, setIsRegister] = useState(false);
@@ -17,6 +15,8 @@ export default function LoginPage() {
   const [password2, setPassword2] = useState(""); // 注册：确认密码
   const [showPwd, setShowPwd] = useState(false); // 明文切换
   const [countdown, setCountdown] = useState(0);
+  // 验证码请求飞行中锁：与 countdown 分开（countdown 成功后才启动），飞行中也要禁用按钮防连发
+  const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -51,11 +51,13 @@ export default function LoginPage() {
   }
 
   async function sendCode() {
+    if (sending) return; // 请求飞行中忽略再次点击，防重复发送
     const isEmail = account.includes("@");
     if (isEmail ? !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(account) : !/^1[3-9]\d{9}$/.test(account)) {
       setMsg({ ok: false, text: isEmail ? "请先填写正确的邮箱地址" : "请先填写正确的手机号" });
       return;
     }
+    setSending(true);
     try {
       const body = isEmail ? { email: account, purpose: "login" } : { phone: account, purpose: "login" };
       await api(isEmail ? "/api/auth/email/send" : "/api/auth/sms/send", "POST", body);
@@ -69,6 +71,8 @@ export default function LoginPage() {
       } else {
         setMsg({ ok: false, text });
       }
+    } finally {
+      setSending(false);
     }
   }
 
@@ -183,10 +187,10 @@ export default function LoginPage() {
                 />
                 <button
                   onClick={sendCode}
-                  disabled={countdown > 0}
+                  disabled={countdown > 0 || sending}
                   className="shrink-0 rounded-xl border border-line-soft bg-elevated/70 px-3 text-xs text-accent transition hover:border-sky-500/50 disabled:opacity-40"
                 >
-                  {countdown > 0 ? `${countdown}s` : "发送验证码"}
+                  {sending ? "发送中…" : countdown > 0 ? `${countdown}s` : "发送验证码"}
                 </button>
               </div>
             ) : (

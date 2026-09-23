@@ -146,9 +146,9 @@ export default function FinancePage() {
         {/* 月份导航 + 记一笔（窄屏自动换行，避免按钮溢出） */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={() => setMonth(shiftMonth(month, -1))} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">‹</button>
+            <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="上一月" className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">‹</button>
             <span className="min-w-24 text-center text-sm font-semibold text-ink tabular-nums">{monthTitle(month)}</span>
-            <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
+            <button onClick={() => setMonth(shiftMonth(month, 1))} aria-label="下一月" className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button onClick={() => setImporting(true)} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-sky-500/20">

@@ -127,12 +127,13 @@ export async function buildUserDataBlock(userId: string, cfg: UserDataEntry[]): 
         .filter((c) => c !== (spec.pkCol ?? "id"))
         .map((c) => {
           const v = it[c];
-          // pg 对 jsonb 返回已解析对象：先 stringify 再截断，避免渲染成 "[object Object]"
+          // pg 对 jsonb 返回已解析对象：先 stringify 再截断，避免渲染成 "[object Object]"；
+          // Date 走北京口径（toISOString 是 UTC，注入给 AI 的时刻会早 8 小时，模型按时段推理会错位）
           const text =
             v == null
               ? ""
               : v instanceof Date
-                ? v.toISOString().slice(0, 16).replace("T", " ")
+                ? new Date(v.getTime() + 8 * 3600_000).toISOString().slice(0, 16).replace("T", " ")
                 : typeof v === "object"
                   ? JSON.stringify(v)
                   : String(v);

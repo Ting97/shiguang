@@ -194,13 +194,15 @@ export async function autoCheckAfterPayment(userId: string, liabilityId: string,
   const extra = due && due >= ymFirst && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
   const need = Number(l.monthly_cents ?? 0) + extra;
   // 月度合计口径（FR-3.4 语义是「当月已还合计 ≥ need」）：单笔 paidCents 比较会把同月多笔小额还款漏勾。
-  // 调用方在还款提交后触发，当月合计通常已含本笔；max 兜底兼容合计尚未含本笔的调用时点
+  // 调用方在还款提交后触发，当月合计通常已含本笔；max 兜底兼容合计尚未含本笔的调用时点。
+  // paid_at 是 date 列：直接 to_char 渲染日历日（date at time zone 会先按上海零点转 timestamptz 再按会话时区
+  // 渲染，UTC 宿主上月末还款的月份整体回退一个月）
   const monthPaid = Number(
     (
       await pool.query(
         `select coalesce(sum(amount_cents), 0)::bigint as paid from liability_payments
          where liability_id = $1 and user_id = $2
-           and to_char((paid_at at time zone 'Asia/Shanghai'), 'YYYY-MM') = $3`,
+           and to_char(paid_at, 'YYYY-MM') = $3`,
         [liabilityId, userId, ymFirst.slice(0, 7)],
       )
     ).rows[0]?.paid ?? 0,

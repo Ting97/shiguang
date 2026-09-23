@@ -79,9 +79,14 @@ export function budgetTone(
   return { tone: "safe", pct };
 }
 
-/** 分 → 元字符串（整数元不带小数，非整保留两位） */
+/** 分 → 元字符串（整数元不带小数，非整保留两位）；整数取商余拼接，避免浮点除法/浮点余数的精度误差 */
 export function yuan(cents: number): string {
-  return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2);
+  const neg = cents < 0;
+  const abs = Math.abs(cents);
+  const whole = Math.floor(abs / 100);
+  const rem = abs % 100;
+  const body = rem === 0 ? String(whole) : `${whole}.${String(rem).padStart(2, "0")}`;
+  return neg ? `-${body}` : body;
 }
 
 /** 本月标识 YYYY-MM（本地时区） */

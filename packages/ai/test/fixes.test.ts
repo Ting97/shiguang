@@ -319,3 +319,37 @@ test("2/29 生日：平年倒计时显式取 2/28（不再滚到 3/1），闰年
   assert.equal(birthdayCountdown("1996-02-29", new Date(2026, 2, 1)), 364); // 已过 → 明年 2/28
   assert.equal(birthdayCountdown("1996-02-29", new Date(2024, 1, 28)), 1); // 闰年仍是 2/29（回归）
 });
+
+/* ---- 回归9：检视修复（心情否定词 / 一百二 / 记得动词性） ---- */
+
+import { ruleMood } from "../src/mood-rules.js";
+import { cnToNumber } from "../src/duration.js";
+
+test("心情否定词：「不开心」不再判成 开心+60（GLM 熔断时规则兜底极性反转）", () => {
+  assert.deepEqual(ruleMood("今天不开心"), null);
+  assert.deepEqual(ruleMood("不累，就是有点困"), { label: "疲惫", score: -40 }); // 否定的「累」跳过，未否定的「困」照常命中
+  assert.deepEqual(ruleMood("身体不舒服"), null); // 不舒服 ≠ 放松+50
+  assert.deepEqual(ruleMood("一点都不累"), null);
+  // 未否定的命中照常成立
+  assert.deepEqual(ruleMood("今天很开心"), { label: "开心", score: 60 });
+  assert.deepEqual(ruleMood("不开心，但是完成项目很快乐"), { label: "开心", score: 60 });
+});
+
+test("cnToNumber：口语省「十」（一百二=120 而非 102），标准写法回归", () => {
+  assert.equal(cnToNumber("一百二"), 120);
+  assert.equal(cnToNumber("二百五"), 250);
+  assert.equal(cnToNumber("一百二十"), 120);
+  assert.equal(cnToNumber("一百零二"), 102);
+  assert.equal(cnToNumber("五十四"), 54);
+  assert.equal(cnToNumber("十"), 10);
+  assert.equal(cnToNumber("两百"), 200);
+});
+
+test("detectFuture：「记得」排除回忆性搭配（记得小时候…是回忆不再是未来）", () => {
+  assert.equal(detectFuture("记得小时候经常去河边玩"), null);
+  assert.equal(detectFuture("记得以前总去那家店"), null);
+  assert.equal(detectFuture("记得交房租"), "soon");
+  assert.equal(detectFuture("记得去倒垃圾"), "soon");
+  assert.equal(detectFuture("记得把报告交了"), "soon");
+  assert.equal(detectFuture("记得要交房租"), "soon");
+});

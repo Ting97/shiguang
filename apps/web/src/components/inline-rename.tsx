@@ -20,7 +20,9 @@ export default function InlineRename({
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(value);
-  const [_busy, setBusy] = useState(false);
+  // 保存进行中：禁用输入框 + 拦截再次提交，防连击/重复保存
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +37,7 @@ export default function InlineRename({
   const ref = useDismiss<HTMLSpanElement>(cancel, editing);
 
   async function save() {
+    if (busyRef.current) return;
     const t = name.trim();
     if (!t) {
       setErr("名称不能为空");
@@ -44,10 +47,18 @@ export default function InlineRename({
       setErr(`名称过长（≤${maxLength} 字）`);
       return;
     }
+    busyRef.current = true;
     setBusy(true);
-    const ok = await onSave(t);
-    setBusy(false);
-    if (ok) setEditing(false);
+    try {
+      const ok = await onSave(t);
+      if (ok) setEditing(false);
+    } catch {
+      // 兜底：异常不抛出点击处理器（裸 rejection 会触发整页刷新），转成行内错误提示
+      setErr("网络异常，请稍后重试");
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }
 
   if (!editing) {
@@ -79,6 +90,7 @@ export default function InlineRename({
       <input
         ref={inputRef}
         value={name}
+        disabled={busy}
         onChange={(e) => setName(e.target.value.slice(0, maxLength))}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) void save();

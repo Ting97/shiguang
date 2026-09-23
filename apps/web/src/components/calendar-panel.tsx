@@ -37,6 +37,9 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 编辑面板保存/删除进行中锁，防连点重复提交（透传给 BlockEditor 禁用按钮）
+  const [editSaving, setEditSaving] = useState(false);
+  const [editDeleting, setEditDeleting] = useState(false);
 
   const loadActivities = useCallback(async () => {
     const j = await api<any>("/api/activities");
@@ -107,13 +110,14 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     setEditing({ id: b.id, title: b.title, start: zhTime(b.start_at), end: zhTime(b.end_at), activityId: b.activity_id });
   }
   async function saveEdit() {
-    if (!editing) return;
+    if (!editing || editSaving) return; // 保存进行中忽略再次提交，防双击重复保存
     if (editing.end <= editing.start) {
       setErr("结束时间必须晚于开始时间");
       return;
     }
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
+    setEditSaving(true);
     try {
       await api<any>(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
@@ -126,13 +130,16 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
       if (e instanceof ApiClientError) { setErr(e.message === "操作失败" ? "保存失败" : e.message); return; }
       setErr(e instanceof Error ? e.message : String(e)); // 非接口错误也就地提示，不外抛（外抛会触发整页自愈刷新）
       return;
+    } finally {
+      setEditSaving(false);
     }
     setEditing(null);
     await load();
   }
   async function removeEdit() {
-    if (!editing) return;
+    if (!editing || editDeleting) return; // 删除进行中忽略再次提交，防重复删除
     // 确认交互在 BlockEditor 的两步删除按钮内完成（3 秒内二次点按才会走到这里）
+    setEditDeleting(true);
     try {
       await api<any>(`/api/blocks/${editing.id}`, "DELETE");
     } catch (e) {
@@ -140,6 +147,8 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
       if (e instanceof ApiClientError) { setErr("删除失败"); return; }
       setErr(e instanceof Error ? e.message : String(e)); // 同上：不外抛
       return;
+    } finally {
+      setEditDeleting(false);
     }
     setEditing(null);
     await load();
@@ -227,7 +236,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
           <div className="order-last lg:order-none">
             {editing && (
               <div className="mb-3">
-                <BlockEditor draft={editing} activities={activities} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} onDelete={removeEdit} />
+                <BlockEditor draft={editing} activities={activities} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} onDelete={removeEdit} saving={editSaving} deleting={editDeleting} />
               </div>
             )}
             <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} loading={loading} />

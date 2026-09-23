@@ -34,11 +34,16 @@ function assertDateRange(from: string, to: string) {
   }
 }
 
-/** 倒挂/非法时间落库时 PG 约束兜底（QA 验收修复语义；detail 只进日志不下发） */
-function mapBlockWriteError(e: unknown): never {
+/** 倒挂/非法时间落库时 PG 约束兜底（QA 验收修复语义；detail 只进日志不下发）。
+ *  23P01：time_blocks_no_overlap 排他约束（迁移 039）——findOverlap 先查后插的并发竞态由 DB 兜底，转 409 */
+function mapBlockWriteError(e: unknown, conflictTitle = "已有日程"): never {
   const msg = String(e);
   if (msg.includes("time_blocks_check") || msg.includes("end_at_start_at")) {
     throw ApiError.badRequest("结束时间必须晚于开始时间");
+  }
+  if (e instanceof ApiError) throw e;
+  if (msg.includes("23P01") || msg.includes("time_blocks_no_overlap")) {
+    throw ApiError.conflict(`该时间段已被占用（${conflictTitle}），一个时刻只能做一件事`);
   }
   throw ApiError.upstream("服务器内部错误", msg);
 }
@@ -55,6 +60,8 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
   if (!body.title?.trim() || !body.startAt || !body.endAt || !body.activityId) {
     throw ApiError.badRequest("标题、起止时间、类别均必填");
   }
+  // 注：activities.id 是 text、预设分类本就是非 uuid（'sleep'…）——不能做 isUuid 预检；
+  // 不存在的 id 由下方 23503 FK 映射拦成 400
   // 语义校验前置（QA 验收修复：倒挂/非法时间曾触发 PG range 异常 → 500 空响应体）
   if (!isParsableMoment(body.startAt) || !isParsableMoment(body.endAt)) {
     throw ApiError.badRequest("起止时间格式不正确");
@@ -90,6 +97,7 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
   if (Date.parse(newEnd) <= Date.parse(newStart)) {
     throw ApiError.badRequest("结束时间必须晚于开始时间");
   }
+  // 注：activity_id 是 text 列，非 uuid 合法（预设分类）；不存在的 id 由 23503 FK 映射拦成 400
   const conflict = await findOverlap(userId, newStart, newEnd, id);
   if (conflict) return { conflict };
 
@@ -149,6 +157,10 @@ export async function listActivities(userId: string) {
 export async function createActivity(userId: string, body: ActivityBody) {
   const name = body.name?.trim();
   if (!name) throw ApiError.badRequest("名称必填");
+  // NaN 防御：非整数 defaultMin 过 Math.min/max 仍得 NaN，直落 int 列 500（PATCH 路径同款在路由层 assertNumericBody）
+  if (body.defaultMin != null && (typeof body.defaultMin !== "number" || !Number.isInteger(body.defaultMin))) {
+    throw ApiError.badRequest("defaultMin 需为整数（分钟）");
+  }
 
   try {
     const created = (

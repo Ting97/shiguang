@@ -18,9 +18,15 @@ export type ReviewContentKind = "day" | "week" | "month" | "year";
 export interface ReviewPeriod { date?: string; month?: string; year?: string }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-const localYmd = (x: Date) => `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+/** 北京日历日 YYYY-MM-DD（+8h 后读 UTC getter；getFullYear 等本地 getter 随宿主时区漂移） */
+const localYmd = (x: Date) =>
+  new Date(x.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
 /** 北京「今天」YYYY-MM-DD（+8h 后读 UTC getter；宿主时区无关） */
 const bjNowYmd = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+/** 无时区的日期串按北京零点解析（裸 new Date(s) 按宿主时区，含 DST 的宿主跨 DST 周界会漂移一天） */
+const bjDateOf = (s: string) => new Date(`${s}T00:00:00+08:00`);
+/** 北京日历日的星期（0=周日）：按日期串取 UTC 星期——getDay/getUTCDay 对 "+08:00 零点"（=前一日 16:00Z）都会返回相邻日 */
+const bjDow = (s: string) => new Date(`${s}T00:00:00Z`).getUTCDay();
 const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
 
 /** 行上限截断（含真实总数的截断注记；cap=0 全量保留。修正原 withCap 的「条条/条个」叠字） */
@@ -63,8 +69,9 @@ export async function buildReviewCtx(
     from = to = date;
     periodLabel = `日期：${date}`;
   } else if (kind === "week") {
-    const d = new Date((period.date ?? bjNowYmd()) + "T00:00:00");
-    const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * 86_400_000);
+    const dateStr = period.date ?? bjNowYmd();
+    const d = bjDateOf(dateStr);
+    const monday = new Date(d.getTime() - ((bjDow(dateStr) + 6) % 7) * 86_400_000);
     from = localYmd(monday);
     to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
     periodLabel = `周期：${from} 至 ${to}`;
@@ -72,7 +79,7 @@ export async function buildReviewCtx(
     const month = period.month ?? bjNowYmd().slice(0, 7);
     const [y, m] = month.split("-").map(Number);
     from = `${month}-01`;
-    to = localYmd(new Date(y, m, 0));
+    to = localYmd(new Date(Date.UTC(y, m, 0)));
     periodLabel = `周期：${month}月（${from} 至 ${to}）`;
   } else {
     // 年报默认年份取北京自然年：+8h 后读 UTC 年（本地 getter 在跨年瞬间/非 CST 宿主会切错年份，同 buildLatest 口径）
@@ -266,8 +273,9 @@ async function buildChain(userId: string, kind: ReviewContentKind, period: Revie
   if (kind === "day") return "";
   if (kind === "week") {
     const WD = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-    const d = new Date((period.date ?? bjNowYmd()) + "T00:00:00");
-    const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * 86_400_000);
+    const dateStr = period.date ?? bjNowYmd();
+    const d = bjDateOf(dateStr);
+    const monday = new Date(d.getTime() - ((bjDow(dateStr) + 6) % 7) * 86_400_000);
     const lines = await fetchChainSummaries(
       userId,
       "week",
@@ -281,9 +289,9 @@ async function buildChain(userId: string, kind: ReviewContentKind, period: Revie
   if (kind === "month") {
     const month = period.month ?? bjNowYmd().slice(0, 7);
     const [yy, mm] = month.split("-").map(Number);
-    const firstDow = (new Date(yy, mm - 1, 1).getDay() + 6) % 7;
+    const firstDow = (bjDow(`${yy}-${pad2(mm)}-01`) + 6) % 7;
     const weekKeys: string[] = [];
-    for (let t = new Date(yy, mm - 1, 1).getTime() - firstDow * 86_400_000; t <= new Date(yy, mm, 0).getTime(); t += 7 * 86_400_000) {
+    for (let t = bjDateOf(`${yy}-${pad2(mm)}-01`).getTime() - firstDow * 86_400_000; t <= new Date(Date.UTC(yy, mm, 0)).getTime(); t += 7 * 86_400_000) {
       weekKeys.push(localYmd(new Date(t)));
     }
     const lines = await fetchChainSummaries(
@@ -329,15 +337,16 @@ async function buildLatest(userId: string, kind: ReviewContentKind, period: Revi
   if (kind === "day") {
     from = to = period.date ?? bjNowYmd();
   } else if (kind === "week") {
-    const d = new Date((period.date ?? bjNowYmd()) + "T00:00:00");
-    const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * 86_400_000);
+    const dateStr = period.date ?? bjNowYmd();
+    const d = bjDateOf(dateStr);
+    const monday = new Date(d.getTime() - ((bjDow(dateStr) + 6) % 7) * 86_400_000);
     from = localYmd(monday);
     to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
   } else {
     const month = period.month ?? bjNowYmd().slice(0, 7);
     const [y, m] = month.split("-").map(Number);
     from = `${month}-01`;
-    to = localYmd(new Date(y, m, 0));
+    to = localYmd(new Date(Date.UTC(y, m, 0)));
   }
   const { rows } = await pool.query(
     `select greatest(
@@ -372,7 +381,7 @@ function buildSubLines(
 
   if (kind === "week") {
     const WD = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-    const d0 = new Date(from + "T00:00:00");
+    const d0 = bjDateOf(from);
     const agg = new Map<string, SubAgg>(
       Array.from({ length: 7 }, (_, i) => [localYmd(new Date(d0.getTime() + i * 86_400_000)), acc()]),
     );
@@ -420,9 +429,9 @@ function buildSubLines(
       if (!k) continue;
       touch(k).out = r.out_cents;
     }
-    const firstDow = (new Date(yy, mm - 1, 1).getDay() + 6) % 7;
+    const firstDow = (bjDow(`${yy}-${pad2(mm)}-01`) + 6) % 7;
     const lines: string[] = ["每周对比："];
-    for (let t = new Date(yy, mm - 1, 1).getTime() - firstDow * 86_400_000; t <= new Date(yy, mm, 0).getTime(); t += 7 * 86_400_000) {
+    for (let t = bjDateOf(`${yy}-${pad2(mm)}-01`).getTime() - firstDow * 86_400_000; t <= new Date(Date.UTC(yy, mm, 0)).getTime(); t += 7 * 86_400_000) {
       const k = localYmd(new Date(t));
       lines.push(fmtBits(`${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}周`, agg.get(k) ?? acc()));
     }

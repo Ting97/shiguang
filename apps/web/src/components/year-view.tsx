@@ -1,7 +1,8 @@
 "use client";
 
 import type { Activity, DayStat } from "@/lib/types";
-import { todayStr, zhDuration } from "@/lib/date";
+import { zhDuration } from "@/lib/date";
+import { bjToday, bjAddDays, bjMondayOf } from "@/lib/date"; // 北京口径日历（本地构造器/游走在海外设备日界错位）
 
 interface Props {
   year: string; // YYYY
@@ -13,22 +14,20 @@ interface Props {
 /** 年视图：GitHub 风格热力图（列=周，行=周一~周日）+ 年度合计 */
 export default function YearView({ year, stats, activities, onPickDay }: Props) {
   const y = Number(year);
-  // 从当年 1月1日 所在周的周一开始，到 12月31日 所在周的周日
-  const first = new Date(y, 0, 1);
-  const lead = (first.getDay() + 6) % 7;
-  const gridStart = new Date(y, 0, 1 - lead);
-  const today = todayStr(); // 本地日期（toISOString 是 UTC，凌晨会指到昨天）
+  // 北京口径日历：从 1月1日 所在周的周一（bjMondayOf）到 12月31日 所在周的周日，纯字符串日推进（无 Date 游走）
+  const today = bjToday();
+  const end = `${year}-12-31`;
+  const leap = y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0);
 
   const weeks: string[][] = [];
-  const cursor = new Date(gridStart);
-  while (cursor.getFullYear() <= y) {
+  let cursor = bjMondayOf(`${year}-01-01`);
+  while (cursor <= end) {
     const week: string[] = [];
     for (let i = 0; i < 7; i++) {
-      week.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`);
-      cursor.setDate(cursor.getDate() + 1);
+      week.push(cursor);
+      cursor = bjAddDays(cursor, 1);
     }
     weeks.push(week);
-    if (cursor.getFullYear() > y) break;
   }
 
   const level = (min: number | undefined): 0 | 1 | 2 | 3 | 4 => {
@@ -98,7 +97,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
         <div className="mt-4 rounded-lg border border-line-soft bg-bg/40 p-4">
           <p className="mb-2 text-xs text-ink-mute">
             {year} 年共记录 <span className="font-semibold text-ink">{zhDuration(grand)}</span>
-            <span className="ml-2 text-ink-dim">· {recordedDays} 天有记录 · 平均每天 {zhDuration(Math.round(grand / 365))}</span>
+            <span className="ml-2 text-ink-dim">· {recordedDays} 天有记录 · 平均每天 {zhDuration(Math.round(grand / (leap ? 366 : 365)))}</span>
           </p>
           <div className="flex h-3 w-full overflow-hidden rounded-full">
             {sorted.map(([id, min]) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiClientError } from "@/shared/api";
 
 /**
@@ -42,10 +42,11 @@ interface UsageByModel {
   d30: Usage;
 }
 
+// 北京时间口径：UTC getter + 8h（本地 getter 在非中国时区设备会错 8 小时）
 const zhDate = (iso: string | null) => {
   if (!iso) return "不限";
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
 };
 
 const fmtTokens = (n: number) => (n >= 10_000 ? `${(n / 1000).toFixed(1)}k` : n.toLocaleString("zh-CN"));
@@ -61,6 +62,14 @@ export default function InvitesPanel() {
   const [msg, setMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ self: UsageSelf; invitees: UsageInvitee[]; byModel?: UsageByModel[] } | null>(null);
+  // 「已复制」恢复定时器：卸载时清理，避免卸载后 setState
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
     let j: any;
@@ -121,7 +130,8 @@ export default function InvitesPanel() {
       }
     }
     setCopied(code);
-    setTimeout(() => setCopied(null), 1500);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current); // 防御：连点不同码时先清上一轮定时器
+    copiedTimer.current = setTimeout(() => setCopied(null), 1500);
   }
 
   const statusOf = (i: Invite) => {

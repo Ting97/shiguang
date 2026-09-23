@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import type { Activity, FeedMoment, Space, TodoItem } from "@/lib/types";
 import { api } from "@/shared/api";
@@ -31,48 +31,48 @@ export function useSpaceData() {
   const [activities, setActivities] = useState<Activity[]>([]);
   // N1：行级空间关联浮层（待办行）的全量空间列表
   const [allSpaces, setAllSpaces] = useState<Space[]>([]);
+  // seq 守卫：勾选/编辑后的重载进行中再次触发时，只让最新一轮落地（慢的旧响应后到会覆盖新数据）
+  const seqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
+    const fresh = (apply: () => void) => {
+      if (seq === seqRef.current) apply();
+    };
     setLoadErr(null);
     try {
-      // 原 401 分支（location.href = "/login"）已由 shared/api 统一处理
-      const sj = await api<any>("/api/spaces", "GET");
-      setAllSpaces((sj.spaces as Space[]) ?? []);
-      const s = (sj.spaces as Space[]).find((x) => x.id === id);
-      if (!s) {
-        setNotFound(true);
-        return;
+      // 原 401 分支（location.href = "/login"）已由 shared/api 统一处理。
+      // 五个接口本无依赖，并行取（原串行 await 首屏耗时为五次 RTT 之和）
+      const [sj, tj, dj, fj, aj] = await Promise.allSettled([
+        api<any>("/api/spaces", "GET"),
+        api<any>("/api/todos?view=all", "GET"),
+        api<any>("/api/todos?view=done", "GET"),
+        api<any>("/api/feed?limit=20&spaceId=" + id, "GET"),
+        api<any>("/api/activities", "GET"),
+      ]);
+      if (seq !== seqRef.current) return; // 过期响应丢弃
+
+      if (sj.status === "fulfilled") {
+        const spaces = (sj.value.spaces as Space[]) ?? [];
+        setAllSpaces(spaces);
+        const s = spaces.find((x) => x.id === id);
+        if (!s) {
+          fresh(() => setNotFound(true));
+          return;
+        }
+        fresh(() => setSpace(s));
       }
-      setSpace(s);
-      // 该空间的待办（全视图取全部再前端过滤）；原 if (tr.ok) 失败静默跳过，不阻断其余加载
-      try {
-        const tj = await api<any>("/api/todos?view=all", "GET");
-        setTodos((tj.todos as TodoItem[]).filter((t) => t.space_id === id));
-      } catch {
-        // 原 if (tr.ok)：失败跳过
-      }
-      // 已完成的关联 todo（done 视图按完成时间倒序）
-      try {
-        const dj = await api<any>("/api/todos?view=done", "GET");
-        setDoneTodos(((dj.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
-      } catch {
-        // 原 if (dr.ok)：失败跳过
-      }
-      try {
-        const fj = await api<any>("/api/feed?limit=20&spaceId=" + id, "GET");
-        setMoments(fj.moments as FeedMoment[]);
-      } catch {
-        // 原 if (fr.ok)：失败跳过
-      }
-      try {
-        const aj = await api<any>("/api/activities", "GET");
-        setActivities(aj.activities ?? []);
-      } catch {
-        // 原 if (ar.ok)：失败跳过
-      }
+      // 该空间的待办（全视图取全部再前端过滤）；失败跳过（原 if (tr.ok) 静默语义保留）
+      fresh(() => {
+        if (tj.status === "fulfilled") setTodos((tj.value.todos as TodoItem[]).filter((t) => t.space_id === id));
+        // 已完成的关联 todo（done 视图按完成时间倒序）
+        if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
+        if (fj.status === "fulfilled") setMoments(fj.value.moments as FeedMoment[]);
+        if (aj.status === "fulfilled") setActivities(aj.value.activities ?? []);
+      });
     } catch (e) {
       // 网络抖动/接口异常不能停在加载态（历史 bug：无 catch 时永远"加载中"只能强刷）
-      setLoadErr(e instanceof Error ? e.message : String(e));
+      if (seq === seqRef.current) setLoadErr(e instanceof Error ? e.message : String(e));
     }
   }, [id]);
 

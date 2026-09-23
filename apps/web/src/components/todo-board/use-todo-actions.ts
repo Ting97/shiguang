@@ -60,14 +60,21 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     try {
       await api<any>(`/api/todos/${id}`, "PATCH", body);
     } catch (e) {
+      // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发 ChunkErrorReloader 整页刷新、丢失编辑状态）
       if (e instanceof ApiClientError) {
         setMsg({ ok: false, text: e.message });
-        return false;
+      } else {
+        setMsg({ ok: false, text: "网络异常，请稍后重试" });
       }
-      throw e;
+      return false;
     }
     if (okText) setMsg({ ok: true, text: okText });
-    await load(view);
+    try {
+      await load(view);
+    } catch {
+      // 刷新列表失败同样只提示，不外抛
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    }
     return true;
   }
 
@@ -95,14 +102,20 @@ export function useTodoActions(ctx: TodoActionsCtx) {
       try {
         j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
       } catch (e) {
-        if (e instanceof ApiClientError) {
-          setMsg({ ok: false, text: e.message === "操作失败" ? "AI 拆解失败" : e.message });
-          return;
-        }
-        throw e;
+        // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
+        setMsg({
+          ok: false,
+          text: e instanceof ApiClientError ? (e.message === "操作失败" ? "AI 拆解失败" : e.message) : "网络异常，请稍后重试",
+        });
+        return;
       }
       setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${isAction ? "，已插入原行动之后" : ""}` });
-      await load(view);
+      try {
+        await load(view);
+      } catch {
+        // 刷新列表失败同样只提示，不外抛
+        setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      }
     } finally {
       setDecomposingId(null);
     }
@@ -113,14 +126,20 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     try {
       await api<any>(`/api/todos/${t.id}`, "DELETE");
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "删除失败" : e.message });
-        return;
-      }
-      throw e;
+      // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
+      setMsg({
+        ok: false,
+        text: e instanceof ApiClientError ? (e.message === "操作失败" ? "删除失败" : e.message) : "网络异常，请稍后重试",
+      });
+      return;
     }
     setMsg({ ok: true, text: `🗑 已删除「${t.title}」` });
-    await load(view);
+    try {
+      await load(view);
+    } catch {
+      // 刷新列表失败同样只提示，不外抛
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    }
   }
 
   async function addSubtask(parentId: string) {
@@ -129,14 +148,20 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     try {
       await api<any>("/api/todos", "POST", { title, parentId });
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "添加失败" : e.message });
-        return;
-      }
-      throw e;
+      // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
+      setMsg({
+        ok: false,
+        text: e instanceof ApiClientError ? (e.message === "操作失败" ? "添加失败" : e.message) : "网络异常，请稍后重试",
+      });
+      return;
     }
     setSubTitle("");
-    await load(view);
+    try {
+      await load(view);
+    } catch {
+      // 刷新列表失败同样只提示，不外抛
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    }
   }
 
   return { adding, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask };

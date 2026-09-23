@@ -68,7 +68,9 @@ export function pickReminders(
     const dueRaw = t.due_at ? new Date(t.due_at) : null;
     const due = dueRaw && !Number.isNaN(dueRaw.getTime()) ? dueRaw : null;
     const overdue = due !== null && due < now;
-    const hm = due ? `（${pad(due.getHours())}:${pad(due.getMinutes())}）` : "";
+    // 北京口径：getHours 用宿主时区（非 +8 设备横幅时刻差 N 小时）；+8h 后读 UTC getter
+    const bjHm = due ? new Date(due.getTime() + 8 * 3600_000) : null;
+    const hm = bjHm ? `（${pad(bjHm.getUTCHours())}:${pad(bjHm.getUTCMinutes())}）` : "";
     items.push({
       key: `td-${t.id}`,
       kind: "todo",

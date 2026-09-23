@@ -16,7 +16,8 @@ import { api } from "@/shared/api";
  */
 export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; text: string } | null) => void }) {
   const [actions, setActions] = useState<TodayAction[] | null>(null);
-  const [_busyId, setBusyId] = useState<string | null>(null);
+  // 打卡进行中的行动 id：接到对应行按钮 disabled，防连点重复打卡
+  const [busyId, setBusyId] = useState<string | null>(null);
   // N6 添加行动
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
@@ -24,6 +25,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDue, setEditDue] = useState("");
+  // 行内编辑保存进行中：防双击重复保存
+  const [editSaving, setEditSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -58,6 +61,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   }
 
   async function toggleDone(a: TodayAction) {
+    if (busyId) return; // 打卡进行中忽略再次点击
     const done = a.status === "done";
     setBusyId(a.id);
     try {
@@ -96,7 +100,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   }
 
   async function saveEdit() {
-    if (!editingId || !editTitle.trim()) return;
+    if (!editingId || !editTitle.trim() || editSaving) return; // 保存进行中忽略再次提交，防双击重复保存
+    setEditSaving(true);
     try {
       await api(`/api/todos/${editingId}`, "PATCH", {
         title: editTitle.trim(),
@@ -106,6 +111,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
       await load();
     } catch (e) {
       notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -230,13 +237,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                             />
                             <div className="ml-auto flex gap-2">
                               <button onClick={() => setEditingId(null)} className="rounded px-2 py-1 text-[11px] text-ink-mute hover:bg-soft">取消</button>
-                              <button onClick={() => void saveEdit()} disabled={!editTitle.trim()} className="rounded bg-sky-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-sky-500 disabled:opacity-50">保存</button>
+                              <button onClick={() => void saveEdit()} disabled={!editTitle.trim() || editSaving} className="rounded bg-sky-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-sky-500 disabled:opacity-50">保存</button>
                             </div>
                           </div>
                         </Dismissable>
                       ) : (
                         <>
-                          <TodoCircle size="md" done={false} onClick={() => toggleDone(a)} />
+                          <TodoCircle size="md" done={false} disabled={busyId === a.id} onClick={() => toggleDone(a)} />
                           <ActionRow a={a} />
                           {/* N6 行操作（hover 显 / 触屏常显） */}
                           <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover:flex">
@@ -264,8 +271,9 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                         )}
                         <button
                           onClick={() => toggleDone(a)}
+                          disabled={busyId === a.id}
                           title="恢复为未完成"
-                          className="row-actions hidden shrink-0 rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-warn group-hover:block"
+                          className="row-actions hidden shrink-0 rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-warn group-hover:block disabled:opacity-50"
                         >
                           ↩️
                         </button>

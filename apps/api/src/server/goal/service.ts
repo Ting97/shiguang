@@ -134,7 +134,9 @@ async function createTodo(userId: string, body: TodoCreateInput) {
     spaceId = parentSpaceId;
   }
 
-  // 分类：显式指定且属于该用户则用之，否则回退「其他」；再没有就置空（前端显示 📌）
+  // 分类：显式指定且属于该用户则用之，否则回退「其他」；再没有就置空（前端显示 📌）。
+  // 注意 activities.id 是 text、预设分类本就是非 uuid（'sleep'…），不能做 isUuid 预检；
+  // 不存在的 id 经 activityOwned 查空后静默回退「其他」（原有语义）
   let activityId: string | null = null;
   if (body.activityId) {
     const hit = await todoRepo.activityOwned(body.activityId, userId);
@@ -264,9 +266,12 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
   if (body.startAt != null && !isParsableMoment(body.startAt)) {
     throw ApiError.badRequest("startAt 需为合法时间（ISO 格式，如 2025-06-01T09:00）");
   }
-  // 引用字段 uuid 预检：buildPatch 会把 activityId 原样进 activity_id = $n，非 uuid 触发 PG 22P02 → 500
-  if (body.activityId != null && !isUuid(body.activityId)) {
-    throw ApiError.badRequest("activityId 参数不合法");
+  // 引用字段存在性预检：activities.id 是 text、预设分类本就是非 uuid——isUuid 预检会把
+  // 「改成为预设分类」误拦成 400；不存在的 id 落 buildPatch 的 activity_id = $n 才是 500 面
+  // （FK 23503），先查属主拦成 400
+  if (body.activityId != null) {
+    const hit = await todoRepo.activityOwned(body.activityId, userId);
+    if (!hit.rows[0]) throw ApiError.badRequest("activityId 不存在");
   }
   const { sets, vals } = todoRepo.buildPatch(body, spaceId);
   if (sets.length === 0) throw ApiError.badRequest("没有可更新的字段");

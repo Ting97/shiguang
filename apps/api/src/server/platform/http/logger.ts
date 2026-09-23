@@ -31,13 +31,13 @@ type Level = "debug" | "info" | "warn" | "error";
 function emit(level: Level, msg: string, fields?: Record<string, unknown>) {
   const ctx = als.getStore();
   const line = {
+    ...fields,
     t: new Date().toISOString(),
     level,
     msg,
     requestId: ctx?.requestId,
     userId: ctx?.userId,
     route: ctx?.route,
-    ...fields,
   };
   const out = JSON.stringify(line, (_k, v) => (typeof v === "bigint" ? String(v) : v === undefined ? null : v));
   if (level === "error") console.error(out);

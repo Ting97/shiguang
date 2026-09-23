@@ -47,7 +47,9 @@ export default function SpaceHeaderCard(opts: {
                     setMsg({ ok: false, text: e.message === "操作失败" ? "重命名失败" : e.message });
                     return false;
                   }
-                  throw e;
+                  // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
+                  setMsg({ ok: false, text: "网络异常，请稍后重试" });
+                  return false;
                 }
                 setSpace({ ...space, name });
                 setMsg({ ok: true, text: "已重命名" });

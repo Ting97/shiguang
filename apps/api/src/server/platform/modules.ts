@@ -9,9 +9,13 @@ import { getCurrentUser, type SessionUser } from "@/server/identity/auth";
 export const MODULES = ["debt", "trade_review", "trading"] as const;
 export type ModuleKey = (typeof MODULES)[number];
 
-export async function getModuleUser(module: ModuleKey): Promise<SessionUser | null> {
+/** 三态：user=已授权（或 admin 直通）；"unauthenticated"=未登录（401）；null=已登录未开通（403）。
+ *  单次会话查询同时区分 401/403——调用方不再需要二次 getCurrentUser（双查且结果可能不一致） */
+export type ModuleUserResult = SessionUser | "unauthenticated" | null;
+
+export async function getModuleUser(module: ModuleKey): Promise<ModuleUserResult> {
   const user = await getCurrentUser();
-  if (!user) return null;
+  if (!user) return "unauthenticated";
   if (user.role === "admin") return user;
   const { rows } = await pool.query(
     `select 1 from user_module_grants where user_id = $1 and module = $2`,

@@ -41,7 +41,5 @@ export interface Version {
   size: number;
 }
 
-export type _Section = "system" | "input" | "versions";
-
 /** 调用引擎模式（REQ-003 3-C 管理台开关）：off=全 GLM / shadow=影子对照 / on=实时接管（3-D 已上线） */
 export type EngineMode = "off" | "shadow" | "on";

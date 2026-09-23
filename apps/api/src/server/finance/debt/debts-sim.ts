@@ -100,8 +100,9 @@ export function simulateStrategy(
   return {
     strategy,
     order,
+    // 输入全为零余额时循环一次未跑：months=0 的语义是「已清偿」，清偿月=起始月而非上月（monthLabel(-1) 的边界）
     months: cleared ? months : null,
-    clearedLabel: cleared ? monthLabel(startMonth, months - 1) : null,
+    clearedLabel: cleared ? (months > 0 ? monthLabel(startMonth, months - 1) : monthLabel(startMonth, 0)) : null,
     totalInterestCents: totalInterest,
     totalPaidCents: totalPaid,
     schedule: sampleSchedule(schedule),

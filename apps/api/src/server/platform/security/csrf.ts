@@ -13,7 +13,16 @@ export function verifyWriteOrigin(
   const safe = ["GET", "HEAD", "OPTIONS"];
   if (safe.includes(method.toUpperCase())) return "ok";
 
-  const hosts = hostCandidates.filter((h): h is string => Boolean(h)).map((h) => h.toLowerCase().split(":")[0]);
+  // Host 头归一化取 hostname：手写 split(":") 对 IPv6 字面量（[::1]:3000）会切出 "["，永不相等 → 误判 cross-origin
+  const hosts = hostCandidates
+    .filter((h): h is string => Boolean(h))
+    .map((h) => {
+      try {
+        return new URL(`http://${h.trim()}`).hostname.toLowerCase();
+      } catch {
+        return h.toLowerCase().split(":")[0];
+      }
+    });
   const site = headers.secFetchSite?.toLowerCase();
   if (site) {
     // same-site 允许同站兄弟域也会带 cookie，收紧为 same-origin/none

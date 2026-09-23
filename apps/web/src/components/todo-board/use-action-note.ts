@@ -54,18 +54,25 @@ export function useActionNote({ patchTodo, setMsg }: ActionNoteCtx) {
       return;
     }
     setNoteSaving(true);
-    const ok = await patchTodo(
-      noteOpenId,
-      {
-        title: noteTitle.trim(),
-        note: noteText.trim() ? noteText.trim() : null,
-        dueAt: localInputToIso(noteDue),
-        repeatDaily: noteRepeat,
-      },
-      "💾 行动已保存",
-    );
-    setNoteSaving(false);
-    if (ok) setNoteOpenId(null);
+    try {
+      const ok = await patchTodo(
+        noteOpenId,
+        {
+          title: noteTitle.trim(),
+          note: noteText.trim() ? noteText.trim() : null,
+          dueAt: localInputToIso(noteDue),
+          repeatDaily: noteRepeat,
+        },
+        "💾 行动已保存",
+      );
+      // 失败时不关闭面板，保留用户正在编辑的内容
+      if (ok) setNoteOpenId(null);
+    } catch {
+      // 兜底：任何异常只提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
+      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    } finally {
+      setNoteSaving(false);
+    }
   }
 
   return {

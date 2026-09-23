@@ -17,11 +17,11 @@ export const entriesRepo = {
       [userId, source, text],
     );
   },
-  setAnalyzedAt(entryId: string) {
-    return pool.query(
-      `update entries set analyzed_at = now() where id = $1 and analyzed_at is null`,
-      [entryId],
-    );
+  /** 用户在动态上落定数据（确认待确认项/手动补录）即视为已处理：打点 analyzed_at，
+   *  巡检不再对这条动态补跑识别——补跑的 clearDerived 会把用户已确认/手动添加的行一并删掉（数据丢失）。
+   *  coalesce：识别已打点时保持不变。须在调用方事务内执行（UPDATE 取行锁，与其他写路径「先锁 entry」同序） */
+  stampAnalyzedAt(client: import("pg").PoolClient | typeof pool, entryId: string) {
+    return client.query(`update entries set analyzed_at = coalesce(analyzed_at, now()) where id = $1`, [entryId]);
   },
   /** 待确认识别结果 */
   async pendingRecognition(entryId: string, userId: string, domain: string) {

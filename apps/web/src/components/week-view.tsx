@@ -1,7 +1,8 @@
 "use client";
 
 import type { Activity, Block } from "@/lib/types";
-import { localDateKey, todayStr, zhDuration, zhDate, weekName } from "@/lib/date";
+import { bjToday, zhDuration, zhDate, weekName } from "@/lib/date";
+import { bjDateKey } from "@/lib/bj-time"; // 北京口径：localDateKey/todayStr 按宿主时区，海外设备与日视图日界不一致
 
 interface Props {
   /** 本周 7 天（周一起） */
@@ -22,14 +23,14 @@ const clampMin = (b: Block, fromMs: number, spanMin: number) => {
 
 /** 周视图：7 列缩略时间条 + 各类合计 */
 export default function WeekView({ days, blocks, activities, onPickDay }: Props) {
-  const dayStarts = new Map(days.map((d) => [d, new Date(d + "T00:00:00").getTime()]));
+  const dayStarts = new Map(days.map((d) => [d, Date.parse(`${d}T00:00:00+08:00`)])); // 北京零点基点（本地零点在海外设备把当天块算偏 8 小时）
 
   const byDay = new Map<string, Block[]>();
   for (const d of days) byDay.set(d, []);
   for (const b of blocks) {
     // 跨天块归入它覆盖的每一天（每列按当天的交集钳制显示），只归开始日会漏掉跨到次日的凌晨段
-    const startKey = localDateKey(b.start_at);
-    const endKey = localDateKey(b.end_at);
+    const startKey = bjDateKey(b.start_at);
+    const endKey = bjDateKey(b.end_at);
     for (const d of days) {
       if (d >= startKey && d <= endKey) byDay.get(d)?.push(b);
     }
@@ -54,7 +55,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
           const day0 = dayStarts.get(d) ?? 0;
           // 每列合计按当天交集算，跨天块不重复计入两天
           const total = list.reduce((s, b) => s + clampMin(b, day0, 1440), 0);
-          const isToday = d === todayStr();
+          const isToday = d === bjToday();
           return (
             <button key={d} onClick={() => onPickDay(d)} className="group text-left">
               <div className={`mb-1 rounded px-1 py-0.5 text-center text-[10px] ${isToday ? "bg-sky-600 font-bold" : "bg-elevated/80 text-ink-mute"}`}>

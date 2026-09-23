@@ -19,10 +19,12 @@ interface Props {
   onCancel: () => void;
   onDelete?: () => void;
   saving?: boolean;
+  /** 删除请求进行中：禁用两步删除按钮，防重复提交 */
+  deleting?: boolean;
 }
 
 /** 时间块编辑面板（工作台列表 / 日历日视图共用） */
-export default function BlockEditor({ draft, activities, onChange, onSave, onCancel, onDelete, saving }: Props) {
+export default function BlockEditor({ draft, activities, onChange, onSave, onCancel, onDelete, saving, deleting }: Props) {
   // 删除两步确认：首次点按只进入待确认态（3 秒内再点才真删），与站内样式化确认一致、免原生弹窗
   const [armDelete, setArmDelete] = useState(false);
   const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,9 +80,10 @@ export default function BlockEditor({ draft, activities, onChange, onSave, onCan
         {onDelete && (
           <button
             onClick={onDeleteClick}
-            className={`rounded px-3 py-1 text-xs transition ${armDelete ? "bg-danger font-medium text-white hover:bg-danger/80" : "text-danger hover:bg-soft"}`}
+            disabled={deleting}
+            className={`rounded px-3 py-1 text-xs transition disabled:opacity-40 ${armDelete ? "bg-danger font-medium text-white hover:bg-danger/80" : "text-danger hover:bg-soft"}`}
           >
-            {armDelete ? "确认删除？" : "删除"}
+            {deleting ? "删除中…" : armDelete ? "确认删除？" : "删除"}
           </button>
         )}
         <button onClick={onCancel} className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft">

@@ -8,23 +8,34 @@ const CN_DIGITS: Record<string, number> = {
   五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
 };
 
-/** 中文数字（≤999）转阿拉伯数字：五十四→54，一百二→120，十→10（供时长/钟点共用） */
+/** 中文数字（≤999）转阿拉伯数字：五十四→54，一百二→120（口语省「十」按整十补齐），十→10（供时长/钟点共用） */
 export function cnToNumber(s: string): number | null {
   if (/^\d+$/.test(s)) return parseInt(s, 10);
   if (!/^[零一二两俩三四五六七八九十百]+$/.test(s)) return null;
   let total = 0;
   let current = 0;
+  // 口语省「十」（一百二=120 而非 102）：百后紧跟 1~9 且全句无「十」时按整十补齐；
+  // 「一百二十」（有十）与「一百零二」（零复位）走常规路径
+  let afterBai = false;
+  const noShi = !s.includes("十");
   for (const ch of s) {
     if (ch === "十") {
       total += (current || 1) * 10;
       current = 0;
+      afterBai = false;
     } else if (ch === "百") {
       total += (current || 1) * 100;
       current = 0;
+      afterBai = true;
     } else {
       const v = CN_DIGITS[ch];
       if (v === undefined) return null;
-      current = current * 10 + v;
+      if (afterBai && v > 0 && noShi) {
+        current = v * 10;
+      } else {
+        current = current * 10 + v;
+      }
+      afterBai = false;
     }
   }
   return total + current;

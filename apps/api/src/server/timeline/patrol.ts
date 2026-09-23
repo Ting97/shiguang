@@ -50,6 +50,13 @@ export async function retryPendingAnalysis(): Promise<number> {
 export function startAnalysisPatrol(): void {
   const tick = async () => {
     try {
+      // 顺带清理过期会话（idx_sessions_expiry 支撑；此前过期行只在被携带访问时惰性删一条，
+      // 不再复访用户的会话永久累积）
+      await pool.query(`delete from sessions where expires_at < now()`);
+    } catch {
+      /* 清理失败不影响主巡检 */
+    }
+    try {
       const n = await retryPendingAnalysis();
       if (n > 0) log.info({ retried: n }, "analysis-patrol");
     } catch (e) {

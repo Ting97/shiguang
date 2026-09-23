@@ -1,6 +1,7 @@
 "use client";
 
 import type { TodoRow } from "@/lib/types";
+import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
 
 /** 待办共用小件：勾选圆圈 + 时间标签 + 日期工具（todo-board / actions-today 共用） */
 
@@ -26,31 +27,28 @@ export const dueTag = (iso: string | null) => {
   return { text: `${days} 天后`, cls: "text-ink-mute" };
 };
 
-export const isoToLocalInput = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+// 北京墙上时间口径（lib/bj-time 单源）：本地 getter 版在海外设备上编辑框与列表展示错位
+export const isoToLocalInput = (iso: string | null) => (iso ? isoToBjInput(iso) : "");
 
-export const localInputToIso = (v: string) => {
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-};
+export const localInputToIso = (v: string) => bjInputToIso(v);
 
 /** 微软 To Do 式勾选圆圈：未完成空心圈（悬停变蓝），完成实心蓝底白勾 */
 export function TodoCircle({
   done,
   onClick,
   size = "md",
+  disabled = false,
 }: {
   done: boolean;
   onClick: () => void;
   size?: "md" | "sm";
+  /** 提交进行中禁用（防连点重复打卡），可选 */
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       title={done ? "点击恢复为未完成" : "点击标记完成"}
       aria-label={done ? "恢复为未完成" : "标记完成"}
       className={`tap-lg flex shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200 ${

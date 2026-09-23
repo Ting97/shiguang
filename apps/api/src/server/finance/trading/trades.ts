@@ -36,7 +36,8 @@ function validateRows(rows: TradeRowInput[]) {
   if (!Array.isArray(rows) || rows.length === 0) throw ApiError.badRequest("rows 为空");
   if (rows.length > 50_000) throw ApiError.badRequest("单次导入上限 50000 笔");
   for (const [i, r] of rows.entries()) {
-    if (r.ticket == null || !/^\d+$/.test(String(r.ticket))) throw ApiError.badRequest(`第 ${i + 1} 行 ticket 非法`);
+    // ticket 落 bigint 列：超长数字串过 /^\d+$/ 但 ::bigint[] cast 溢出 → 500，先拦（18 位内远超 MT5 ticket 实际范围）
+    if (r.ticket == null || !/^\d{1,18}$/.test(String(r.ticket))) throw ApiError.badRequest(`第 ${i + 1} 行 ticket 非法`);
     if (r.direction !== "buy" && r.direction !== "sell") throw ApiError.badRequest(`第 ${i + 1} 行方向需为 buy/sell`);
     if (!r.openTime || !r.closeTime || Number.isNaN(Date.parse(r.openTime)) || Number.isNaN(Date.parse(r.closeTime)))
       throw ApiError.badRequest(`第 ${i + 1} 行开/平仓时间非法`);
@@ -84,8 +85,11 @@ export async function importTrades(userId: string, body: ImportBody) {
     seenBatch.add(tk);
     fresh.push(r);
   }
-  const firstAt = fresh.length ? fresh.map((r) => r.closeTime).sort()[0] : null;
-  const lastAt = fresh.length ? fresh.map((r) => r.closeTime).sort().at(-1) : null;
+  // firstAt/lastAt 用时刻比较：closeTime 格式混杂（有无时区后缀）时字符串 sort 会错排
+  const closeMs = (t: string) => Date.parse(t);
+  const sortedTimes = fresh.map((r) => r.closeTime).sort((a, b) => closeMs(a) - closeMs(b));
+  const firstAt = sortedTimes[0] ?? null;
+  const lastAt = sortedTimes.at(-1) ?? null;
 
   if (body.dryRun) {
     return {

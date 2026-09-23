@@ -14,6 +14,7 @@ export default function BlockDraftForm({
   value,
   activities,
   busy = false,
+  err = null,
   onChange,
   onCancel,
   onSubmit,
@@ -21,6 +22,8 @@ export default function BlockDraftForm({
   value: BlockDraftValue;
   activities: Activity[];
   busy?: boolean;
+  /** 校验错误提示（如结束时间早于开始时间），可选 */
+  err?: string | null;
   onChange: (v: BlockDraftValue) => void;
   onCancel: () => void;
   onSubmit: () => void;
@@ -74,6 +77,7 @@ export default function BlockDraftForm({
           {busy ? "保存中…" : "补录"}
         </button>
       </div>
+      {err && <p className="mt-2 text-xs text-danger">{err}</p>}
     </div>
   );
 }

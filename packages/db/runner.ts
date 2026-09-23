@@ -23,6 +23,16 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, connecti
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
+/** 迁移文件自带事务语句会让 runner 的「单条迁移整体事务」契约失效：
+ *  文件内 commit; 会把外层事务提前提交，之后的记录表 insert 变成 autocommit——
+ *  中间失败即「已执行但未记录」，下次重跑非幂等迁移直接踩坏数据。统一由 runner 管理事务 */
+function assertNoInlineTx(sql: string, f: string) {
+  if (/^\s*(begin|start\s+transaction|commit|rollback)\s*;/im.test(sql)) {
+    console.error(`[migrate] ✗ ${f} 自带 begin/commit 语句——事务由 runner 统一管理，请移除文件内事务语句`);
+    process.exit(1);
+  }
+}
+
 async function ensureTable() {
   await client.query(`
     create table if not exists public.schema_migrations (
@@ -41,6 +51,8 @@ async function applied(): Promise<Map<string, string | null>> {
 async function main() {
   await client.connect();
   await ensureTable();
+  // 并发防护：CI/CD 与开发者同时跑 db:migrate 会双双判定同一 pending 并重复执行（会话级锁，断开自动释放）
+  await client.query(`select pg_advisory_lock(hashtext('shiguangri-migrate'))`);
   const done = await applied();
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(".sql"))
@@ -55,10 +67,13 @@ async function main() {
     console.log("[migrate] ✓ schema.sql（基线 DDL）");
     for (const f of files) {
       const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      // legacy 迁移（003）自带 begin/commit：仅 fresh 全量执行时剥离、由 runner 事务托管
+      //（文件内容不动，checksum 不受影响）；新迁移走 pending 路径的硬校验
+      const execSql = sql.replace(/^\s*(begin|start\s+transaction|commit|rollback)\s*;.*$/gim, "");
       const t0 = Date.now();
       try {
         await client.query("begin");
-        await client.query(sql);
+        await client.query(execSql);
         await client.query(`insert into schema_migrations (filename, checksum) values ($1,$2)`, [
           f,
           sha256(sql),
@@ -104,6 +119,13 @@ async function main() {
   if (statusOnly) {
     console.log(`[migrate] 已应用 ${done.size} / 共 ${files.length}，待执行 ${pending.length}`);
     for (const f of pending) console.log(`  pending: ${f}`);
+    // --status 同样做 checksum 比对：运维看"待执行 0"时也要能看到已上线文件被手改
+    for (const [f, ck] of done) {
+      if (files.includes(f) && ck) {
+        const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
+        if (now !== ck) console.error(`[migrate] ⚠ 迁移文件已变更但曾应用：${f}`);
+      }
+    }
     return;
   }
 
@@ -126,6 +148,7 @@ async function main() {
   for (const f of pending) {
     const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
     const checksum = sha256(sql);
+    assertNoInlineTx(sql, f);
     const t0 = Date.now();
     try {
       await client.query("begin");

@@ -276,6 +276,25 @@ test("校验层：非法入参 400（时段倒挂/语义日期/坏结构）", as
     body: {},
   });
   assert.ok([400, 404].includes(badEntry.status), "不存在 entry 的 confirm 应 400/404");
+
+  // ---- 检视修复回归：非法 uuid 一律 400（不再 22P02 → 500）----
+  const badAct = await call("PATCH", "/api/activities/not-a-uuid", { user: UA, body: { name: "x" } });
+  assert.equal(badAct.status, 400, "activities/[id] 非 uuid 应 400");
+  const badActDel = await call("DELETE", "/api/activities/not-a-uuid", { user: UA });
+  assert.equal(badActDel.status, 400, "activities/[id] DELETE 非 uuid 应 400");
+  const badBlockAct = await call("POST", "/api/blocks", { user: UA,
+    body: { title: "t", startAt: "2026-09-22T09:00:00+08:00", endAt: "2026-09-22T10:00:00+08:00", activityId: "not-a-uuid" },
+  });
+  assert.equal(badBlockAct.status, 400, "blocks activityId 不存在应 400（FK 映射）");
+  // activities.id 是 text、预设分类本就是非 uuid：不存在的 activityId 在创建路径静默回退「其他」（200，不 500）
+  const badTodoAct = await call("POST", "/api/todos", { user: UA,
+    body: { title: "t", activityId: "not-a-uuid" },
+  });
+  assert.equal(badTodoAct.status, 200, "todos 创建时不存在 activityId 应回退「其他」而非 500");
+  const badTodoSpace = await call("POST", "/api/todos", { user: UA,
+    body: { title: "t", spaceId: "not-a-uuid" },
+  });
+  assert.equal(badTodoSpace.status, 400, "todos spaceId 非 uuid 应 400");
 });
 
 /* ---------- 正常层：九域读接口 + 写链路 ---------- */

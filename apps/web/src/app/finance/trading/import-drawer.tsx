@@ -97,7 +97,7 @@ export default function TradingImportDrawer({
       <div ref={ref} className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
           <TagChip icon="📥" label="导入 MT5 交易报表" tone="sky" className="text-sm" />
-          <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
+          <button onClick={onClose} aria-label="关闭" className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
         </div>
 
         {result ? (

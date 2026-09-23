@@ -38,6 +38,8 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
   const [nowMin, setNowMin] = useState<number | null>(null);
   const [draft, setDraft] = useState<BlockDraftValue | null>(null);
   const [saving, setSaving] = useState(false);
+  // 补录表单校验错误（结束时间必须晚于开始时间）
+  const [draftErr, setDraftErr] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
   // 表单打开时滚入视口：时间轴自动定位到当前时刻后，点击深处缺口时表单在区域顶部、视口之外，看起来像"没反应"
@@ -122,6 +124,12 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
 
   async function submitCreate() {
     if (!draft || !draft.title.trim() || saving) return;
+    // 结束必须晚于开始（同日程页行内编辑校验口径），不合法就地提示并中止
+    if (draft.end <= draft.start) {
+      setDraftErr("结束时间必须晚于开始时间");
+      return;
+    }
+    setDraftErr(null);
     setSaving(true); // 提交期间锁表单：防双击/连按 Enter 重复建块
     try {
       const [sh, sm] = draft.start.split(":").map(Number);
@@ -146,7 +154,11 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
             value={draft}
             activities={activities}
             busy={saving}
-            onChange={setDraft}
+            err={draftErr}
+            onChange={(v) => {
+              setDraftErr(null); // 用户改动即清除校验错误
+              setDraft(v);
+            }}
             onCancel={() => setDraft(null)}
             onSubmit={submitCreate}
           />

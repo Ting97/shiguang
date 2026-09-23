@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/shared/api";
 import InvitesPanel from "./invites-panel";
 import { TagChip } from "./tag-chip";
@@ -11,7 +11,11 @@ import { TagChip } from "./tag-chip";
  */
 export default function AdminMarketingPanel({ notify }: { notify: (text: string, ok?: boolean) => void }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
+  // 用户列表加载失败原因：置 null 会永远停在「加载中…」，需落错误终态 + 重试入口
+  const [usersErr, setUsersErr] = useState<string | null>(null);
   const [grants, setGrants] = useState<Record<string, string[]>>({});
+  // 授权/套餐变更进行中锁（ref：按钮未接 disabled，用 ref 才拦得住快速连点）
+  const mutatingRef = useRef(false);
 
   interface AdminUser {
     id: string;
@@ -24,8 +28,14 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
 
   const loadUsers = useCallback(() => {
     api("/api/billing/users")
-      .then((j) => setUsers(j.users))
-      .catch(() => setUsers(null));
+      .then((j) => {
+        setUsers(j.users);
+        setUsersErr(null);
+      })
+      .catch((e) => {
+        // 失败不再置 null（那会永远「加载中…」），落错误终态给重试按钮
+        setUsersErr(e instanceof Error ? e.message : String(e));
+      });
   }, []);
 
   // 模块授权矩阵（031）：user_id → module[]
@@ -47,23 +57,31 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
   }, [loadUsers, loadGrants]);
 
   async function toggleModule(userId: string, module: "debt" | "trade_review", on: boolean) {
+    if (mutatingRef.current) return; // 防连点重复提交
+    mutatingRef.current = true;
     try {
       if (on) await api("/api/admin/grants", "POST", { userId, module });
       else await api(`/api/admin/grants?userId=${userId}&module=${module}`, "DELETE");
     } catch {
       notify("模块授权失败", false);
       return;
+    } finally {
+      mutatingRef.current = false;
     }
     notify(on ? "✅ 已授权" : "已撤销授权");
     loadGrants();
   }
 
   async function setPlan(userId: string, plan: "free" | "pro") {
+    if (mutatingRef.current) return; // 防连点重复提交
+    mutatingRef.current = true;
     try {
       await api("/api/billing/plan", "POST", { userId, plan, months: 12 });
     } catch {
       notify("套餐变更失败", false);
       return;
+    } finally {
+      mutatingRef.current = false;
     }
     notify(plan === "pro" ? "已开通 Pro（1 年）" : "已取消 Pro");
     loadUsers();
@@ -79,7 +97,14 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
         <p className="mt-1.5 text-[10px] text-ink-faint">
           🏦负债 / 📈复盘 = 模块授权（点按钮切换，即时生效）；授权后用户财务页出现对应 tab
         </p>
-        {!users ? (
+        {usersErr ? (
+          <div className="mt-2 text-xs">
+            <p className="text-danger">加载失败：{usersErr}</p>
+            <button onClick={loadUsers} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+              重试
+            </button>
+          </div>
+        ) : !users ? (
           <p className="mt-2 text-xs text-ink-dim">加载中…</p>
         ) : (
           <ul className="mt-3 space-y-2">

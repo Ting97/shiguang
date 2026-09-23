@@ -75,6 +75,7 @@ export default function DebtPage() {
   const settled = useMemo(() => (debts ?? []).filter((d) => d.status !== "active"), [debts]);
 
   async function runSim(extraCents: number) {
+    if (simBusy) return; // 推演进行中忽略再次触发：滑杆连放会并发乱序，慢的旧响应可能覆盖新结果
     setSimBusy(true);
     try {
       const r = await api("/api/debts/simulate", "POST", { extraMonthlyCents: extraCents });

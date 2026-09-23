@@ -1,3 +1,5 @@
+import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
+
 /**
  * moment-feed 小工具集：时间格式化 / 金额展示 / 表单值互转 / 常量。
  * 纯函数无副作用，被入口与卡片各子组件共用。
@@ -67,14 +69,6 @@ export const DOMAIN_LABELS: Record<string, string> = {
 
 export const FEED_PAGE_SIZE_HINT = 10; // 超过一页才显示「到底啦」提示
 
-export const isoToLocalInput = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+export const isoToLocalInput = (iso: string | null) => (iso ? isoToBjInput(iso) : "");
 
-export const localInputToIso = (v: string) => {
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-};
+export const localInputToIso = (v: string) => bjInputToIso(v);

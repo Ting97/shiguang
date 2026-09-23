@@ -26,6 +26,8 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [listDraft, setListDraft] = useState<BlockDraftValue | null>(null);
   const [listSaving, setListSaving] = useState(false);
+  // 行内编辑保存进行中：防双击重复提交（文案/禁用同 listSaving 口径）
+  const [saving, setSaving] = useState(false);
   const listFormRef = useRef<HTMLDivElement>(null);
 
   function startEdit(b: Block) {
@@ -40,13 +42,14 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
 
   /** 用原块北京日期 + 新的 HH:MM 组装 ISO（combineHM 收敛到 @/lib/bj-time，与日程页同源） */
   async function saveEdit() {
-    if (!editing) return;
+    if (!editing || saving) return; // 保存进行中忽略再次提交，防双击重复保存
     if (editing.end <= editing.start) {
       setMsg({ ok: false, text: "结束时间必须晚于开始时间" });
       return;
     }
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
+    setSaving(true);
     try {
       await api(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
@@ -57,6 +60,8 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "保存失败" });
       return;
+    } finally {
+      setSaving(false);
     }
     setEditing(null);
     setMsg({ ok: true, text: "💾 日程已更新" });
@@ -246,9 +251,10 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
                     </button>
                     <button
                       onClick={saveEdit}
-                      className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500"
+                      disabled={saving}
+                      className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-40"
                     >
-                      保存
+                      {saving ? "保存中…" : "保存"}
                     </button>
                   </div>
                 </li>

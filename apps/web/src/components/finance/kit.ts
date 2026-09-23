@@ -3,6 +3,7 @@
 
 import { bjToday } from "@/lib/date";
 import { yuan } from "@/lib/finance";
+import { isoToBjInput } from "@/lib/bj-time";
 
 export interface Account {
   id: string;
@@ -64,8 +65,8 @@ export { api } from "@/shared/api";
 
 
 
+/** 北京墙上时间口径（lib/bj-time 单源）：本地 getter 版在海外设备上编辑框与列表展示错位 */
 export function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return isoToBjInput(iso);
 }
 

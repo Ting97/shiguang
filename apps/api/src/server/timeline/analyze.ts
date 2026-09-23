@@ -284,7 +284,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     await client.query("begin");
     // for update 串行化同一动态的并发识别（发布后台识别 vs 巡检补跑），防止清旧插新交错出重复产物
     const { rows: current } = await client.query(
-      `select raw_text from entries where id = $1 and user_id = $2 for update`,
+      `select raw_text, analyzed_at from entries where id = $1 and user_id = $2 for update`,
       [entryId, userId],
     );
     if (current[0]?.raw_text !== rawText) {
@@ -292,6 +292,18 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       // 与识别所用文本不一致（期间被编辑）或动态已删除 → 本次产物作废，
       // analyzed_at 留空待巡检用新文本重跑，避免旧识别结果覆盖新编辑
       throw new Error(`原文已变更/动态已删除，本次识别产物作废（待巡检补跑）entry=${entryId}`);
+    }
+    if (current[0]?.analyzed_at != null) {
+      // 识别期间用户已在该动态上落定数据（appendManual/confirmPending 打 analyzed_at）或并发识别已提交：
+      // 本次产物作废且**不清写**——clearDerived 会把用户已确认/手动补录的行一并删掉（静默丢数据）。
+      // 用户后续想要 AI 产物可对单域手动「重新识别」
+      await client.query("commit");
+      void writeAudit(userId, entryId, {
+        engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: true,
+        promptTokens, completionTokens,
+      });
+      console.info(`[ai] entry ${entryId} 识别期间已有用户落定数据/并发识别提交，本次产物作废不清写`);
+      return { conflictTitle: null, pendingDomains: [], kind: "moment" };
     }
     // 幂等清理：上次识别可能已提交产物但 analyzed_at 打点失败（重跑会成倍复制日程块/流水），先清再插
     await entriesRepo.clearDerived(client, entryId, userId);

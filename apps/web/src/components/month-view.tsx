@@ -1,7 +1,8 @@
 "use client";
 
 import type { Activity, DayStat } from "@/lib/types";
-import { todayStr, zhDuration } from "@/lib/date";
+import { zhDuration } from "@/lib/date";
+import { bjToday } from "@/lib/date"; // 北京口径今天（本地 todayStr 在海外设备会差一天）
 
 interface Props {
   month: string; // YYYY-MM-01
@@ -33,7 +34,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
     for (const [id, min] of Object.entries(s.byActivity)) totals[id] = (totals[id] ?? 0) + min;
   }
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  const today = todayStr();
+  const today = bjToday();
 
   return (
     <div>
