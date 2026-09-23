@@ -27,6 +27,7 @@ export default function ReflectionSection(opts: {
       <SpaceReflections
         spaceId={id}
         notify={setMsg}
+        rev={reflection.rev}
         onChanged={() => void load()}
         onEdit={({ id: rid }) => {
           // 打开编辑器前拉取全文

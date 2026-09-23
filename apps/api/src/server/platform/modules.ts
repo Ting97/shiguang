@@ -1,7 +1,7 @@
 /**
  * 模块级授权门禁（REQ-003 3-F FR-C2.1，迁移 031）
  * admin 直通；普通用户查 user_module_grants，未授权返回 null（路由自行 403「未开通该模块」）。
- * 首期模块：debt 负债管理、trade_review 交易复盘。实时查库无缓存——授权/撤销即时生效。
+ * 首期模块：debt 负债管理、trade_review 收支复盘（REQ-005 FR-4.4 更名）。实时查库无缓存——授权/撤销即时生效。
  */
 import { pool } from "@/server/platform/db";
 import { getCurrentUser, type SessionUser } from "@/server/identity/auth";

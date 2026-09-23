@@ -11,6 +11,8 @@ export function useReflection(opts: { id: string; load: () => Promise<void>; set
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingReflection, setEditingReflection] = useState<EditingReflection | null>(null);
   const [refEditorBusy, setRefEditorBusy] = useState(false);
+  // FR-4.1：保存成功后 bump，列表组件（SpaceReflections rev prop）立即重拉
+  const [rev, setRev] = useState(0);
 
   /** 写感悟（空白编辑器） */
   function openNew() {
@@ -41,6 +43,7 @@ export function useReflection(opts: { id: string; load: () => Promise<void>; set
       await api<any>(url, editingReflection ? "PATCH" : "POST", { content });
       setMsg({ ok: true, text: editingReflection ? "✏️ 感悟已更新" : "📝 感悟已保存" });
       setEditorOpen(false);
+      setRev((r) => r + 1); // FR-4.1：列表立即刷新
       await load();
       return true;
     } catch (e) {
@@ -54,7 +57,7 @@ export function useReflection(opts: { id: string; load: () => Promise<void>; set
     }
   }
 
-  return { editorOpen, setEditorOpen, editingReflection, refEditorBusy, openNew, openEdit, saveReflection };
+  return { editorOpen, setEditorOpen, editingReflection, refEditorBusy, openNew, openEdit, saveReflection, rev };
 }
 
 export type ReflectionActions = ReturnType<typeof useReflection>;

@@ -21,6 +21,7 @@ export default function SpaceReflections({
   notify,
   onEdit,
   onChanged,
+  rev,
 }: {
   spaceId: string;
   notify: (m: { ok: boolean; text: string } | null) => void;
@@ -28,6 +29,8 @@ export default function SpaceReflections({
   onEdit: (item: { id: string; content: string }) => void;
   /** 增删改后通知父组件刷新统计 */
   onChanged: () => void;
+  /** 外部刷新信号（FR-4.1：父侧保存成功后 bump，列表立即重拉） */
+  rev?: number;
 }) {
   const [items, setItems] = useState<ReflectionItem[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -51,7 +54,7 @@ export default function SpaceReflections({
     setItems(null);
     setExpanded({});
     void load(0);
-  }, [load]);
+  }, [load, rev]); // rev bump（FR-4.1）：父侧保存成功 → 列表立即重拉
 
   async function toggleExpand(it: ReflectionItem) {
     if (expanded[it.id] !== undefined) {

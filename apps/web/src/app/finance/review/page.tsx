@@ -9,7 +9,7 @@ import { TX_COLORS, yuan } from "@/lib/finance";
 import { api, ApiClientError } from "@/shared/api";
 
 /**
- * 交易复盘（REQ-003 3-F FR-C2.7）：日/周统计（纯 SQL）+ AI 交易周报（缓存/配额走复盘管线）。
+ * 收支复盘（REQ-003 3-F FR-C2.7；REQ-005 FR-4.4 更名）：日/周统计（纯 SQL）+ AI 收支周报（缓存/配额走复盘管线）。
  */
 
 interface Stats {
@@ -117,7 +117,7 @@ export default function FinanceReviewPage() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
-          <ModuleLocked title="交易复盘" desc="该模块由管理员授权后开放，可联系管理员开通。" />
+          <ModuleLocked title="收支复盘" desc="该模块由管理员授权后开放，可联系管理员开通。" />
         </div>
       </main>
     );
@@ -133,7 +133,7 @@ export default function FinanceReviewPage() {
       <div className="mx-auto max-w-2xl px-5 py-8">
         <header className="mb-5 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
-            拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">交易复盘</span>
+            拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">收支复盘</span>
           </h1>
           <p className="mt-2 text-xs text-ink-dim">日/周收支结构与 AI 周报 —— 花在哪、怎么调</p>
         </header>
@@ -339,7 +339,7 @@ export default function FinanceReviewPage() {
               </section>
             )}
 
-            <footer className="mt-10 text-center text-[10px] text-ink-faint">拾光 · 交易复盘 · 统计零 AI 消耗，周报走 AI 配额</footer>
+            <footer className="mt-10 text-center text-[10px] text-ink-faint">拾光 · 收支复盘 · 统计零 AI 消耗，周报走 AI 配额</footer>
           </>
         )}
       </div>

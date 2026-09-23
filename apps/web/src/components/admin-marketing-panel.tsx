@@ -105,7 +105,7 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                           : "border border-line-soft bg-surface/60 text-ink-faint hover:border-sky-500/50 hover:text-ink-soft"
                       }`}
                     >
-                      {m === "debt" ? "🏦负债" : "📈复盘"} {on ? "✓" : ""}
+                      {m === "debt" ? "🏦负债" : "📈收支复盘"} {on ? "✓" : ""}
                     </button>
                   );
                 })}
