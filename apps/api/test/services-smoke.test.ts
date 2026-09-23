@@ -273,6 +273,134 @@ test("identity：验证码通道未配置时的错误语义", async (t) => {
   await assert.rejects(() => sendEmail({ email: "a@b.co" }), /发送失败|通道|未配置/);
 });
 
+test("finance：负债导入判重/幂等（R2）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  // 幂等清理：上次运行残留
+  await pool.query(`delete from liabilities where user_id = $1 and name like 'svc%'`, [UA]);
+  await pool.query(`delete from accounts where user_id = $1 and name like 'svc%'`, [UA]);
+  const { importDebtsPreview, importDebtsCommit } = await import("../src/server/finance");
+  const data = {
+    liabilities: [
+      { name: "svc导入银行", type: "mortgage", principalCents: 50000000, balanceCents: 50000000, ratePct: 3, monthlyCents: 50000, payDay: 9, dueDate: "2028-05-01", priority: 2, note: "svc" },
+      { name: "svc家人", type: "family", principalCents: 10000000, ratePct: 0, monthlyCents: null, payDay: null, dueDate: null, priority: 5, note: null },
+    ],
+    accounts: [{ name: "svc迁移账户", openingBalanceCents: 5660000 }],
+  };
+  const p1 = await importDebtsPreview(UA, data);
+  assert.equal(p1.rows.filter((r) => r.action === "create").length, 2, "首跑两行均为 create");
+  const c1 = await importDebtsCommit(UA, data);
+  assert.equal(c1.created, 2, "提交创建 2 笔");
+  assert.equal(c1.accountsCreated, 1, "创建 1 个账户");
+  const c2 = await importDebtsCommit(UA, data);
+  assert.equal(c2.created, 0, "重复提交零新建");
+  assert.equal(c2.skipped, 2, "重复提交全部 skip（幂等）");
+  const p2 = await importDebtsPreview(UA, data);
+  assert.ok(p2.rows.every((r) => r.action === "skip"), "二跑预览全 skip");
+});
+
+test("finance：备付清单计算/勾选/还款联动（R3）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await pool.query(`delete from liabilities where user_id = $1 and name like 'svc%'`, [UA]);
+  await pool.query(`delete from debt_reserve_checks where user_id = $1`, [UA]);
+  const { reserveOverview, setReserveCheck, autoCheckAfterPayment, currentMonthFirst } = await import("../src/server/finance");
+  const ym = currentMonthFirst().slice(0, 7);
+  // 建两笔：一笔月供+当月到期；一笔无月供无到期（家人）
+  const ins = await pool.query(
+    `insert into liabilities (user_id, name, type, principal_cents, balance_cents, rate_pct, monthly_cents, pay_day, due_date, priority, status)
+     values
+       ($1,'svc备付银行','mortgage',50000000,30000000,3,50000,9,$2,2,'active'),
+       ($1,'svc家人','family',10000000,10000000,0,null,null,null,5,'active')
+     returning id, name`,
+    [UA, `${ym}-28`],
+  );
+  const bankId = ins.rows.find((r: any) => r.name === "svc备付银行").id;
+  const famId = ins.rows.find((r: any) => r.name === "svc家人").id;
+
+  const ov = await reserveOverview(UA, ym);
+  const bank = ov.items.find((r) => r.name === "svc备付银行");
+  assert.ok(bank, "银行行应存在");
+  // 月供 50000 + 当月到期本金 30000000（due 2026-09-28 落 2026-09）
+  const ymMonth = `${ym}-28`;
+  const inMonth = ymMonth.slice(0, 7) === `${ym}`;
+  assert.equal(bank.extra, inMonth ? 30000000 : 0, "到期本金仅当月计入");
+  assert.equal(bank.pay, 50000);
+  assert.equal(bank.checked, false, "初始未勾选");
+  assert.ok(ov.items.some((r) => r.name === "svc家人"), "家人行应合并出现");
+
+  // 勾选单项
+  await setReserveCheck(UA, { ym, liabilityId: bankId, checked: true });
+  const ov2 = await reserveOverview(UA, ym);
+  assert.equal(ov2.items.find((r) => r.name === "svc备付银行")?.checked, true, "单项勾选生效");
+
+  // 一键清空
+  await setReserveCheck(UA, { ym, all: false, checked: false });
+  const ov3 = await reserveOverview(UA, ym);
+  assert.ok(ov3.items.every((r) => !r.checked), "一键清空生效");
+
+  // 还款联动：还款 ≥ need（50000+30000000）→ 自动勾选
+  await autoCheckAfterPayment(UA, bankId, 30050000);
+  const ov4 = await reserveOverview(UA, ym);
+  assert.equal(ov4.items.find((r) => r.name === "svc备付银行")?.checked, true, "还款联动自动勾选");
+
+  // 清理
+  await pool.query(`delete from liabilities where id in ($1,$2)`, [bankId, famId]);
+});
+
+test("trading：导入去重/日聚合/权益曲线/明细/摘要（R1）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  delete process.env.ZHIPUAI_API_KEY; // review 503 分支需要
+  // 幂等清理：上次运行残留
+  await pool.query(`delete from trade_accounts where user_id = $1`, [UA]);
+  const f = await import("../src/server/finance");
+  const rows: any[] = [
+    { ticket: 1001, direction: "buy", openTime: "2026-09-20T03:00:00Z", closeTime: "2026-09-21T04:30:00Z", lots: 0.5, profit: 120, commission: -2, swap: 0 },
+    { ticket: 1002, direction: "sell", openTime: "2026-09-21T08:00:00Z", closeTime: "2026-09-21T10:00:00Z", lots: 1, profit: -80, commission: -2, swap: -1 },
+    { ticket: 1003, direction: "buy", openTime: "2026-09-22T02:00:00Z", closeTime: "2026-09-22T05:00:00Z", lots: 0.5, profit: 60, commission: -2, swap: 0 },
+  ];
+  const dry = await f.importTrades(UA, { dryRun: true, login: "90099", fileName: "t.xlsx", source: "mt5_xlsx", rows });
+  assert.equal(dry.rowsNew, 3, "首跑 dryRun 全新");
+  const c = await f.importTrades(UA, { dryRun: false, login: "90099", nickname: "svc账号", fileName: "t.xlsx", source: "mt5_xlsx", rows });
+  assert.equal(c.rowsNew, 3);
+  const dry2 = await f.importTrades(UA, { dryRun: true, login: "90099", fileName: "t.xlsx", source: "mt5_xlsx", rows });
+  assert.equal(dry2.rowsDup, 3, "重复导入全命中去重");
+
+  const accounts = await f.listAccounts(UA);
+  const acc = accounts.accounts.find((a: any) => a.login === "90099");
+  assert.ok(acc && acc.trades === 3 && acc.winRate === 67, `账号汇总：${JSON.stringify(acc)}`);
+
+  // 北京时区日切：2026-09-21T04:30Z = 北京 12:30（9-21）；08:00Z = 16:00（9-21）
+  const daily = await f.dailyPnl(UA, acc.id, "2026-09-01", "2026-09-30");
+  const d21 = daily.days.find((d: any) => d.ymd === "2026-09-21");
+  assert.ok(d21, "9-21 应有平仓（北京切日）");
+  assert.equal(d21.count, 2, "9-21 两笔");
+  assert.equal(Number(d21.net.toFixed(2)), 35, "9-21 净额 = 118 + (-83) = 35（含佣金/库存费）");
+
+  const eq = await f.equityCurve(UA, acc.id);
+  assert.equal(eq.points.length >= 2, true, "权益曲线至少两天");
+  assert.equal(eq.totalNet, 93, "总净盈亏 118-83+58=93");
+  assert.ok(eq.phases, "两阶段统计存在");
+
+  const list = await f.listTrades(UA, { accountId: acc.id, dir: "sell" });
+  assert.equal(list.total, 1, "sell 筛选 1 笔");
+  const big = await f.listTrades(UA, { accountId: acc.id, pnlBand: "bigWin" });
+  assert.equal(big.total, 1, "大赢单 1001");
+
+  const digest = await f.buildDigest(UA, acc.id);
+  assert.ok(digest.facts.includes("累计净盈亏"), "digest 含素材文案");
+  assert.ok(digest.notable.length >= 3, "典型逐笔存在");
+
+  // review：无 KEY → 503 ApiError（E2E 生成链路在预发用真 KEY 验证）
+  await assert.rejects(
+    () => f.generateTradingReview(UA, acc.id, "admin", false),
+    (e: any) => e?.status === 503 || e?.status === 402,
+  );
+  // 清理
+  await pool.query(`delete from trade_accounts where user_id = $1`, [UA]);
+});
+
 test("teardown: 清理 svc 测试数据", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");

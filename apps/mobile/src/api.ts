@@ -109,3 +109,21 @@ export async function transcribe(fileUri: string): Promise<string> {
   const j = await apiUpload<{ text: string }>("/api/asr", fileUri);
   return j.text;
 }
+
+// —— 交易（REQ-005 FR-1.8 只读屏；返回结构宽松 any，仅取展示字段） ——
+
+/** 交易账号列表 + 汇总（FR-1.3）：GET /api/trading/accounts → { accounts: [...] } */
+export async function loadTradingAccounts(): Promise<any> {
+  return apiGet<any>("/api/trading/accounts");
+}
+
+/**
+ * 近 days 日按日盈亏（FR-1.4）：GET /api/trading/daily?accountId=&from=&to= → { days: [...] }
+ * from/to 按北京时区（UTC+8）计算：to = 北京今天，from = 往前 days-1 天，YYYY-MM-DD 含首尾
+ */
+export async function loadTradingDaily(accountId: string, days: number): Promise<any> {
+  const bj = (ago: number) => new Date(Date.now() + 8 * 3600_000 - ago * 86400_000).toISOString().slice(0, 10);
+  const to = bj(0);
+  const from = bj(days - 1);
+  return apiGet<any>(`/api/trading/daily?accountId=${encodeURIComponent(accountId)}&from=${from}&to=${to}`);
+}

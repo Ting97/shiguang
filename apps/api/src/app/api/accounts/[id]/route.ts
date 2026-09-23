@@ -13,6 +13,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     icon?: string;
     openingBalanceCents?: number;
     archived?: boolean;
+    reserveTracked?: boolean; // REQ-005 FR-3.3：参与备付覆盖统计
   };
 
   const sets: string[] = [];
@@ -35,6 +36,10 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
   if (body.archived != null) {
     vals.push(body.archived);
     sets.push(`archived = $${vals.length}`);
+  }
+  if (body.reserveTracked != null) {
+    vals.push(body.reserveTracked);
+    sets.push(`reserve_tracked = $${vals.length}`);
   }
   if (sets.length === 0) throw ApiError.badRequest("没有可更新的字段");
   vals.push(id, user.id);

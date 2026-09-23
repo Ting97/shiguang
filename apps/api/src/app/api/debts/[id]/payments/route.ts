@@ -3,7 +3,7 @@ import { pool } from "@/server/platform/db";
 import { withAuthParams, type AuthedCtx } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { getModuleUser } from "@/server/platform";
-import { serializeDebt, serializePayment } from "@/server/finance";
+import { serializeDebt, serializePayment, autoCheckAfterPayment } from "@/server/finance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,6 +103,8 @@ export const POST = withDebtParams(async (req, { user, params }) => {
       )
     ).rows[0];
     await client.query("commit");
+    // REQ-005 FR-3.4：记还款 ≥ 当月应还 → 自动勾选备付（幂等；事务外执行，失败不影响还款）
+    void autoCheckAfterPayment(user.id, id, body.amountCents as number).catch(() => {});
     return NextResponse.json({ payment: serializePayment(payment), debt: serializeDebt(updated), transactionId: txId });
   } catch (e) {
     await client.query("rollback");

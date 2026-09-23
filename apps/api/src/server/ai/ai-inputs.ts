@@ -195,6 +195,14 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     injects: [...REVIEW_INJECTS(true), ...REVIEW_REQUIRED],
     caps: REVIEW_CAPS(60, 100, 100),
   },
+  trading_review: {
+    userTemplate: `{facts}`,
+    placeholders: ["facts"],
+    injects: [
+      REQ("facts", "交易规则统计素材", "权益概况/回撤段点名/两阶段对比/时段时长方向分布/典型逐笔", "trades 服务端聚合（digest）"),
+    ],
+    caps: [],
+  },
   trade_review_week: {
     userTemplate: `{facts}
 

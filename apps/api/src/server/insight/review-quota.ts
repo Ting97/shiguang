@@ -9,7 +9,7 @@ import { pool } from "@/server/platform/db";
  * bonus 不提前解锁日/周的晚 8 点预留份额。
  */
 
-export const REVIEW_LIMITS = { day: 2, week: 5, month: 10, year: 24, trade_week: 5 } as const;
+export const REVIEW_LIMITS = { day: 2, week: 5, month: 10, year: 24, trade_week: 5, trading: 5 } as const;
 export type ReviewKind = keyof typeof REVIEW_LIMITS;
 
 const _UNLOCK_HOUR = 20; // 晚 8 点（北京时间）统一解锁点
@@ -35,7 +35,8 @@ export function timeCeiling(kind: ReviewKind, periodKey: string, nowMs = Date.no
       if (periodKey > today) return 0; // 未来
       return nowMs < eveningOf(today) ? 1 : M; // 当天 20:00 前留 1 次
     case "week":
-    case "trade_week": {
+    case "trade_week":
+    case "trading": {
       if (periodKey < monday) return M; // 历史周：全开
       if (periodKey > monday) return 0;
       const sunday = ymd(new Date(Date.parse(`${monday}T00:00:00Z`) + 6 * 86_400_000));
@@ -74,6 +75,7 @@ function gateMessage(kind: ReviewKind, periodKey: string, ceiling: number, M: nu
         : `今日小结可用次数已用完（今日 20:00 后解锁第 ${M} 次）`;
     case "week":
     case "trade_week":
+    case "trading":
       if (kind === "trade_week")
         return past
           ? `该周交易周报生成次数已用完（上限 ${M} 次）`

@@ -117,6 +117,7 @@ const AUTHED_GETS: Array<[string, string]> = [
   ["budget", "/api/budget"],
   ["debts", "/api/debts"],
   ["debts/overview", "/api/debts/overview"],
+  ["debts/reserve", "/api/debts/reserve?ym=2026-09"],
   ["debts/[id]", "/api/debts/x"],
   ["debts/[id]/payments", "/api/debts/x/payments"],
   ["finance/overview", "/api/finance/overview?month=2026-09"],
@@ -134,6 +135,12 @@ const AUTHED_GETS: Array<[string, string]> = [
   ["admin/prompts/[key]", "/api/admin/prompts/parse"],
   ["billing/users", "/api/billing/users"],
   ["files/[...key]", "/api/files/2026/01/x.jpg"],
+  ["trading/accounts", "/api/trading/accounts"],
+  ["trading/daily", "/api/trading/daily?accountId=x&from=2026-09-01&to=2026-09-30"],
+  ["trading/equity", "/api/trading/equity?accountId=x"],
+  ["trading/trades", "/api/trading/trades?accountId=x"],
+  ["trading/digest", "/api/trading/digest?accountId=x"],
+  ["trading/review", "/api/trading/review?accountId=x"],
 ];
 
 test("鉴权层：无凭证 GET 全部 401", async (t) => {
@@ -183,6 +190,10 @@ test("鉴权层：无凭证写操作全部 401", async (t) => {
     ["POST", "transactions/import", "/api/transactions/import"],
     ["PUT", "budget", "/api/budget"],
     ["POST", "debts", "/api/debts"],
+    ["POST", "debts/import", "/api/debts/import"],
+    ["POST", "trading/import", "/api/trading/import"],
+    ["POST", "trading/review", "/api/trading/review"],
+    ["PUT", "debts/reserve", "/api/debts/reserve"],
     ["PATCH", "debts/[id]", "/api/debts/x"],
     ["DELETE", "debts/[id]", "/api/debts/x"],
     ["POST", "debts/simulate", "/api/debts/simulate"],
@@ -216,6 +227,15 @@ test("权限层：管理员路由普通用户 403", async (t) => {
     const { status } = await call(method, path, { user: UB });
     assert.equal(status, 403, `${path} 普通用户应 403`);
   }
+});
+
+test("权限层：trading 模块未授权用户 403（admin 直通 200）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  const b = await call("GET", "/api/trading/accounts", { user: UB });
+  assert.equal(b.status, 403, "未授权普通用户访问 trading 应 403");
+  const a = await call("GET", "/api/trading/accounts", { user: UA });
+  assert.equal(a.status, 200, "admin 访问 trading 应直通 200");
 });
 
 test("权限层：debt 模块未授权用户 403（admin 直通 200）", async (t) => {
@@ -272,6 +292,7 @@ test("正常层：核心读接口 200", async (t) => {
     ["budget", "/api/budget"],
     ["debts", "/api/debts"],
     ["debts/overview", "/api/debts/overview"],
+  ["debts/reserve", "/api/debts/reserve?ym=2026-09"],
     ["finance/overview", "/api/finance/overview?month=2026-09"],
     ["finance/stats", "/api/finance/stats?month=2026-09"],
     ["review", "/api/review?kind=week&period=2026-09"],

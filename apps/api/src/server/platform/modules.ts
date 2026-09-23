@@ -6,7 +6,7 @@
 import { pool } from "@/server/platform/db";
 import { getCurrentUser, type SessionUser } from "@/server/identity/auth";
 
-export const MODULES = ["debt", "trade_review"] as const;
+export const MODULES = ["debt", "trade_review", "trading"] as const;
 export type ModuleKey = (typeof MODULES)[number];
 
 export async function getModuleUser(module: ModuleKey): Promise<SessionUser | null> {

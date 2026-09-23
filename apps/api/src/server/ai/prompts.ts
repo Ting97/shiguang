@@ -13,6 +13,7 @@ import {
   REVIEW_YEAR_SYSTEM,
   PROFILE_MERGE_SYSTEM,
   TRADE_REVIEW_WEEK_SYSTEM,
+  TRADING_REVIEW_SYSTEM,
 } from "@/server/insight/review-prompts";
 import { OPEN_VOCAB_SYSTEM_PROMPT } from "@shiguangri/ai";
 import { AI_INPUT_REGISTRY, mergeContextConfig } from "./ai-inputs";
@@ -31,6 +32,7 @@ export const PROMPT_KEYS = [
   "review_month",
   "review_year",
   "trade_review_week",
+  "trading_review",
   "profile_merge",
   "space_classify",
   "todo_decompose",
@@ -53,6 +55,7 @@ export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" 
   review_month: { title: "月复盘", category: "复盘" },
   review_year: { title: "年复盘", category: "复盘" },
   trade_review_week: { title: "交易周复盘", category: "复盘" },
+  trading_review: { title: "交易 AI 复盘", category: "复盘" },
   profile_merge: { title: "月报画像合并", category: "复盘" },
   space_classify: { title: "空间归属分类", category: "目标" },
   todo_decompose: { title: "todo AI 拆解", category: "目标" },
@@ -74,6 +77,7 @@ const DEFAULT_PROMPTS: Record<PromptKey, string> = {
   review_month: REVIEW_MONTH_SYSTEM,
   review_year: REVIEW_YEAR_SYSTEM,
   trade_review_week: TRADE_REVIEW_WEEK_SYSTEM,
+  trading_review: TRADING_REVIEW_SYSTEM,
   profile_merge: PROFILE_MERGE_SYSTEM,
   space_classify: `你是"拾光"App 的目标空间分类器。判断用户的这条记录是否服务于某个「目标空间」（用户定义的长期目标容器，如考研上岸、副业过万、完成全马）。
 

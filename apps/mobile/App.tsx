@@ -15,7 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Canvas, Circle, RadialGradient, vec } from "@shopify/react-native-skia";
 import { Audio } from "expo-av";
-import { getToken, loadFeed, login, sendText, transcribe, type Moment } from "./src/api";
+import { ApiError, getToken, loadFeed, loadTradingAccounts, loadTradingDaily, login, sendText, transcribe, type Moment } from "./src/api";
 
 const C = {
   bg: "#020617", card: "#0f172a", line: "#1e293b",
@@ -121,6 +121,8 @@ const haptic = {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [token, setTokenState] = useState<string | null>(null);
+  // 顶部「📝 动态 | 📈 交易」组件级切换（仿 Login/Home 先例）
+  const [screen, setScreen] = useState<"feed" | "trades">("feed");
 
   useEffect(() => {
     (async () => {
@@ -138,7 +140,13 @@ export default function App() {
   if (!ready) {
     return <Center><ActivityIndicator color={THEMES.dark.accentBright} /></Center>;
   }
-  return token ? <Home onLogout={() => setTokenState(null)} /> : <Login onOk={() => setTokenState("1")} />;
+  return token ? (
+    screen === "trades"
+      ? <Trades onLogout={() => setTokenState(null)} onScreen={setScreen} />
+      : <Home onLogout={() => setTokenState(null)} onScreen={setScreen} />
+  ) : (
+    <Login onOk={() => setTokenState("1")} />
+  );
 }
 
 // —— 氛围组件 ——
@@ -349,7 +357,7 @@ function BlurInput({
 
 // —— 主界面：动态流 + 底部中央悬浮圆圈（点按=文字 / 长按=语音） ——
 
-function Home({ onLogout }: { onLogout: () => void }) {
+function Home({ onLogout, onScreen }: { onLogout: () => void; onScreen?: (s: "feed" | "trades") => void }) {
   const scheme = useColorScheme();
   const t = THEMES[scheme === "light" ? "light" : "dark"];
   const [moments, setMoments] = useState<Moment[]>([]);
@@ -620,8 +628,18 @@ function Home({ onLogout }: { onLogout: () => void }) {
       >
         <View style={[s.navInner, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
           <Text style={[s.navBrand, { color: t.title }]}>拾光</Text>
-          <View style={[s.navChip, { backgroundColor: t.elevated }]}>
-            <Text style={[s.navChipText, { color: t.inkSoft }]}>📝 动态</Text>
+          {/* 「📝 动态 | 📈 交易」切换：当前屏高亮（交易入口，只读） */}
+          <View style={s.navTabs}>
+            <View style={[s.navChip, { backgroundColor: t.elevated }]}>
+              <Text style={[s.navChipText, { color: t.inkSoft }]}>📝 动态</Text>
+            </View>
+            {onScreen && (
+              <Pressable onPress={() => onScreen("trades")} hitSlop={6}>
+                <View style={[s.navChip, { borderWidth: 1, borderColor: t.lineSoft }]}>
+                  <Text style={[s.navChipText, { color: t.inkMute }]}>📈 交易</Text>
+                </View>
+              </Pressable>
+            )}
           </View>
           <View style={{ flex: 1 }} />
           <Pressable onPress={onLogout} hitSlop={8}>
@@ -778,6 +796,257 @@ function Home({ onLogout }: { onLogout: () => void }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+    </View>
+  );
+}
+
+// —— 交易（REQ-005 FR-1.8 只读屏：账号汇总 + 近 30 日每日盈亏 + 权益累计曲线；无任何写/导入口） ——
+
+function Trades({ onLogout, onScreen }: { onLogout: () => void; onScreen: (s: "feed" | "trades") => void }) {
+  const scheme = useColorScheme();
+  const t = THEMES[scheme === "light" ? "light" : "dark"];
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [days, setDays] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const account = accounts.find((a) => a.id === accountId) ?? accounts[0] ?? null;
+
+  /** 401 与现有 apiGet 错误路径一致地退出登录；其余展示错误文案 */
+  const onFail = useCallback((e: unknown) => {
+    if ((e instanceof ApiError && e.status === 401) || (e instanceof Error && e.message.includes("401"))) {
+      onLogout();
+      return;
+    }
+    setErr(e instanceof Error ? e.message : "加载失败");
+  }, [onLogout]);
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      const j: any = await loadTradingAccounts();
+      const list: any[] = j?.accounts ?? [];
+      setAccounts(list);
+      setAccountId((prev) => (prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? null));
+      setErr(null);
+    } catch (e) {
+      onFail(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [onFail]);
+
+  const loadDaily = useCallback(async () => {
+    if (!accountId) {
+      setDays([]);
+      setRefreshing(false);
+      return;
+    }
+    try {
+      const j: any = await loadTradingDaily(accountId, 30);
+      setDays(j?.days ?? []);
+      setErr(null);
+    } catch (e) {
+      onFail(e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [accountId, onFail]);
+
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
+
+  useEffect(() => {
+    loadDaily();
+  }, [loadDaily]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    haptic.tap();
+    await Promise.all([loadAccounts(), loadDaily()]);
+  }, [loadAccounts, loadDaily]);
+
+  /** USD 金额：负数带 - 号，`$` 前缀 */
+  const usd = (v: number) => `${v < 0 ? "-" : ""}$${Math.abs(Number(v) || 0).toFixed(2)}`;
+
+  // 权益累计：按服务端升序 ymd 累加 net，柱高在 [min,max] 间归一（View 柱状近似曲线）
+  const curve = useMemo(() => {
+    let acc = 0;
+    const pts = days.map((d) => (acc += Number(d.net) || 0));
+    const max = Math.max(...pts, 0);
+    const min = Math.min(...pts, 0);
+    const range = max - min || 1;
+    return pts.map((v) => ({ v, h: 6 + ((v - min) / range) * 46 }));
+  }, [days]);
+  const curveTotal = curve.length > 0 ? curve[curve.length - 1].v : 0;
+  const firstYmd = days[0]?.ymd;
+  const lastYmd = days[days.length - 1]?.ymd;
+
+  // 每日列表：最新在前
+  const listDays = useMemo(() => [...days].sort((a, b) => (a.ymd < b.ymd ? 1 : -1)), [days]);
+
+  const net = Number(account?.netProfit ?? 0);
+  const name = account?.nickname || account?.login || "";
+
+  const header = (
+    <>
+      {accounts.length > 1 && (
+        <View style={s.acctWrap}>
+          {accounts.map((a) => {
+            const on = a.id === accountId;
+            return (
+              <Pressable key={a.id} onPress={() => { haptic.tap(); setAccountId(a.id); }} hitSlop={4}>
+                <View style={[s.acctChip, { borderColor: on ? t.accent : t.lineSoft, backgroundColor: on ? t.bg : "transparent" }]}>
+                  <Text style={[s.acctChipText, { color: on ? t.accent : t.inkMute }]} numberOfLines={1}>
+                    {a.nickname || a.login}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {/* 账号汇总卡 */}
+      {account && (
+        <View style={[s.card, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+          <LinearGradient
+            colors={["rgba(255,255,255,0.14)", "rgba(255,255,255,0)"]}
+            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+            style={s.cardHighlight}
+            pointerEvents="none"
+          />
+          <View style={s.sumHead}>
+            <Text style={[s.sumLabel, { color: t.inkMute }]}>总净盈亏</Text>
+            {name ? <Text style={[s.sumName, { color: t.inkDim }]} numberOfLines={1}>{name}</Text> : null}
+          </View>
+          <Text style={[s.sumNet, { color: net >= 0 ? t.success : t.danger }]}>{usd(net)}</Text>
+          <View style={s.sumRow}>
+            <View style={s.sumItem}>
+              <Text style={[s.sumItemNum, { color: t.ink }]}>{account.winRate == null ? "—" : `${account.winRate}%`}</Text>
+              <Text style={[s.sumItemLabel, { color: t.inkDim }]}>胜率</Text>
+            </View>
+            <View style={s.sumItem}>
+              <Text style={[s.sumItemNum, { color: t.ink }]}>{Number(account.trades) || 0}</Text>
+              <Text style={[s.sumItemLabel, { color: t.inkDim }]}>笔数</Text>
+            </View>
+            <View style={s.sumItem}>
+              <Text style={[s.sumItemNum, { color: t.ink }]}>{(Number(account.lots) || 0).toFixed(2)}</Text>
+              <Text style={[s.sumItemLabel, { color: t.inkDim }]}>手数</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* 权益累计曲线（近 30 日）：View 柱状近似，绿涨红跌 */}
+      <View style={[s.card, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+        <View style={s.chartHead}>
+          <Text style={[s.sectionTitle, { color: t.inkSoft }]}>📈 权益累计（近 30 日）</Text>
+          {days.length > 0 && (
+            <Text style={[s.chartTotal, { color: curveTotal >= 0 ? t.success : t.danger }]}>{usd(curveTotal)}</Text>
+          )}
+        </View>
+        {days.length === 0 ? (
+          <Text style={[s.chartEmpty, { color: t.inkMute }]}>近 30 日暂无交易</Text>
+        ) : (
+          <>
+            <View style={[s.chartBars, { borderBottomColor: t.lineSoft }]}>
+              {curve.map((p, i) => (
+                <View key={i} style={[s.chartBar, { height: p.h, backgroundColor: p.v >= 0 ? t.success : t.danger, opacity: 0.85 }]} />
+              ))}
+            </View>
+            <View style={s.chartLabels}>
+              <Text style={[s.chartLabel, { color: t.inkDim }]}>{firstYmd?.slice(5)}</Text>
+              <Text style={[s.chartLabel, { color: t.inkDim }]}>{lastYmd?.slice(5)}</Text>
+            </View>
+          </>
+        )}
+      </View>
+
+      <Text style={[s.sectionTitle2, { color: t.inkDim }]}>近 30 日每日盈亏</Text>
+    </>
+  );
+
+  return (
+    <View style={[s.root, { backgroundColor: t.bg }]}>
+      <StatusBar style={scheme === "light" ? "dark" : "light"} />
+      <AuroraBackground t={t} />
+
+      {/* 顶栏：与 Home 同款毛玻璃 pill，「📝 动态 | 📈 交易」切换 */}
+      <BlurView
+        intensity={scheme === "light" ? 70 : 55}
+        tint={t.blurTint}
+        experimentalBlurMethod="dimezisBlurView"
+        style={[s.nav, { overflow: "hidden" }]}
+      >
+        <View style={[s.navInner, { backgroundColor: t.surfaceSoft, borderColor: t.glassBorder }]}>
+          <Text style={[s.navBrand, { color: t.title }]}>拾光</Text>
+          <View style={s.navTabs}>
+            <Pressable onPress={() => onScreen("feed")} hitSlop={6}>
+              <View style={[s.navChip, { borderWidth: 1, borderColor: t.lineSoft }]}>
+                <Text style={[s.navChipText, { color: t.inkMute }]}>📝 动态</Text>
+              </View>
+            </Pressable>
+            <View style={[s.navChip, { backgroundColor: t.elevated }]}>
+              <Text style={[s.navChipText, { color: t.inkSoft }]}>📈 交易</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }} />
+          <Pressable onPress={onLogout} hitSlop={8}>
+            <Text style={[s.navExit, { color: t.inkMute }]}>退出</Text>
+          </Pressable>
+        </View>
+      </BlurView>
+
+      <View style={s.head}>
+        <Text style={[s.headTitle, { color: t.title }]}>
+          拾光 <Text style={[s.headSub, { color: t.inkDim }]}>交易</Text>
+        </Text>
+        <Text style={[s.headDesc, { color: t.inkMute }]}>只读概览：账号汇总 · 每日盈亏 · 权益累计（数据来自网页端导入）</Text>
+      </View>
+
+      {err && (
+        <View style={[s.banner, { backgroundColor: t.bannerErrBg, borderColor: t.bannerErrBorder }]}>
+          <Text style={{ color: t.danger, fontSize: 12, lineHeight: 18 }}>{err}</Text>
+        </View>
+      )}
+
+      {loading ? (
+        <View style={s.list}>
+          {[0, 140, 280].map((d) => (
+            <SkeletonCard key={d} t={t} delay={d} />
+          ))}
+        </View>
+      ) : accounts.length === 0 ? (
+        <Text style={[s.empty, { color: t.inkMute }]}>还没有交易账号，请先在网页端导入（此处只读）</Text>
+      ) : (
+        <FlatList
+          data={listDays}
+          keyExtractor={(d, i) => String(d.ymd ?? i)}
+          contentContainerStyle={s.list}
+          ListHeaderComponent={header}
+          ListEmptyComponent={<Text style={[s.empty, { color: t.inkMute }]}>近 30 日暂无交易记录</Text>}
+          renderItem={({ item }) => (
+            <View style={[s.dayRow, { borderBottomColor: t.lineSoft }]}>
+              <Text style={[s.dayDate, { color: t.inkSoft }]}>{String(item.ymd ?? "").slice(5)}</Text>
+              <Text style={[s.dayCount, { color: t.inkDim }]}>{Number(item.count) || 0} 笔</Text>
+              <Text style={[s.dayNet, { color: Number(item.net) >= 0 ? t.success : t.danger }]}>{usd(Number(item.net))}</Text>
+            </View>
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={t.accentBright}
+              colors={[t.accentBright]}
+              progressBackgroundColor={t.surface}
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -955,4 +1224,37 @@ const s = StyleSheet.create({
   sheetHint: { fontSize: 11, flex: 1, marginRight: 10 },
   gradBtnWrapSheet: { borderRadius: 12, overflow: "hidden" },
   gradBtnSheet: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 12, alignItems: "center" },
+  // 顶栏「动态 | 交易」切换 chip 组
+  navTabs: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // 交易屏（Trades 只读）
+  acctWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  acctChip: { maxWidth: 160, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  acctChipText: { fontSize: 12 },
+  sumHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  sumLabel: { fontSize: 12 },
+  sumName: { fontSize: 12, flexShrink: 1 },
+  sumNet: { fontSize: 30, fontWeight: "700", marginTop: 4, fontVariant: ["tabular-nums"] },
+  sumRow: { flexDirection: "row", marginTop: 12 },
+  sumItem: { flex: 1, alignItems: "center", gap: 2 },
+  sumItemNum: { fontSize: 16, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  sumItemLabel: { fontSize: 11 },
+  chartHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chartTotal: { fontSize: 13, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  chartBars: {
+    flexDirection: "row", alignItems: "flex-end", gap: 2,
+    height: 52, marginTop: 12, borderBottomWidth: 1,
+  },
+  chartBar: { flex: 1, borderRadius: 2 },
+  chartLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
+  chartLabel: { fontSize: 10, fontVariant: ["tabular-nums"] },
+  chartEmpty: { fontSize: 12, textAlign: "center", paddingVertical: 24 },
+  sectionTitle: { fontSize: 13, fontWeight: "600" },
+  sectionTitle2: { fontSize: 12, marginTop: 16, marginBottom: 8, letterSpacing: 1 },
+  dayRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, borderBottomWidth: 1,
+  },
+  dayDate: { width: 56, fontSize: 13, fontVariant: ["tabular-nums"] },
+  dayCount: { fontSize: 12, flex: 1 },
+  dayNet: { fontSize: 13, fontWeight: "600", fontVariant: ["tabular-nums"] },
 });

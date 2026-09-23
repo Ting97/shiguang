@@ -14,6 +14,8 @@ import { DEBT_TYPE_META, yuan } from "@/lib/finance";
  */
 
 import { fmt } from "../../../components/debt/kit";
+import ReserveSection from "../../../components/debt/reserve-section";
+import DebtImportDrawer from "../../../components/debt/import-drawer";
 import { api, ApiClientError } from "@/shared/api";
 import type { Debt, Overview, Account, SimResult } from "../../../components/debt/kit";
 import { Modal, DebtForm, PaymentForm } from "../../../components/debt/forms";
@@ -29,6 +31,7 @@ export default function DebtPage() {
   const [extra, setExtra] = useState(100000); // 每月额外还款（分），默认 ¥1000
   const [sim, setSim] = useState<SimResult | null>(null);
   const [simBusy, setSimBusy] = useState(false);
+  const [importing, setImporting] = useState(false); // REQ-005 R2 导入抽屉
 
   useEffect(() => {
     if (!msg) return;
@@ -166,6 +169,9 @@ export default function DebtPage() {
               )}
             </section>
 
+            {/* 备付（REQ-005 R3）：当月应还清单 + 勾选 + 储蓄覆盖 */}
+            <ReserveSection />
+
             {/* 到期墙 */}
             {ov.wall.length > 0 && (
               <section className="mb-4 rounded-2xl border border-line-soft bg-surface/50 p-5">
@@ -202,9 +208,18 @@ export default function DebtPage() {
                   <TagChip icon="🏦" label="负债档案" tone="rose" />
                   <span className="text-xs font-normal text-ink-dim">{active.length} 笔进行中</span>
                 </h2>
-                <button onClick={() => setEditing("new")} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
-                  ＋ 新建档案
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setImporting(true)}
+                    title="从 trade.ting97.cn 导出的 JSON 导入"
+                    className="rounded-xl border border-line-soft px-3 py-1.5 text-xs text-ink-mute transition hover:text-accent"
+                  >
+                    📥 导入
+                  </button>
+                  <button onClick={() => setEditing("new")} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
+                    ＋ 新建档案
+                  </button>
+                </div>
               </div>
 
               {active.length === 0 && (
@@ -372,6 +387,18 @@ export default function DebtPage() {
             }}
           />
         </Modal>
+      )}
+
+      {/* R2 负债导入抽屉 */}
+      {importing && (
+        <DebtImportDrawer
+          open={importing}
+          onClose={() => setImporting(false)}
+          onDone={async () => {
+            setMsg({ ok: true, text: "✅ 导入完成" });
+            await load();
+          }}
+        />
       )}
 
       {/* 还款弹层 */}
