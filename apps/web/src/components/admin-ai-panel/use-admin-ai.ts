@@ -1,0 +1,279 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { api } from "@/shared/api";
+import { MODE_META, validateTpl, zhTime } from "./kit";
+import type { EngineMode, PromptItem, Version } from "./types";
+
+/**
+ * AI 管理面板取数与提交逻辑（自 admin-ai-panel.tsx 原样迁出）：
+ * prompt 清单加载 / 三段式草稿状态 / 保存·恢复默认·回滚 / AI 优化 / 装配预览 / 引擎模式开关。
+ */
+export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
+  const [items, setItems] = useState<PromptItem[] | null>(null);
+  const [sel, setSel] = useState<PromptItem | null>(null);
+  const [draft, setDraft] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+  const [optHint, setOptHint] = useState("");
+  const [optimizing, setOptimizing] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  // 引擎模式开关
+  const [engineMode, setEngineMode] = useState<EngineMode>("off");
+  const [engineEnvDefault, setEngineEnvDefault] = useState<EngineMode>("off");
+  const [engineSaving, setEngineSaving] = useState(false);
+  // 3-A 输入装配
+  const [tplDraft, setTplDraft] = useState("");
+  const [injectDraft, setInjectDraft] = useState<Record<string, boolean>>({});
+  const [capsDraft, setCapsDraft] = useState<Record<string, number>>({});
+  const [previewSample, setPreviewSample] = useState("");
+  const [previewPeriod, setPreviewPeriod] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  // 版本历史
+  const [versions, setVersions] = useState<Version[] | null>(null);
+  const [showVersions, setShowVersions] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const j = await api<any>("/api/admin/prompts");
+      setItems(j.items as PromptItem[]);
+      return j.items as PromptItem[];
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "加载失败", false);
+    }
+  }, [notify]);
+
+  const loadVersions = useCallback(async (key: string) => {
+    try {
+      const j = await api<any>(`/api/admin/prompts/${key}`);
+      setVersions(j.versions);
+    } catch {
+      setVersions(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    load().then((list) => {
+      if (list?.length) pick(list[0]);
+    });
+    api("/api/admin/ai-mode")
+      .then((j) => {
+        setEngineMode(j.mode);
+        setEngineEnvDefault(j.envDefault);
+      })
+      .catch(() => {});
+    // （原文件的 react-hooks/exhaustive-deps disable 注释不迁移：该规则在本仓库 eslint 配置中已全局关闭）
+  }, []);
+
+  async function switchEngineMode(mode: EngineMode) {
+    if (engineSaving || mode === engineMode) return;
+    setEngineSaving(true);
+    try {
+      await api("/api/admin/ai-mode", "PUT", { mode });
+      setEngineMode(mode);
+      notify(`调用引擎已切换为「${MODE_META[mode].label}」，立即生效`);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), false);
+    } finally {
+      setEngineSaving(false);
+    }
+  }
+
+  function pick(item: PromptItem) {
+    setSel(item);
+    setDraft(item.dbContent ?? item.defaultContent);
+    setEnabled(item.enabled);
+    setDirty(false);
+    setSuggestion(null);
+    setShowCompare(false);
+    setTplDraft(item.userTemplate ?? item.userTemplateDefault);
+    setInjectDraft({ ...item.effectiveConfig.inject });
+    setCapsDraft({ ...item.effectiveConfig.caps });
+    setPreviewText(null);
+    setPreviewSample("");
+    setPreviewPeriod("");
+    void loadVersions(item.key);
+  }
+
+  const tplMissing = sel ? validateTpl(tplDraft, sel.registry.placeholders).missing : [];
+  const tplUnknown = sel ? validateTpl(tplDraft, sel.registry.placeholders).unknown : [];
+  const tplDirty = sel ? tplDraft !== sel.userTemplateDefault || !!sel.userTemplate : false;
+  const cfgDirty = sel
+    ? sel.registry.injects.some((i) => (injectDraft[i.key] ?? i.default) !== (sel.effectiveConfig.inject[i.key] ?? i.default)) ||
+      sel.registry.caps.some((c) => (capsDraft[c.key] ?? c.default) !== (sel.effectiveConfig.caps[c.key] ?? c.default))
+    : false;
+
+  async function save() {
+    if (!sel || !draft.trim() || saving) return;
+    if (tplMissing.length || tplUnknown.length) {
+      notify(`user 模板占位符未通过：${[...tplMissing.map((x) => `{${x}}缺失`), ...tplUnknown.map((x) => `{${x}}未知`)].join("、")}`, false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await api(`/api/admin/prompts/${sel.key}`, "PUT", {
+        content: draft,
+        enabled,
+        // 改回默认值 = 清除覆盖（null）；有改动才提交覆盖
+        userTemplate: tplDirty ? tplDraft : null,
+        contextConfig: cfgDirty ? { inject: injectDraft, caps: capsDraft } : null,
+      });
+      notify(`「${sel.title}」已保存并即时生效`);
+      const list = await load();
+      const fresh = list?.find((x) => x.key === sel.key);
+      if (fresh) pick(fresh);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function revertDefault() {
+    if (!sel || !window.confirm(`恢复「${sel.title}」为代码默认值？（删除 DB 覆盖：system/user 模板/注入配置全部回退，立即生效）`)) return;
+    try {
+      await api(`/api/admin/prompts/${sel.key}`, "DELETE");
+      notify(`「${sel.title}」已恢复代码默认`);
+      const list = await load();
+      const fresh = list?.find((x) => x.key === sel.key);
+      if (fresh) pick(fresh);
+    } catch {
+      notify("操作失败", false);
+    }
+  }
+
+  async function rollback(v: Version) {
+    if (!sel || !window.confirm(`整体回滚到 ${zhTime(v.created_at)} 的版本？（system + user 模板 + 注入配置三件套，立即生效）`)) return;
+    try {
+      await api(`/api/admin/prompts/${sel.key}/restore`, "POST", { versionId: v.id });
+      notify(`已回滚到 ${zhTime(v.created_at)} 的版本`);
+      const list = await load();
+      const fresh = list?.find((x) => x.key === sel.key);
+      if (fresh) pick(fresh);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "回滚失败", false);
+    }
+  }
+
+  async function optimize() {
+    if (!sel || optimizing) return;
+    setOptimizing(true);
+    setSuggestion(null);
+    try {
+      const j = await api<any>(`/api/admin/prompts/${sel.key}/optimize`, "POST", { hint: optHint });
+      setSuggestion(j.suggestion);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), false);
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
+  async function runPreview() {
+    if (!sel || previewing) return;
+    setPreviewing(true);
+    try {
+      const j = await api<any>(`/api/admin/prompts/${sel.key}/preview`, "POST", {
+        sample: previewSample || undefined,
+        period: previewPeriod || undefined,
+      });
+      setPreviewText(j.userPrompt);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), false);
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  /** 采纳 AI 优化建议到编辑器（原内联 onClick；按钮仅在 suggestion 非空时渲染，守卫不可达） */
+  function adoptSuggestion() {
+    if (suggestion === null) return;
+    setDraft(suggestion);
+    setDirty(true);
+    setSuggestion(null);
+    notify("已采纳到编辑器（未保存）");
+  }
+
+  /** 一键补齐缺失占位符：追加在模板末尾（原内联 onClick；仅缺失占位符可点，守卫与之等价） */
+  function fillMissingPlaceholder(p: string) {
+    if (!sel) return;
+    if (!validateTpl(tplDraft, sel.registry.placeholders).missing.includes(p)) return;
+    const fixed = tplDraft.replace(/\s*$/, "") + "\n" + sel.registry.placeholders.filter((x) => validateTpl(tplDraft, sel.registry.placeholders).missing.includes(x)).map((x) => `{${x}}`).join(" ");
+    setTplDraft(fixed);
+    notify("已补齐缺失占位符（追加在模板末尾，可自行调整位置）");
+  }
+
+  /** user 模板还原为代码默认（保存后清除覆盖）（原内联 onClick） */
+  function resetTpl() {
+    if (!sel) return;
+    setTplDraft(sel.userTemplateDefault);
+    notify("user 模板已还原为代码默认（保存后清除覆盖）");
+  }
+
+  /** 载入某版本 system 到编辑器（未保存）（原内联 onClick） */
+  function loadVersionSystem(v: Version) {
+    setDraft(v.payload?.system ?? v.content);
+    setDirty(true);
+    notify("已载入该版本 system 到编辑器（未保存）");
+  }
+
+  const isReview = sel?.key.startsWith("review_") ?? false;
+  const periodPlaceholder = sel?.key === "review_month" ? "期间 YYYY-MM（空=本月）" : sel?.key === "review_year" ? "期间 YYYY（空=今年）" : "期间 YYYY-MM-DD（空=今天）";
+
+  return {
+    items,
+    sel,
+    draft,
+    setDraft,
+    enabled,
+    setEnabled,
+    dirty,
+    setDirty,
+    saving,
+    showCompare,
+    setShowCompare,
+    optHint,
+    setOptHint,
+    optimizing,
+    suggestion,
+    setSuggestion,
+    engineMode,
+    engineEnvDefault,
+    engineSaving,
+    tplDraft,
+    setTplDraft,
+    tplMissing,
+    tplUnknown,
+    tplDirty,
+    cfgDirty,
+    injectDraft,
+    setInjectDraft,
+    capsDraft,
+    setCapsDraft,
+    previewSample,
+    setPreviewSample,
+    previewPeriod,
+    setPreviewPeriod,
+    previewing,
+    previewText,
+    versions,
+    showVersions,
+    setShowVersions,
+    isReview,
+    periodPlaceholder,
+    switchEngineMode,
+    pick,
+    save,
+    revertDefault,
+    rollback,
+    optimize,
+    runPreview,
+    adoptSuggestion,
+    fillMissingPlaceholder,
+    resetTpl,
+    loadVersionSystem,
+  };
+}

@@ -133,6 +133,7 @@ const AUTHED_GETS: Array<[string, string]> = [
   ["admin/ai-mode", "/api/admin/ai-mode"],
   ["admin/prompts/[key]", "/api/admin/prompts/parse"],
   ["billing/users", "/api/billing/users"],
+  ["files/[...key]", "/api/files/2026/01/x.jpg"],
 ];
 
 test("鉴权层：无凭证 GET 全部 401", async (t) => {
@@ -397,6 +398,7 @@ test("正常层：登录接口真实报错（DB 链路通 + 模糊文案）", as
 test("teardown: 清理测试用户（级联清数据与会话）", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
+  await pool.query(`delete from invite_codes where created_by = any($1)`, [[UA, UB]]);
   await pool.query(`delete from profiles where id = any($1)`, [[UA, UB]]);
   const { rows } = await pool.query("select count(*)::int as n from profiles where id = any($1)", [[UA, UB]]);
   assert.equal(rows[0].n, 0);

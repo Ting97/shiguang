@@ -276,6 +276,7 @@ test("identity：验证码通道未配置时的错误语义", async (t) => {
 test("teardown: 清理 svc 测试数据", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
+  await pool.query(`delete from invite_codes where created_by = any($1)`, [[UA]]);
   await pool.query(`delete from entries where user_id = any($1)`, [[UA]]);
   await pool.query(`delete from audit_logs where user_id = any($1)`, [[UA]]);
   await pool.query(`delete from app_config where true`, []);
