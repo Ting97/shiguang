@@ -136,17 +136,18 @@ export default function SpacesPage() {
           </div>
         )}
 
-        <div className="glass mb-5 flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-gradient text-xl font-bold tracking-wide">
-            目标空间
-            <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">
-              创建一个空间，专属于这个目标的 TODO·行动与感悟 —— 相关动态自动归属，见证每天的靠近
-            </span>
+        {/* 模块抬头：与动态/财务统一的居中 hero 样式 */}
+        <header className="mb-5 text-center">
+          <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
+            拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">目标</span>
           </h1>
-          <button onClick={openNew} className="btn-primary whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
+          <p className="mt-2 text-xs text-ink-dim">
+            创建一个空间，专属于这个目标的 TODO·行动与感悟 —— 相关动态自动归属，见证每天的靠近
+          </p>
+          <button onClick={openNew} className="btn-primary mt-3 rounded-xl px-4 py-2 text-sm font-medium">
             ＋ 新建空间
           </button>
-        </div>
+        </header>
 
         {spaces === null ? (
           loadErr ? (

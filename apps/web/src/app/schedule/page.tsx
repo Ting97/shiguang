@@ -37,13 +37,13 @@ export default function SchedulePage() {
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
 
-        {/* 模块头：标题 + 三个子页切换（移动端全宽三等分，PC 居中胶囊） */}
-        <div className="glass mb-5 flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-gradient text-xl font-bold tracking-wide">
-            日程
-            <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">日历 · todo · 分类</span>
+        {/* 模块抬头：与动态/财务统一的居中 hero 样式；子页切换居中悬挂在副标题下 */}
+        <header className="mb-5 text-center">
+          <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
+            拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">日程</span>
           </h1>
-          <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
+          <p className="mt-2 text-xs text-ink-dim">时间去了哪、todo 推进如何 —— 日历 · 看板 · 分类</p>
+          <div className="mx-auto mt-3 flex w-full max-w-sm rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
             {TABS.map(([v, label]) => (
               <FilterChip
                 key={v}
@@ -56,7 +56,7 @@ export default function SchedulePage() {
               />
             ))}
           </div>
-        </div>
+        </header>
 
         {mounted.calendar && (
           <div className={tab === "calendar" ? "" : "hidden"}>
