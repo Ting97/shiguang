@@ -16,8 +16,9 @@ interface Me {
 
 const zhDate = (iso: string | null) => {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  // 北京时间口径：UTC getter + 8h（getUTC* 等本地 getter 在非中国时区设备会错 8 小时）
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
 };
 
 export default function ProfilePage() {

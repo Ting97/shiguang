@@ -24,6 +24,8 @@ export default function DebtPage() {
   const [ov, setOv] = useState<Overview | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [locked, setLocked] = useState(false);
+  // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<Debt | null | "new">(null);
   const [paying, setPaying] = useState<Debt | null>(null);
@@ -40,6 +42,7 @@ export default function DebtPage() {
   }, [msg]);
 
   const load = useCallback(async () => {
+    setLoadErr(null);
     try {
       const [d, o] = await Promise.all([
         api<{ debts?: Debt[] }>("/api/debts"),
@@ -53,7 +56,8 @@ export default function DebtPage() {
         setDebts([]);
         return;
       }
-      throw e;
+      // 非 403 的失败不停在骨架屏（历史 bug：throw 造成 unhandled rejection + 永久加载中）
+      setLoadErr(e instanceof Error ? e.message : String(e));
     }
     // 账户列表仅供还款选账（原 if (a.ok)）：失败不阻塞负债页主数据
     try {
@@ -107,8 +111,27 @@ export default function DebtPage() {
 
         {msg && <div className={`msg-banner mb-4 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>}
 
+        {/* 已有数据时的刷新失败提示（首次加载失败走上方整页错误态） */}
+        {loadErr && (
+          <div className="msg-banner msg-banner-err mb-4">
+            加载失败：{loadErr}
+            <button onClick={() => void load()} className="ml-2 underline underline-offset-2">
+              重试
+            </button>
+          </div>
+        )}
+
         {!debts || !ov ? (
-          <Skeleton rows={4} className="py-2" />
+          loadErr ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-danger">加载失败：{loadErr}</p>
+              <button onClick={() => void load()} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs">
+                重试
+              </button>
+            </div>
+          ) : (
+            <Skeleton rows={4} className="py-2" />
+          )
         ) : (
           <>
             {/* 总览卡区 */}

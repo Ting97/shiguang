@@ -37,12 +37,12 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     });
   }
 
-  /** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区） */
+  /** 用原块北京日期 + 新的 HH:MM 组装 ISO（北京时间口径：+8h 推算 setUTC 后再回移 8h） */
   function combineHM(originalIso: string, hm: string): string {
-    const d = new Date(originalIso);
+    const d = new Date(new Date(originalIso).getTime() + 8 * 3600_000);
     const [h, m] = hm.split(":").map(Number);
-    d.setHours(h, m, 0, 0);
-    return d.toISOString();
+    d.setUTCHours(h, m, 0, 0);
+    return new Date(d.getTime() - 8 * 3600_000).toISOString();
   }
 
   async function saveEdit() {
@@ -113,10 +113,10 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     return Math.max(0, Math.min(1440, Math.floor((new Date(iso).getTime() - day.getTime()) / 60_000)));
   };
 
-  /** 从当前小时起找第一个空闲的整点 1 小时槽位（都占用则用当前小时，由冲突提示兜底） */
+  /** 从当前小时起找第一个空闲的整点 1 小时槽位（都占用则用当前小时，由冲突提示兜底）。
+   *  「当前」取北京小时（UTC+8 推算），与 zhTime 展示及日程块同口径；从现在之后开始找，不含已过时段 */
   function nextFreeSlot(): BlockDraftValue {
-    const now = new Date();
-    const curH = now.getHours();
+    const curH = new Date(Date.now() + 8 * 3600_000).getUTCHours();
     const spans = blocks.map((b) => [minOfDayLocal(b.start_at), minOfDayLocal(b.end_at)]);
     for (let h = curH; h < 24; h++) {
       if (!spans.some(([s, e]) => h * 60 < e && (h + 1) * 60 > s)) {

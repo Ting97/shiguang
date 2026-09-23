@@ -44,6 +44,9 @@ export default function TodoBoard() {
   // 行操作菜单卡片（点「⋯」弹出，带文字标签；桌面锚定浮层 / 移动端底部弹层）
   const [menuRow, setMenuRow] = useState<MenuRowInfo | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  // 再点同一行「⋯」应关菜单：pointerdown 已先经 Dismissable 关闭，随后 click 的 openMenu 会把它再打开。
+  // 记录最近一次关闭的时刻与所属行，300ms 内同行的紧随 click 视为同一次点击，不再重开。
+  const menuClosedRef = useRef<{ at: number; todoId: string } | null>(null);
   // N1 行级空间关联浮层
   const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
   const chipRefs = useRef<Record<View, HTMLButtonElement | null>>({} as Record<View, HTMLButtonElement | null>);
@@ -87,6 +90,8 @@ export default function TodoBoard() {
 
   /** 「⋯」菜单锚点（原行内逻辑原样搬移）：按钮下方 6px，右侧对齐 224 宽浮层；父 330 / 行动 300 视口余量 */
   function openMenu(e: React.MouseEvent, todo: TodoRow, isChild: boolean, parentTitle?: string) {
+    const closed = menuClosedRef.current;
+    if (closed && closed.todoId === todo.id && Date.now() - closed.at < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - (isChild ? 300 : 330)), left: Math.max(8, r.right - 224) });
     setMenuRow({ todo, isChild, parentTitle });
@@ -180,7 +185,11 @@ export default function TodoBoard() {
         <RowMenu
           menuRow={menuRow}
           menuPos={menuPos}
-          onClose={() => setMenuRow(null)}
+          onClose={() => {
+            // menuRow 取的是本次渲染闭包里的值（= 正在打开的行），用于识别"同行再点=关闭"
+            menuClosedRef.current = { at: Date.now(), todoId: menuRow?.todo.id ?? "" };
+            setMenuRow(null);
+          }}
           decomposingId={decomposingId}
           patchTodo={patchTodo}
           decompose={decompose}

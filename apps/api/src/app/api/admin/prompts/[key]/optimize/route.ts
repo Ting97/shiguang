@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { chat, activeModel } from "@shiguangri/ai";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withAdminParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import {
   assembleUserPrompt,
@@ -20,9 +20,8 @@ export const dynamic = "force-dynamic";
  * 用 prompt_optimizer 元 prompt 组装：用途 + 契约约束 + 当前内容 + 意图 → chat()
  * 纯建议：不落库、不写版本、不动缓存；记 audit_logs stage='prompt_optimize'
  */
-export const POST = withAuthParams(async (req, { user, params }) => {
+export const POST = withAdminParams(async (req, { user, params }) => {
   const startedAt = Date.now();
-  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
 
   const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {

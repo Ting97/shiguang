@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { PencilLine, Trash2 } from "lucide-react";
@@ -42,6 +43,9 @@ export function CardHeader({
   setActionsPos,
   setMenuOpen,
 }: CardHeaderProps) {
+  // 「⋯」再点应关闭菜单：但 pointerdown 已先经 Dismissable 关闭，click 的 toggle 会把它翻回开。
+  // 记录本实例最近一次关闭时刻，300ms 内的紧随 click 视为同一次点击，不再重开（按实例隔离，不影响别卡浮层互斥）。
+  const closedAtRef = useRef(0);
   return (
     <div className="flex items-center gap-2 text-xs text-ink-dim">
       <TagChip icon={intent.icon} label={intent.label} tone={intent.tone} size="sm" />
@@ -85,6 +89,7 @@ export function CardHeader({
           <>
             <button
               onClick={(e) => {
+                if (Date.now() - closedAtRef.current < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 // 顶部避开吸顶导航（≥60px），底部预留菜单高度
                 setActionsPos({ top: Math.max(60, Math.min(r.bottom + 4, window.innerHeight - 100)), left: Math.max(8, r.right - 128) });
@@ -99,7 +104,10 @@ export function CardHeader({
             {actionsOpen &&
               createPortal(
                 <Dismissable
-                  onClose={() => setActionsOpen(false)}
+                  onClose={() => {
+                    closedAtRef.current = Date.now();
+                    setActionsOpen(false);
+                  }}
                   className="fixed z-[60] w-32 overflow-hidden rounded-xl border border-line-soft bg-elevated shadow-lg"
                   style={{ top: actionsPos?.top, left: actionsPos?.left }}
                 >

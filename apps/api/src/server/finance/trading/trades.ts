@@ -5,6 +5,7 @@
  */
 import { pool } from "@/server/platform/db";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 
 export const TZ = "Asia/Shanghai";
 
@@ -176,10 +177,17 @@ interface DailyRow {
   prevNet: number | null; // 上一自然日净盈亏（日环比）
 }
 
+/** YYYY-MM-DD 形状 + 真实日历日双重校验（形状校验放行 2024-13-01 → ::date cast 抛 500） */
+function assertCalendarDate(label: string, v: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw ApiError.badRequest(`${label} 需为 YYYY-MM-DD`);
+  if (!isValidCalendarDate(v)) throw ApiError.badRequest(`${label} 需为真实存在的日期（如 2024-13-01 非法）`);
+}
+
 /** FR-1.4 按日聚合（北京时区切日）+ 日环比 + 连赢连亏 */
 export async function dailyPnl(userId: string, accountId: string, from: string, to: string) {
   await assertAccountOwned(userId, accountId);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw ApiError.badRequest("from/to 需为 YYYY-MM-DD");
+  assertCalendarDate("from/to", from);
+  assertCalendarDate("from/to", to);
   const { rows } = await pool.query(
     `select to_char((close_time at time zone $3)::date, 'YYYY-MM-DD') as ymd,
             sum(net_profit) as net, count(*)::int as count, sum(lots) as lots,
@@ -302,10 +310,13 @@ export async function listTrades(
   const vals: unknown[] = [userId, q.accountId];
   const W = () => `(${where.join(" and ")})`;
   if (q.from && /^\d{4}-\d{2}-\d{2}$/.test(q.from)) {
+    // 形状合法但非真实日历日（2024-13-01）→ 400，不放行到 ::date cast（曾抛 500）；其余形状静默忽略（兼容空参）
+    assertCalendarDate("from", q.from);
     vals.push(q.from);
     where.push(`(close_time at time zone 'Asia/Shanghai')::date >= $${vals.length}::date`);
   }
   if (q.to && /^\d{4}-\d{2}-\d{2}$/.test(q.to)) {
+    assertCalendarDate("to", q.to);
     vals.push(q.to);
     where.push(`(close_time at time zone 'Asia/Shanghai')::date <= $${vals.length}::date`);
   }

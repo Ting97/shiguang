@@ -34,13 +34,18 @@ export function overlapError(
   proposed?: { title?: string; start: string; end: string },
 ): string {
   const p = (n: number) => String(n).padStart(2, "0");
-  const zh = (d: Date) => `${d.getMonth() + 1}月${d.getDate()}日`;
-  const hm = (d: Date) => `${p(d.getHours())}:${p(d.getMinutes())}`;
+  // PG 容器为 UTC：+8h 后用 getUTC* 取北京时间展示（参考 finance/debt/debts.ts 先例，getHours 在 UTC 宿主会差 8 小时）
+  const cst = (d: Date) => new Date(d.getTime() + 8 * 3600_000);
+  const zh = (d: Date) => `${cst(d).getUTCMonth() + 1}月${cst(d).getUTCDate()}日`;
+  const hm = (d: Date) => `${p(cst(d).getUTCHours())}:${p(cst(d).getUTCMinutes())}`;
   const range = (startAt: string | Date, endAt: string | Date) => {
     const s = new Date(startAt);
     const e = new Date(endAt);
     // 跨天/不同日的冲突必须带日期，否则「23:00–07:00」看不出占用的是哪天
-    const sameDay = s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth() && s.getDate() === e.getDate();
+    const sameDay =
+      cst(s).getUTCFullYear() === cst(e).getUTCFullYear() &&
+      cst(s).getUTCMonth() === cst(e).getUTCMonth() &&
+      cst(s).getUTCDate() === cst(e).getUTCDate();
     return sameDay ? `${hm(s)}–${hm(e)}` : `${zh(s)} ${hm(s)} – ${zh(e)} ${hm(e)}`;
   };
   if (proposed) {

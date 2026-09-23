@@ -2,9 +2,9 @@
 import { pool } from "@/server/platform/db";
 
 export const entriesRepo = {
-  async rawTextOf(entryId: string, userId: string): Promise<{ raw_text: string } | undefined> {
+  async rawTextOf(entryId: string, userId: string, client: import("pg").PoolClient | typeof pool = pool): Promise<{ raw_text: string } | undefined> {
     return (
-      await pool.query(`select raw_text from entries where id = $1 and user_id = $2`, [entryId, userId])
+      await client.query(`select raw_text from entries where id = $1 and user_id = $2`, [entryId, userId])
     ).rows[0];
   },
   insert(userId: string, source: string, text: string) {
@@ -33,8 +33,8 @@ export const entriesRepo = {
   ignoreRecognition(recId: string) {
     return pool.query(`update entry_recognitions set status = 'none', updated_at = now() where id = $1`, [recId]);
   },
-  applyRecognition(recId: string) {
-    return pool.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1`, [recId]);
+  applyRecognition(recId: string, client: import("pg").PoolClient | typeof pool = pool) {
+    return client.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1`, [recId]);
   },
   moodOf(entryId: string, userId: string) {
     return pool.query(`select raw_text from entries where id = $1 and user_id = $2`, [entryId, userId]);

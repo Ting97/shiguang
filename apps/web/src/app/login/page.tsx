@@ -31,6 +31,13 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
+    // 卸载时清理倒计时 interval，避免离开页面后空跑最长 60s
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (countdown <= 0 && timer.current) {
       clearInterval(timer.current);
       timer.current = null;
@@ -38,6 +45,7 @@ export default function LoginPage() {
   }, [countdown]);
 
   function startCountdown() {
+    if (timer.current) clearInterval(timer.current); // 防御：上一轮未清先清，避免双 interval
     setCountdown(60);
     timer.current = setInterval(() => setCountdown((c) => c - 1), 1000);
   }

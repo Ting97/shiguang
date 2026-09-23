@@ -23,11 +23,11 @@ export async function retryPendingAnalysis(): Promise<number> {
     const { rows } = await pool.query(
       `select id, user_id, raw_text from entries
        where analyzed_at is null
-         and analyze_retries < ${MAX_RETRIES}
-         and created_at < now() - interval '${STALE_AFTER}'
+         and analyze_retries < $1
+         and created_at < now() - $2::interval
        order by created_at
-       limit ${BATCH}`,
-      [],
+       limit $3`,
+      [MAX_RETRIES, STALE_AFTER, BATCH],
     );
     let done = 0;
     for (const row of rows) {

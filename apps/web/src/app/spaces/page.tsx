@@ -32,6 +32,7 @@ export default function SpacesPage() {
   const [spaces, setSpaces] = useState<Space[] | null>(null);
   const [editing, setEditing] = useState<Draft | null>(null); // null=关闭；"new" 用 EMPTY
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false); // 新建/编辑保存中：防慢网络双击重复创建
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   // 加载失败态：给出重试入口，避免网络异常时永远停在"加载中"
@@ -80,7 +81,7 @@ export default function SpacesPage() {
   }
 
   async function save() {
-    if (!editing) return;
+    if (!editing || saving) return;
     const body = {
       name: editing.name,
       description: editing.description || null,
@@ -89,6 +90,7 @@ export default function SpacesPage() {
       startedAt: editing.startedAt || null,
       targetDate: editing.targetDate || null,
     };
+    setSaving(true);
     try {
       await api<any>(editingId ? `/api/spaces/${editingId}` : "/api/spaces", editingId ? "PATCH" : "POST", body);
     } catch (e) {
@@ -97,6 +99,8 @@ export default function SpacesPage() {
         return;
       }
       throw e;
+    } finally {
+      setSaving(false);
     }
     setEditing(null);
     setMsg({ ok: true, text: editingId ? "空间已更新" : `空间「${editing.name}」已创建 🎯` });
@@ -130,9 +134,10 @@ export default function SpacesPage() {
   const active = (spaces ?? []).filter((s) => s.status === "active");
   const archived = (spaces ?? []).filter((s) => s.status === "archived");
 
-  const daysOf = (s: Space) => (s.started_at ? Math.max(1, Math.ceil((Date.now() - new Date(s.started_at).getTime()) / 86_400_000)) : null);
   /** pg date 字段按北京日期还原（node-pg 序列化为 UTC ISO，直接 slice 会差一天） */
   const bjDay = (iso: string) => new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+  /** 持续天数：起点钉在北京零点（+08:00 钉法，对齐详情页 header-card），保证两处「第 N 天」一致 */
+  const daysOf = (s: Space) => (s.started_at ? Math.max(1, Math.ceil((Date.now() - new Date(`${bjDay(s.started_at)}T00:00:00+08:00`).getTime()) / 86_400_000)) : null);
   const progressOf = (s: Space) => (s.todo_total ? Math.round((s.todo_done ?? 0) / s.todo_total * 100) : null);
 
   return (
@@ -355,10 +360,10 @@ export default function SpacesPage() {
                 </button>
                 <button
                   onClick={save}
-                  disabled={!editing.name.trim()}
+                  disabled={!editing.name.trim() || saving}
                   className="btn-primary rounded-xl px-5 py-2 text-xs font-medium disabled:opacity-50"
                 >
-                  {editingId ? "保存" : "创建"}
+                  {saving ? "保存中…" : editingId ? "保存" : "创建"}
                 </button>
               </div>
           </Dismissable>

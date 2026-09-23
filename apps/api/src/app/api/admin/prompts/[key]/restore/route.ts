@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withAdminParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { invalidatePrompts, PROMPT_KEYS, type PromptKey } from "@/server/ai";
 
@@ -18,9 +18,7 @@ interface VersionPayload {
  * 3-A：优先取版本 payload（三件套整体回滚：system + user 模板 + 注入配置）；
  * 老版本（无 payload）仅回滚 system content，user 模板/配置保持当前覆盖不变。
  */
-export const POST = withAuthParams(async (req, { user, params }) => {
-  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
-
+export const POST = withAdminParams(async (req, { user, params }) => {
   const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
     throw ApiError.notFound("未知的 prompt key");

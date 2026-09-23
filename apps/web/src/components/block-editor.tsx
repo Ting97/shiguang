@@ -28,7 +28,7 @@ export default function BlockEditor({ draft, activities, onChange, onSave, onCan
         <input
           value={draft.title}
           onChange={(e) => onChange({ ...draft, title: e.target.value })}
-          onKeyDown={(e) => e.key === "Enter" && onSave()}
+          onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && onSave()}
           className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
           placeholder="标题"
         />

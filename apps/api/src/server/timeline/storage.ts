@@ -7,6 +7,7 @@
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { loadConfig } from "@/server/platform/config";
 
 /** 支持的图片 MIME → 扩展名（与前端压缩输出对齐） */
 export const IMAGE_MIME_EXT: Record<string, string> = {
@@ -16,8 +17,9 @@ export const IMAGE_MIME_EXT: Record<string, string> = {
   "image/gif": "gif",
 };
 
+/** 上传根目录：UPLOAD_DIR（config 集中读取）；开发缺省 apps/api 运行目录下 .uploads/ */
 export function uploadDir(): string {
-  return process.env.UPLOAD_DIR || join(process.cwd(), ".uploads");
+  return loadConfig().uploadDir ?? join(process.cwd(), ".uploads");
 }
 
 /** 魔数白名单嗅探（防改后缀）：jpeg/png/webp/gif；未知返回 null */

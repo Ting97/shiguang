@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import TodoLogo from "./todo-logo";
-import { TodoCircle, dueTag } from "./todo-bits";
+import { TodoCircle, dueTag, isoToLocalInput } from "./todo-bits";
 import { Dismissable } from "./dismissable";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
@@ -60,45 +60,53 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   async function toggleDone(a: TodayAction) {
     const done = a.status === "done";
     setBusyId(a.id);
-    await api(`/api/todos/${a.id}`, "PATCH", done ? { undone: true } : { done: true });
-    setBusyId(null);
-    if (a.repeat_daily && !done) {
-      notify({ ok: true, text: `🎉 完成「${a.title}」，已坚持 ×${a.repeat_done_count + 1}` });
+    try {
+      await api(`/api/todos/${a.id}`, "PATCH", done ? { undone: true } : { done: true });
+      if (a.repeat_daily && !done) {
+        notify({ ok: true, text: `🎉 完成「${a.title}」，已坚持 ×${a.repeat_done_count + 1}` });
+      }
+      await load();
+    } catch (e) {
+      // 断网等失败不外抛：裸 rejection 会被 ChunkErrorReloader 宽匹配整页刷新
+      notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusyId(null);
     }
-    await load();
   }
 
   /** N6：删除行动（独立/有父皆可，confirm 确认） */
   async function removeAction(a: TodayAction) {
     if (!window.confirm(`删除行动「${a.title}」？`)) return;
-    await api(`/api/todos/${a.id}`, "DELETE");
-    notify({ ok: true, text: "🗑 行动已删除" });
-    await load();
+    try {
+      await api(`/api/todos/${a.id}`, "DELETE");
+      notify({ ok: true, text: "🗑 行动已删除" });
+      await load();
+    } catch (e) {
+      notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
   }
 
   /** N6/N3：行内编辑（标题+截止），Enter 保存、点空白/Esc 取消 */
   function startEdit(a: TodayAction) {
     setEditingId(a.id);
     setEditTitle(a.title);
-    setEditDue(
-      a.due_at
-        ? (() => {
-            const d = new Date(a.due_at);
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-          })()
-        : "",
-    );
+    // 与 Dismissable onClose 的脏检查同口径（isoToLocalInput），避免跨时区恒判"有改动"
+    setEditDue(isoToLocalInput(a.due_at));
     setTimeout(() => editInputRef.current?.focus(), 60);
   }
 
   async function saveEdit() {
     if (!editingId || !editTitle.trim()) return;
-    await api(`/api/todos/${editingId}`, "PATCH", {
-      title: editTitle.trim(),
-      dueAt: editDue ? new Date(editDue).toISOString() : null,
-    });
-    setEditingId(null);
-    await load();
+    try {
+      await api(`/api/todos/${editingId}`, "PATCH", {
+        title: editTitle.trim(),
+        dueAt: editDue ? new Date(editDue).toISOString() : null,
+      });
+      setEditingId(null);
+      await load();
+    } catch (e) {
+      notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
   }
 
   const pending = (actions ?? []).filter((a) => a.status === "pending");
@@ -199,7 +207,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                         /* N3/N6 行内编辑：标题 + 截止；点空白/Esc 取消 */
                         <Dismissable
                           onClose={() => {
-                            const dirty = editTitle !== a.title || editDue !== (a.due_at ? new Date(a.due_at).toISOString().slice(0, 16) : "");
+                            // 与 startEdit 同口径（本地 datetime-local 串）：原来用 UTC 切片比较，UTC+8 下恒不相等
+                            const dirty = editTitle !== a.title || editDue !== isoToLocalInput(a.due_at);
                             if (dirty) notify({ ok: true, text: "已取消，未保存" });
                             setEditingId(null);
                           }}

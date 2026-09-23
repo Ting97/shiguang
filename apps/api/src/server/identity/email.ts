@@ -3,7 +3,9 @@
  * 未配置 EMAIL_SMTP_* 环境变量时 send 返回 503 语义（通道未开通），不影响邮箱密码登录。
  */
 import { pool } from "@/server/platform/db";
+import { loadConfig } from "@/server/platform/config";
 import { generateSmsCode, hashToken } from "@/server/identity/auth-crypto";
+import { verifyCode } from "@/server/identity/verify-code";
 
 const CODE_TTL_MS = 10 * 60_000;
 const DAILY_LIMIT = 10;
@@ -13,13 +15,7 @@ export function isValidEmail(email: string): boolean {
 }
 
 export function emailConfigured(): boolean {
-  return Boolean(
-    process.env.EMAIL_SMTP_HOST &&
-    process.env.EMAIL_SMTP_PORT &&
-    process.env.EMAIL_SMTP_USER &&
-    process.env.EMAIL_SMTP_PASS &&
-    process.env.EMAIL_FROM,
-  );
+  return loadConfig().smtp !== null;
 }
 
 export interface EmailSendResult {
@@ -69,37 +65,24 @@ export async function sendEmailCode(email: string, purpose: "login" | "bind"): P
   }
 }
 
-/** 校验验证码：一次性，错 5 次作废 */
+/** 校验验证码：一次性原子核销（与短信链路共享 verify-code，错 5 次作废） */
 export async function verifyEmailCode(email: string, purpose: string, code: string): Promise<boolean> {
-  const { rows } = await pool.query(
-    `select id, code_hash, attempts, expires_at from email_codes
-     where email = $1 and purpose = $2 and expires_at > now()
-     order by created_at desc limit 1`,
-    [email, purpose],
-  );
-  const row = rows[0];
-  if (!row || row.attempts >= 5) return false;
-  if (row.code_hash !== hashToken(code)) {
-    await pool.query(`update email_codes set attempts = attempts + 1 where id = $1`, [row.id]);
-    return false;
-  }
-  await pool.query(`delete from email_codes where id = $1`, [row.id]);
-  return true;
+  return verifyCode("email_codes", email, purpose, code);
 }
 
 // ---------- SMTP（nodemailer 懒加载） ----------
 
 async function smtpSend(email: string, code: string): Promise<void> {
+  const smtp = loadConfig().smtp!;
   const nodemailer = await import("nodemailer");
-  const port = Number(process.env.EMAIL_SMTP_PORT);
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: { user: process.env.EMAIL_SMTP_USER, pass: process.env.EMAIL_SMTP_PASS },
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.port === 465,
+    auth: { user: smtp.user, pass: smtp.pass },
   });
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: smtp.from,
     to: email,
     subject: "拾光 · 登录验证码",
     text: `你的验证码是 ${code}，10 分钟内有效。若非本人操作请忽略本邮件。`,

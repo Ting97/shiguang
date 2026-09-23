@@ -33,19 +33,21 @@ interface Contact {
 }
 
 const _pad = (n: number) => String(n).padStart(2, "0");
-/** 相对时间：刚刚/N分钟前/N小时前/昨天/M月D日 */
+/** 北京日历日序号（UTC+8 推算，禁本地 getter） */
+const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
+/** 相对时间：刚刚/N分钟前/N小时前/昨天/M月D日（北京时间口径） */
 function relTime(iso: string): string {
-  const d = new Date(iso);
-  const diffMs = Date.now() - d.getTime();
+  const t = Date.parse(iso);
+  const diffMs = Date.now() - t;
   const min = Math.floor(diffMs / 60_000);
   if (min < 1) return "刚刚";
   if (min < 60) return `${min}分钟前`;
   const h = Math.floor(min / 60);
   if (h < 24) return `${h}小时前`;
-  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const days = Math.round((dayStart(new Date()) - dayStart(d)) / 86_400_000);
+  const days = bjDayIdx(Date.now()) - bjDayIdx(t);
   if (days === 1) return "昨天";
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
+  const d = new Date(t + 8 * 3600_000);
+  return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
 }
 
 export default function ContactsPage() {

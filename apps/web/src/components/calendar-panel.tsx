@@ -114,7 +114,8 @@ export default function CalendarPanel() {
       });
     } catch (e) {
       if (e instanceof ApiClientError) { setErr(e.message === "操作失败" ? "保存失败" : e.message); return; }
-      throw e;
+      setErr(e instanceof Error ? e.message : String(e)); // 非接口错误也就地提示，不外抛（外抛会触发整页自愈刷新）
+      return;
     }
     setEditing(null);
     await load();
@@ -128,7 +129,8 @@ export default function CalendarPanel() {
     } catch (e) {
       // 原 fetch 版不解析响应体，任何失败统一「删除失败」
       if (e instanceof ApiClientError) { setErr("删除失败"); return; }
-      throw e;
+      setErr(e instanceof Error ? e.message : String(e)); // 同上：不外抛
+      return;
     }
     setEditing(null);
     await load();

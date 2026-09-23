@@ -118,14 +118,14 @@ export default function UserDataSection({
                     <TagChip label={d?.name ?? e.dataset} tone={d ? PARTITION_META[d.partition].tone : "slate"} size="sm" />
                     <span className="font-mono text-[9px] text-ink-faint">{e.dataset}</span>
                     <span className="flex-1" />
-                    <label className="flex items-center gap-1 text-ink-dim" title="时间窗 1~92 天（留空 = 不限）">
+                    <label className="flex items-center gap-1 text-ink-dim" title="时间窗 1~92 天（留空 = 默认 30 天）">
                       天数
                       <input
                         type="number"
                         min={1}
                         max={92}
                         value={e.days ?? ""}
-                        placeholder="不限"
+                        placeholder="默认 30"
                         onChange={(ev) => patchEntry(e.dataset, { days: clampInt(ev.target.value, 1, 92) })}
                         className="w-14 rounded border border-line bg-surface px-1.5 py-0.5 text-right tabular-nums text-ink outline-none focus:border-sky-500"
                       />

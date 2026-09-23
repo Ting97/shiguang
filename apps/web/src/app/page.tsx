@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ActionsToday from "@/components/actions-today";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
@@ -32,6 +32,7 @@ export default function Home() {
     moments,
     feedTotal,
     loadingMore,
+    loadErr,
     query,
     searchInput,
     setSearchInput,
@@ -45,7 +46,17 @@ export default function Home() {
     loadMore,
     resetSearch,
     changeSpace,
-  } = useHomeData();
+  } = useHomeData({ notify: (t) => setMsg({ ok: false, text: t }) });
+  // 消费组件的 load 形参是 () => Promise<void>：包一层丢弃 load 的成功与否返回值
+  const loadVoid = useCallback(async () => {
+    await load();
+  }, [load]);
+  // 最新 load 的 ref：发布后的延迟刷新定时器只负责触发，总是以最新筛选/搜索参数取数——
+  // 否则定时器持有过期闭包，用户切换空间后会用旧 spaceId 拉取并覆盖当前视图
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
   const {
     desktopImages,
     fileInputRef,
@@ -53,7 +64,7 @@ export default function Home() {
     removeDesktopImage,
     retryDesktopUpload,
     uploadAfterPublish,
-  } = useDesktopPublisher({ setMsg, load });
+  } = useDesktopPublisher({ setMsg, load: loadVoid });
 
   useEffect(() => {
     const timers = refreshTimers.current;
@@ -92,9 +103,9 @@ export default function Home() {
       } else {
         await load();
       }
-      // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（组件卸载时清理）
+      // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）
       for (const delay of [6000, 16000]) {
-        const t2 = setTimeout(() => void load(), delay);
+        const t2 = setTimeout(() => void loadRef.current(), delay);
         refreshTimers.current.push(t2);
       }
       return j.entry.id as string;
@@ -122,7 +133,7 @@ export default function Home() {
         </header>
 
         {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
-        <RemindersBanner items={reminderItems} setMsg={setMsg} load={load} />
+        <RemindersBanner items={reminderItems} setMsg={setMsg} load={loadVoid} />
 
         {/* 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */}
         <DesktopComposer
@@ -142,6 +153,16 @@ export default function Home() {
           <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
         )}
 
+        {/* 取数失败态：给出重试入口，避免失败后整页静默空态（对齐 spaces 页范式） */}
+        {loadErr && (
+          <div className="glass mb-5 rounded-2xl p-6 text-center">
+            <p className="text-sm text-danger">加载失败：{loadErr}</p>
+            <button onClick={() => void load()} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs font-medium">
+              重试
+            </button>
+          </div>
+        )}
+
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
         <ActionsToday notify={setMsg} />
 
@@ -158,11 +179,11 @@ export default function Home() {
           onSpaceChange={changeSpace}
           loadingMore={loadingMore}
           onLoadMore={loadMore}
-          onRefresh={load}
+          onRefresh={loadVoid}
         />
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
-        <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} setMsg={setMsg} load={load} />
+        <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} setMsg={setMsg} load={loadVoid} />
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
           拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang

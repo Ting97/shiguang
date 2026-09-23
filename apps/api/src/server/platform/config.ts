@@ -6,6 +6,24 @@
  */
 import { GLM_DEFAULT_BASE_URL, GLM_DEFAULT_MODEL } from "@shiguangri/ai";
 
+/** SMTP 邮件通道（EMAIL_SMTP_* 五项任缺视为通道未开通，业务侧降级） */
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+}
+
+/** 腾讯云 SMS 通道（TENCENT_SMS_* 五项任缺视为通道未开通，业务侧降级） */
+export interface SmsConfig {
+  secretId: string;
+  secretKey: string;
+  sdkAppId: string;
+  sign: string;
+  templateId: string;
+}
+
 export interface AppConfig {
   env: "development" | "production" | "test";
   isProd: boolean;
@@ -18,6 +36,17 @@ export interface AppConfig {
   jevMode: "off" | "shadow" | "on";
   hasGlmKey: boolean;
   hasJevKey: boolean;
+  // ---------- 运行时开关/通道：getter 实时读 env（测试可运行中切换；启动期 fail-fast 见 loadConfig 内校验） ----------
+  /** 万能后门（AUTH_DISABLED=1）：仅限本地开发；生产非空由 loadConfig 拒绝启动 */
+  readonly authDisabled: boolean;
+  /** setup 一次性令牌（FR-C2.3）：未配置 = null → 门禁直通 */
+  readonly setupToken: string | null;
+  /** 会话 cookie secure 位：NODE_ENV=production（与历史行为一致，勿改用 APP_ENV） */
+  readonly secureCookie: boolean;
+  /** SMTP 通道，未配置 = null */
+  readonly smtp: SmtpConfig | null;
+  /** 腾讯云 SMS 通道，未配置 = null */
+  readonly sms: SmsConfig | null;
 }
 
 class ConfigValidationError extends Error {
@@ -73,6 +102,27 @@ export function loadConfig(): AppConfig {
       : "off",
     hasGlmKey,
     hasJevKey: Boolean(process.env.TYPESAFE_API_KEY),
+    get authDisabled() {
+      return process.env.AUTH_DISABLED === "1";
+    },
+    get setupToken() {
+      return process.env.SETUP_TOKEN || null;
+    },
+    get secureCookie() {
+      return env === "production";
+    },
+    get smtp(): SmtpConfig | null {
+      const { EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_SMTP_USER, EMAIL_SMTP_PASS, EMAIL_FROM } = process.env;
+      return EMAIL_SMTP_HOST && EMAIL_SMTP_PORT && EMAIL_SMTP_USER && EMAIL_SMTP_PASS && EMAIL_FROM
+        ? { host: EMAIL_SMTP_HOST, port: Number(EMAIL_SMTP_PORT), user: EMAIL_SMTP_USER, pass: EMAIL_SMTP_PASS, from: EMAIL_FROM }
+        : null;
+    },
+    get sms(): SmsConfig | null {
+      const { TENCENT_SMS_SECRET_ID, TENCENT_SMS_SECRET_KEY, TENCENT_SMS_SDK_APP_ID, TENCENT_SMS_SIGN, TENCENT_SMS_TEMPLATE_ID } = process.env;
+      return TENCENT_SMS_SECRET_ID && TENCENT_SMS_SECRET_KEY && TENCENT_SMS_SDK_APP_ID && TENCENT_SMS_SIGN && TENCENT_SMS_TEMPLATE_ID
+        ? { secretId: TENCENT_SMS_SECRET_ID, secretKey: TENCENT_SMS_SECRET_KEY, sdkAppId: TENCENT_SMS_SDK_APP_ID, sign: TENCENT_SMS_SIGN, templateId: TENCENT_SMS_TEMPLATE_ID }
+        : null;
+    },
   };
   if (isProd && process.env.AUTH_DISABLED && process.env.AUTH_DISABLED !== "0") {
     // 不可达（上方已 throw）；双保险防御

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,11 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     sets.push(`amount_cents = $${vals.length}`);
   }
   if (body.category?.trim()) {
-    vals.push(body.category.trim());
+    const category = body.category.trim();
+    if (!TX_CATEGORIES.includes(category)) {
+      throw ApiError.badRequest("无效分类");
+    }
+    vals.push(category);
     sets.push(`category = $${vals.length}`);
   }
   if (body.counterparty !== undefined) {

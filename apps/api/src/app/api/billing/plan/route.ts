@@ -50,10 +50,13 @@ export const POST = withAuth(async (req, { user }) => {
   if (plan !== "free" && plan !== "pro") {
     throw ApiError.badRequest("plan 需为 free/pro");
   }
+  if (months !== undefined && (!Number.isInteger(months) || months < 1 || months > 24)) {
+    throw ApiError.badRequest("months 需为 1~24 的整数");
+  }
   const target = userId || user.id;
   const expires =
     plan === "pro"
-      ? new Date(Date.now() + Math.max(1, months ?? 12) * 30 * 86_400_000)
+      ? new Date(Date.now() + (months ?? 12) * 30 * 86_400_000)
       : null;
   const { rows } = await pool.query(
     `update profiles set plan = $1, plan_expires_at = $2 where id = $3

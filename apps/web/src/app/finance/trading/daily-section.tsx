@@ -9,23 +9,32 @@ import { addDays, bjToday, fmtUsd, pnlColor, type DailyDay } from "./kit";
 /** 每日盈亏（FR-1.4）：近 30 个交易日柱状（正负着色）+ 日列表（笔数/手数/净盈亏/连赢连亏） */
 export default function DailySection({ accountId }: { accountId: string }) {
   const [days, setDays] = useState<DailyDay[] | null>(null);
+  // 加载失败态：错误显式呈现 + 重试，不再 setDays([]) 伪装成「暂无平仓记录」（与 equity-section 一致）
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [rev, setRev] = useState(0);
 
   useEffect(() => {
     let live = true;
     setDays(null);
+    setLoadErr(null);
     const to = bjToday();
     const from = addDays(to, -100); // 多取窗口，切片出近 30 个「有交易」的交易日
     api<{ days: DailyDay[] }>(`/api/trading/daily?accountId=${accountId}&from=${from}&to=${to}`)
       .then((j) => {
         if (live) setDays(j.days.slice(-30));
       })
-      .catch(() => {
-        if (live) setDays([]);
+      .catch((e) => {
+        if (live) setLoadErr(e instanceof Error ? e.message : String(e));
       });
     return () => {
       live = false;
     };
-  }, [accountId]);
+  }, [accountId, rev]);
+
+  function retry() {
+    setLoadErr(null);
+    setRev((r) => r + 1);
+  }
 
   const maxAbs = Math.max(1, ...(days ?? []).map((d) => Math.abs(d.net)));
 
@@ -36,7 +45,16 @@ export default function DailySection({ accountId }: { accountId: string }) {
         <span className="text-[10px] text-ink-faint">按北京时区切日</span>
       </p>
       {!days ? (
-        <Skeleton rows={2} />
+        loadErr ? (
+          <div className="py-4 text-center">
+            <p className="text-xs text-danger">加载失败：{loadErr}</p>
+            <button onClick={retry} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+              重试
+            </button>
+          </div>
+        ) : (
+          <Skeleton rows={2} />
+        )
       ) : days.length === 0 ? (
         <p className="py-4 text-center text-xs text-ink-faint">暂无平仓记录</p>
       ) : (

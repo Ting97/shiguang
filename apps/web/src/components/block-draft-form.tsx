@@ -35,7 +35,7 @@ export default function BlockDraftForm({
           autoFocus
           value={value.title}
           onChange={(e) => onChange({ ...value, title: e.target.value })}
-          onKeyDown={(e) => e.key === "Enter" && onSubmit()}
+          onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && onSubmit()}
           placeholder="这段时间在做什么？"
           className="min-w-28 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-amber-400"
         />

@@ -34,13 +34,13 @@ function assertDateRange(from: string, to: string) {
   }
 }
 
-/** 倒挂/非法时间落库时 PG 约束兜底（QA 验收修复语义） */
+/** 倒挂/非法时间落库时 PG 约束兜底（QA 验收修复语义；detail 只进日志不下发） */
 function mapBlockWriteError(e: unknown): never {
   const msg = String(e);
   if (msg.includes("time_blocks_check") || msg.includes("end_at_start_at")) {
     throw ApiError.badRequest("结束时间必须晚于开始时间");
   }
-  throw new ApiError(500, "upstream", msg);
+  throw ApiError.upstream("服务器内部错误", msg);
 }
 
 export interface BlockWriteBody {
@@ -162,7 +162,7 @@ export async function createActivity(userId: string, body: ActivityBody) {
     if (String(e).includes("activities_user_id_name_key")) {
       throw ApiError.badRequest("已存在同名分类");
     }
-    throw new ApiError(500, "upstream", String(e));
+    throw ApiError.upstream("服务器内部错误", String(e));
   }
 }
 
@@ -184,7 +184,7 @@ export async function updateActivity(userId: string, id: string, body: ActivityB
     if (String(e).includes("activities_user_id_name_key")) {
       throw ApiError.badRequest("已存在同名分类");
     }
-    throw new ApiError(500, "upstream", String(e));
+    throw ApiError.upstream("服务器内部错误", String(e));
   }
 }
 

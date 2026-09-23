@@ -54,7 +54,8 @@ export async function confirmPending(
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const entry = await entriesRepo.rawTextOf(entryId, userId);
+    // 事务内所有语句统一走 client（否则自动提交让 rollback 形同虚设，中途失败会静默丢数据）
+    const entry = await entriesRepo.rawTextOf(entryId, userId, client);
     if (!entry) {
       await client.query("rollback");
       throw ApiError.notFound("动态不存在");
@@ -63,7 +64,7 @@ export async function confirmPending(
     switch (domain) {
       case "mood": {
         if (result.label) {
-          await pool.query(`update entries set mood = $1, mood_score = $2 where id = $3`, [
+          await client.query(`update entries set mood = $1, mood_score = $2 where id = $3`, [
             result.label, result.score ?? 0, entryId,
           ]);
         }
@@ -71,8 +72,8 @@ export async function confirmPending(
       }
       case "schedule": {
         if (result.startAt && result.endAt && result.activityId && result.title) {
-          await pool.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [entryId, userId]);
-          await pool.query(
+          await client.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [entryId, userId]);
+          await client.query(
             `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
              values ($1,$2,$3,$4,$5,$6,'default','keyboard')`,
             [userId, entryId, result.activityId, result.title, result.startAt, result.endAt],
@@ -82,8 +83,8 @@ export async function confirmPending(
       }
       case "todo": {
         if (result.dueAt && result.title) {
-          await pool.query(`delete from todos where entry_id = $1 and user_id = $2`, [entryId, userId]);
-          await pool.query(
+          await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [entryId, userId]);
+          await client.query(
             `insert into todos (user_id, entry_id, title, due_at, remind_at, source, space_id)
              values ($1,$2,$3,$4,$5,'keyboard',(select space_id from entries where id = $2))`,
             [userId, entryId, result.title, result.dueAt, new Date(new Date(result.dueAt).getTime() - 15 * 60_000).toISOString()],
@@ -93,8 +94,8 @@ export async function confirmPending(
       }
       case "finance": {
         if (result.amountCents != null) {
-          await pool.query(`delete from transactions where entry_id = $1 and user_id = $2`, [entryId, userId]);
-          await pool.query(
+          await client.query(`delete from transactions where entry_id = $1 and user_id = $2`, [entryId, userId]);
+          await client.query(
             `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at)
              values ($1,$2,$3,$4,$5,$6,$7,$8)`,
             [
@@ -112,8 +113,8 @@ export async function confirmPending(
       }
       case "diet": {
         if (result.items?.length) {
-          await pool.query(`delete from diet_records where entry_id = $1 and user_id = $2`, [entryId, userId]);
-          await pool.query(
+          await client.query(`delete from diet_records where entry_id = $1 and user_id = $2`, [entryId, userId]);
+          await client.query(
             `insert into diet_records (user_id, entry_id, meal, items, total_kcal)
              values ($1,$2,$3,$4,$5)`,
             [userId, entryId, result.meal ?? "未知", JSON.stringify(result.items), result.totalKcal ?? null],
@@ -123,7 +124,7 @@ export async function confirmPending(
       }
     }
 
-    await entriesRepo.applyRecognition(rec.id);
+    await entriesRepo.applyRecognition(rec.id, client);
     await client.query("commit");
     return { ok: true as const, domain };
   } catch (e) {
@@ -146,7 +147,8 @@ export interface FeedQuery {
 export async function listFeed(userId: string, query: FeedQuery) {
   const { limit, offset, q, spaceId } = query;
   let spaceSql = "";
-  const spaceParamIndex = 4;
+  // 占位符动态取号：q 存在时检索 ilike 占用 $4，空间过滤顺延为 $5（避免双 $4 实参错位 → uuid 解析 500）
+  const spaceParamIndex = q ? 5 : 4;
   if (spaceId === "none") spaceSql = ` and e.space_id is null`;
   else if (spaceId !== "all" && /^[0-9a-f-]{36}$/.test(spaceId)) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
 
@@ -323,11 +325,15 @@ export async function appendManual(
         if (!title || !p.startTime || !p.endTime) {
           throw ApiError.badRequest("需要标题与起止时间");
         }
-        // 以动态创建日为基准日，拼接 HH:MM
+        if (!/^\d{2}:\d{2}$/.test(String(p.startTime)) || !/^\d{2}:\d{2}$/.test(String(p.endTime))) {
+          throw ApiError.badRequest("起止时间格式需为 HH:MM");
+        }
+        // 以动态创建日（北京日历日）为基准日拼接 HH:MM：UTC getter + 8h 推算，不依赖宿主时区；
+        // 解析时显式追加 +08:00（无后缀的 ISO 串会按宿主时区解析，非 CST 宿主上会偏 8 小时）
         const base = new Date(entry.created_at);
-        const day = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
-        const start = new Date(`${day}T${p.startTime}:00`).toISOString();
-        const end = new Date(`${day}T${p.endTime}:00`).toISOString();
+        const day = new Date(base.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+        const start = new Date(`${day}T${p.startTime}:00+08:00`).toISOString();
+        const end = new Date(`${day}T${p.endTime}:00+08:00`).toISOString();
         if (end <= start) {
           throw ApiError.badRequest("结束时间必须晚于开始时间");
         }
@@ -549,7 +555,21 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
           message = "未识别出日程，已移除原日程块";
           break;
         }
-        const conflict = await findOverlap(userId, r.time.start, r.time.end);
+        // 冲突检测在删旧块之前做，但必须排除本 entry 自身旧块（重识别为替换式，
+        // 否则命中自己的旧块永远 409）。走事务 client 查询：entry_id 可空（on delete set null），
+        // 用 is distinct from 同时排除多条自有块且保留 NULL entry_id 的他人块检测。
+        const conflict = (
+          await client.query(
+            `select id, title, start_at, end_at
+               from time_blocks
+              where user_id = $1
+                and entry_id is distinct from $4::uuid
+                and tstzrange(start_at, end_at, '[)') && tstzrange($2::timestamptz, $3::timestamptz, '[)')
+              order by start_at
+              limit 1`,
+            [userId, r.time.start, r.time.end, entryId],
+          )
+        ).rows[0] ?? null;
         if (conflict) {
           throw ApiError.conflict(
             overlapError(conflict, { title: r.title, start: r.time.start, end: r.time.end }),

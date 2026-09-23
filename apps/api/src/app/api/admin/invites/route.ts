@@ -26,8 +26,11 @@ export const GET = withAuth(async (_req, { user }) => {
 export const POST = withAuth(async (req, { user }) => {
   requireAdmin(user.role);
   const { days = 7 } = (await req.json().catch(() => ({}))) as { days?: number };
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    throw ApiError.badRequest("days 需为 1~365 的整数");
+  }
   const code = generateInviteCode();
-  const expires = days > 0 ? new Date(Date.now() + days * 86_400_000) : null;
+  const expires = new Date(Date.now() + days * 86_400_000);
   const { rows } = await pool.query(
     `insert into invite_codes (code, created_by, expires_at) values ($1,$2,$3) returning code, expires_at`,
     [code, user.id, expires],

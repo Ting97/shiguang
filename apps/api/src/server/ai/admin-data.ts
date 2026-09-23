@@ -18,18 +18,21 @@ export interface DatasetSpec {
   timeCol: string | null; // 白名单时间列
   categoryCol?: string; // 类别维度列
   columns: string[]; // 返回字段白名单
+  pkCol?: string; // 主键列（缺省 id；user_ai_profiles 以 user_id 为主键）
 }
 
 export const USER_DATA_CAP_DEFAULT = 8000; // 个性化注入总字符硬顶（FR-5.6 护栏）
+export const USER_DATA_DAYS_DEFAULT = 30; // 个性化注入缺省时间窗（天）：days 留空时的装配窗口
+export const USER_DATA_EST_CHARS_PER_ROW = 120; // 行宽估算系数（与前端 use-admin-user-data.ts 对齐）
 
 const DATASETS: DatasetSpec[] = [
   // ---- 行为数据型 ----
   { key: "entries", name: "动态（时光流）", desc: "用户发布的原始动态，含 AI 标注心情", partition: "behavior", table: "entries", timeCol: "created_at", categoryCol: "mood", columns: ["id", "raw_text", "mood", "mood_score", "source", "created_at"] },
   { key: "time_blocks", name: "时间块", desc: "日程块（活动分类、起止、时长）", partition: "behavior", table: "time_blocks", timeCol: "start_at", categoryCol: "activity_id", columns: ["id", "title", "activity_id", "start_at", "end_at", "duration_min"] },
-  { key: "todos", name: "待办", desc: "TODO 与行动（状态/优先级/到期）", partition: "behavior", table: "todos", timeCol: "created_at", columns: ["id", "title", "kind", "status", "done", "priority", "due_at", "created_at"] },
+  { key: "todos", name: "待办", desc: "TODO 与行动（状态/重要/到期）", partition: "behavior", table: "todos", timeCol: "created_at", columns: ["id", "title", "kind", "status", "is_important", "due_at", "done_at", "created_at"] },
   { key: "transactions", name: "流水", desc: "收支流水（分类/对方/金额/草稿态）", partition: "behavior", table: "transactions", timeCol: "occurred_at", categoryCol: "category", columns: ["id", "direction", "amount_cents", "category", "counterparty", "note", "occurred_at", "is_draft"] },
   { key: "diet_records", name: "饮食记录", desc: "AI 识别的每日饮食摄入", partition: "behavior", table: "diet_records", timeCol: "created_at", categoryCol: "meal", columns: ["id", "meal", "items", "total_kcal", "created_at"] },
-  { key: "interactions", name: "人际往来", desc: "联系人往来记录（见面/通话/帮忙等）", partition: "behavior", table: "interactions", timeCol: "occurred_at", categoryCol: "type", columns: ["id", "contact_id", "type", "note", "occurred_at"] },
+  { key: "interactions", name: "人际往来", desc: "联系人往来记录（见面/通话/帮忙等）", partition: "behavior", table: "interactions", timeCol: "occurred_at", categoryCol: "type", columns: ["id", "contact_id", "type", "summary", "occurred_at"] },
   { key: "trades", name: "投资交易逐笔", desc: "MT5 导入的逐笔交易（净盈亏/手数/方向）", partition: "behavior", table: "trades", timeCol: "close_time", categoryCol: "direction", columns: ["id", "ticket", "symbol", "direction", "lots", "open_price", "close_price", "net_profit", "close_time"] },
   { key: "liability_payments", name: "负债还款记录", desc: "各笔负债的还款流水", partition: "behavior", table: "liability_payments", timeCol: "paid_at", columns: ["id", "liability_id", "amount_cents", "paid_at", "note"] },
   // ---- 类别型 ----
@@ -39,7 +42,7 @@ const DATASETS: DatasetSpec[] = [
   { key: "accounts", name: "资产账户", desc: "资产账户与期初余额", partition: "category", table: "accounts", timeCol: null, columns: ["id", "name", "icon", "opening_balance_cents", "reserve_tracked"] },
   { key: "liabilities", name: "负债档案", desc: "负债（类型/余额/利率/还款日）", partition: "category", table: "liabilities", timeCol: "created_at", categoryCol: "type", columns: ["id", "name", "type", "principal_cents", "balance_cents", "rate_pct", "monthly_cents", "pay_day", "due_date", "status"] },
   // ---- AI 衍生型 ----
-  { key: "user_ai_profiles", name: "AI 用户画像", desc: "画像维护器产出的长期画像", partition: "derived", table: "user_ai_profiles", timeCol: "updated_at", columns: ["id", "profile", "updated_at"] },
+  { key: "user_ai_profiles", name: "AI 用户画像", desc: "画像维护器产出的长期画像", partition: "derived", table: "user_ai_profiles", timeCol: "updated_at", pkCol: "user_id", columns: ["profile", "updated_at"] },
   { key: "review_caches", name: "复盘缓存", desc: "各级复盘生成结果（含 kind）", partition: "derived", table: "review_caches", timeCol: "updated_at", categoryCol: "kind", columns: ["id", "kind", "period_key", "review", "updated_at"] },
   { key: "entry_recognitions", name: "五域识别结果", desc: "每条动态的五域识别登记（applied/pending）", partition: "derived", table: "entry_recognitions", timeCol: "created_at", categoryCol: "domain", columns: ["id", "entry_id", "domain", "status", "confidence", "engine", "created_at"] },
   { key: "audit_logs", name: "AI 调用审计", desc: "stage/model/token/耗时/成败（AI 用量视角）", partition: "derived", table: "audit_logs", timeCol: "created_at", categoryCol: "stage", columns: ["id", "stage", "model", "prompt_tokens", "completion_tokens", "latency_ms", "ok", "created_at"] },
@@ -55,6 +58,7 @@ const PROMPT_DATA_REFS: Record<string, string[]> = {
   transactions: ["trade_review_week"],
   interactions: ["review_week", "review_month"],
   diet_records: ["review_day"],
+  trades: ["trading_review"],
   user_ai_profiles: ["review_month", "review_year", "profile_merge", "trade_review_week"],
   review_caches: ["review_month", "review_year", "profile_merge"],
 };
@@ -72,12 +76,12 @@ export interface UserDataEntry {
   limit?: number;
 }
 
-/** FR-5.6 保存校验：数据集存在、days ≤92、limit ≤50、条目 ≤5 */
+/** FR-5.6 保存校验：数据集存在、days ≤92、limit ≤50、条目 ≤5、估算字符 ≤8000 硬顶 */
 export function validateUserDataConfig(cfg: unknown): UserDataEntry[] {
   if (cfg == null) return [];
   if (!Array.isArray(cfg)) throw ApiError.badRequest("context_config.userData 需为数组");
   if (cfg.length > 5) throw ApiError.badRequest("个性化注入最多 5 个数据集");
-  return cfg.map((e: any) => {
+  const entries = cfg.map((e: any) => {
     const dataset = String(e?.dataset ?? "");
     if (!DATASET_MAP.has(dataset)) throw ApiError.badRequest(`个性化注入：未知数据集 ${dataset}`);
     const days = e?.days != null ? Number(e.days) : undefined;
@@ -86,6 +90,12 @@ export function validateUserDataConfig(cfg: unknown): UserDataEntry[] {
     if (limit != null && (!Number.isInteger(limit) || limit < 1 || limit > 50)) throw ApiError.badRequest(`数据集 ${dataset} 的条数上限需为 1~50`);
     return { dataset, days, limit };
   });
+  // 服务端同口径硬顶（Σ 条数上限×120 字符）：前端仅禁存拦截，直连 PUT 也必须拒绝
+  const est = entries.reduce((n, e) => n + (e.limit ?? 10) * USER_DATA_EST_CHARS_PER_ROW, 0);
+  if (est > USER_DATA_CAP_DEFAULT) {
+    throw ApiError.badRequest(`个性化注入估算字符约 ${est}，超出上限 ${USER_DATA_CAP_DEFAULT}（请下调条数或移除数据集）`);
+  }
+  return entries;
 }
 
 /** 装配注入块：逐数据集查询 → 文本块；总字符硬顶截断（FR-5.6 护栏） */
@@ -97,37 +107,55 @@ export async function buildUserDataBlock(userId: string, cfg: UserDataEntry[]): 
   for (const entry of cfg) {
     const spec = DATASET_MAP.get(entry.dataset);
     if (!spec) continue;
+    const days = entry.days ?? USER_DATA_DAYS_DEFAULT; // days 留空 → 缺省 30 天窗口（不能静默不注入）
     const to = bjToday();
-    const from = entry.days ? bjAddDays(to, -(entry.days - 1)) : null;
+    const from = bjAddDays(to, -(days - 1));
     let r: { total: number; items: any[] };
     try {
       r = await queryDataset(userId, entry.dataset, {
-        from: from ?? undefined,
-        to: to,
+        from,
+        to,
         limit: Math.min(entry.limit ?? 10, 50),
       });
-    } catch {
-      continue; // 单数据集失败不阻断装配
+    } catch (e) {
+      // 单数据集失败不阻断装配（降级语义保留），但非预期错误必须可观测
+      console.warn(`[admin-data] 个性化注入查询失败，跳过数据集 ${entry.dataset}:`, e);
+      continue;
     }
     const lines = r.items.map((it) =>
       spec.columns
-        .filter((c) => c !== "id")
+        .filter((c) => c !== (spec.pkCol ?? "id"))
         .map((c) => {
           const v = it[c];
-          const text = v == null ? "" : v instanceof Date ? v.toISOString().slice(0, 16).replace("T", " ") : String(v);
+          // pg 对 jsonb 返回已解析对象：先 stringify 再截断，避免渲染成 "[object Object]"
+          const text =
+            v == null
+              ? ""
+              : v instanceof Date
+                ? v.toISOString().slice(0, 16).replace("T", " ")
+                : typeof v === "object"
+                  ? JSON.stringify(v)
+                  : String(v);
           return text.slice(0, 80);
         })
         .filter(Boolean)
         .join(" | "),
     );
     if (lines.length === 0) continue; // 空数据集不产出空块（prompt 零噪音）
-    const head = `## ${spec.name}${entry.days ? `（近 ${entry.days} 天）` : ""}（${r.total} 条，展示 ${lines.length}）`;
+    const head = `## ${spec.name}（近 ${days} 天）（${r.total} 条，展示 ${lines.length}）`;
     const block = [head, ...lines].join("\n").slice(0, Math.max(0, cap - total));
     blocks.push(block);
     total += block.length + 1;
     if (total >= cap) break;
   }
   return blocks.join("\n\n").slice(0, cap);
+}
+
+/** YYYY-MM-DD 往返校验：正则只保证形状，此处挡住 2026-13-45 之类落库才炸的非法日期 */
+function isYmd(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
 /** 白名单参数化查询（FR-5.2）：强制时间窗 ≤92 天 + limit 上限 + total */
@@ -145,21 +173,26 @@ export async function queryDataset(
   const from = opts.from;
   const to = opts.to;
   if (spec.timeCol) {
-    if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from)) throw ApiError.badRequest("from 需为 YYYY-MM-DD");
-    if (!to || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw ApiError.badRequest("to 需为 YYYY-MM-DD");
-    if (Date.parse(to) - Date.parse(from) > 92 * 86_400_000) throw ApiError.badRequest("时间范围上限 92 天");
-    vals.push(from, `${to} 23:59:59+08`);
+    if (!from || !isYmd(from)) throw ApiError.badRequest("from 需为 YYYY-MM-DD");
+    if (!to || !isYmd(to)) throw ApiError.badRequest("to 需为 YYYY-MM-DD");
+    // 首尾均含：天数 = 差值 + 1（如 6-23 ~ 9-23 为 93 天，应拒绝）
+    if (Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1 > 92) throw ApiError.badRequest("时间范围上限 92 天");
+    // 北京时间口径显式 +08：裸 YYYY-MM-DD 会被按 DB 会话 TimeZone 解释（UTC 库会少采当天 0-8 点）
+    vals.push(`${from} 00:00:00+08`, `${to} 23:59:59+08`);
     where.push(`${spec.timeCol} between $${vals.length - 1}::timestamptz and $${vals.length}::timestamptz`);
   }
   if (opts.category && spec.categoryCol) {
     vals.push(opts.category);
     where.push(`${spec.categoryCol} = $${vals.length}`);
   }
-  const limit = Math.min(Math.max(Number(opts.limit ?? 200), 1), 1000);
-  const offset = Math.max(0, Number(opts.offset ?? 0) || 0);
+  const rawLimit = Number(opts.limit ?? 200);
+  const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? Math.trunc(rawLimit) : 200, 1), 1000); // 非法回落默认 200
+  const rawOffset = Number(opts.offset ?? 0);
+  const offset = Math.min(Math.max(Number.isFinite(rawOffset) ? Math.trunc(rawOffset) : 0, 0), 10_000); // 钳制防深翻页
+  const pk = spec.pkCol ?? "id";
   const W = `where ${where.join(" and ")}`;
   const total = Number((await pool.query(`select count(*)::int as n from ${spec.table} ${W}`, vals)).rows[0].n);
-  const cols = ["id", ...spec.columns.filter((c) => c !== "id")].join(", ");
+  const cols = [pk, ...spec.columns.filter((c) => c !== pk)].join(", ");
   const { rows } = await pool.query(
     `select ${cols} from ${spec.table} ${W} ${spec.timeCol ? `order by ${spec.timeCol} desc` : ""} limit ${limit} offset ${offset}`,
     vals,

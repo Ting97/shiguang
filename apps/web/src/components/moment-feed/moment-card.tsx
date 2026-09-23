@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FeedMoment } from "@/lib/types";
 import { moodEmoji } from "@/lib/mood";
 import { TagChip } from "../tag-chip";
@@ -43,6 +43,16 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
   // 卡内操作反馈 + 提交逻辑（识别/手动添加/删除），由 useCardActions 提供
   const { cardMsg, setCardMsg, busyDomain, run, recognizeDomain, manualAdd, del } = useCardActions(m, onRefresh);
 
+  // 延迟刷新定时器：卸载（删卡/切页）时清理，避免对已卸载卡片发起请求（失败会触发整页自愈刷新）
+  const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      refreshTimers.current.forEach(clearTimeout);
+      refreshTimers.current = [];
+    },
+    [],
+  );
+
   /** 保存原文：后端自动清旧产物并全域重识别（秒回），延迟刷新呈现新识别结果 */
   const saveRaw = () =>
     run(async () => {
@@ -50,9 +60,12 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
       if (!text) throw new Error("内容不能为空");
       await api(`/api/feed/${m.id}`, "PATCH", { raw_text: text });
       setEditRaw(null);
-      // 识别在后台进行（约数秒）：延迟两次刷新让新产物自动上墙
-      setTimeout(() => void onRefresh(), 6000);
-      setTimeout(() => void onRefresh(), 14000);
+      // 识别在后台进行（约数秒）：延迟两次刷新让新产物自动上墙（覆盖上一轮未触发的定时器）
+      refreshTimers.current.forEach(clearTimeout);
+      refreshTimers.current = [
+        setTimeout(() => void onRefresh(), 6000),
+        setTimeout(() => void onRefresh(), 14000),
+      ];
       return "✏️ 已保存，AI 正在重新识别全部信息…";
     });
 

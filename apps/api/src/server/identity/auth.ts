@@ -5,6 +5,7 @@
  */
 import { cookies, headers } from "next/headers";
 import { pool, DEV_USER_ID } from "@/server/platform/db";
+import { loadConfig } from "@/server/platform/config";
 import { generateSessionToken, hashToken } from "@/server/identity/auth-crypto";
 import { extractBearerToken } from "@shiguangri/shared/bearer";
 
@@ -25,7 +26,7 @@ export interface SessionUser {
  * 同一张 sessions 表，均享受过期清理与滑动续期。
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  if (process.env.AUTH_DISABLED === "1") {
+  if (loadConfig().authDisabled) {
     const { rows } = await pool.query(
       `select id, nickname, phone, role from profiles where id = $1`,
       [DEV_USER_ID],
@@ -88,7 +89,7 @@ export async function createSession(userId: string, userAgent?: string): Promise
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: loadConfig().secureCookie,
     sameSite: "lax",
     maxAge: SESSION_TTL_MS / 1000,
     path: "/",
@@ -96,10 +97,15 @@ export async function createSession(userId: string, userAgent?: string): Promise
   return token;
 }
 
-/** 退出：删会话行 + 清 cookie */
+/**
+ * 退出：删会话行 + 清 cookie。
+ * token 解析与 getCurrentUser 同构：优先 Authorization: Bearer（原生端），回落 cookie（Web）——
+ * 否则原生端带 Bearer 调登出时 token 取不到，会话不被吊销却返回 ok（4-F P1 修复）。
+ */
 export async function destroySession(): Promise<void> {
+  const bearer = extractBearerToken((await headers()).get("authorization"));
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = bearer ?? store.get(SESSION_COOKIE)?.value ?? null;
   if (token) {
     await pool.query(`delete from sessions where token_hash = $1`, [hashToken(token)]);
   }

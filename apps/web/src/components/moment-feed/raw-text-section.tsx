@@ -66,6 +66,7 @@ export function RawTextSection({
         </Dismissable>
       ) : (
         <p
+          data-popover-trigger
           onClick={(e) => {
             const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
             const desktop = window.innerWidth >= 640;
@@ -78,7 +79,7 @@ export function RawTextSection({
                 : null,
             );
             setActionsOpen(false);
-            setMenuOpen((v) => !v);
+            setMenuOpen((v) => !v); // 菜单开着时再点=关闭：pointerdown 已被 trigger 豁免，不会先关后开
           }}
           title="点击打开识别菜单"
           className={`mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink transition-colors hover:text-white ${isLongText && !textExpanded ? "line-clamp-6" : ""}`}

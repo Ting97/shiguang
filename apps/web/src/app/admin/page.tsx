@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/shared/api";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminDataPanel from "@/components/admin-data-panel";
@@ -19,6 +19,8 @@ export default function AdminPage() {
   const [me, setMe] = useState<{ nickname: string | null; isAdmin: boolean } | null>(null);
   const [tab, setTab] = useState<Tab>("ai");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 上一条成功提示的定时器：notify 前先清，避免 3.5s 内第二条提示被第一条的定时器提前清掉
+  const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api("/api/auth/me")
@@ -26,9 +28,14 @@ export default function AdminPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => () => {
+    if (msgTimer.current) clearTimeout(msgTimer.current);
+  }, []);
+
   const notify = (text: string, ok = true) => {
+    if (msgTimer.current) clearTimeout(msgTimer.current);
     setMsg({ ok, text });
-    if (ok) setTimeout(() => setMsg(null), 3500);
+    if (ok) msgTimer.current = setTimeout(() => setMsg(null), 3500);
   };
 
   return (

@@ -9,8 +9,11 @@ export const dynamic = "force-dynamic";
 export const GET = withAuthParams(async (req, { user, params }) => {
   const { id } = await params;
   const url = new URL(req.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 20), 1), 50);
-  const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
+  // 非数字（如 ?limit=abc）回退默认值，避免 NaN 进 SQL 500
+  const limitRaw = Number(url.searchParams.get("limit") ?? 20);
+  const offsetRaw = Number(url.searchParams.get("offset") ?? 0);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 20, 1), 50);
+  const offset = Math.max(Number.isFinite(offsetRaw) ? offsetRaw : 0, 0);
   return NextResponse.json(await reflectionService.list(user.id, id, limit, offset));
 });
 

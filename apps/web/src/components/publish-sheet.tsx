@@ -36,6 +36,8 @@ export default function PublishSheet({
   const [value, setValue] = useState("");
   const [images, setImages] = useState<SheetImage[]>([]);
   const [sheetMsg, setSheetMsg] = useState<string | null>(null);
+  // 图片上传进行中：文字已发布、面板保持打开等图片上传，此期间禁止再次发布/重试（防重复动态）
+  const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -83,7 +85,7 @@ export default function PublishSheet({
 
   async function publish() {
     const t = value.trim();
-    if (!t || busy) return;
+    if (!t || busy || uploading) return;
     const files = images.filter((i) => i.status !== "error").map((i) => i.file);
     const entryId = await onPublish(t);
     if (!entryId) {
@@ -96,31 +98,45 @@ export default function PublishSheet({
       return;
     }
     setImages((prev) => prev.map((i) => ({ ...i, status: "uploading" as const })));
-    const { failed } = await uploadImages(entryId, files);
-    if (failed.length) {
-      const failedSet = new Set(failed);
-      setImages((prev) => prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })));
-      setSheetMsg("动态已发布；部分图片上传失败，可「↻ 重试」或关闭面板");
-      return;
+    setUploading(true);
+    try {
+      const { failed } = await uploadImages(entryId, files);
+      if (failed.length) {
+        const failedSet = new Set(failed);
+        // 从 state 移除（上传成功）的图同步释放 blob URL，与成功路径对齐
+        images.forEach((i) => {
+          if (!failedSet.has(i.file)) URL.revokeObjectURL(i.url);
+        });
+        setImages((prev) => prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })));
+        setSheetMsg("动态已发布；部分图片上传失败，可「↻ 重试」或关闭面板");
+        return;
+      }
+      images.forEach((i) => URL.revokeObjectURL(i.url));
+      onClose();
+    } finally {
+      setUploading(false);
     }
-    images.forEach((i) => URL.revokeObjectURL(i.url));
-    onClose();
   }
 
   async function retryUpload() {
-    if (!lastEntryId.current) return;
+    if (!lastEntryId.current || uploading) return;
     const retryFiles = images.filter((i) => i.status === "error").map((i) => i.file);
     if (!retryFiles.length) return;
     setImages((prev) => prev.map((i) => (i.status === "error" ? { ...i, status: "uploading" as const } : i)));
-    const { failed } = await uploadImages(lastEntryId.current, retryFiles);
-    if (failed.length) {
-      const failedSet = new Set(failed);
-      setImages((prev) => prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })));
-      setSheetMsg(`仍有 ${failed.length} 张上传失败，请稍后再试`);
-      return;
+    setUploading(true);
+    try {
+      const { failed } = await uploadImages(lastEntryId.current, retryFiles);
+      if (failed.length) {
+        const failedSet = new Set(failed);
+        setImages((prev) => prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })));
+        setSheetMsg(`仍有 ${failed.length} 张上传失败，请稍后再试`);
+        return;
+      }
+      setSheetMsg(null);
+      onClose();
+    } finally {
+      setUploading(false);
     }
-    setSheetMsg(null);
-    onClose();
   }
 
   return (
@@ -146,6 +162,7 @@ export default function PublishSheet({
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
+              if (uploading || busy) return; // 上传/发布进行中：吞掉回车，防二次发布
               void publish();
             }
             // Esc 取消由 Dismissable 统一处理（N3）
@@ -244,10 +261,10 @@ export default function PublishSheet({
           <button
             type="button"
             onClick={() => void publish()}
-            disabled={busy || !value.trim()}
+            disabled={busy || uploading || !value.trim()}
             className="btn-primary rounded-xl px-7 py-2 text-sm font-medium"
           >
-            {busy ? "识别中…" : "发布"}
+            {busy ? "识别中…" : uploading ? "上传中…" : "发布"}
           </button>
         </div>
       </div>

@@ -33,7 +33,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     return n.getHours() * 60 + n.getMinutes();
   });
   const [draft, setDraft] = useState<BlockDraftValue | null>(null);
-  const [saving, _setSaving] = useState(false);
+  const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   // 表单打开时滚入视口：时间轴自动定位到当前时刻后，点击深处缺口时表单在区域顶部、视口之外，看起来像"没反应"
@@ -117,15 +117,20 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
 
   async function submitCreate() {
     if (!draft || !draft.title.trim() || saving) return;
-    const [sh, sm] = draft.start.split(":").map(Number);
-    const [eh, em] = draft.end.split(":").map(Number);
-    const ok = await onCreate({
-      title: draft.title.trim(),
-      startAt: isoFromMinutes(sh * 60 + sm),
-      endAt: isoFromMinutes(eh * 60 + em),
-      activityId: draft.activityId,
-    });
-    if (ok) setDraft(null);
+    setSaving(true); // 提交期间锁表单：防双击/连按 Enter 重复建块
+    try {
+      const [sh, sm] = draft.start.split(":").map(Number);
+      const [eh, em] = draft.end.split(":").map(Number);
+      const ok = await onCreate({
+        title: draft.title.trim(),
+        startAt: isoFromMinutes(sh * 60 + sm),
+        endAt: isoFromMinutes(eh * 60 + em),
+        activityId: draft.activityId,
+      });
+      if (ok) setDraft(null);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

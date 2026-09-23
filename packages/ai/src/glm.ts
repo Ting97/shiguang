@@ -189,7 +189,32 @@ export function extractJson(raw: string): unknown {
   const body = fenced ? fenced[1] : raw;
   const start = body.search(/[{[]/);
   if (start === -1) throw new Error("输出中无 JSON");
-  return JSON.parse(body.slice(start));
+  // 括号配平截取第一个完整 JSON 值：模型常在 JSON 后补话（"以上是结果"），
+  // 旧实现切到串尾导致 JSON.parse 必炸、白白多烧一次修复重问
+  return JSON.parse(body.slice(start, jsonBodyEnd(body, start)));
+}
+
+/** 从 start 起扫描至括号配平处，返回完整 JSON 的结束下标（字符串字面量内的括号/转义不参与配平；未配平则退回串尾，交由 JSON.parse 报错） */
+function jsonBodyEnd(s: string, start: number): number {
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{" || ch === "[") depth++;
+    else if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return s.length;
 }
 
 /** ASR 模型名：优先 GLM_ASR_MODEL 环境变量，缺省 glm-asr */

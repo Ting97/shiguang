@@ -21,11 +21,14 @@ export default function TradingPage() {
   const [accounts, setAccounts] = useState<TradingAccount[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [isPc, setIsPc] = useState(false);
   const [rev, setRev] = useState(0);
 
   const load = useCallback(async () => {
+    setLoadErr(null);
     try {
       const j = await api<{ accounts: TradingAccount[] }>("/api/trading/accounts");
       setAccounts(j.accounts);
@@ -36,7 +39,8 @@ export default function TradingPage() {
         setAccounts([]);
         return;
       }
-      throw e;
+      // 非 403 的失败不停在骨架屏（历史 bug：throw 造成 unhandled rejection + 永久加载中）
+      setLoadErr(e instanceof Error ? e.message : String(e));
     }
   }, []);
   useEffect(() => {
@@ -76,8 +80,27 @@ export default function TradingPage() {
 
         <FinanceTabs />
 
+        {/* 已有账号数据时的刷新失败提示（首次加载失败走下方整页错误态） */}
+        {accounts && loadErr && (
+          <div className="msg-banner msg-banner-err mb-4">
+            加载失败：{loadErr}
+            <button onClick={() => void load()} className="ml-2 underline underline-offset-2">
+              重试
+            </button>
+          </div>
+        )}
+
         {!accounts ? (
-          <Skeleton rows={4} className="py-2" />
+          loadErr ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-danger">加载失败：{loadErr}</p>
+              <button onClick={() => void load()} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs">
+                重试
+              </button>
+            </div>
+          ) : (
+            <Skeleton rows={4} className="py-2" />
+          )
         ) : (
           <>
             {/* 账号切换 + 汇总卡 + 导入入口 */}

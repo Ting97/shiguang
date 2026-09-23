@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withAdminParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assembleUserPrompt, getPrompt, getPromptBundle, PROMPT_KEYS, writeAuditRecord, type PromptKey } from "@/server/ai";
 import { listContactNames } from "@/server/timeline";
@@ -17,9 +17,8 @@ export const dynamic = "force-dynamic";
  * 不调 LLM、零 token；结果不落库；audit 仅记 stage='prompt_preview' 计数，不记内容。
  * sample 缺省时取管理员最近真实数据；period 供复盘类指定期间（日/周 YYYY-MM-DD、月 YYYY-MM、年 YYYY）。
  */
-export const POST = withAuthParams(async (req, { user, params }) => {
+export const POST = withAdminParams(async (req, { user, params }) => {
   const startedAt = Date.now();
-  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
 
   const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {

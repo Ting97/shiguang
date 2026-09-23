@@ -100,6 +100,31 @@ export function withAdmin(handler: Handler<AuthedCtx>): (req: NextRequest, arg: 
   });
 }
 
+/** 带动态路由参数的管理员门禁：arg = { params }。语义与 withAdmin 一致（非 admin → 403 forbidden「仅管理员」） */
+export function withAdminParams(
+  handler: Handler<AuthedCtx & { params: Promise<any> }>,
+): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
+  return withAuthParams(async (req, ctx) => {
+    if (ctx.user.role !== "admin") throw ApiError.forbidden("仅管理员");
+    return handler(req, ctx);
+  });
+}
+
+/** 带动态路由参数的模块门禁：arg = { params }。语义与 withModule 一致（未登录 401 / 未开通 403） */
+export function withModuleParams(
+  module: ModuleKey,
+  handler: Handler<AuthedCtx & { params: Promise<any> }>,
+): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
+  return withRoute<{ params: Promise<any> }>(async (req, arg) => {
+    const user = await getModuleUser(module);
+    if (!user) {
+      const cur = await getCurrentUser();
+      throw cur ? new ApiError(403, "forbidden", "未开通该模块") : ApiError.unauthorized();
+    }
+    return handler(req, { req, user, log, params: arg!.params });
+  });
+}
+
 /** 模块授权门禁（debt / trade_review）：admin 直通，普通用户查授权 */
 export function withModule(
   module: ModuleKey,

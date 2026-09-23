@@ -37,36 +37,38 @@ export const POST = withDebtParams(async (req, { user, params }) => {
     throw ApiError.badRequest("还款日期需为 YYYY-MM-DD");
   }
 
-  const liab = (
-    await pool.query(`select * from liabilities where id = $1 and user_id = $2`, [id, user.id])
-  ).rows[0];
-  if (!liab) throw ApiError.notFound("负债不存在");
-  if (liab.status !== "active") {
-    throw ApiError.badRequest("仅进行中的负债可记还款");
-  }
-
-  const dup = await pool.query(
-    `select id from liability_payments where liability_id = $1 and paid_at = $2 and amount_cents = $3`,
-    [id, paidAt, body.amountCents],
-  );
-  if (dup.rows[0]) {
-    throw ApiError.conflict("当天已有一笔相同金额的还款，请勿重复提交");
-  }
-
-  // 可选：联动资产账户记一笔支出（避免与既有记账重复时可关掉）
-  let accountId: string | null = null;
-  if (body.accountId) {
-    const owned = await pool.query(
-      `select id from accounts where id = $1 and user_id = $2 and archived = false`,
-      [body.accountId, user.id],
-    );
-    if (!owned.rows[0]) throw ApiError.badRequest("账户不存在");
-    accountId = owned.rows[0].id;
-  }
-
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // 行锁串行化并发双击：锁内（同一事务连接）先重验负债、再做防重检查——
+    // 后到请求在 for update 上排队，拿到锁时前一请求已提交还款，dup 检查即命中 → 409
+    const liab = (
+      await client.query(`select * from liabilities where id = $1 and user_id = $2 for update`, [id, user.id])
+    ).rows[0];
+    if (!liab) throw ApiError.notFound("负债不存在");
+    if (liab.status !== "active") {
+      throw ApiError.badRequest("仅进行中的负债可记还款");
+    }
+
+    const dup = await client.query(
+      `select id from liability_payments where liability_id = $1 and paid_at = $2 and amount_cents = $3`,
+      [id, paidAt, body.amountCents],
+    );
+    if (dup.rows[0]) {
+      throw ApiError.conflict("当天已有一笔相同金额的还款，请勿重复提交");
+    }
+
+    // 可选：联动资产账户记一笔支出（避免与既有记账重复时可关掉）
+    let accountId: string | null = null;
+    if (body.accountId) {
+      const owned = await client.query(
+        `select id from accounts where id = $1 and user_id = $2 and archived = false`,
+        [body.accountId, user.id],
+      );
+      if (!owned.rows[0]) throw ApiError.badRequest("账户不存在");
+      accountId = owned.rows[0].id;
+    }
+
     let txId: string | null = null;
     if (accountId) {
       const tx = (

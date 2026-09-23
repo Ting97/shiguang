@@ -4,11 +4,12 @@
  */
 import { ApiError } from "../platform/http/errors";
 import { assertLoginAllowed, recordLoginAttempt, clientIp } from "../platform/security/login-guard";
+import { loadConfig } from "@/server/platform/config";
 import { createSession, destroySession } from "@/server/identity/auth";
 import { verifyPassword, hashPassword, isValidPhone } from "@/server/identity/auth-crypto";
 import { isValidEmail, verifyEmailCode, emailConfigured, sendEmailCode } from "@/server/identity/email";
 import { verifySmsCode, smsConfigured, sendSmsCode } from "@/server/identity/sms";
-import { seedPresetActivities } from "@/server/time/seed";
+import { PRESET_ACTIVITIES } from "@/server/time/seed";
 import { pool } from "@/server/platform/db";
 import { profilesRepo } from "./repo";
 
@@ -107,7 +108,7 @@ export async function me(user: {
     id: user.id,
     nickname: user.nickname,
     phone: user.phone,
-    authDisabled: process.env.AUTH_DISABLED === "1",
+    authDisabled: loadConfig().authDisabled,
     isAdmin: user.role === "admin",
     modules: await listUserModules(user.id, user.role),
     phoneVerified: rows[0]?.phone_verified ?? false,
@@ -165,7 +166,7 @@ export function validateRegisterIdentity(input: { phone?: string; email?: string
 
 /** setup 一次性令牌校验（FR-C2.3）：配置了 SETUP_TOKEN 即强制；任一次调用（成败）都消费 */
 export async function assertSetupToken(tokenHeader: string | null) {
-  const expect = process.env.SETUP_TOKEN;
+  const expect = loadConfig().setupToken;
   if (!expect) return;
   const { rows: used } = await pool.query(`select value from app_config where key = 'setup_token_used'`, []);
   if (used[0]) throw new ApiError(410, "conflict", "初始化令牌已失效");
@@ -226,10 +227,12 @@ export async function register(input: RegisterInput) {
   if (!input.password || input.password.length < 8) throw ApiError.badRequest("密码至少 8 位");
   if (!input.inviteCode?.trim()) throw ApiError.badRequest("请填写邀请码");
 
+  const code = input.inviteCode.trim().toUpperCase();
+  // 前置快查（友好 400，早于通道验证）；真正的并发安全由下方事务内带守卫的核销保证
   const invite = await pool.query(
     `select code from invite_codes
      where code = $1 and used_by is null and (expires_at is null or expires_at > now())`,
-    [input.inviteCode.trim().toUpperCase()],
+    [code],
   );
   if (invite.rows.length === 0) throw ApiError.badRequest("邀请码无效或已被使用");
 
@@ -263,19 +266,47 @@ export async function register(input: RegisterInput) {
     phoneVerified = true;
   }
 
-  const { rows } = await pool.query(
-    `insert into profiles (nickname, phone, email, phone_verified, email_verified, password_hash, last_login_at)
-     values ($1, $2, $3, $4, $5, $6, now()) returning id, nickname`,
-    [nickname, byEmail ? null : phone, emailNorm, phoneVerified, emailVerified, hashPassword(input.password)],
-  );
-  const user = rows[0];
-  await seedPresetActivities(user.id); // 九大预设分类：新用户开箱即用
-  await pool.query(`update invite_codes set used_by = $1, used_at = now() where code = $2`, [
-    user.id,
-    input.inviteCode.trim().toUpperCase(),
-  ]);
-  const token = await createSession(user.id, input.userAgent ?? undefined);
-  return { ok: true as const, token, user };
+  // 事务（4-F P1）：建号 + 邀请码核销 + 预设播种 原子完成，中途失败整体回滚不留半成品；
+  // 核销带 used_by is null 守卫，并发复用同一邀请码时仅一端成功，另一端回滚并拒绝
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const { rows } = await client.query(
+      `insert into profiles (nickname, phone, email, phone_verified, email_verified, password_hash, last_login_at)
+       values ($1, $2, $3, $4, $5, $6, now()) returning id, nickname`,
+      [nickname, byEmail ? null : phone, emailNorm, phoneVerified, emailVerified, hashPassword(input.password)],
+    );
+    const user = rows[0];
+    const claimed = await client.query(
+      `update invite_codes set used_by = $1, used_at = now()
+       where code = $2 and used_by is null and (expires_at is null or expires_at > now())
+       returning code`,
+      [user.id, code],
+    );
+    if (claimed.rows.length === 0) throw ApiError.badRequest("邀请码无效或已被使用");
+    // 九大预设分类：新用户开箱即用（与 seed.ts 同构；须在本事务同连接执行，
+    // 走独立连接会因 FK 等待未提交的建号行而挂起）
+    for (const a of PRESET_ACTIVITIES) {
+      await client.query(
+        `insert into activities (id, user_id, name, icon, color, default_min, sort_order, is_preset)
+         values ($1, $2, $3, $4, $5, $6, $7, true)
+         on conflict (id, user_id) do nothing`,
+        [a.id, user.id, a.name, a.icon, a.color, a.defaultMin, a.sortOrder],
+      );
+    }
+    await client.query("commit");
+    const token = await createSession(user.id, input.userAgent ?? undefined);
+    return { ok: true as const, token, user };
+  } catch (e) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // 连接已不可用：释放即可
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 /** 发送短信验证码（同号 60s/次、日 10 条策略在通道层） */

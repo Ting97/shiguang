@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withAdminParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { AI_INPUT_REGISTRY, invalidatePrompts, PROMPT_KEYS, validateUserTemplate, validateUserDataConfig, type PromptKey } from "@/server/ai";
 
@@ -10,19 +10,12 @@ export const dynamic = "force-dynamic";
 type UserDataEntry = { dataset: string; days?: number; limit?: number };
 type CtxConfig = { inject?: Record<string, boolean>; caps?: Record<string, number>; userData?: UserDataEntry[] };
 
-/** 管理员门禁（动态路由：withAuthParams + role 校验，语义与 withAdmin 一致） */
-function requireAdmin(role: string) {
-  if (role !== "admin") throw ApiError.forbidden("仅管理员");
-}
-
 /**
  * PUT /api/admin/prompts/[key] —— 保存三件套覆盖（REQ-003 3-A）：system + user 模板 + 注入配置。
  * 校验：模板占位符完整性（缺失/未知 → 400 列明）、caps 整数且在注册表范围、required 注入不可为 false。
  * 保存即生效（upsert + 清缓存）；版本快照写 payload 三件套（content 列保留兼容）。
  */
-export const PUT = withAuthParams(async (req, { user, params }) => {
-  requireAdmin(user.role);
-
+export const PUT = withAdminParams(async (req, { user, params }) => {
   const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
     throw ApiError.notFound("未知的 prompt key");
@@ -123,9 +116,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
 });
 
 /** GET /api/admin/prompts/[key] —— 版本历史（最近 30 条，含三件套 payload 供整体回滚） */
-export const GET = withAuthParams(async (_req, { user, params }) => {
-  requireAdmin(user.role);
-
+export const GET = withAdminParams(async (_req, { params }) => {
   const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
     throw ApiError.notFound("未知的 prompt key");
@@ -141,9 +132,7 @@ export const GET = withAuthParams(async (_req, { user, params }) => {
 });
 
 /** DELETE /api/admin/prompts/[key] —— 恢复代码默认：删覆盖行 + 清缓存 */
-export const DELETE = withAuthParams(async (_req, { user, params }) => {
-  requireAdmin(user.role);
-
+export const DELETE = withAdminParams(async (_req, { params }) => {
   const { key } = await params;
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
     throw ApiError.notFound("未知的 prompt key");

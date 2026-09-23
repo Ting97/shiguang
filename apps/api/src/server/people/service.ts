@@ -74,7 +74,7 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
     if (String(e).includes("contacts_user_id_name_key")) {
       throw ApiError.badRequest(`已有联系人「${name}」`);
     }
-    throw new ApiError(500, "upstream", String(e));
+    throw ApiError.upstream("服务器内部错误", String(e));
   }
 }
 
@@ -152,7 +152,7 @@ export async function updateContact(userId: string, id: string, body: ContactUps
     if (String(e).includes("contacts_user_id_name_key")) {
       throw ApiError.badRequest(`已有联系人「${body.name?.trim()}」`);
     }
-    throw new ApiError(500, "upstream", String(e));
+    throw ApiError.upstream("服务器内部错误", String(e));
   }
 }
 

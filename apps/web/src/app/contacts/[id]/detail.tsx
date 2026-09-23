@@ -49,12 +49,20 @@ interface MoneyItem {
   occurred_at: string;
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** 北京日历日序号（UTC+8 推算，禁本地 getter） */
+const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 const zhDay = (iso: string) => {
-  const d = new Date(iso);
-  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((dayStart(new Date()) - dayStart(d)) / 86_400_000);
-  const label = diff === 0 ? "今天" : diff === 1 ? "昨天" : `${d.getMonth() + 1}月${d.getDate()}日`;
+  const t = Date.parse(iso);
+  const diff = bjDayIdx(Date.now()) - bjDayIdx(t);
+  const d = new Date(t + 8 * 3600_000);
+  const label = diff === 0 ? "今天" : diff === 1 ? "昨天" : `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
   return label;
+};
+/** ISO → 北京时间 MM-DD HH:mm（「提炼于」展示用，禁本地 getter） */
+const bjMDHM = (iso: string) => {
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
 };
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
@@ -227,7 +235,7 @@ export function ContactDetailPage() {
             <h2 className="text-sm font-semibold text-ink-soft">
               ✨ AI 交往画像
               {contact.ai_profile_at && (
-                <span className="ml-2 text-[11px] font-normal text-ink-dim">提炼于 {contact.ai_profile_at}</span>
+                <span className="ml-2 text-[11px] font-normal text-ink-dim">提炼于 {bjMDHM(contact.ai_profile_at)}</span>
               )}
             </h2>
             <button

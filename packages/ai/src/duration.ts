@@ -40,15 +40,15 @@ export function parseDuration(text: string): number | null {
   if (/一整天|全天/.test(text)) return 480;
   if (/吃食堂|食堂饭|便饭/.test(text)) return 40;
 
-  // 1) 数字 + (个半)? + 单位（先跑通用式，"一个半小时"在此命中 90）
+  // 1) 数字 + (个半)? + 单位（先跑通用式，"一个半小时"在此命中 90）；小数支持 "1.5小时"
   const re =
-    /(\d+|[零一二两俩三四五六七八九十百]+)\s*(个)?\s*(半)?\s*(个小时|小时|钟头|h|分钟|分|min)/g;
+    /(\d+(?:\.\d+)?|[零一二两俩三四五六七八九十百]+)\s*(个)?\s*(半)?\s*(个小时|小时|钟头|h|分钟|分|min)/g;
   for (const m of text.matchAll(re)) {
-    const n = cnToNumber(m[1]);
+    const n = /^\d+(?:\.\d+)?$/.test(m[1]) ? parseFloat(m[1]) : cnToNumber(m[1]);
     if (n === null || n === 0) continue;
     const isHour = /小时|钟头|^h$/.test(m[4]);
     const half = m[3] === "半" && isHour ? 30 : 0; // "一个半小时"；"X分半"忽略
-    const minutes = isHour ? n * 60 : n;
+    const minutes = isHour ? Math.round(n * 60) : Math.round(n); // 小时允许小数 → 分钟取整
     return minutes + half;
   }
 
@@ -65,9 +65,10 @@ export function parseAmountCents(text: string): number | null {
   // 1) 带单位：260元 / 600块 / ¥99.9
   const withUnit = text.match(/(\d+(?:\.\d{1,2})?)\s*(块|元|¥)/);
   if (withUnit) return toCents(withUnit[1]);
-  // 2) 动词暗示（无单位）："花了260""随了600""付了86"；排除"花了50分钟"（防回溯截断）
+  // 2) 动词暗示（无单位）："花了260""随了600""付了86"；负向断言排除时长/日期词
+  //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类）
   const noUnit = text.match(
-    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)(?![\d.天日个月年时分秒块元])/,
+    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)(?![\d.天日个月年时分秒块元小周])/,
   );
   if (noUnit) return toCents(noUnit[1]);
   return null;

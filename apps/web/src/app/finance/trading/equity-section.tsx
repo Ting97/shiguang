@@ -16,21 +16,30 @@ const PAD = 10;
 
 export default function EquitySection({ accountId }: { accountId: string }) {
   const [data, setData] = useState<EquityData | null>(null);
+  // 加载失败态：错误显式呈现 + 重试，不伪装成「暂无数据」；rev 供重试重新触发取数
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [rev, setRev] = useState(0);
 
   useEffect(() => {
     let live = true;
     setData(null);
+    setLoadErr(null);
     api<EquityData>(`/api/trading/equity?accountId=${accountId}`)
       .then((j) => {
         if (live) setData(j);
       })
-      .catch(() => {
-        if (live) setData(null);
+      .catch((e) => {
+        if (live) setLoadErr(e instanceof Error ? e.message : String(e));
       });
     return () => {
       live = false;
     };
-  }, [accountId]);
+  }, [accountId, rev]);
+
+  function retry() {
+    setLoadErr(null);
+    setRev((r) => r + 1);
+  }
 
   const pts = data?.points ?? [];
   const n = pts.length;
@@ -52,7 +61,16 @@ export default function EquitySection({ accountId }: { accountId: string }) {
         <span className="text-[10px] text-ink-faint">日粒度 · 峰值与回撤服务端预计算</span>
       </p>
       {!data ? (
-        <Skeleton rows={2} />
+        loadErr ? (
+          <div className="py-4 text-center">
+            <p className="text-xs text-danger">加载失败：{loadErr}</p>
+            <button onClick={retry} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+              重试
+            </button>
+          </div>
+        ) : (
+          <Skeleton rows={2} />
+        )
       ) : n === 0 ? (
         <p className="py-4 text-center text-xs text-ink-faint">暂无平仓记录</p>
       ) : (

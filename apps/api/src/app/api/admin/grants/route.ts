@@ -17,8 +17,8 @@ export const GET = withAdmin(async () => {
   return NextResponse.json({ grants: rows });
 });
 
-/** POST /api/admin/grants {userId, module} —— 授权（幂等） */
-export const POST = withAdmin(async (req) => {
+/** POST /api/admin/grants {userId, module} —— 授权（幂等；granted_by 记操作管理员，审计可追溯） */
+export const POST = withAdmin(async (req, { user }) => {
   const { userId, module } = (await req.json().catch(() => ({}))) as { userId?: string; module?: string };
   if (!userId || !module || !VALID.has(module)) {
     return NextResponse.json({ error: "userId 与 module（debt/trade_review）必填" }, { status: 400 });
@@ -28,7 +28,7 @@ export const POST = withAdmin(async (req) => {
   await pool.query(
     `insert into user_module_grants (user_id, module, granted_by)
      values ($1,$2,$3) on conflict (user_id, module) do nothing`,
-    [userId, module, null],
+    [userId, module, user.id],
   );
   return NextResponse.json({ ok: true, modules: await listUserModules(userId, "user") });
 });

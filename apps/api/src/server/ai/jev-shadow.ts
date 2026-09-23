@@ -6,6 +6,7 @@
  * 3-D 起问题组单源自 packages/ai（questions/jev-sets），影子与接管同字典。
  */
 import { extractClosedSetQuestions, jevAsk, toCstWallClock, type ParseResult } from "@shiguangri/ai";
+import { loadConfig } from "@/server/platform/config";
 import { getJevMode } from "./ai-mode";
 import { writeAuditRecord } from "./audit";
 
@@ -53,7 +54,7 @@ export async function jevShadowCompare(userId: string, entryId: string, rawText:
     if (r.scheduleApplicable && r.time?.start) cmp("period", A("period"), hourBucket(r.time.start));
     await writeAuditRecord({
       userId, entryId, stage: "jev_shadow",
-      model: process.env.JEV_MODEL ?? "jev-latest", engine: "jev-shadow",
+      model: loadConfig().jevModel, engine: "jev-shadow",
       latencyMs: Date.now() - t0, ok: mismatches.length === 0,
       error: mismatches.length ? mismatches.slice(0, 6).join("; ") : undefined,
     });
@@ -61,7 +62,7 @@ export async function jevShadowCompare(userId: string, entryId: string, rawText:
     // 影子失败照记审计（ok=false），主流程无感知
     await writeAuditRecord({
       userId, entryId, stage: "jev_shadow",
-      model: process.env.JEV_MODEL ?? "jev-latest", engine: "jev-shadow",
+      model: loadConfig().jevModel, engine: "jev-shadow",
       latencyMs: Date.now() - t0, ok: false, error: String(e).slice(0, 300),
     });
   }

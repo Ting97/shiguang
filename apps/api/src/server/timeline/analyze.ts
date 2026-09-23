@@ -263,6 +263,18 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
     // 规则兜底但 LLM 已被调用过（如输出不合格重问后仍失败）时也记模型名：token 消耗要如实归属
     if (r.engine !== "rules" || promptTokens > 0) model = activeModel();
+
+    // 陈旧文本竞态防护（巡检补跑用的是扫描时的旧快照）：写库前回读当前原文，
+    // 与识别所用文本不一致（期间被编辑）或动态已删除 → 本次产物作废，
+    // analyzed_at 留空待巡检用新文本重跑，避免旧识别结果覆盖新编辑
+    const { rows: current } = await pool.query(
+      `select raw_text from entries where id = $1 and user_id = $2`,
+      [entryId, userId],
+    );
+    if (current[0]?.raw_text !== rawText) {
+      throw new Error(`原文已变更/动态已删除，本次识别产物作废（待巡检补跑）entry=${entryId}`);
+    }
+
     const pendingDomains: string[] = [];
 
     await client.query("begin");
@@ -272,7 +284,11 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     if (r.mood.label && moodOk) {
       await client.query(`update entries set mood = $2, mood_score = $3 where id = $1`, [entryId, r.mood.label, r.mood.score]);
     }
-    if (r.mood.label && !moodOk) pendingDomains.push("mood");
+    if (r.mood.label && !moodOk) {
+      pendingDomains.push("mood");
+      // 低置信不落本体，但必须写 pending 登记行：否则确认流（confirmPending）查不到待确认项
+      await recordRecognition(client, userId, entryId, "mood", "pending", r.mood, r.mood.confidence, r.engine);
+    }
 
     let conflictTitle: string | null = null;
 
@@ -302,6 +318,10 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       }
     } else if (r.scheduleApplicable) {
       pendingDomains.push("schedule");
+      // 结果字段对齐 confirmPending schedule 分支（startAt/endAt/activityId/title）
+      await recordRecognition(client, userId, entryId, "schedule", "pending",
+        { startAt: r.time.start, endAt: r.time.end, activityId: r.activity, title: r.title },
+        r.scheduleConfidence, r.engine);
     } else {
       await recordRecognition(client, userId, entryId, "schedule", "none", { reason: "无事件信号" }, r.scheduleConfidence, r.engine);
     }
@@ -322,6 +342,10 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
         await recordRecognition(client, userId, entryId, "todo", "applied", { todoId: todo.id, title: r.title, dueAt, startAt: r.time.start, ongoing: r.ongoing }, r.todoConfidence, r.engine);
       } else {
         pendingDomains.push("todo");
+        // 结果字段对齐 confirmPending todo 分支（dueAt/title）
+        await recordRecognition(client, userId, entryId, "todo", "pending",
+          { title: r.title, dueAt: r.ongoing ? r.time.end : r.time.start, startAt: r.time.start },
+          r.todoConfidence, r.engine);
       }
     } else {
       await recordRecognition(client, userId, entryId, "todo", "none", { reason: "非未来计划" }, r.todoConfidence, r.engine);
@@ -334,6 +358,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
         await recordRecognition(client, userId, entryId, "finance", "applied", r.finance, r.financeConfidence, r.engine);
       } else if (r.finance.hasAmount) {
         pendingDomains.push("finance");
+        // 与冲突降级路径（上方）的 pending 口径一致：登记 r.finance 全量结果
+        await recordRecognition(client, userId, entryId, "finance", "pending", r.finance, r.financeConfidence, r.engine);
       } else {
         await recordRecognition(client, userId, entryId, "finance", "none", { reason: "无金额" }, r.financeConfidence, r.engine);
       }
@@ -350,6 +376,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       await recordRecognition(client, userId, entryId, "diet", "applied", r.diet, r.diet.confidence, r.engine);
     } else if (r.diet.applicable) {
       pendingDomains.push("diet");
+      // 结果字段对齐 confirmPending diet 分支（items/meal/totalKcal）
+      await recordRecognition(client, userId, entryId, "diet", "pending", r.diet, r.diet.confidence, r.engine);
     } else {
       await recordRecognition(client, userId, entryId, "diet", "none", { reason: "无食物信号" }, r.diet.confidence, r.engine);
     }

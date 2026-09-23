@@ -4,6 +4,7 @@
  * - /admin 可写 DB 覆盖（app_config key='jev_mode'），保存即生效（60s 进程缓存 + 主动失效）
  * - on = 实时接管：3-D 未上线前仅作存储位（行为等同 off，UI 明确标注"未上线"）
  */
+import { loadConfig } from "@/server/platform/config";
 import { pool } from "@/server/platform/db";
 
 export type JevModeValue = "off" | "shadow" | "on";
@@ -11,10 +12,9 @@ export type JevModeValue = "off" | "shadow" | "on";
 const CACHE_TTL_MS = 60_000;
 let cache: { mode: JevModeValue; fetchedAt: number } | null = null;
 
-/** 环境变量默认值（未设置 = off） */
+/** 环境变量默认值（config 集中读取并枚举校验：非法值/未设置 = off） */
 export function envJevMode(): JevModeValue {
-  const m = (process.env.JEV_MODE ?? "off").toLowerCase();
-  return m === "shadow" ? "shadow" : m === "on" ? "on" : "off";
+  return loadConfig().jevMode;
 }
 
 export function invalidateAiMode(): void {
@@ -24,7 +24,13 @@ export function invalidateAiMode(): void {
 /** 生效中的调用模式：DB 覆盖优先，env 兜底；读失败静默回退 env */
 export async function getJevMode(): Promise<JevModeValue> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache.mode;
-  let mode = envJevMode();
+  let mode: JevModeValue;
+  try {
+    mode = envJevMode();
+  } catch {
+    // config 未就绪（如缺 DATABASE_URL）：维持 off 兜底，保持本函数不抛错的既有语义
+    mode = "off";
+  }
   try {
     const { rows } = await pool.query(`select value from app_config where key = 'jev_mode'`);
     const v = (rows[0]?.value as { mode?: string } | undefined)?.mode;

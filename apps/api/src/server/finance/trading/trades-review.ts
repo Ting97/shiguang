@@ -111,8 +111,31 @@ export async function getTradingReviewCache(userId: string, accountId: string) {
   };
 }
 
-/** POST 侧：生成（缓存命中秒回；失败/额度不足由路由层回落 digest） */
+/** POST 侧：生成（缓存命中秒回——先于额度/KEY 门槛，额度用尽的用户也能读到已有复盘；仅真正需要生成时才 checkAiQuota） */
 export async function generateTradingReview(userId: string, accountId: string, role: string, refresh: boolean) {
+  // 数据新鲜度：该账号最后一笔平仓时间（缓存命中判定与 getOrGenerateReview 同口径）
+  const latest = (
+    await pool.query(`select max(close_time) as t from trades where user_id = $1 and account_id = $2`, [userId, accountId])
+  ).rows[0].t;
+  const latestAt = latest ? new Date(latest) : null;
+
+  if (refresh !== true) {
+    const hit = await pool.query(
+      `select review, updated_at from review_caches where user_id = $1 and kind = 'trading' and period_key = $2`,
+      [userId, accountId],
+    );
+    const row = hit.rows[0];
+    // 缓存生成后周期内无新记录才算命中；过期缓存走下方生成链路自动重算
+    if (row && (latestAt == null || new Date(row.updated_at) >= latestAt)) {
+      return {
+        review: row.review as TradingReview,
+        cached: true,
+        generatedAt: new Date(row.updated_at).toISOString(),
+        digest: await buildDigest(userId, accountId),
+      };
+    }
+  }
+
   if (role !== "admin") {
     const q = await checkAiQuota(userId);
     if (!q.allowed) {
@@ -121,19 +144,14 @@ export async function generateTradingReview(userId: string, accountId: string, r
   }
   if (!hasApiKey()) throw new ApiError(503, "upstream", "未配置 AI 服务");
 
-  // 数据新鲜度：该账号最后一笔平仓时间
-  const latest = (
-    await pool.query(`select max(close_time) as t from trades where user_id = $1 and account_id = $2`, [userId, accountId])
-  ).rows[0].t;
-
   const bundle = await getPromptBundle("trading_review");
   const digest = await buildDigest(userId, accountId);
   const userPrompt = await assembleUserPrompt("trading_review", bundle, { facts: digest.facts }, { userId });
 
   let result;
   try {
-    result = await getOrGenerateReview(userId, "trading", accountId, refresh === true, latest ? new Date(latest) : null, async (capture) => {
-      await acquireGeneration(userId, "trading", accountId, latest ? new Date(latest) : null);
+    result = await getOrGenerateReview(userId, "trading", accountId, refresh === true, latestAt, async (capture) => {
+      await acquireGeneration(userId, "trading", accountId, latestAt);
       const parsed = await chatReviewJson<Partial<TradingReview>>({
         system: bundle.system,
         user: userPrompt,

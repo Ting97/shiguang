@@ -76,7 +76,7 @@ export function detectDayRef(text: string, now: Date): number | null {
   if (wd) {
     const target = WEEKDAYS[wd[2]]; // 0=周日
     const posInWeek = target === 0 ? 6 : target - 1; // 周一=0 … 周日=6
-    const daysIntoWeek = (now.getDay() + 6) % 7;
+    const daysIntoWeek = (cstDayIdx(now) + 3) % 7; // 北京日序推星期（周一=0），不依赖宿主时区（epoch 当天为周四）
     if (wd[1]) return -(daysIntoWeek + 7 - posInWeek); // 上周X
     let offset = posInWeek - daysIntoWeek; // 本周内的 X 相对今天
     if (offset > 0) offset -= 7; // 本周还没到的周X，过去语境视为上周 X
@@ -134,7 +134,12 @@ const MAX_SPAN_MS = 366 * 24 * 3600_000;
 /** 校验 AI 直推的时刻（北京时间本地串）：非法/距当前超 366 天 → null */
 export function resolveMoment(s: string | null | undefined, now: Date): Date | null {
   if (!s) return null;
-  const d = new Date(s);
+  // 契约约定无时区串即北京本地时间：显式补 +08:00 再解析，
+  // 否则 new Date(s) 按宿主时区解释，UTC 宿主上整体偏 8 小时。
+  // 已带时区（Z/±HH:MM）或纯日期串维持原样（后者按 ECMAScript 规范本就与宿主时区无关）。
+  const t = s.trim();
+  const naive = t.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)$/);
+  const d = new Date(naive ? `${naive[1]}T${naive[2]}+08:00` : t);
   if (isNaN(d.getTime())) return null;
   if (Math.abs(d.getTime() - now.getTime()) > MAX_SPAN_MS) return null;
   return d;
@@ -153,10 +158,12 @@ export function resolveExplicitRange(
   return { start, end };
 }
 
+/** 北京时间锚点：把 base 平移到 CST 墙钟的 hour:minute（UTC setter + 8h，禁用本地 setHours） */
 function atHour(base: Date, hour: number, minute = 0): Date {
-  const d = new Date(base);
-  d.setHours(Math.floor(hour), Math.round((hour % 1) * 60) + minute, 0, 0);
-  return d;
+  const CST_MS = 8 * 3600_000;
+  const d = new Date(base.getTime() + CST_MS);
+  d.setUTCHours(Math.floor(hour), Math.round((hour % 1) * 60) + minute, 0, 0);
+  return new Date(d.getTime() - CST_MS);
 }
 
 // ---------- 日期锚定（用户规则：话术没写具体是哪一天 → 一律按当天） ----------
@@ -215,7 +222,8 @@ function inferFuture(
   } else {
     // 目标日：明天/后天直接加天数；下周先定位到下周一再加星期偏移
     if (future === "nextWeek") {
-      const daysToMonday = ((8 - now.getDay()) % 7) || 7; // 下周一（getDay: 周日=0）
+      const cstWday = (cstDayIdx(now) + 4) % 7; // 北京星期（周日=0），不依赖宿主时区
+      const daysToMonday = ((8 - cstWday) % 7) || 7; // 下周一
       start = new Date(now.getTime() + daysToMonday * 24 * 3600_000);
       const wd = text.match(/(?:下周|下礼拜|下星期)([一二三四五六日天])/);
       if (wd) {

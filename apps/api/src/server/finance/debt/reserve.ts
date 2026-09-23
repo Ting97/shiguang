@@ -23,6 +23,15 @@ export function currentMonthFirst(): string {
   return `${bjToday().slice(0, 7)}-01`;
 }
 
+/** pg 的 date 列返回「宿主本地零点」的 Date（CST 宿主 = 前一日 16:00Z，直接 toISOString 会切出前一天）
+ * —— 统一 +8h 归一化后再切北京日历日（与 debts.ts serializeDebt 同口径）；字符串入参按 YYYY-MM-DD 前缀取 */
+function isoDate(v: unknown): string | null {
+  if (v == null) return null;
+  if (v instanceof Date) return new Date(v.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+  const s = String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
 function ymToFirst(ym: string): string {
   if (!/^\d{4}-\d{2}$/.test(ym)) throw ApiError.badRequest("ym 需为 YYYY-MM");
   return `${ym}-01`;
@@ -39,13 +48,6 @@ export async function reserveOverview(userId: string, ym: string) {
   );
 
   // 合并行：同账户（name）合并 need（还款日合并去重升序）
-  // 注意：pg 把 date 列返回为 JS Date（UTC 零点），必须 toISOString 归一化，不能 String() 切片
-  const isoDate = (v: unknown): string | null => {
-    if (v == null) return null;
-    if (v instanceof Date) return v.toISOString().slice(0, 10);
-    const s = String(v).slice(0, 10);
-    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-  };
   const merged = new Map<string, ReserveRow>();
   for (const l of liabilities) {
     const pay = Number(l.monthly_cents ?? 0);
@@ -182,7 +184,8 @@ export async function autoCheckAfterPayment(userId: string, liabilityId: string,
     )
   ).rows[0];
   if (!l) return;
-  const due = l.due_date ? String(l.due_date).slice(0, 10) : null;
+  // due_date 是 date 列 → Date 对象：String() 得到 "Mon Jun 03..." 脏串，必须 +8h 归一化成 YYYY-MM-DD 再比
+  const due = isoDate(l.due_date);
   const ymNext = nextMonth(ymFirst);
   const extra = due && due >= ymFirst && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
   const need = Number(l.monthly_cents ?? 0) + extra;

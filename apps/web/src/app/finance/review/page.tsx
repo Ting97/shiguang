@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
@@ -43,12 +43,19 @@ function mondayOf(dateStr: string) {
   return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
 }
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+/** ISO → 北京时间 M/D（生成时间展示；北京时间一律 UTC getter + 8h，禁本地 getter） */
+const bjMD = (iso: string) => {
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+};
 
 export default function FinanceReviewPage() {
   const [locked, setLocked] = useState(false);
   const [period, setPeriod] = useState<"day" | "week">("week");
   const [anchor, setAnchor] = useState(bjToday());
   const [stats, setStats] = useState<Stats | null>(null);
+  // 统计加载失败态：给出重试入口，避免失败时静默停在骨架屏
+  const [statsErr, setStatsErr] = useState<string | null>(null);
   const [review, setReview] = useState<Review | null>(null);
   const [reviewMeta, setReviewMeta] = useState<{ cached: boolean; generatedAt: string; range: { from: string; to: string } } | null>(null);
   const [genBusy, setGenBusy] = useState(false);
@@ -56,40 +63,55 @@ export default function FinanceReviewPage() {
 
   const rangeFrom = period === "week" ? mondayOf(anchor) : anchor;
 
+  // 取数序号（use-home-data 同款）：快速翻周/切日视图时仅最新一次请求的响应可落地，
+  // 避免慢响应晚到用旧周期的统计覆盖当前视图
+  const statsSeq = useRef(0);
   const loadStats = useCallback(async () => {
+    const seq = ++statsSeq.current;
+    setStatsErr(null);
     try {
-      setStats(await api<Stats>(`/api/finance/stats?period=${period}&date=${anchor}`));
+      const s = await api<Stats>(`/api/finance/stats?period=${period}&date=${anchor}`);
+      if (seq !== statsSeq.current) return;
+      setStats(s);
     } catch (e) {
+      if (seq !== statsSeq.current) return;
       if (e instanceof ApiClientError && e.status === 403) {
         setLocked(true);
         return;
       }
       setStats(null);
+      setStatsErr(e instanceof Error ? e.message : String(e));
     }
   }, [period, anchor]);
   useEffect(() => {
     loadStats();
   }, [loadStats]);
 
-  // 切周/进页面：只读缓存（GET 不耗配额）；生成本身只由按钮触发
+  // 切周/进页面：只读缓存（GET 不耗配额）；生成本身只由按钮触发（reviewSeq 同上防过期覆盖）
+  const reviewSeq = useRef(0);
   const loadReview = useCallback(async (refresh = false) => {
     if (period !== "week") return;
     if (refresh) {
+      const seq = ++reviewSeq.current;
       setGenBusy(true);
       setMsg(null);
       try {
         const j = await api<any>("/api/finance/review/week", "POST", { date: mondayOf(anchor), refresh: true });
+        if (seq !== reviewSeq.current) return;
         setReview(j.review);
         setReviewMeta({ cached: j.cached, generatedAt: j.generatedAt, range: j.range });
       } catch (e) {
+        if (seq !== reviewSeq.current) return;
         setMsg(e instanceof Error ? e.message : String(e));
       } finally {
         setGenBusy(false);
       }
       return;
     }
+    const seq = ++reviewSeq.current;
     try {
       const j = await api<any>(`/api/finance/review/week?date=${mondayOf(anchor)}`);
+      if (seq !== reviewSeq.current) return;
       if (j.review) {
         setReview(j.review);
         setReviewMeta({ cached: true, generatedAt: j.generatedAt, range: j.range });
@@ -98,6 +120,7 @@ export default function FinanceReviewPage() {
         setReviewMeta(null);
       }
     } catch (e) {
+      if (seq !== reviewSeq.current) return;
       if (e instanceof ApiClientError && e.status === 403) {
         setLocked(true);
         return;
@@ -170,7 +193,16 @@ export default function FinanceReviewPage() {
         {msg && <div className="msg-banner msg-banner-err mb-4">{msg}</div>}
 
         {!stats ? (
-          <Skeleton rows={3} className="py-2" />
+          statsErr ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-danger">加载失败：{statsErr}</p>
+              <button onClick={() => void loadStats()} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs">
+                重试
+              </button>
+            </div>
+          ) : (
+            <Skeleton rows={3} className="py-2" />
+          )
         ) : (
           <>
             {/* 统计卡 */}
@@ -302,7 +334,7 @@ export default function FinanceReviewPage() {
                   <span className="flex items-center gap-2">
                     {reviewMeta && reviewForThisWeek && (
                       <span className="text-[10px] text-ink-faint">
-                        {reviewMeta.cached ? "缓存" : "已生成"} · {new Date(reviewMeta.generatedAt).getMonth() + 1}/{new Date(reviewMeta.generatedAt).getDate()}
+                        {reviewMeta.cached ? "缓存" : "已生成"} · {bjMD(reviewMeta.generatedAt)}
                       </span>
                     )}
                     <button

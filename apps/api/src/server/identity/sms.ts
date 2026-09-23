@@ -3,20 +3,16 @@
  * 未配置 SMS 环境变量时 send 返回 503 语义（通道未开通），不影响密码登录
  */
 import { pool } from "@/server/platform/db";
+import { loadConfig } from "@/server/platform/config";
 import { generateSmsCode, hashToken } from "@/server/identity/auth-crypto";
+import { verifyCode } from "@/server/identity/verify-code";
 
 const CODE_TTL_MS = 5 * 60_000;
 const _RESEND_INTERVAL_MS = 60_000;
 const DAILY_LIMIT = 10;
 
 export function smsConfigured(): boolean {
-  return Boolean(
-    process.env.TENCENT_SMS_SECRET_ID &&
-    process.env.TENCENT_SMS_SECRET_KEY &&
-    process.env.TENCENT_SMS_SDK_APP_ID &&
-    process.env.TENCENT_SMS_SIGN &&
-    process.env.TENCENT_SMS_TEMPLATE_ID,
-  );
+  return loadConfig().sms !== null;
 }
 
 export interface SmsSendResult {
@@ -66,33 +62,21 @@ export async function sendSmsCode(phone: string, purpose: "login" | "bind"): Pro
   }
 }
 
-/** 校验验证码：一次性，错 5 次作废 */
+/** 校验验证码：一次性原子核销（与邮箱链路共享 verify-code，错 5 次作废） */
 export async function verifySmsCode(phone: string, purpose: string, code: string): Promise<boolean> {
-  const { rows } = await pool.query(
-    `select id, code_hash, attempts, expires_at from sms_codes
-     where phone = $1 and purpose = $2 and expires_at > now()
-     order by created_at desc limit 1`,
-    [phone, purpose],
-  );
-  const row = rows[0];
-  if (!row || row.attempts >= 5) return false;
-  if (row.code_hash !== hashToken(code)) {
-    await pool.query(`update sms_codes set attempts = attempts + 1 where id = $1`, [row.id]);
-    return false;
-  }
-  await pool.query(`delete from sms_codes where id = $1`, [row.id]); // 一次性
-  return true;
+  return verifyCode("sms_codes", phone, purpose, code);
 }
 
 // ---------- 腾讯云 SMS（TC3-HMAC-SHA256 手工签名，避免引 SDK） ----------
 
 async function tencentSendSms(phone: string, code: string): Promise<void> {
+  const sms = loadConfig().sms!;
   const { createHmac, createHash } = await import("node:crypto");
-  const secretId = process.env.TENCENT_SMS_SECRET_ID!;
-  const secretKey = process.env.TENCENT_SMS_SECRET_KEY!;
-  const sdkAppId = process.env.TENCENT_SMS_SDK_APP_ID!;
-  const sign = process.env.TENCENT_SMS_SIGN!;
-  const templateId = process.env.TENCENT_SMS_TEMPLATE_ID!;
+  const secretId = sms.secretId;
+  const secretKey = sms.secretKey;
+  const sdkAppId = sms.sdkAppId;
+  const sign = sms.sign;
+  const templateId = sms.templateId;
 
   const host = "sms.tencentcloudapi.com";
   const service = "sms";

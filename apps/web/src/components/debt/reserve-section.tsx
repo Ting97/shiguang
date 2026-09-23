@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiClientError } from "@/shared/api";
-import { fmt } from "./kit";
+import { bjToday, fmt } from "./kit";
 
 /** GET /api/debts/reserve 返回（REQ-005 FR-3.1~3.3） */
 interface ReserveData {
@@ -27,7 +27,8 @@ interface ReserveData {
  * 备付区块（REQ-005 R3）：月切换 → 合并清单（勾选）→ 月进度 → 储蓄覆盖（参与账户可勾选）→ 一键备付。
  */
 export default function ReserveSection({ onChanged }: { onChanged?: () => void }) {
-  const [ym, setYm] = useState(() => new Date().toISOString().slice(0, 7));
+  // 北京时间推算：裸 UTC 在每月 1 日 0-8 点会落到上个月
+  const [ym, setYm] = useState(() => bjToday().slice(0, 7));
   const [data, setData] = useState<ReserveData | null>(null);
   const [savings, setSavings] = useState<Array<{ id: string; name: string; balanceCents: number; reserveTracked: boolean }>>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);

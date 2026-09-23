@@ -5,6 +5,7 @@
  */
 import { pool } from "@/server/platform/db";
 import { ApiError } from "../platform/http/errors";
+import { isParsableMoment } from "../platform/http/datetime";
 import type { TodoItem, TodoRow } from "@shiguangri/shared/types";
 import { todoRepo, spaceRepo, reflectionRepo } from "./repo";
 
@@ -62,6 +63,9 @@ export interface SpacePatchInput {
 
 /** 智能列表视图：today=今日标记 / important=⭐ / all=全部未完成 / done=已完成 / today-actions=首页今日行动清单（行动级） */
 async function listTodos(userId: string, view: string) {
+  // 06:00 日切恢复必须先于计数（重复行动次日回到未完成，counts.done 才不与列表状态矛盾）
+  await todoRepo.restoreRepeating(userId);
+
   const countRows = await todoRepo.counts(userId);
   const counts = {
     today: countRows[0]?.today ?? 0,
@@ -71,13 +75,9 @@ async function listTodos(userId: string, view: string) {
   };
 
   if (view === "today-actions") {
-    await todoRepo.restoreRepeating(userId);
     const { rows } = await todoRepo.todayActions(userId);
     return { actions: rows, counts };
   }
-
-  // 06:00 日切恢复在四视图读取前执行（重复行动次日回到未完成）
-  await todoRepo.restoreRepeating(userId);
 
   const { rows: parents } = await todoRepo.parentsOfView(userId, view);
 
@@ -143,6 +143,10 @@ async function createTodo(userId: string, body: TodoCreateInput) {
   // 标记只作用于顶层任务（行动随父走）：today=true 写入北京今天的日期
   const marked = !parentId;
   const dueAt = body.dueAt ?? null;
+  // 语义校验前置（QA：非法串曾穿透到 new Date/::timestamptz → Invalid Date 抛 RangeError/PG 500）
+  if (dueAt != null && !isParsableMoment(dueAt)) {
+    throw ApiError.badRequest("dueAt 需为合法时间（ISO 格式，如 2025-06-01T09:00）");
+  }
 
   // 行动插入式定位：afterId（同父行动）之后插入，后续行动 sort 平移；无 afterId 追加尾部
   let sort: number;
@@ -196,7 +200,8 @@ async function undoDoneTodo(userId: string, id: string) {
   } catch (e) {
     await client.query("rollback").catch(() => {});
     if (e instanceof ApiError) throw e;
-    throw ApiError.upstream(String(e));
+    // detail 只进日志（route 基座不回传），PG 原始错误串不下发客户端
+    throw ApiError.upstream("服务器内部错误", String(e));
   } finally {
     client.release();
   }
@@ -242,6 +247,13 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
   if (body.note !== undefined) {
     const note = body.note?.trim() ? body.note.trim() : null;
     if (note && note.length > 1000) throw ApiError.badRequest("详情内容太长了（≤1000 字）");
+  }
+  // 时间入参语义校验（QA：非法串曾穿透 buildPatch 的 $n::timestamptz → PG 报错 500；null=清除时间恒合法）
+  if (body.dueAt != null && !isParsableMoment(body.dueAt)) {
+    throw ApiError.badRequest("dueAt 需为合法时间（ISO 格式，如 2025-06-01T09:00）");
+  }
+  if (body.startAt != null && !isParsableMoment(body.startAt)) {
+    throw ApiError.badRequest("startAt 需为合法时间（ISO 格式，如 2025-06-01T09:00）");
   }
   const { sets, vals } = todoRepo.buildPatch(body, spaceId);
   if (sets.length === 0) throw ApiError.badRequest("没有可更新的字段");
