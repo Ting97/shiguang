@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
@@ -117,7 +116,6 @@ export default function FinanceReviewPage() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
-          <Nav />
           <ModuleLocked title="交易复盘" desc="该模块由管理员授权后开放，可联系管理员开通。" />
         </div>
       </main>
@@ -132,7 +130,6 @@ export default function FinanceReviewPage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
-        <Nav />
         <header className="mb-5 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">交易复盘</span>

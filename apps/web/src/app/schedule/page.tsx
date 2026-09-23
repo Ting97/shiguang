@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Nav from "@/components/nav";
 import CalendarPanel from "@/components/calendar-panel";
 import TodoBoard from "@/components/todo-board";
 import ActivityPanel from "@/components/activity-panel";
@@ -37,7 +36,6 @@ export default function SchedulePage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
-        <Nav />
 
         {/* 模块头：标题 + 三个子页切换（移动端全宽三等分，PC 居中胶囊） */}
         <div className="glass mb-5 flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

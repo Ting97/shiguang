@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Nav from "@/components/nav";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminMarketingPanel from "@/components/admin-marketing-panel";
 import { FilterChip, TagChip } from "@/components/tag-chip";
@@ -36,7 +35,6 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
-        <Nav />
 
         {me && !me.isAdmin ? (
           <div className="glass mt-10 rounded-2xl p-10 text-center">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
 import FinanceTabs from "@/components/finance-tabs";
@@ -106,7 +105,6 @@ export default function FinancePage() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
-          <Nav />
           <Skeleton rows={3} className="py-2" />
         </div>
       </main>
@@ -116,7 +114,6 @@ export default function FinancePage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
-        <Nav />
         <header className="mb-5 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">财务</span>

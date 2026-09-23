@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Nav from "@/components/nav";
 import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import MomentFeed from "@/components/moment-feed";
@@ -371,7 +370,6 @@ export default function Home() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 pb-28 pt-5 sm:pb-8 sm:pt-8">
-        <Nav />
         <header className="mb-5 text-center sm:mb-7">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光

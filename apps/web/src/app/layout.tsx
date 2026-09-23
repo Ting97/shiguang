@@ -1,5 +1,6 @@
 import type { Viewport } from "next";
 import ChunkErrorReloader from "@/components/chunk-error-reloader";
+import Nav from "@/components/nav";
 import ErrorBoundary from "@/shared/ui/error-boundary";
 import Providers from "@/shared/providers";
 import "./globals.css";
@@ -30,6 +31,8 @@ export default function RootLayout({
       <body className="min-h-screen antialiased text-ink">
         <Providers>
           <ChunkErrorReloader />
+          {/* 导航全局唯一挂载：顶栏宽度与页面内容容器解耦（各页 max-w 不同导致的长度不齐在此统一） */}
+          <Nav />
           <ErrorBoundary>{children}</ErrorBoundary>
         </Providers>
       </body>

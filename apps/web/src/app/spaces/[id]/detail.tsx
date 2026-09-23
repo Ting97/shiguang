@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createPortal } from "react-dom";
-import Nav from "@/components/nav";
 import { Dismissable } from "@/components/dismissable";
 import { FilterChip } from "@/components/tag-chip";
 import InlineRename from "@/components/inline-rename";
@@ -432,7 +431,6 @@ export default function Detail() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
-          <Nav />
           <div className="glass mt-10 rounded-2xl p-10 text-center">
             <p className="text-4xl">🎯</p>
             <p className="mt-3 text-sm">空间不存在或已删除</p>
@@ -449,7 +447,6 @@ export default function Detail() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
-          <Nav />
           {loadErr ? (
             <div className="py-10 text-center">
               <p className="text-sm text-danger">加载失败：{loadErr}</p>
@@ -478,7 +475,6 @@ export default function Detail() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-4xl px-5 pb-16 pt-8">
-        <Nav />
         {msg && (
           <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"}`}>
             {msg.text}

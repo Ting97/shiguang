@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Nav from "@/components/nav";
 import { TagChip } from "@/components/tag-chip";
 
 interface Me {
@@ -112,7 +111,6 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
-        <Nav />
         <h1 className="text-gradient mb-1 text-center text-3xl font-bold sm:text-4xl">我的<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">个人设置</span></h1>
         <p className="mb-5 text-xs text-ink-dim">个性化你的账号信息</p>
 

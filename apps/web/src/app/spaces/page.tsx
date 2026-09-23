@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import Nav from "@/components/nav";
 import { Dismissable } from "@/components/dismissable";
 import InlineRename from "@/components/inline-rename";
 import { TagChip } from "@/components/tag-chip";
@@ -131,7 +130,6 @@ export default function SpacesPage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
-        <Nav />
         {msg && (
           <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"}`}>
             {msg.text}

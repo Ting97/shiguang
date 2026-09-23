@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import { TagChip, TONE_BG } from "@/components/tag-chip";
@@ -113,7 +112,6 @@ export function ContactDetailPage() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
-          <Nav />
           <Skeleton rows={3} className="py-2" />
         </div>
       </main>
@@ -123,7 +121,6 @@ export function ContactDetailPage() {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
-          <Nav />
           <p className="py-16 text-center text-xs text-ink-dim">联系人不存在</p>
         </div>
       </main>
@@ -147,7 +144,6 @@ export function ContactDetailPage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
-        <Nav />
 
         <Link href="/contacts" className="mb-4 inline-flex items-center gap-1 text-xs text-ink-dim transition hover:text-accent">
           ← 返回人际

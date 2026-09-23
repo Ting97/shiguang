@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Nav from "@/components/nav";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
@@ -96,7 +95,6 @@ export default function ContactsPage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-2xl px-5 py-8">
-        <Nav />
         <header className="mb-6 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">人际</span>
