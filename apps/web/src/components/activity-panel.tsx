@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import IconPicker from "@/components/icon-picker";
 import type { Activity } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
@@ -82,7 +82,6 @@ export default function ActivityPanel() {
   }
 
   async function remove(a: Activity) {
-    if (!window.confirm(`删除分类「${a.name}」？\n其历史时间块与 todo 将归入「其他」。`)) return;
     try {
       await api<any>(`/api/activities/${a.id}`, "DELETE");
     } catch (e) {
@@ -92,7 +91,24 @@ export default function ActivityPanel() {
       return;
     }
     setMsg({ ok: true, text: `🗑 已删除「${a.name}」` });
+    setArmDeleteId(null);
     await load();
+  }
+
+  /** 删除两步确认（与 BlockEditor 同款）：首点进入待确认态，3 秒内再点才真删——
+   *  替换原生 window.confirm（阻塞式弹窗与全站样式化确认不一致，移动 WebView 观感差） */
+  const [armDeleteId, setArmDeleteId] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (armTimer.current) clearTimeout(armTimer.current); }, []);
+  function onDeleteClick(a: Activity) {
+    if (armDeleteId === a.id) {
+      if (armTimer.current) clearTimeout(armTimer.current);
+      void remove(a);
+      return;
+    }
+    setArmDeleteId(a.id);
+    if (armTimer.current) clearTimeout(armTimer.current);
+    armTimer.current = setTimeout(() => setArmDeleteId(null), 3000);
   }
 
   return (
@@ -187,8 +203,12 @@ export default function ActivityPanel() {
                   ✏️
                 </button>
                 {!a.is_preset && (
-                  <button onClick={() => remove(a)} className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger">
-                    🗑
+                  <button
+                    onClick={() => onDeleteClick(a)}
+                    className={`rounded px-1.5 py-0.5 text-xs hover:bg-soft ${armDeleteId === a.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:text-danger"}`}
+                    title="删除分类（3 秒内再点确认）"
+                  >
+                    {armDeleteId === a.id ? "确认删除?" : "🗑"}
                   </button>
                 )}
               </span>
