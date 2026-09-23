@@ -13,6 +13,7 @@ import SpacePicker from "@/components/space-picker";
 import { TagChip } from "@/components/tag-chip";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "@/components/todo-bits";
 import type { Activity, FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
+import { api, ApiClientError } from "@/shared/api";
 
 /**
  * 空间详情（REQ-001 R3）：空间头部（可编辑/归档/删除）→ 进度概览 →
@@ -91,12 +92,8 @@ export default function Detail() {
   const load = useCallback(async () => {
     setLoadErr(null);
     try {
-      const sr = await fetch("/api/spaces");
-      if (sr.status === 401) {
-        location.href = "/login";
-        return;
-      }
-      const sj = await sr.json();
+      // 原 401 分支（location.href = "/login"）已由 shared/api 统一处理
+      const sj = await api<any>("/api/spaces", "GET");
       setAllSpaces((sj.spaces as Space[]) ?? []);
       const s = (sj.spaces as Space[]).find((x) => x.id === id);
       if (!s) {
@@ -104,22 +101,32 @@ export default function Detail() {
         return;
       }
       setSpace(s);
-      // 该空间的待办（全视图取全部再前端过滤）
-      const tr = await fetch("/api/todos?view=all");
-      if (tr.ok) {
-        const tj = await tr.json();
+      // 该空间的待办（全视图取全部再前端过滤）；原 if (tr.ok) 失败静默跳过，不阻断其余加载
+      try {
+        const tj = await api<any>("/api/todos?view=all", "GET");
         setTodos((tj.todos as TodoItem[]).filter((t) => t.space_id === id));
+      } catch {
+        // 原 if (tr.ok)：失败跳过
       }
       // 已完成的关联 todo（done 视图按完成时间倒序）
-      const dr = await fetch("/api/todos?view=done");
-      if (dr.ok) {
-        const dj = await dr.json();
+      try {
+        const dj = await api<any>("/api/todos?view=done", "GET");
         setDoneTodos(((dj.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
+      } catch {
+        // 原 if (dr.ok)：失败跳过
       }
-      const fr = await fetch("/api/feed?limit=20&spaceId=" + id);
-      if (fr.ok) setMoments((await fr.json()).moments as FeedMoment[]);
-      const ar = await fetch("/api/activities");
-      if (ar.ok) setActivities((await ar.json()).activities ?? []);
+      try {
+        const fj = await api<any>("/api/feed?limit=20&spaceId=" + id, "GET");
+        setMoments(fj.moments as FeedMoment[]);
+      } catch {
+        // 原 if (fr.ok)：失败跳过
+      }
+      try {
+        const aj = await api<any>("/api/activities", "GET");
+        setActivities(aj.activities ?? []);
+      } catch {
+        // 原 if (ar.ok)：失败跳过
+      }
     } catch (e) {
       // 网络抖动/接口异常不能停在加载态（历史 bug：无 catch 时永远"加载中"只能强刷）
       setLoadErr(e instanceof Error ? e.message : String(e));
@@ -133,36 +140,32 @@ export default function Detail() {
   async function addTodo() {
     const t = newTodo.trim();
     if (!t) return;
-    const r = await fetch("/api/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: t, spaceId: id }),
-    });
-    if (r.ok) {
-      setNewTodo("");
-      await load();
-    } else {
-      const j = await r.json();
-      setMsg({ ok: false, text: j.error ?? "添加失败" });
+    try {
+      await api<any>("/api/todos", "POST", { title: t, spaceId: id });
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "添加失败" : e.message });
+        return;
+      }
+      throw e;
     }
+    setNewTodo("");
+    await load();
   }
 
   async function patchTodo(todoId: string, body: Record<string, unknown>, okText: string): Promise<boolean> {
     setBusyId(todoId);
     try {
-      const r = await fetch(`/api/todos/${todoId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) {
-        const j = await r.json();
-        setMsg({ ok: false, text: j.error ?? "操作失败" });
-        return false;
-      }
+      await api<any>(`/api/todos/${todoId}`, "PATCH", body);
       setMsg({ ok: true, text: okText });
       await load();
       return true;
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message });
+        return false;
+      }
+      throw e;
     } finally {
       setBusyId(null);
     }
@@ -170,7 +173,12 @@ export default function Detail() {
 
   async function removeTodo(todoId: string, title: string) {
     if (!window.confirm(`删除「${title}」？\n其下行动会一并删除。`)) return;
-    await fetch(`/api/todos/${todoId}`, { method: "DELETE" });
+    try {
+      await api<any>(`/api/todos/${todoId}`, "DELETE");
+    } catch (e) {
+      // 原 fetch 版未检查响应：删除失败也照常提示并刷新
+      if (!(e instanceof ApiClientError)) throw e;
+    }
     setMsg({ ok: true, text: "已删除" });
     await load();
   }
@@ -194,15 +202,15 @@ export default function Detail() {
           }
         }
       }
-      const r = await fetch(`/api/todos/${t.id}/decompose`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mode ? { mode } : {}),
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        setMsg({ ok: false, text: j.error ?? "AI 拆解失败" });
-        return;
+      let j: any;
+      try {
+        j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
+      } catch (e) {
+        if (e instanceof ApiClientError) {
+          setMsg({ ok: false, text: e.message === "操作失败" ? "AI 拆解失败" : e.message });
+          return;
+        }
+        throw e;
       }
       setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${t.isAction ? "，已插入原行动之后" : ""}` });
       await load();
@@ -213,25 +221,25 @@ export default function Detail() {
 
   async function setStatus(status: "active" | "archived") {
     if (!space) return;
-    await fetch(`/api/spaces/${space.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    try {
+      await api<any>(`/api/spaces/${space.id}`, "PATCH", { status });
+    } catch (e) {
+      // 原 fetch 版未检查响应：失败也返回列表（此导航非 401 处理，保留）
+      if (!(e instanceof ApiClientError)) throw e;
+    }
     location.href = "/spaces";
   }
 
   /** 调整/清除目标到期时间（头部就地编辑；null=清除） */
   async function saveTargetDate(v: string | null): Promise<boolean> {
-    const r = await fetch(`/api/spaces/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetDate: v }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}) as { error?: string });
-      setMsg({ ok: false, text: j.error ?? "保存失败" });
-      return false;
+    try {
+      await api<any>(`/api/spaces/${id}`, "PATCH", { targetDate: v });
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message });
+        return false;
+      }
+      throw e;
     }
     setSpace((s) => (s ? { ...s, target_date: v } : s));
     setAllSpaces((list) => list.map((x) => (x.id === id ? { ...x, target_date: v } : x)));
@@ -290,12 +298,7 @@ export default function Detail() {
   async function openLinkPicker() {
     setLinkLoading(true);
     try {
-      const r = await fetch("/api/todos?view=all");
-      if (!r.ok) {
-        setMsg({ ok: false, text: "加载失败，请稍后再试" });
-        return;
-      }
-      const j = await r.json();
+      const j = await api<any>("/api/todos?view=all", "GET");
       setLinkItems(((j.todos as TodoItem[]) ?? []).filter((t) => !t.space_id && t.status === "pending"));
       setLinkQuery("");
       setLinkOpen(true);
@@ -316,15 +319,14 @@ export default function Detail() {
   async function addAction(t: { id: string }) {
     const title = (actionDrafts[t.id] ?? "").trim();
     if (!title) return;
-    const r = await fetch("/api/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, parentId: t.id }),
-    });
-    if (!r.ok) {
-      const j = await r.json();
-      setMsg({ ok: false, text: j.error ?? "添加失败" });
-      return;
+    try {
+      await api<any>("/api/todos", "POST", { title, parentId: t.id });
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "添加失败" : e.message });
+        return;
+      }
+      throw e;
     }
     setActionDrafts((d) => ({ ...d, [t.id]: "" }));
     setMsg({ ok: true, text: "📌 行动已添加" });
@@ -335,15 +337,17 @@ export default function Detail() {
   async function loadUnlinkedMoments(q: string, offset: number) {
     setMomentLoading(true);
     try {
-      const r = await fetch(`/api/feed?spaceId=none&limit=20&offset=${Math.max(0, offset)}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
-      if (!r.ok) {
-        setMsg({ ok: false, text: "加载失败，请稍后再试" });
-        return;
-      }
-      const j = await r.json();
+      const j = await api<any>(`/api/feed?spaceId=none&limit=20&offset=${Math.max(0, offset)}${q ? `&q=${encodeURIComponent(q)}` : ""}`, "GET");
       const list = (j.moments as FeedMoment[]) ?? [];
       setMomentTotal(j.total ?? list.length);
       setMomentItems((prev) => (offset <= 0 ? list : [...prev, ...list]));
+    } catch (e) {
+      // 原 !r.ok 分支的固定提示；网络异常仍同原版上抛
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: "加载失败，请稍后再试" });
+        return;
+      }
+      throw e;
     } finally {
       setMomentLoading(false);
     }
@@ -360,15 +364,14 @@ export default function Detail() {
 
   /** C1：把未归属动态关联到本空间（成功后从浮层移除并刷新计数） */
   async function linkMoment(momentId: string) {
-    const r = await fetch(`/api/feed/${momentId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ spaceId: id }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}) as { error?: string });
-      setMsg({ ok: false, text: j.error ?? "关联失败" });
-      return;
+    try {
+      await api<any>(`/api/feed/${momentId}`, "PATCH", { spaceId: id });
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "关联失败" : e.message });
+        return;
+      }
+      throw e;
     }
     setMomentItems((list) => list.filter((m) => m.id !== momentId));
     setMomentTotal((n) => Math.max(0, n - 1));
@@ -379,15 +382,14 @@ export default function Detail() {
   /** N1：行级关联/切换/移除空间 */
   async function pickSpace(todoId: string, target: string | null) {
     setPickerRow(null);
-    const r = await fetch(`/api/todos/${todoId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ spaceId: target }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}) as { error?: string });
-      setMsg({ ok: false, text: j.error ?? "关联失败" });
-      return;
+    try {
+      await api<any>(`/api/todos/${todoId}`, "PATCH", { spaceId: target });
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "关联失败" : e.message });
+        return;
+      }
+      throw e;
     }
     setMsg({ ok: true, text: target ? "🎯 已关联空间" : "已移除空间归属" });
     await load();
@@ -400,20 +402,17 @@ export default function Detail() {
       const url = editingReflection
         ? `/api/spaces/${id}/reflections/${editingReflection.id}`
         : `/api/spaces/${id}/reflections`;
-      const r = await fetch(url, {
-        method: editingReflection ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}) as { error?: string });
-        setMsg({ ok: false, text: j.error ?? "保存失败" });
-        return false;
-      }
+      await api<any>(url, editingReflection ? "PATCH" : "POST", { content });
       setMsg({ ok: true, text: editingReflection ? "✏️ 感悟已更新" : "📝 感悟已保存" });
       setEditorOpen(false);
       await load();
       return true;
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message });
+        return false;
+      }
+      throw e;
     } finally {
       setRefEditorBusy(false);
     }
@@ -423,7 +422,12 @@ export default function Detail() {
     if (!space) return;
     const refN = space.reflection_count ?? 0;
     if (!window.confirm(`删除空间「${space.name}」？\n含 ${refN} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`)) return;
-    await fetch(`/api/spaces/${space.id}`, { method: "DELETE" });
+    try {
+      await api<any>(`/api/spaces/${space.id}`, "DELETE");
+    } catch (e) {
+      // 原 fetch 版未检查响应：失败也返回列表
+      if (!(e instanceof ApiClientError)) throw e;
+    }
     location.href = "/spaces";
   }
 
@@ -492,15 +496,14 @@ export default function Detail() {
                 <InlineRename
                   value={space.name}
                   onSave={async (name) => {
-                    const r = await fetch(`/api/spaces/${id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ name }),
-                    });
-                    if (!r.ok) {
-                      const j = await r.json().catch(() => ({}) as { error?: string });
-                      setMsg({ ok: false, text: j.error ?? "重命名失败" });
-                      return false;
+                    try {
+                      await api<any>(`/api/spaces/${id}`, "PATCH", { name });
+                    } catch (e) {
+                      if (e instanceof ApiClientError) {
+                        setMsg({ ok: false, text: e.message === "操作失败" ? "重命名失败" : e.message });
+                        return false;
+                      }
+                      throw e;
                     }
                     setSpace({ ...space, name });
                     setMsg({ ok: true, text: "已重命名" });
@@ -929,14 +932,15 @@ export default function Detail() {
               onEdit={({ id: rid }) => {
                 // 打开编辑器前拉取全文
                 void (async () => {
-                  const r = await fetch(`/api/spaces/${id}/reflections/${rid}`);
-                  const j = await r.json();
-                  if (!r.ok) {
-                    setMsg({ ok: false, text: j.error ?? "全文加载失败" });
-                    return;
+                  try {
+                    const j = await api<any>(`/api/spaces/${id}/reflections/${rid}`, "GET");
+                    setEditingReflection({ id: rid, content: j.reflection.content });
+                    setEditorOpen(true);
+                  } catch (e) {
+                    if (e instanceof ApiClientError) {
+                      setMsg({ ok: false, text: e.message === "操作失败" ? "全文加载失败" : e.message });
+                    }
                   }
-                  setEditingReflection({ id: rid, content: j.reflection.content });
-                  setEditorOpen(true);
                 })();
               }}
             />

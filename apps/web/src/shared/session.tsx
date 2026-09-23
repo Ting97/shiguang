@@ -4,11 +4,11 @@
  * 全站唯一会话源（REQ-004 FR-E1.2 / 4-F）：SessionProvider + useSession()。
  * - /api/auth/me 单次拉取、401 统一跳登录（唯一跳转点）
  * - logout() 清会话并跳转；setUser 供登录/注册页写入
- * - 挂在根布局；子页面直接 useSession()，禁止散落 fetch("/api/auth/me")
+ * - 挂在根布局；子页面直接 useSession()，禁止散落自行拉取 /api/auth/me
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@shiguangri/shared/client-api";
+import { api } from "./api";
 
 export interface SessionUser {
   id: string;
@@ -17,6 +17,8 @@ export interface SessionUser {
   isAdmin: boolean;
   modules: string[];
   phoneVerified: boolean;
+  /** 本地开发后门（AUTH_DISABLED=1）时为 true：导航栏隐藏账号/登出入口 */
+  authDisabled?: boolean;
 }
 
 interface SessionValue {
@@ -44,7 +46,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const me = await api<SessionUser & { authDisabled?: boolean }>("/api/auth/me", "GET");
+      const me = await api<SessionUser>("/api/auth/me", "GET");
       setUser(me);
     } catch {
       setUser(null);

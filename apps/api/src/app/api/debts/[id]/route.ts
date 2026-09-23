@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuthParams, type AuthedCtx, type WithParams } from "@/server/platform/http/route";
+import { withAuthParams, type AuthedCtx } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { getModuleUser } from "@/server/platform";
 import { validateDebtBody, serializeDebt } from "@/server/finance";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /** 带路径参数的 debt 模块门禁：等价组合 withModule("debt")（基座 withModule 不透传 params）
  * —— withAuthParams 未登录 401「未登录」；getModuleUser 为 null 即已登录未授权 → 403「未开通该模块」（admin 直通）。 */
 const withDebtParams = (
-  handler: (req: NextRequest, ctx: AuthedCtx & WithParams) => Promise<Response> | Response,
+  handler: (req: NextRequest, ctx: AuthedCtx & { params: Promise<any> }) => Promise<Response> | Response,
 ) =>
   withAuthParams(async (req, ctx) => {
     if (!(await getModuleUser("debt"))) throw new ApiError(403, "forbidden", "未开通该模块");

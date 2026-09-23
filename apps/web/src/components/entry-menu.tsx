@@ -9,6 +9,7 @@ import {
 import type { Activity, FeedMoment } from "@/lib/types";
 import { TX_CATEGORIES } from "@/lib/finance";
 import { COMMON_MOODS } from "./moment-feed";
+import { api } from "@/shared/api";
 
 const SIX = [
   { key: "schedule", icon: Clock, label: "日程", hint: "做了什么事" },
@@ -278,8 +279,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
         {spaceMenu === null ? (
           <button
             onClick={() => {
-              fetch("/api/spaces")
-                .then((r) => r.json())
+              api("/api/spaces")
                 .then((j) => setSpaceMenu((j.spaces ?? []).filter((s: { status: string }) => s.status === "active")))
                 .catch(() => setSpaceMenu([]));
             }}

@@ -14,6 +14,7 @@ import PublishSheet from "@/components/publish-sheet";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { parseYmd, todayStr, zhDuration } from "@/lib/date";
 import { uploadImages } from "@/lib/image";
+import { api } from "@/shared/api";
 import type { Activity, Block, FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
 
 /** 桌面输入区随附图片的状态机：ready 待发布 / uploading 上传中 / error 失败可重试 */
@@ -144,32 +145,27 @@ export default function Home() {
     const lim = opts?.limit ?? feedLimit;
     const q = opts?.query !== undefined ? opts.query : query;
     const sp = opts?.spaceId ?? spaceFilter;
-    const [todayRes, feedRes, reminderRes] = await Promise.all([
-      fetch("/api/today"),
-      fetch(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}${sp !== "all" ? `&spaceId=${sp}` : ""}`),
-      fetch("/api/reminders"),
+    const [j, f, rj] = await Promise.all([
+      api("/api/today"),
+      api(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}${sp !== "all" ? `&spaceId=${sp}` : ""}`),
+      // W12 提醒横幅：接口失败不打扰主流程
+      api("/api/reminders").catch(() => null),
     ]);
-    const j = await todayRes.json();
     setTodos(j.todos ?? []);
     setDoneToday(j.doneToday ?? []);
     setBlocks(j.blocks ?? []);
     setActivities(j.activities ?? []);
     setTodayKcal(j.todayKcal ?? 0);
-    const f = await feedRes.json();
     setMoments(f.moments ?? []);
     setFeedTotal(f.total ?? 0);
-    // W12 提醒横幅：接口失败不打扰主流程
-    try {
-      const rj = await reminderRes.json();
-      setReminderItems(pickReminders((rj.contacts ?? []) as ReminderContact[], (rj.todos ?? []) as ReminderTodo[]));
-    } catch {
-      setReminderItems([]);
-    }
+    setReminderItems(rj ? pickReminders((rj.contacts ?? []) as ReminderContact[], (rj.todos ?? []) as ReminderTodo[]) : []);
   }, [feedLimit, query, spaceFilter]);
 
   // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）
   useEffect(() => {
-    fetch("/api/spaces").then(async (r) => setSpaces(r.ok ? (await r.json()).spaces.filter((s: Space) => s.status === "active") : []));
+    api("/api/spaces")
+      .then((j) => setSpaces(j.spaces.filter((s: Space) => s.status === "active")))
+      .catch(() => setSpaces([]));
   }, []);
 
   useEffect(() => {
@@ -206,14 +202,9 @@ export default function Home() {
     if (!t || busy) return null;
     setBusy(true);
     try {
-      const r = await fetch("/api/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: t }),
-      });
-      const j = await r.json();
-      // 防御非约定响应（网关错误页/结构变更）：给出可读原因，而不是 TypeError
-      if (!r.ok || !j?.entry) throw new Error(j?.error || `服务异常(${r.status})，请稍后重试`);
+      const j = await api<any>("/api/parse", "POST", { text: t });
+      // 防御非约定响应（结构变更）：给出可读原因，而不是 TypeError
+      if (!j?.entry) throw new Error("服务异常，请稍后重试");
       // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
       setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
       setText("");
@@ -267,19 +258,15 @@ export default function Home() {
     }
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
-    const r = await fetch(`/api/blocks/${editing.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await api(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
         startAt: combineHM(b.start_at, editing.start),
         endAt: combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
-      }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "保存失败" });
+      });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "保存失败" });
       return;
     }
     setEditing(null);
@@ -289,8 +276,9 @@ export default function Home() {
 
   async function removeBlock(b: Block) {
     if (!window.confirm(`删除这条日程？\n「${b.title}」 ${zhTime(b.start_at)}–${zhTime(b.end_at)}`)) return;
-    const r = await fetch(`/api/blocks/${b.id}`, { method: "DELETE" });
-    if (!r.ok) {
+    try {
+      await api(`/api/blocks/${b.id}`, "DELETE");
+    } catch {
       setMsg({ ok: false, text: "删除失败" });
       return;
     }
@@ -300,14 +288,10 @@ export default function Home() {
 
   /** 时间轴缺口补录 */
   async function createBlock(payload: { title: string; startAt: string; endAt: string; activityId: string }) {
-    const r = await fetch("/api/blocks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "补录失败" });
+    try {
+      await api("/api/blocks", "POST", payload);
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "补录失败" });
       return false;
     }
     setMsg({ ok: true, text: `✍️ 已补录：${payload.title}` });
@@ -384,15 +368,11 @@ export default function Home() {
         <Reminders
           items={reminderItems}
           onMarkToday={async (todoId, label) => {
-            const r = await fetch(`/api/todos/${todoId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ today: true }),
-            });
-            if (r.ok) {
+            try {
+              await api(`/api/todos/${todoId}`, "PATCH", { today: true });
               setMsg({ ok: true, text: `☀️ 已加入今日 todo` });
               await load();
-            } else {
+            } catch {
               setMsg({ ok: false, text: `加入今日失败（${label.slice(0, 20)}…）` });
             }
           }}

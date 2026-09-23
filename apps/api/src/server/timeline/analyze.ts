@@ -417,7 +417,7 @@ async function persistPeople(
   r: import("@shiguangri/ai").ParseResult,
 ) {
   for (const p of r.people) {
-    // 先精确名/别名匹配（如识别出"王建军"而已有联系人"老王"的别名为它）
+    // 先精确名/别名匹配（如识别出"王建军"而已有联系人"王叔"的别名为它）
     const hit = await client.query(
       `select id, name from contacts where user_id = $1 and (name = $2 or alias = $2) limit 1`,
       [userId, p.name],

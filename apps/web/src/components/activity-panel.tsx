@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import IconPicker from "@/components/icon-picker";
 import type { Activity } from "@/lib/types";
+import { api, ApiClientError } from "@/shared/api";
 
 /** 日程页 · 分类子页：活动分类管理（原 /categories 页整体平移，逻辑不变） */
 
@@ -22,8 +23,8 @@ export default function ActivityPanel() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/activities");
-    setList((await r.json()).activities ?? []);
+    const j = await api<any>("/api/activities");
+    setList(j.activities ?? []);
   }, []);
   useEffect(() => {
     load();
@@ -36,13 +37,12 @@ export default function ActivityPanel() {
 
   async function add() {
     if (!adding.name.trim()) { setMsg({ ok: false, text: "名称必填" }); return; }
-    const r = await fetch("/api/activities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(adding),
-    });
-    const j = await r.json();
-    if (!r.ok) { setMsg({ ok: false, text: j.error ?? "新增失败" }); return; }
+    try {
+      await api<any>("/api/activities", "POST", adding);
+    } catch (e) {
+      if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "新增失败" : e.message }); return; }
+      throw e;
+    }
     setMsg({ ok: true, text: `✅ 已新增分类「${adding.name.trim()}」` });
     setAdding({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
     await load();
@@ -50,13 +50,12 @@ export default function ActivityPanel() {
 
   async function save() {
     if (!editing) return;
-    const r = await fetch(`/api/activities/${editing.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editing.name, icon: editing.icon, color: editing.color, defaultMin: editing.defaultMin }),
-    });
-    const j = await r.json();
-    if (!r.ok) { setMsg({ ok: false, text: j.error ?? "保存失败" }); return; }
+    try {
+      await api<any>(`/api/activities/${editing.id}`, "PATCH", { name: editing.name, icon: editing.icon, color: editing.color, defaultMin: editing.defaultMin });
+    } catch (e) {
+      if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message }); return; }
+      throw e;
+    }
     setEditing(null);
     setMsg({ ok: true, text: "💾 已保存" });
     await load();
@@ -64,9 +63,12 @@ export default function ActivityPanel() {
 
   async function remove(a: Activity) {
     if (!window.confirm(`删除分类「${a.name}」？\n其历史时间块与 todo 将归入「其他」。`)) return;
-    const r = await fetch(`/api/activities/${a.id}`, { method: "DELETE" });
-    const j = await r.json();
-    if (!r.ok) { setMsg({ ok: false, text: j.error ?? "删除失败" }); return; }
+    try {
+      await api<any>(`/api/activities/${a.id}`, "DELETE");
+    } catch (e) {
+      if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "删除失败" : e.message }); return; }
+      throw e;
+    }
     setMsg({ ok: true, text: `🗑 已删除「${a.name}」` });
     await load();
   }

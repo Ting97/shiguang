@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Activity, Space, TodoItem, TodoRow } from "@/lib/types";
+import { api, ApiClientError } from "@/shared/api";
 import { TodoCircle, childProgress, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { FilterChip } from "./tag-chip";
 import { useDismiss, Dismissable } from "./dismissable";
@@ -104,20 +105,21 @@ export default function TodoBoard() {
   }, [msg]);
 
   const loadActivities = useCallback(async () => {
-    const r = await fetch("/api/activities");
-    setActivities((await r.json()).activities ?? []);
+    const j = await api<any>("/api/activities");
+    setActivities(j.activities ?? []);
   }, []);
   useEffect(() => {
     loadActivities();
-    fetch("/api/spaces").then(async (r) => setSpaces(r.ok ? (await r.json()).spaces.filter((s: Space) => s.status === "active") : []));
+    // 原 fetch 版 !ok → 置空；api() 非 ok 抛 ApiClientError，catch 里同样归零
+    api<any>("/api/spaces")
+      .then((j) => setSpaces(j.spaces.filter((s: Space) => s.status === "active")))
+      .catch(() => setSpaces([]));
   }, [loadActivities]);
 
   const load = useCallback(async (v: View) => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/todos?view=${v}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
+      const j = await api<any>(`/api/todos?view=${v}`);
       setTodos(j.todos ?? []);
       setCounts(j.counts ?? { today: 0, important: 0, all: 0, done: 0 });
     } catch (e) {
@@ -143,20 +145,14 @@ export default function TodoBoard() {
     if (!title || adding) return;
     setAdding(true);
     try {
-      const r = await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          activityId: draft.activityId || undefined,
-          important: draft.important || view === "important" ? true : undefined,
-          today: draft.today || view === "today" ? true : undefined,
-          dueAt: draft.due ? localInputToIso(draft.due) : undefined,
-          spaceId: draft.spaceId || undefined,
-        }),
+      const j = await api<any>("/api/todos", "POST", {
+        title,
+        activityId: draft.activityId || undefined,
+        important: draft.important || view === "important" ? true : undefined,
+        today: draft.today || view === "today" ? true : undefined,
+        dueAt: draft.due ? localInputToIso(draft.due) : undefined,
+        spaceId: draft.spaceId || undefined,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
       setDraft({ ...EMPTY_DRAFT, activityId: draft.activityId });
       setDraftOpen(false);
       setMsg({ ok: true, text: `📌 已添加「${j.todo.title}」` });
@@ -169,15 +165,14 @@ export default function TodoBoard() {
   }
 
   async function patchTodo(id: string, body: Record<string, unknown>, okText?: string) {
-    const r = await fetch(`/api/todos/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "操作失败" });
-      return false;
+    try {
+      await api<any>(`/api/todos/${id}`, "PATCH", body);
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message });
+        return false;
+      }
+      throw e;
     }
     if (okText) setMsg({ ok: true, text: okText });
     await load(view);
@@ -204,15 +199,15 @@ export default function TodoBoard() {
             : "append";
         }
       }
-      const r = await fetch(`/api/todos/${t.id}/decompose`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mode ? { mode } : {}),
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        setMsg({ ok: false, text: j.error ?? "AI 拆解失败" });
-        return;
+      let j: any;
+      try {
+        j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
+      } catch (e) {
+        if (e instanceof ApiClientError) {
+          setMsg({ ok: false, text: e.message === "操作失败" ? "AI 拆解失败" : e.message });
+          return;
+        }
+        throw e;
       }
       setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${isAction ? "，已插入原行动之后" : ""}` });
       await load(view);
@@ -223,11 +218,14 @@ export default function TodoBoard() {
 
   async function removeTodo(t: TodoRow, isChild: boolean) {
     if (!window.confirm(`删除${isChild ? "行动" : "todo"}？${isChild ? "" : "\n其下行动将一并删除。"}\n「${t.title}」`)) return;
-    const r = await fetch(`/api/todos/${t.id}`, { method: "DELETE" });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "删除失败" });
-      return;
+    try {
+      await api<any>(`/api/todos/${t.id}`, "DELETE");
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "删除失败" : e.message });
+        return;
+      }
+      throw e;
     }
     setMsg({ ok: true, text: `🗑 已删除「${t.title}」` });
     await load(view);
@@ -262,15 +260,14 @@ export default function TodoBoard() {
   async function addSubtask(parentId: string) {
     const title = subTitle.trim();
     if (!title) return;
-    const r = await fetch("/api/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, parentId }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "添加失败" });
-      return;
+    try {
+      await api<any>("/api/todos", "POST", { title, parentId });
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "添加失败" : e.message });
+        return;
+      }
+      throw e;
     }
     setSubTitle("");
     await load(view);

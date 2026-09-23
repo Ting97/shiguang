@@ -7,6 +7,7 @@ import { Dismissable } from "@/components/dismissable";
 import InlineRename from "@/components/inline-rename";
 import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
+import { api, ApiClientError } from "@/shared/api";
 
 /**
  * 目标空间列表（REQ-001 R3）：宏大目标（≥1 年）容器。
@@ -42,14 +43,16 @@ export default function SpacesPage() {
   const load = useCallback(async () => {
     setLoadErr(null);
     try {
-      const r = await fetch("/api/spaces");
-      if (r.status === 401) {
-        location.href = "/login";
-        return;
-      }
-      setSpaces(r.ok ? (await r.json()).spaces : []);
+      // 原 401 分支（location.href = "/login"）已由 shared/api 统一处理；
+      // 原 !ok → 置空列表的语义由 ApiClientError 分支保留，网络异常仍走加载失败
+      const j = await api<any>("/api/spaces", "GET");
+      setSpaces((j.spaces as Space[]) ?? []);
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : String(e));
+      if (e instanceof ApiClientError) {
+        setSpaces([]);
+      } else {
+        setLoadErr(e instanceof Error ? e.message : String(e));
+      }
     }
   }, []);
 
@@ -86,15 +89,14 @@ export default function SpacesPage() {
       startedAt: editing.startedAt || null,
       targetDate: editing.targetDate || null,
     };
-    const r = await fetch(editingId ? `/api/spaces/${editingId}` : "/api/spaces", {
-      method: editingId ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      setMsg({ ok: false, text: j.error ?? "保存失败" });
-      return;
+    try {
+      await api<any>(editingId ? `/api/spaces/${editingId}` : "/api/spaces", editingId ? "PATCH" : "POST", body);
+    } catch (e) {
+      if (e instanceof ApiClientError) {
+        setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message });
+        return;
+      }
+      throw e;
     }
     setEditing(null);
     setMsg({ ok: true, text: editingId ? "空间已更新" : `空间「${editing.name}」已创建 🎯` });
@@ -102,11 +104,12 @@ export default function SpacesPage() {
   }
 
   async function setStatus(s: Space, status: "active" | "archived") {
-    await fetch(`/api/spaces/${s.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    try {
+      await api<any>(`/api/spaces/${s.id}`, "PATCH", { status });
+    } catch (e) {
+      // 原 fetch 版未检查响应：失败也提示并刷新
+      if (!(e instanceof ApiClientError)) throw e;
+    }
     setMsg({ ok: true, text: status === "archived" ? `「${s.name}」已归档` : `「${s.name}」已恢复` });
     load();
   }
@@ -114,7 +117,12 @@ export default function SpacesPage() {
   async function remove(s: Space) {
     const refN = s.reflection_count ?? 0;
     if (!window.confirm(`删除空间「${s.name}」？\n含 ${refN} 篇感悟（将一并删除）；${s.todo_total ?? 0} 条关联 todo、${s.entry_count ?? 0} 条动态仅解除归属。`)) return;
-    await fetch(`/api/spaces/${s.id}`, { method: "DELETE" });
+    try {
+      await api<any>(`/api/spaces/${s.id}`, "DELETE");
+    } catch (e) {
+      // 原 fetch 版未检查响应：失败也提示并刷新
+      if (!(e instanceof ApiClientError)) throw e;
+    }
     setMsg({ ok: true, text: `「${s.name}」已删除` });
     load();
   }
@@ -192,15 +200,14 @@ export default function SpacesPage() {
               <InlineRename
                 value={s.name}
                 onSave={async (name) => {
-                  const r = await fetch(`/api/spaces/${s.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name }),
-                  });
-                  if (!r.ok) {
-                    const j = await r.json().catch(() => ({}) as { error?: string });
-                    setMsg({ ok: false, text: j.error ?? "重命名失败" });
-                    return false;
+                  try {
+                    await api<any>(`/api/spaces/${s.id}`, "PATCH", { name });
+                  } catch (e) {
+                    if (e instanceof ApiClientError) {
+                      setMsg({ ok: false, text: e.message === "操作失败" ? "重命名失败" : e.message });
+                      return false;
+                    }
+                    throw e;
                   }
                   setMsg({ ok: true, text: "已重命名" });
                   await load();

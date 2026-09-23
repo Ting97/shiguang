@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseInput } from "./parse";
-import { hasApiKey } from "./glm";
+import { GLM_DEFAULT_MODEL, hasApiKey } from "./glm";
 import { jevAsk, qChoice, qNoul, type JevQuestions } from "./jev";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -40,7 +40,7 @@ function questionsFor(_text: string): JevQuestions {
     fin_applicable: qNoul("这句话包含有具体金额的花钱或收钱行为"),
     mood_applicable: qNoul("这句话表达了说话者的情绪或心情（情绪可能藏在动作里）"),
     diet_applicable: qNoul("这句话提到吃了或喝了具体的食物或饮品（喝白开水不算）"),
-    people_applicable: qNoul("这句话提到了具体的人（称谓也算，比如爸妈、小李、张老师）"),
+    people_applicable: qNoul("这句话提到了具体的人（称谓也算，比如爸妈、小陈、张老师）"),
     activity: qChoice("如果这句话在记录一个活动，它最接近哪一类？", {
       sleep: "睡眠：睡觉、午睡、赖床补觉",
       work: "工作：开会、写周报、处理邮件、见客户、上班",
@@ -277,7 +277,7 @@ async function main() {
 |---|---|
 | 日期 | ${new Date().toISOString().slice(0, 10)} |
 | 测试集 | packages/ai/testset/poc-20.json（${cases.length} 句真实记录） |
-| 模型 | Jev：${process.env.JEV_MODEL ?? "jev-latest"}；GLM：${process.env.GLM_MODEL ?? "glm-5.3-flash"} |
+| 模型 | Jev：${process.env.JEV_MODEL ?? "jev-latest"}；GLM：${process.env.GLM_MODEL ?? GLM_DEFAULT_MODEL} |
 | 固定当前时间 | ${NOW_LABEL}（与 poc:live 同基准） |
 | Jev 响应 | ${jevOkCount}/${cases.length} 句成功 |
 | 评分口径 | 闭集字段两引擎同尺；开放词汇（人名/标题）不参评 |

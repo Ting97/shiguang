@@ -60,16 +60,8 @@ export const nowMonth = () => {
 };
 
 
-export async function api(url: string, method: string, body?: unknown) {
-  const r = await fetch(url, {
-    method,
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error ?? "操作失败");
-  return j;
-}
+/** 统一取数封装（REQ-004 FR-E1.1）：转发 @/shared/api，导出签名不变，调用方无需改动 */
+export { api } from "@/shared/api";
 
 
 

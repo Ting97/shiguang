@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { api, ApiClientError } from "@/shared/api";
 
 /** 列表条目：预览 300 字 + 字数（GET 列表不回全文，FR-N2.4） */
 export interface ReflectionItem {
@@ -36,9 +37,7 @@ export default function SpaceReflections({
   const load = useCallback(
     async (offset: number) => {
       try {
-        const r = await fetch(`/api/spaces/${spaceId}/reflections?limit=20&offset=${offset}`);
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error ?? "加载失败");
+        const j = await api<any>(`/api/spaces/${spaceId}/reflections?limit=20&offset=${offset}`, "GET");
         setTotal(j.total ?? 0);
         setItems((prev) => (offset === 0 ? (j.items as ReflectionItem[]) : [...(prev ?? []), ...(j.items as ReflectionItem[])]));
       } catch (e) {
@@ -64,9 +63,7 @@ export default function SpaceReflections({
       return;
     }
     try {
-      const r = await fetch(`/api/spaces/${spaceId}/reflections/${it.id}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "加载失败");
+      const j = await api<any>(`/api/spaces/${spaceId}/reflections/${it.id}`, "GET");
       setExpanded((s) => ({ ...s, [it.id]: j.reflection.content }));
     } catch (e) {
       notify({ ok: false, text: `全文加载失败：${e instanceof Error ? e.message : e}` });
@@ -75,13 +72,18 @@ export default function SpaceReflections({
 
   async function remove(it: ReflectionItem) {
     if (!window.confirm(`删除这篇感悟？（${it.chars} 字）`)) return;
-    const r = await fetch(`/api/spaces/${spaceId}/reflections/${it.id}`, { method: "DELETE" });
-    if (r.ok) {
+    try {
+      await api<any>(`/api/spaces/${spaceId}/reflections/${it.id}`, "DELETE");
       notify({ ok: true, text: "🗑 感悟已删除" });
       onChanged();
       await load(0);
-    } else {
-      notify({ ok: false, text: "删除失败" });
+    } catch (e) {
+      // 原 else 分支的固定提示；网络异常仍同原版上抛（静默）
+      if (e instanceof ApiClientError) {
+        notify({ ok: false, text: "删除失败" });
+      } else {
+        throw e;
+      }
     }
   }
 

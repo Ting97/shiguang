@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { api } from "@/shared/api";
 
 export interface CachedReview {
   summary: string;
@@ -16,8 +17,7 @@ export function useCachedReview(kind: "day" | "week" | "month" | "year", period:
     let alive = true;
     setCached(null);
     if (!period) return;
-    fetch(`/api/review?kind=${kind}&period=${period}`)
-      .then((r) => r.json())
+    api(`/api/review?kind=${kind}&period=${period}`)
       .then((j) => {
         if (alive && j?.review) setCached(j.review as CachedReview);
       })

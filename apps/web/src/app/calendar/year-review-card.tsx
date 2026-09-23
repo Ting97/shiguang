@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useCachedReview } from "./use-cached-review";
 import { TagChip } from "@/components/tag-chip";
+import { api } from "@/shared/api";
 
 /** AI 年报（review v3）：挂载时展示上次持久化的小结；点按钮生成/重新生成；分节长文渲染 */
 export default function YearReviewCard({ year, hasRecords, notify }: {
@@ -24,13 +25,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await fetch("/api/review/year", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, refresh: shown != null }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "生成失败");
+      const j = await api<any>("/api/review/year", "POST", { year, refresh: shown != null });
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {

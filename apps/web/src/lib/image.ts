@@ -4,6 +4,8 @@
  * - uploadImages：并行上传（单张失败不阻塞其他），返回失败清单供重试
  */
 
+import { apiForm } from "@/shared/api";
+
 export interface CompressedImage {
   blob: Blob;
   width: number;
@@ -76,9 +78,7 @@ export async function uploadImages(entryId: string, files: File[]): Promise<Uplo
       const form = new FormData();
       const name = blob instanceof File ? blob.name : "photo.jpg";
       form.append("files", blob, name);
-      return fetch("/api/entries/" + entryId + "/images", { method: "POST", body: form }).then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "上传失败");
-      });
+      return apiForm("/api/entries/" + entryId + "/images", form);
     }),
   );
   const failed = compressed.filter((_, i) => results[i].status === "rejected").map((c) => c.file);

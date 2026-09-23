@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { api } from "@/shared/api";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminMarketingPanel from "@/components/admin-marketing-panel";
 import { FilterChip, TagChip } from "@/components/tag-chip";
@@ -18,13 +19,9 @@ export default function AdminPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(async (r) => {
-      if (r.status === 401) {
-        location.href = "/login";
-        return;
-      }
-      setMe(await r.json());
-    });
+    api("/api/auth/me")
+      .then((j) => setMe(j))
+      .catch(() => {});
   }, []);
 
   const notify = (text: string, ok = true) => {

@@ -14,6 +14,8 @@
     "build:web": "npm run build -w @shiguangri/web",
     "build:api": "npm run build -w @shiguangri/api",
     "test": "npm test --workspaces --if-present",
+    "test:routes": "node scripts/run-routes-smoke.mjs",
+    "test:coverage": "node scripts/run-coverage.mjs",
     "poc": "npm run poc -w @shiguangri/ai",
     "poc:live": "npm run poc:live -w @shiguangri/ai",
     "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/api && tsc --noEmit -p packages/ai",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@next/eslint-plugin-next": "^15.5.26",
+    "c8": "^12.0.0",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "react": "19.0.0",

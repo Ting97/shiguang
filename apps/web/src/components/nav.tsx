@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import ThemeToggle from "./theme-toggle";
 import { useSession } from "@/shared/session";
 
@@ -19,33 +19,19 @@ const NAVLESS_PATHS = ["/login", "/setup"];
 
 export default function Nav() {
   const pathname = usePathname();
-  const [nickname, setNickname] = useState<string | null>(null);
-  const [authDisabled, setAuthDisabled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navless = NAVLESS_PATHS.includes(pathname);
 
   useEffect(() => {
-    if (navless) return; // 登录/初始化页无会话，避免 401 跳转死循环
-    fetch("/api/auth/me").then((r) => {
-      if (r.status === 401) {
-        location.href = "/login"; // 会话失效（异地退出/过期）→ 回登录页
-        return;
-      }
-      r.json().then((j) => {
-        setNickname(j.nickname ?? "我");
-        setAuthDisabled(Boolean(j.authDisabled));
-      });
-    });
-  }, [navless]);
-
-  // 移动端横滑时把当前激活项滚入可视区中央（否则访问靠后的模块看不出当前在哪）
-  useEffect(() => {
+    // 移动端横滑时把当前激活项滚入可视区中央（否则访问靠后的模块看不出当前在哪）
     const el = scrollRef.current?.querySelector<HTMLElement>(`[data-path="${pathname}"]`);
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [pathname]);
 
-  // 4-F：登出走 useSession（唯一 401/跳转点）
-  const { logout } = useSession();
+  // 会话走全站唯一源 useSession（FR-E1.2）；401 跳转由 SessionProvider 统一处理
+  const { user, logout } = useSession();
+  const nickname = user?.nickname ?? null;
+  const authDisabled = user?.authDisabled ?? false;
 
   if (navless) return null;
 

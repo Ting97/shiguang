@@ -5,6 +5,7 @@ import TodoLogo from "./todo-logo";
 import { TodoCircle, dueTag } from "./todo-bits";
 import { Dismissable } from "./dismissable";
 import type { TodayAction } from "@/lib/types";
+import { api } from "@/shared/api";
 
 /**
  * 首页「今日行动清单」（REQ-001 R3 + REQ-002 N6）：
@@ -27,9 +28,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/todos?view=today-actions");
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "加载失败");
+      const j = await api("/api/todos?view=today-actions");
       setActions(j.actions ?? []);
     } catch (e) {
       setActions([]);
@@ -47,13 +46,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     if (!t || adding) return;
     setAdding(true);
     try {
-      const r = await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: t, kind: "action", today: true }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "创建失败");
+      await api("/api/todos", "POST", { title: t, kind: "action", today: true });
       setNewTitle("");
       notify({ ok: true, text: `⚡ 已添加行动「${t}」` });
       await load();
@@ -67,11 +60,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   async function toggleDone(a: TodayAction) {
     const done = a.status === "done";
     setBusyId(a.id);
-    await fetch(`/api/todos/${a.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(done ? { undone: true } : { done: true }),
-    });
+    await api(`/api/todos/${a.id}`, "PATCH", done ? { undone: true } : { done: true });
     setBusyId(null);
     if (a.repeat_daily && !done) {
       notify({ ok: true, text: `🎉 完成「${a.title}」，已坚持 ×${a.repeat_done_count + 1}` });
@@ -82,7 +71,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   /** N6：删除行动（独立/有父皆可，confirm 确认） */
   async function removeAction(a: TodayAction) {
     if (!window.confirm(`删除行动「${a.title}」？`)) return;
-    await fetch(`/api/todos/${a.id}`, { method: "DELETE" });
+    await api(`/api/todos/${a.id}`, "DELETE");
     notify({ ok: true, text: "🗑 行动已删除" });
     await load();
   }
@@ -104,13 +93,9 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
 
   async function saveEdit() {
     if (!editingId || !editTitle.trim()) return;
-    await fetch(`/api/todos/${editingId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: editTitle.trim(),
-        dueAt: editDue ? new Date(editDue).toISOString() : null,
-      }),
+    await api(`/api/todos/${editingId}`, "PATCH", {
+      title: editTitle.trim(),
+      dueAt: editDue ? new Date(editDue).toISOString() : null,
     });
     setEditingId(null);
     await load();

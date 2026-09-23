@@ -4,7 +4,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { withModule } from "@/server/platform/http/route";
 import { getOrGenerateReview, acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle, assembleUserPrompt } from "@/server/ai";
-import { chatReviewJson } from "@/server/insight/review-input";
+import { chatReviewJson } from "@/server/insight";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 
 export const runtime = "nodejs";

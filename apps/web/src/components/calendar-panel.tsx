@@ -16,6 +16,7 @@ import {
   weekName, ymd, zhDate, zhDuration,
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
+import { api, ApiClientError } from "@/shared/api";
 
 /** 日程页 · 日历子页：原 /calendar 页的四视图（日/周/月/年）+ AI 复盘，逻辑不变整体平移 */
 export default function CalendarPanel() {
@@ -29,8 +30,8 @@ export default function CalendarPanel() {
   const [err, setErr] = useState<string | null>(null);
 
   const loadActivities = useCallback(async () => {
-    const r = await fetch("/api/activities");
-    setActivities((await r.json()).activities ?? []);
+    const j = await api<any>("/api/activities");
+    setActivities(j.activities ?? []);
   }, []);
   useEffect(() => {
     loadActivities();
@@ -59,14 +60,10 @@ export default function CalendarPanel() {
     try {
       const qs = `from=${range.from}&to=${range.to}`;
       if (view === "day" || view === "week") {
-        const r = await fetch(`/api/blocks/range?${qs}`);
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error);
+        const j = await api<any>(`/api/blocks/range?${qs}`);
         setBlocks(j.blocks ?? []);
       } else {
-        const r = await fetch(`/api/stats/range?${qs}`);
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error);
+        const j = await api<any>(`/api/stats/range?${qs}`);
         setStats(new Map((j.days ?? []).map((d: DayStat) => [d.date, d])));
       }
     } catch (e) {
@@ -108,18 +105,17 @@ export default function CalendarPanel() {
       d.setHours(h, m, 0, 0);
       return d.toISOString();
     };
-    const r = await fetch(`/api/blocks/${editing.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await api<any>(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
         startAt: withHM(b.start_at, editing.start),
         endAt: withHM(b.end_at, editing.end),
         activityId: editing.activityId,
-      }),
-    });
-    const j = await r.json();
-    if (!r.ok) { setErr(j.error ?? "保存失败"); return; }
+      });
+    } catch (e) {
+      if (e instanceof ApiClientError) { setErr(e.message === "操作失败" ? "保存失败" : e.message); return; }
+      throw e;
+    }
     setEditing(null);
     await load();
   }
@@ -127,19 +123,23 @@ export default function CalendarPanel() {
     if (!editing) return;
     const b = blocks.find((x) => x.id === editing.id);
     if (!b || !window.confirm(`删除这条日程？\n「${b.title}」`)) return;
-    const r = await fetch(`/api/blocks/${editing.id}`, { method: "DELETE" });
-    if (!r.ok) { setErr("删除失败"); return; }
+    try {
+      await api<any>(`/api/blocks/${editing.id}`, "DELETE");
+    } catch (e) {
+      // 原 fetch 版不解析响应体，任何失败统一「删除失败」
+      if (e instanceof ApiClientError) { setErr("删除失败"); return; }
+      throw e;
+    }
     setEditing(null);
     await load();
   }
   async function createBlock(payload: { title: string; startAt: string; endAt: string; activityId: string }) {
-    const r = await fetch("/api/blocks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const j = await r.json();
-    if (!r.ok) { setErr(j.error ?? "补录失败"); return false; }
+    try {
+      await api<any>("/api/blocks", "POST", payload);
+    } catch (e) {
+      if (e instanceof ApiClientError) { setErr(e.message === "操作失败" ? "补录失败" : e.message); return false; }
+      throw e;
+    }
     await load();
     return true;
   }

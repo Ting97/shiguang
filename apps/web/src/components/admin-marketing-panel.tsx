@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { api } from "@/shared/api";
 import InvitesPanel from "./invites-panel";
 import { TagChip } from "./tag-chip";
 
@@ -22,19 +23,22 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
   }
 
   const loadUsers = useCallback(() => {
-    fetch("/api/billing/users").then(async (r) => setUsers(r.ok ? (await r.json()).users : null));
+    api("/api/billing/users")
+      .then((j) => setUsers(j.users))
+      .catch(() => setUsers(null));
   }, []);
 
   // 模块授权矩阵（031）：user_id → module[]
   const loadGrants = useCallback(() => {
-    fetch("/api/admin/grants").then(async (r) => {
-      if (!r.ok) return;
-      const map: Record<string, string[]> = {};
-      for (const g of (await r.json()).grants ?? []) {
-        (map[g.user_id] ??= []).push(g.module);
-      }
-      setGrants(map);
-    });
+    api("/api/admin/grants")
+      .then((j) => {
+        const map: Record<string, string[]> = {};
+        for (const g of j.grants ?? []) {
+          (map[g.user_id] ??= []).push(g.module);
+        }
+        setGrants(map);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -43,13 +47,10 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
   }, [loadUsers, loadGrants]);
 
   async function toggleModule(userId: string, module: "debt" | "trade_review", on: boolean) {
-    const r = await fetch(
-      on ? "/api/admin/grants" : `/api/admin/grants?userId=${userId}&module=${module}`,
-      on
-        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, module }) }
-        : { method: "DELETE" },
-    );
-    if (!r.ok) {
+    try {
+      if (on) await api("/api/admin/grants", "POST", { userId, module });
+      else await api(`/api/admin/grants?userId=${userId}&module=${module}`, "DELETE");
+    } catch {
       notify("模块授权失败", false);
       return;
     }
@@ -58,12 +59,9 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
   }
 
   async function setPlan(userId: string, plan: "free" | "pro") {
-    const r = await fetch("/api/billing/plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, plan, months: 12 }),
-    });
-    if (!r.ok) {
+    try {
+      await api("/api/billing/plan", "POST", { userId, plan, months: 12 });
+    } catch {
       notify("套餐变更失败", false);
       return;
     }

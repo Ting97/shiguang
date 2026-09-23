@@ -11,6 +11,7 @@ import { TagChip } from "./tag-chip";
 import { ImageGrid, ImageLightbox } from "./image-grid";
 import { PencilLine, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { api } from "@/shared/api";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const zhClock = (iso: string) => {
@@ -87,17 +88,6 @@ const localInputToIso = (v: string) => {
   const d = new Date(v);
   return isNaN(d.getTime()) ? null : d.toISOString();
 };
-
-async function api(url: string, method: string, body?: unknown) {
-  const r = await fetch(url, {
-    method,
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error ?? "操作失败");
-  return j;
-}
 
 interface Props {
   moments: FeedMoment[];

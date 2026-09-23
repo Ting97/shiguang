@@ -4,8 +4,8 @@ import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle } from "@/server/ai";
-import { chatReviewJson } from "@/server/insight/review-input";
-import { buildReviewCtx } from "@/server/insight/review-ctx";
+import { chatReviewJson } from "@/server/insight";
+import { buildReviewCtx } from "@/server/insight";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

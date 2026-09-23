@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
-import { generateInviteCode } from "@/server/identity/auth-crypto";
+import { generateInviteCode } from "@/server/identity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

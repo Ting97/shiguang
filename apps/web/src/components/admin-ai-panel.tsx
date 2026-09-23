@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { api } from "@/shared/api";
 import { TagChip, FilterChip } from "./tag-chip";
 
 /**
@@ -104,31 +105,34 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
   const [showVersions, setShowVersions] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/admin/prompts");
-    const j = await r.json();
-    if (!r.ok) {
-      notify(j.error ?? "加载失败", false);
-      return;
+    try {
+      const j = await api<any>("/api/admin/prompts");
+      setItems(j.items as PromptItem[]);
+      return j.items as PromptItem[];
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "加载失败", false);
     }
-    setItems(j.items as PromptItem[]);
-    return j.items as PromptItem[];
   }, [notify]);
 
   const loadVersions = useCallback(async (key: string) => {
-    const r = await fetch(`/api/admin/prompts/${key}`);
-    setVersions(r.ok ? (await r.json()).versions : null);
+    try {
+      const j = await api<any>(`/api/admin/prompts/${key}`);
+      setVersions(j.versions);
+    } catch {
+      setVersions(null);
+    }
   }, []);
 
   useEffect(() => {
     load().then((list) => {
       if (list?.length) pick(list[0]);
     });
-    fetch("/api/admin/ai-mode").then(async (r) => {
-      if (!r.ok) return;
-      const j = await r.json();
-      setEngineMode(j.mode);
-      setEngineEnvDefault(j.envDefault);
-    });
+    api("/api/admin/ai-mode")
+      .then((j) => {
+        setEngineMode(j.mode);
+        setEngineEnvDefault(j.envDefault);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -136,13 +140,7 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
     if (engineSaving || mode === engineMode) return;
     setEngineSaving(true);
     try {
-      const r = await fetch("/api/admin/ai-mode", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "切换失败");
+      await api("/api/admin/ai-mode", "PUT", { mode });
       setEngineMode(mode);
       notify(`调用引擎已切换为「${MODE_META[mode].label}」，立即生效`);
     } catch (e) {
@@ -184,19 +182,13 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
     }
     setSaving(true);
     try {
-      const r = await fetch(`/api/admin/prompts/${sel.key}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: draft,
-          enabled,
-          // 改回默认值 = 清除覆盖（null）；有改动才提交覆盖
-          userTemplate: tplDirty ? tplDraft : null,
-          contextConfig: cfgDirty ? { inject: injectDraft, caps: capsDraft } : null,
-        }),
+      await api(`/api/admin/prompts/${sel.key}`, "PUT", {
+        content: draft,
+        enabled,
+        // 改回默认值 = 清除覆盖（null）；有改动才提交覆盖
+        userTemplate: tplDirty ? tplDraft : null,
+        contextConfig: cfgDirty ? { inject: injectDraft, caps: capsDraft } : null,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "保存失败");
       notify(`「${sel.title}」已保存并即时生效`);
       const list = await load();
       const fresh = list?.find((x) => x.key === sel.key);
@@ -210,31 +202,28 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
 
   async function revertDefault() {
     if (!sel || !window.confirm(`恢复「${sel.title}」为代码默认值？（删除 DB 覆盖：system/user 模板/注入配置全部回退，立即生效）`)) return;
-    const r = await fetch(`/api/admin/prompts/${sel.key}`, { method: "DELETE" });
-    if (r.ok) {
+    try {
+      await api(`/api/admin/prompts/${sel.key}`, "DELETE");
       notify(`「${sel.title}」已恢复代码默认`);
       const list = await load();
       const fresh = list?.find((x) => x.key === sel.key);
       if (fresh) pick(fresh);
-    } else notify("操作失败", false);
+    } catch {
+      notify("操作失败", false);
+    }
   }
 
   async function rollback(v: Version) {
     if (!sel || !window.confirm(`整体回滚到 ${zhTime(v.created_at)} 的版本？（system + user 模板 + 注入配置三件套，立即生效）`)) return;
-    const r = await fetch(`/api/admin/prompts/${sel.key}/restore`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ versionId: v.id }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      notify(j.error ?? "回滚失败", false);
-      return;
+    try {
+      await api(`/api/admin/prompts/${sel.key}/restore`, "POST", { versionId: v.id });
+      notify(`已回滚到 ${zhTime(v.created_at)} 的版本`);
+      const list = await load();
+      const fresh = list?.find((x) => x.key === sel.key);
+      if (fresh) pick(fresh);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "回滚失败", false);
     }
-    notify(`已回滚到 ${zhTime(v.created_at)} 的版本`);
-    const list = await load();
-    const fresh = list?.find((x) => x.key === sel.key);
-    if (fresh) pick(fresh);
   }
 
   async function optimize() {
@@ -242,13 +231,7 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
     setOptimizing(true);
     setSuggestion(null);
     try {
-      const r = await fetch(`/api/admin/prompts/${sel.key}/optimize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hint: optHint }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "优化失败");
+      const j = await api<any>(`/api/admin/prompts/${sel.key}/optimize`, "POST", { hint: optHint });
       setSuggestion(j.suggestion);
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), false);
@@ -261,13 +244,10 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
     if (!sel || previewing) return;
     setPreviewing(true);
     try {
-      const r = await fetch(`/api/admin/prompts/${sel.key}/preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sample: previewSample || undefined, period: previewPeriod || undefined }),
+      const j = await api<any>(`/api/admin/prompts/${sel.key}/preview`, "POST", {
+        sample: previewSample || undefined,
+        period: previewPeriod || undefined,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "预览失败");
       setPreviewText(j.userPrompt);
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), false);

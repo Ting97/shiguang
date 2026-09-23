@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { api } from "@/shared/api";
 import { TagChip } from "@/components/tag-chip";
 
 interface Me {
@@ -39,21 +40,17 @@ export default function ProfilePage() {
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(async (r) => {
-      if (r.status === 401) {
-        location.href = "/login";
-        return;
-      }
-      const j: Me = await r.json();
-      setMe(j);
-      setNickname(j.nickname ?? "");
-      setSavedNick(j.nickname ?? "");
-    });
+    api<Me>("/api/auth/me")
+      .then((j) => {
+        setMe(j);
+        setNickname(j.nickname ?? "");
+        setSavedNick(j.nickname ?? "");
+      })
+      .catch(() => {});
     // 套餐与 AI 用量（30 天窗口）
-    fetch("/api/billing/plan").then(async (r) => {
-      if (!r.ok) return;
-      setQuota(await r.json());
-    });
+    api("/api/billing/plan")
+      .then((j) => setQuota(j))
+      .catch(() => {});
   }, []);
 
   async function saveNickname() {
@@ -61,13 +58,7 @@ export default function ProfilePage() {
     setMsgNick(null);
     setBusy(true);
     try {
-      const r = await fetch("/api/auth/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "保存失败");
+      const j = await api<any>("/api/auth/profile", "PATCH", { nickname });
       setMsgNick({ ok: true, text: "✅ 昵称已更新（导航栏即刻生效）" });
       setSavedNick(j.nickname);
       setTimeout(() => location.reload(), 800); // 让 Nav 重新拉取
@@ -87,13 +78,10 @@ export default function ProfilePage() {
     }
     setBusy(true);
     try {
-      const r = await fetch("/api/auth/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: currentPwd || undefined, newPassword: newPwd }),
+      await api("/api/auth/profile", "PATCH", {
+        currentPassword: currentPwd || undefined,
+        newPassword: newPwd,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "保存失败");
       setMsgPwd({ ok: true, text: "✅ 密码已更新，下次登录请使用新密码" });
       setCurrentPwd("");
       setNewPwd("");
@@ -216,7 +204,7 @@ export default function ProfilePage() {
               <button
                 onClick={async () => {
                   if (!window.confirm("在所有设备上退出登录？")) return;
-                  await fetch("/api/auth/logout-all", { method: "POST" });
+                  await api("/api/auth/logout-all", "POST").catch(() => {});
                   window.location.href = "/login";
                 }}
                 className="w-full rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-medium text-danger transition hover:bg-rose-500/20"

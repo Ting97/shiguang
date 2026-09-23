@@ -4,6 +4,7 @@
  * - initConfig() 在 instrumentation 启动时调用一次：fail-fast——缺失必需项列清单退出；
  *   生产环境 AUTH_DISABLED 非空即拒绝启动、弱默认连接串须显式 ALLOW_INSECURE=1 越过
  */
+import { GLM_DEFAULT_BASE_URL, GLM_DEFAULT_MODEL } from "@shiguangri/ai";
 
 export interface AppConfig {
   env: "development" | "production" | "test";
@@ -64,8 +65,8 @@ export function loadConfig(): AppConfig {
     isProd,
     databaseUrl,
     uploadDir: process.env.UPLOAD_DIR ?? null,
-    glmModel: process.env.GLM_MODEL ?? "glm-5.3-flash",
-    glmBaseUrl: process.env.ZHIPUAI_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4",
+    glmModel: process.env.GLM_MODEL ?? GLM_DEFAULT_MODEL,
+    glmBaseUrl: process.env.ZHIPUAI_BASE_URL ?? GLM_DEFAULT_BASE_URL,
     jevModel: process.env.JEV_MODEL ?? "jev-latest",
     jevMode: (["off", "shadow", "on"] as const).includes(process.env.JEV_MODE as never)
       ? (process.env.JEV_MODE as "off" | "shadow" | "on")

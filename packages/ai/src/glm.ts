@@ -11,8 +11,11 @@ import { generateText } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { APICallError } from "@ai-sdk/provider";
 
-const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
-const DEFAULT_MODEL = "glm-5.3-flash";
+/** GLM 连接默认值——全仓唯一来源（apps/api config / PoC 报告均引用此处，REQ-004 AC-3） */
+export const GLM_DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+export const GLM_DEFAULT_MODEL = "glm-5.3-flash";
+const DEFAULT_BASE_URL = GLM_DEFAULT_BASE_URL;
+const DEFAULT_MODEL = GLM_DEFAULT_MODEL;
 
 /** 传输层选择：sdk = Vercel AI SDK（默认）；legacy = 自研 fetch（等价回退开关，GLM_TRANSPORT=legacy） */
 export function glmTransport(): "sdk" | "legacy" {

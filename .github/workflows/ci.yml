@@ -1,6 +1,6 @@
 name: CI
 
-# REQ-004 FR-A4 / 4-A：lint → typecheck → test → build；红不过合
+# REQ-004 FR-A4 / 4-A + FR-F1.4 / AC-5：lint → typecheck → test（含测试库集成 + 覆盖率门槛）→ build；红不过合
 on:
   push:
     branches: [main]
@@ -9,6 +9,23 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      SHIGUANGRI_TEST_DB: postgresql://postgres:postgres@localhost:5432/shiguangri_test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,13 +38,16 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npx eslint . --quiet   # 0 error（迁移期 warning 放行）
+        run: npx eslint . --quiet   # 0 error（领域依赖规则已升 error）
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
-        run: npm test
+      - name: Prepare test database
+        run: npx tsx packages/db/runner.ts --fresh
+
+      - name: Test with coverage gate (identity/finance/timeline/ai ≥ 60% lines)
+        run: npm run test:coverage
 
       - name: Build
         run: npm run build

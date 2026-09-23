@@ -6,6 +6,7 @@ import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { TX_COLORS, yuan } from "@/lib/finance";
+import { api, ApiClientError } from "@/shared/api";
 
 /**
  * 交易复盘（REQ-003 3-F FR-C2.7）：日/周统计（纯 SQL）+ AI 交易周报（缓存/配额走复盘管线）。
@@ -56,12 +57,15 @@ export default function FinanceReviewPage() {
   const rangeFrom = period === "week" ? mondayOf(anchor) : anchor;
 
   const loadStats = useCallback(async () => {
-    const r = await fetch(`/api/finance/stats?period=${period}&date=${anchor}`);
-    if (r.status === 403) {
-      setLocked(true);
-      return;
+    try {
+      setStats(await api<Stats>(`/api/finance/stats?period=${period}&date=${anchor}`));
+    } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) {
+        setLocked(true);
+        return;
+      }
+      setStats(null);
     }
-    setStats(r.ok ? await r.json() : null);
   }, [period, anchor]);
   useEffect(() => {
     loadStats();
@@ -74,33 +78,30 @@ export default function FinanceReviewPage() {
       setGenBusy(true);
       setMsg(null);
       try {
-        const r = await fetch("/api/finance/review/week", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: mondayOf(anchor), refresh: true }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          setMsg(j.error ?? "生成失败");
-          return;
-        }
+        const j = await api<any>("/api/finance/review/week", "POST", { date: mondayOf(anchor), refresh: true });
         setReview(j.review);
         setReviewMeta({ cached: j.cached, generatedAt: j.generatedAt, range: j.range });
+      } catch (e) {
+        setMsg(e instanceof Error ? e.message : String(e));
       } finally {
         setGenBusy(false);
       }
       return;
     }
-    const r = await fetch(`/api/finance/review/week?date=${mondayOf(anchor)}`);
-    if (r.status === 403) {
-      setLocked(true);
-      return;
-    }
-    const j = await r.json().catch(() => ({}));
-    if (j.review) {
-      setReview(j.review);
-      setReviewMeta({ cached: true, generatedAt: j.generatedAt, range: j.range });
-    } else {
+    try {
+      const j = await api<any>(`/api/finance/review/week?date=${mondayOf(anchor)}`);
+      if (j.review) {
+        setReview(j.review);
+        setReviewMeta({ cached: true, generatedAt: j.generatedAt, range: j.range });
+      } else {
+        setReview(null);
+        setReviewMeta(null);
+      }
+    } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) {
+        setLocked(true);
+        return;
+      }
       setReview(null);
       setReviewMeta(null);
     }

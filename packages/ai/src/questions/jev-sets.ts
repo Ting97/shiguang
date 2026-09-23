@@ -13,7 +13,7 @@ export function extractClosedSetQuestions(): JevQuestions {
     fin_applicable: qNoul("这句话包含有具体金额的花钱或收钱行为"),
     mood_applicable: qNoul("这句话表达了说话者的情绪或心情（情绪可能藏在动作里）"),
     diet_applicable: qNoul("这句话提到吃了或喝了具体的食物或饮品（喝白开水不算）"),
-    people_applicable: qNoul("这句话提到了具体的人（称谓也算，比如爸妈、小李、张老师）"),
+    people_applicable: qNoul("这句话提到了具体的人（称谓也算，比如爸妈、小陈、张老师）"),
     activity: qChoice("如果这句话在记录一个活动，它最接近哪一类？", {
       sleep: "睡眠：睡觉、午睡、赖床补觉",
       work: "工作：开会、写周报、处理邮件、见客户、上班",

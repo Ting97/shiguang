@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { api, ApiClientError } from "@/shared/api";
 
 /**
  * 邀请管理面板（仅管理员）：嵌入个人设置页。
@@ -60,22 +61,20 @@ export default function InvitesPanel() {
   const [usage, setUsage] = useState<{ self: UsageSelf; invitees: UsageInvitee[]; byModel?: UsageByModel[] } | null>(null);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/auth/invites");
-    if (r.status === 401) {
-      location.href = "/login";
+    let j: any;
+    try {
+      j = await api("/api/auth/invites");
+    } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) setState("forbidden");
       return;
     }
-    if (r.status === 403) {
-      setState("forbidden");
-      return;
-    }
-    const j = await r.json();
     setInvites(j.invites ?? []);
     setState("ok");
-    fetch("/api/tokens/usage")
-      .then((r2) => (r2.ok ? r2.json() : null))
-      .then((j2) => setUsage(j2 ? { self: j2.self, invitees: j2.invitees ?? [], byModel: j2.byModel ?? [] } : null))
-      .catch(() => {});
+    api("/api/tokens/usage")
+      .then((j2) => setUsage({ self: j2.self, invitees: j2.invitees ?? [], byModel: j2.byModel ?? [] }))
+      .catch((e) => {
+        if (e instanceof ApiClientError) setUsage(null);
+      });
   }, []);
   useEffect(() => {
     load();
@@ -86,13 +85,7 @@ export default function InvitesPanel() {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/auth/invites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "生成失败");
+      const j = await api<any>("/api/auth/invites", "POST", { days });
       setMsg(`✅ 已生成邀请码 ${j.invite.code}`);
       await load();
     } catch (e) {

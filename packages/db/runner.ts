@@ -15,6 +15,8 @@ import { Client } from "pg";
 const here = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(here, "migrations");
 const statusOnly = process.argv.includes("--status");
+// 空库全量真实执行（测试库/新环境初始化）——与自举回填的区别是 SQL 真正落库
+const freshApply = process.argv.includes("--fresh");
 
 const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 });
 
@@ -42,6 +44,35 @@ async function main() {
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(".sql"))
     .sort(); // 文件名序即执行序（NNN-name.sql）
+
+  // 空库 + --fresh：schema.sql 建基线 + 全量迁移真实执行（测试库/新环境初始化）
+  if (done.size === 0 && files.length > 0 && freshApply) {
+    const baseSql = readFileSync(join(here, "schema.sql"), "utf8");
+    await client.query("begin");
+    await client.query(baseSql);
+    await client.query("commit");
+    console.log("[migrate] ✓ schema.sql（基线 DDL）");
+    for (const f of files) {
+      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      const t0 = Date.now();
+      try {
+        await client.query("begin");
+        await client.query(sql);
+        await client.query(`insert into schema_migrations (filename, checksum) values ($1,$2)`, [
+          f,
+          sha256(sql),
+        ]);
+        await client.query("commit");
+        console.log(`[migrate] ✓ ${f}（${Date.now() - t0}ms）`);
+      } catch (e) {
+        await client.query("rollback").catch(() => {});
+        console.error(`[migrate] ✗ ${f} 失败：${String(e).slice(0, 300)}`);
+        process.exit(1);
+      }
+    }
+    console.log(`[migrate] fresh 完成：全量执行 ${files.length} 个`);
+    return;
+  }
 
   // 首跑自举：记录表为空但目录里有历史迁移 → 全部回填（不执行——库已含其效果）
   if (done.size === 0 && files.length > 0) {

@@ -50,7 +50,7 @@ export default tseslint.config(
     files: ["apps/api/src/app/api/**/*.ts"],
     rules: {
       "no-restricted-imports": [
-        "warn",
+        "error",
         {
           patterns: [
             { group: ["@/lib/*"], message: "lib 已清零（FR-B1.4）" },

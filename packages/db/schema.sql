@@ -54,6 +54,20 @@ create table if not exists public.invite_codes (
   created_at  timestamptz not null default now()
 );
 
+-- 原始记录：用户说的一句（语音转写文本 或 键入文本）——动态流的"动态"本体
+-- （置于本文件前部被引用表之后、引用它的 diet/recognitions/images 之前，保证单次空库可执行）
+create table if not exists public.entries (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  source      text not null check (source in ('voice','keyboard','import','calendar_gap')),
+  raw_text    text not null,                        -- 转写/键入原文
+  audio_url   text,                                 -- 语音文件（OSS key，可空）
+  mood        text,                                 -- AI 识别的心情词（开心/疲惫/焦虑…），null=未识别
+  mood_score  int check (mood_score between -100 and 100),  -- 情绪强度：正=积极 负=消极
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_entries_user_time on public.entries (user_id, created_at desc);
+
 -- 饮食识别记录（migrations/008）：每动态一条，重识别覆盖
 create table if not exists public.diet_records (
   id         uuid primary key default gen_random_uuid(),
@@ -112,19 +126,6 @@ create table if not exists public.activities (
   created_at   timestamptz not null default now(),
   unique (user_id, name)
 );
-
--- 原始记录：用户说的一句（语音转写文本 或 键入文本）——动态流的"动态"本体
-create table if not exists public.entries (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references public.profiles(id) on delete cascade,
-  source      text not null check (source in ('voice','keyboard','import','calendar_gap')),
-  raw_text    text not null,                        -- 转写/键入原文
-  audio_url   text,                                 -- 语音文件（OSS key，可空）
-  mood        text,                                 -- AI 识别的心情词（开心/疲惫/焦虑…），null=未识别
-  mood_score  int check (mood_score between -100 and 100),  -- 情绪强度：正=积极 负=消极
-  created_at  timestamptz not null default now()
-);
-create index if not exists idx_entries_user_time on public.entries (user_id, created_at desc);
 
 -- 语音日志：ASR 与解析过程留痕（错例反哺提示词的原料）
 create table if not exists public.voice_logs (
@@ -211,7 +212,7 @@ create table if not exists public.contacts (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
   name        text not null,
-  alias       text,                                 -- "老王" 的本名等
+  alias       text,                                 -- "王叔" 的本名等
   group_tag   text not null default '朋友',          -- 家人/朋友/同事/客户...
   birthday    date,
   birthday_cal text not null default 'solar' check (birthday_cal in ('solar', 'lunar')), -- 生日历法：solar=阳历（birthday） lunar=农历（lunar_*）

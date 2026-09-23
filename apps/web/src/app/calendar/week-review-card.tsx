@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useCachedReview } from "./use-cached-review";
 import { TagChip } from "@/components/tag-chip";
+import { api } from "@/shared/api";
 
 /** AI 周报（review v3）：挂载时展示上次持久化的小结；点按钮生成/重新生成 */
 export default function WeekReviewCard({ weekStart, weekEnd, hasRecords, notify }: {
@@ -22,13 +23,7 @@ export default function WeekReviewCard({ weekStart, weekEnd, hasRecords, notify 
     if (busy) return;
     setBusy(true);
     try {
-      const r = await fetch("/api/review/week", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: weekStart, refresh: shown != null }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "生成失败");
+      const j = await api<any>("/api/review/week", "POST", { date: weekStart, refresh: shown != null });
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {

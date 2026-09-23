@@ -3,7 +3,15 @@
  * 民间习俗：闰月生日在无闰月的年份按平月过；三十生日在小月按廿九过
  */
 
-import solarLunar from "solarlunar";
+// solarlunar 的 exports 未带 types 条件（node16/bundler 解析下无声明）；仅此一处抑制
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import * as solarLunarModule from "solarlunar";
+
+// solarlunar 的包形态在 CJS/ESM 互操作下不同（方法可能挂在 .default 上）——取有方法的那层
+const solarLunar: any = (solarLunarModule as any).default?.toChinaMonth
+  ? (solarLunarModule as any).default
+  : (solarLunarModule as any);
 
 export interface LunarBirthday {
   month: number; // 农历月 1~12

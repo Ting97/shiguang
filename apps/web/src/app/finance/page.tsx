@@ -7,11 +7,11 @@ import FinanceTabs from "@/components/finance-tabs";
 import { TagChip } from "@/components/tag-chip";
 import { Dismissable } from "@/components/dismissable";
 import { TX_COLORS, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
+import { api } from "@/shared/api";
 
 import {
   type Tx,
   type Overview,
-  api,
   monthTitle,
   fmtMoney,
   shiftMonth,
@@ -41,11 +41,11 @@ export default function FinancePage() {
 
   const load = useCallback(async () => {
     const [o, t] = await Promise.all([
-      fetch(`/api/finance/overview?month=${month}`),
-      fetch(`/api/transactions?month=${month}`),
+      api<Overview>(`/api/finance/overview?month=${month}`),
+      api<{ transactions?: Tx[] }>(`/api/transactions?month=${month}`),
     ]);
-    setOv(await o.json());
-    setTxs((await t.json()).transactions ?? []);
+    setOv(o);
+    setTxs(t.transactions ?? []);
   }, [month]);
   useEffect(() => {
     load();

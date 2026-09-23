@@ -4,9 +4,9 @@ import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assembleUserPrompt, getPrompt, getPromptBundle, PROMPT_KEYS, writeAuditRecord, type PromptKey } from "@/server/ai";
-import { listContactNames } from "@/server/timeline/analyze";
-import { loadProfileBlock } from "@/server/insight/review-input";
-import { buildReviewCtx, type ReviewKind } from "@/server/insight/review-ctx";
+import { listContactNames } from "@/server/timeline";
+import { loadProfileBlock } from "@/server/insight";
+import { buildReviewCtx, type ReviewContentKind as ReviewKind } from "@/server/insight";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

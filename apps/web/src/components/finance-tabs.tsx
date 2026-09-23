@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FilterChip } from "./tag-chip";
+import { api } from "@/shared/api";
 
 /**
  * 财务二级 tab（REQ-003 3-F FR-C2.8）：概览 | 负债 | 交易复盘。
@@ -15,8 +16,8 @@ export default function FinanceTabs() {
   const [modules, setModules] = useState<string[] | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then(async (r) => (r.ok ? (await r.json()).modules ?? [] : []))
+    api<{ modules?: string[] }>("/api/auth/me")
+      .then((j) => j.modules ?? [])
       .then(setModules)
       .catch(() => setModules([]));
   }, []);

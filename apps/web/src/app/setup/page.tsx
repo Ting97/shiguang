@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { api, ApiClientError } from "@/shared/api";
 
 export default function SetupPage() {
   const [nickname, setNickname] = useState("");
@@ -11,10 +12,12 @@ export default function SetupPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    // 已有账号或已登录 → 回登录/首页
-    fetch("/api/auth/me").then((r) => {
-      if (r.ok) location.href = "/";
-    });
+    // 已有账号或已登录 → 回登录/首页（未登录 401 → 停留本页继续初始化）
+    api("/api/auth/me")
+      .then(() => {
+        location.href = "/";
+      })
+      .catch(() => {});
   }, []);
 
   async function submit() {
@@ -26,20 +29,14 @@ export default function SetupPage() {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/auth/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname, phone, password }),
-      });
-      const j = await r.json();
-      if (r.status === 403) {
+      await api("/api/auth/setup", "POST", { nickname, phone, password });
+      location.href = "/";
+    } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) {
         setMsg({ ok: false, text: "管理员已存在，即将跳转登录页…" });
         setTimeout(() => (location.href = "/login"), 1200);
         return;
       }
-      if (!r.ok) throw new Error(j.error ?? "初始化失败");
-      location.href = "/";
-    } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);

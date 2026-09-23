@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useCachedReview } from "./use-cached-review";
 import { TagChip } from "@/components/tag-chip";
+import { api } from "@/shared/api";
 
 /** AI 日小结（review v3）：挂载时展示上次持久化的小结；点按钮生成/重新生成 */
 export default function DayReviewCard({ date, hasRecords, notify }: {
@@ -21,13 +22,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await fetch("/api/review/day", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, refresh: shown != null }), // 已有小结（含上次持久化的）时点「重新生成」强制刷新
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "生成失败");
+      const j = await api<any>("/api/review/day", "POST", { date, refresh: shown != null }); // 已有小结（含上次持久化的）时点「重新生成」强制刷新
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {

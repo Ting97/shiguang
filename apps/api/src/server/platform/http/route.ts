@@ -28,11 +28,6 @@ export interface NextArgs extends Record<string, unknown> {
   params: Promise<any>;
 }
 
-/** 路径参数（Next 15 动态路由 params 为 Promise） */
-export interface WithParams extends Record<string, unknown> {
-  params: Promise<Record<string, string>>;
-}
-
 type Handler<C> = (req: NextRequest, ctx: C) => Promise<Response> | Response;
 
 export function jsonError(e: unknown): NextResponse {
@@ -86,11 +81,11 @@ export function withAuth(handler: Handler<AuthedCtx>): (req: NextRequest, arg: {
   });
 }
 
-/** 带动态路由参数的鉴权封装：arg = { params } */
+/** 带动态路由参数的鉴权封装：arg = { params }。params 用 any 兼容普通 [id] 与 catch-all（string[]）两种生成类型 */
 export function withAuthParams(
-  handler: Handler<AuthedCtx & WithParams>,
-): (req: NextRequest, arg: { params: Promise<Record<string, string>> }) => Promise<Response> {
-  return withRoute<WithParams>(async (req, arg) => {
+  handler: Handler<AuthedCtx & { params: Promise<any> }>,
+): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
+  return withRoute<{ params: Promise<any> }>(async (req, arg) => {
     const user = await getCurrentUser();
     if (!user) throw ApiError.unauthorized();
     return handler(req, { req, user, log, params: arg!.params });

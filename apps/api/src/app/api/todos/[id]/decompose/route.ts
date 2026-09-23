@@ -3,10 +3,8 @@ import { pool } from "@/server/platform/db";
 import { withAuthParams } from "@/server/platform/http/route";
 import { chat, extractJson, activeModel } from "@shiguangri/ai";
 import { z } from "zod";
-import { getPromptBundle, assembleUserPrompt } from "@/server/ai/prompts";
-import { loadProfileBlock } from "@/server/insight/review-input";
-import { checkAiQuota } from "@/server/ai/quota";
-import { writeAuditRecord } from "@/server/ai/audit";
+import { getPromptBundle, assembleUserPrompt, checkAiQuota, writeAuditRecord } from "@/server/ai";
+import { loadProfileBlock } from "@/server/insight";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

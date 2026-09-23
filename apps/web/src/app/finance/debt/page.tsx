@@ -13,7 +13,8 @@ import { DEBT_TYPE_META, yuan } from "@/lib/finance";
  * 金额一律分存储、元输入；策略模拟为简化模型（月复利/固定月供/固定额外还款），仅供参考。
  */
 
-import { fmt, api } from "../../../components/debt/kit";
+import { fmt } from "../../../components/debt/kit";
+import { api, ApiClientError } from "@/shared/api";
 import type { Debt, Overview, Account, SimResult } from "../../../components/debt/kit";
 import { Modal, DebtForm, PaymentForm } from "../../../components/debt/forms";
 export default function DebtPage() {
@@ -36,19 +37,28 @@ export default function DebtPage() {
   }, [msg]);
 
   const load = useCallback(async () => {
-    const [d, o, a] = await Promise.all([
-      fetch("/api/debts"),
-      fetch("/api/debts/overview"),
-      fetch("/api/accounts"),
-    ]);
-    if (d.status === 403 || o.status === 403) {
-      setLocked(true);
-      setDebts([]);
-      return;
+    try {
+      const [d, o] = await Promise.all([
+        api<{ debts?: Debt[] }>("/api/debts"),
+        api<Overview>("/api/debts/overview"),
+      ]);
+      setDebts(d.debts ?? []);
+      setOv(o);
+    } catch (e) {
+      if (e instanceof ApiClientError && e.status === 403) {
+        setLocked(true);
+        setDebts([]);
+        return;
+      }
+      throw e;
     }
-    setDebts((await d.json()).debts ?? []);
-    setOv(await o.json());
-    if (a.ok) setAccounts((await a.json()).accounts ?? []);
+    // 账户列表仅供还款选账（原 if (a.ok)）：失败不阻塞负债页主数据
+    try {
+      const a = await api<{ accounts?: Account[] }>("/api/accounts");
+      setAccounts(a.accounts ?? []);
+    } catch {
+      /* 同原 a.ok === false：忽略 */
+    }
   }, []);
   useEffect(() => {
     load();

@@ -5,7 +5,7 @@
  * 不引库（40 行内）；出现 5+ 页面需要缓存/重验证时再评估 SWR（决策点见 004 02 §7.1）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@shiguangri/shared/client-api";
+import { api } from "./api";
 
 export function useApi<T>(path: string | null): {
   data: T | null;

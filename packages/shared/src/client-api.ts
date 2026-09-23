@@ -60,7 +60,7 @@ export async function getSessionToken(): Promise<string | null> {
   return store.get();
 }
 
-/** 非任意包一层 fetch：可选 JSON body；返回解析后的 JSON（默认 any——历史调用点直接取字段） */
+/** 通用 JSON 请求封装：可选 JSON body；返回解析后的 JSON（默认 any——历史调用点直接取字段） */
  
 export async function api<T = any>(url: string, method: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
@@ -73,13 +73,36 @@ export async function api<T = any>(url: string, method: string, body?: unknown):
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  return parseResponse<T>(r);
+}
+
+/** 带错误 status 的客户端异常：调用方可按状态码分支（409 冲突 / 401 会话等） */
+export class ApiClientError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiClientError";
+    this.status = status;
+  }
+}
+
+async function parseResponse<T>(r: Response): Promise<T> {
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
     if (r.status === 401) await store.set(null); // 会话失效即清 token
-    throw new Error((j as { error?: string }).error ?? "操作失败");
+    throw new ApiClientError((j as { error?: string }).error ?? "操作失败", r.status);
   }
   // 登录/注册/setup 响应附带 token：自动入库，后续请求带 Bearer
   const t = (j as { token?: unknown }).token;
   if (typeof t === "string" && t) await store.set(t);
   return j as T;
+}
+
+/** FormData 上传（语音/图片等）：不设 Content-Type，交由浏览器生成 boundary */
+export async function apiForm<T = any>(url: string, form: FormData, method = "POST"): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = await store.get();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const r = await fetch(apiBase() + url, { method, headers, body: form });
+  return parseResponse<T>(r);
 }

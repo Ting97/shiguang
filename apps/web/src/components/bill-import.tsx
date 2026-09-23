@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { TX_CATEGORIES, yuan } from "@/lib/finance";
+import { api } from "@/shared/api";
 import { useDismiss } from "./dismissable";
 import { TagChip } from "./tag-chip";
 
@@ -88,13 +89,7 @@ export default function BillImport({
     setError(null);
     setBusy(true);
     try {
-      const r = await fetch("/api/transactions/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, dryRun: true }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "解析失败");
+      const j = await api<ImportPreview>("/api/transactions/import", "POST", { text, dryRun: true });
       setPreview(j);
       // 按平台预选账户
       const match = accounts.find((a) =>
@@ -113,13 +108,11 @@ export default function BillImport({
     setError(null);
     setBusy(true);
     try {
-      const r = await fetch("/api/transactions/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, accountId: accountId || null, dryRun: false }),
+      const j = await api<ImportPreview & { imported: number; message?: string }>("/api/transactions/import", "POST", {
+        text,
+        accountId: accountId || null,
+        dryRun: false,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "导入失败");
       setResult(
         j.imported > 0
           ? `✅ 已导入 ${j.imported} 笔${j.dbDup ? ` · 跳过重复 ${j.dbDup} 笔` : ""}`

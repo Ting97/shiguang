@@ -14,7 +14,7 @@ import { assembleUserPrompt, type PromptBundle, type PromptKey } from "@/server/
 
 const TZ = "Asia/Shanghai";
 
-export type ReviewKind = "day" | "week" | "month" | "year";
+export type ReviewContentKind = "day" | "week" | "month" | "year";
 export interface ReviewPeriod { date?: string; month?: string; year?: string }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -45,7 +45,7 @@ export interface ReviewBuild {
 /** 四档复盘共享构建：聚合事实 + 注入/上限裁剪后的明细块 + 小结链 + 画像 → 最终 user prompt */
 export async function buildReviewCtx(
   userId: string,
-  kind: ReviewKind,
+  kind: ReviewContentKind,
   period: ReviewPeriod,
   bundle: PromptBundle,
 ): Promise<ReviewBuild> {
@@ -245,7 +245,7 @@ type BlockRowT = { start_at: string | Date; end_at: string | Date; title: string
 type TodoRowT = { done_at: string | Date | null; title: string };
 
 /** year 动态块：心情强度优先抽样（entryCap=条数，0=全量）；其余档：直接逐条（cap 已在 SQL 层生效，total 为真实总数用于截断注记） */
-function buildEntryBlock(kind: ReviewKind, rows: EntryRowT[], entryCap: number, entryTotal = rows.length): string {
+function buildEntryBlock(kind: ReviewContentKind, rows: EntryRowT[], entryCap: number, entryTotal = rows.length): string {
   if (kind === "year") {
     const sampled = entryCap > 0 ? sampleEntryRows(rows, entryCap) : rows;
     const total = rows.length;
@@ -259,7 +259,7 @@ function buildEntryBlock(kind: ReviewKind, rows: EntryRowT[], entryCap: number, 
 }
 
 /** 小结链块：周←7日 / 月←各周 / 年←12月，只取已有缓存（与原 fetchChainSummaries 调用一致） */
-async function buildChain(userId: string, kind: ReviewKind, period: ReviewPeriod): Promise<string> {
+async function buildChain(userId: string, kind: ReviewContentKind, period: ReviewPeriod): Promise<string> {
   if (kind === "day") return "";
   if (kind === "week") {
     const WD = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -305,7 +305,7 @@ async function buildProfileCtxValue(userId: string): Promise<string> {
 }
 
 /** 数据最近变动时刻（day/week/month 用 from–to 区间；year 按自然年字段匹配，与原实现一致） */
-async function buildLatest(userId: string, kind: ReviewKind, period: ReviewPeriod): Promise<Date | null> {
+async function buildLatest(userId: string, kind: ReviewContentKind, period: ReviewPeriod): Promise<Date | null> {
   if (kind !== "day" && kind !== "week" && kind !== "month") {
     const year = Number(period.year ?? new Date().getFullYear());
     const { rows } = await pool.query(
@@ -352,7 +352,7 @@ interface SubAgg { acts: string[]; n: number; out: number }
 
 /** 子周期对比行：day 无；week 每日 top2 / month 每周 top3 / year 每月 top3（口径与各路由原实现一致） */
 function buildSubLines(
-  kind: ReviewKind,
+  kind: ReviewContentKind,
   period: ReviewPeriod,
   sub: { rows: Record<string, unknown>[] },
   from: string,
@@ -448,7 +448,7 @@ function buildSubLines(
 /** 子周期聚合三查询（day 无；week 按日 / month 按自然周 / year 按月；跨期块分摊口径与原实现一致） */
 async function buildSubRows(
   userId: string,
-  kind: ReviewKind,
+  kind: ReviewContentKind,
   from: string,
   to: string,
 ): Promise<{ rows: Record<string, unknown>[] }> {

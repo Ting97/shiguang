@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { api, ApiClientError } from "@/shared/api";
 
 const _pad = (n: number) => String(n).padStart(2, "0");
 
@@ -21,10 +22,12 @@ export default function LoginPage() {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // 已登录直接回首页
-    fetch("/api/auth/me").then((r) => {
-      if (r.ok) location.href = "/";
-    });
+    // 已登录直接回首页（未登录 401 → api 抛错，忽略即停留本页）
+    api("/api/auth/me")
+      .then(() => {
+        location.href = "/";
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -45,20 +48,18 @@ export default function LoginPage() {
       setMsg({ ok: false, text: isEmail ? "请先填写正确的邮箱地址" : "请先填写正确的手机号" });
       return;
     }
-    const r = await fetch(isEmail ? "/api/auth/email/send" : "/api/auth/sms/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(isEmail ? { email: account, purpose: "login" } : { phone: account, purpose: "login" }),
-    });
-    const j = await r.json();
-    if (r.ok) {
+    try {
+      const body = isEmail ? { email: account, purpose: "login" } : { phone: account, purpose: "login" };
+      await api(isEmail ? "/api/auth/email/send" : "/api/auth/sms/send", "POST", body);
       setMsg({ ok: true, text: "验证码已发送，5 分钟内有效" });
       startCountdown();
-    } else {
-      setMsg({ ok: false, text: j.error ?? "发送失败" });
+    } catch (e) {
+      const text = e instanceof Error ? e.message : String(e);
       // 通道未开通：注册场景下邀请码即凭证，可不填验证码
-      if (isRegister && r.status === 503) {
-        setMsg({ ok: false, text: `${j.error}（当前注册凭邀请码即可，验证码可留空）` });
+      if (isRegister && e instanceof ApiClientError && e.status === 503) {
+        setMsg({ ok: false, text: `${text}（当前注册凭邀请码即可，验证码可留空）` });
+      } else {
+        setMsg({ ok: false, text });
       }
     }
   }
@@ -71,36 +72,21 @@ export default function LoginPage() {
       if (isRegister && password !== password2) {
         throw new Error("两次输入的密码不一致");
       }
-      let r: Response;
       if (isRegister) {
-        r = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            account.includes("@")
-              ? { email: account, password, emailCode: smsCode || undefined, inviteCode: invite, nickname: nickname.trim() || undefined }
-              : { phone: account, password, smsCode: smsCode || undefined, inviteCode: invite, nickname: nickname.trim() || undefined },
-          ),
-        });
+        await api("/api/auth/register", "POST",
+          account.includes("@")
+            ? { email: account, password, emailCode: smsCode || undefined, inviteCode: invite, nickname: nickname.trim() || undefined }
+            : { phone: account, password, smsCode: smsCode || undefined, inviteCode: invite, nickname: nickname.trim() || undefined },
+        );
       } else if (mode === "password") {
-        r = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            account.includes("@") ? { email: account, password } : { phone: account, password },
-          ),
-        });
+        await api("/api/auth/login", "POST",
+          account.includes("@") ? { email: account, password } : { phone: account, password },
+        );
       } else {
-        r = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            account.includes("@") ? { email: account, emailCode: smsCode } : { phone: account, smsCode },
-          ),
-        });
+        await api("/api/auth/login", "POST",
+          account.includes("@") ? { email: account, emailCode: smsCode } : { phone: account, smsCode },
+        );
       }
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "操作失败");
       location.href = "/";
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });

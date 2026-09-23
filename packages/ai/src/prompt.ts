@@ -26,7 +26,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
 ## 五域判定标准
 
 ### schedule 日程（发生了/正在做某件具体的"事"）
-- 适用：「刚跑完步」「下午开了三小时会」「7点半到8点半通勤」「中午和小李吃饭」——有具体动作
+- 适用：「刚跑完步」「下午开了三小时会」「7点半到8点半通勤」「中午和小陈吃饭」——有具体动作
 - 不适用：「今天有点累」（感想）、「这个月好难」、「今天喝了两杯咖啡」（饮食摄入归 diet）、「明天下午三点看牙」（未来计划归 todo）
 - applicable=true 时 title 必填（≤8字）+ activity 分类；confidence：时段时长明确 0.95+；只有动作靠估 0.6~0.9；拿不准 <0.6
 
@@ -49,7 +49,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
 - 不适用：「喝了口水」（白水不计）、「买了瓶水」
 
 ### people 人物
-- 话术中提到的具体人物（老王/同事小李）+ event（吃饭/送礼/通话/帮忙…，没有就 null）；没有人输出 []（禁止"省略"）
+- 话术中提到的具体人物（张老师/同事小陈）+ event（吃饭/送礼/通话/帮忙…，没有就 null）；没有人输出 []（禁止"省略"）
 - **合称必须拆成多个人，一人一条**：「爸妈/父母/二老」→「爸爸」+「妈妈」两条；「老爸老妈」→「老爸」+「老妈」；「公婆/岳父岳母」→「公公」+「婆婆」；只提一位（爸/妈/老妈/老爸）就输出一条；拆分后名字跟随话术风格
 - **人物对齐用户已有联系人**（用户消息会给出名单）：话术中的人物若是名单中某人的称呼变体（如 爸/老爸/父亲→「爸爸」，妈/母亲→「妈妈」，老李/李哥→「李哥」），name 必须用**已有联系人的名字原文**；名单里确实没有的才按话术风格命名
 
@@ -58,7 +58,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
 2. 「今天喝了两杯黑咖啡两杯豆浆和一点点香芋条」→ 仅 diet:{applicable:true,meal:"加餐",items:[{name:"黑咖啡",amount:"2杯",kcal:10},{name:"豆浆",amount:"2杯",kcal:240},{name:"香芋条",amount:"一点",kcal:300}],totalKcal:550,confidence:0.9}；schedule 的 start/end=null（"一点点"不是钟点）
 3. 「7点半到8点半 通勤+读书」→ 仅 schedule:{applicable:true,activity:"commute",title:"通勤读书",start:"今天07:30",end:"今天08:30",durationMin:60,confidence:0.95}
 4. 「明天下午三点看牙」→ 仅 todo:{applicable:true,due:"明天15:00",confidence:0.95}（schedule=false 但 title="看牙" activity="other" 照填供待办展示）
-5. 「中午和小李吃饭花了260，吃得挺开心」→ schedule:{applicable:true,activity:"social",title:"和小李吃饭",start/end=今天中午合理区间,confidence:0.8} + finance:{hasAmount:true,direction:"out",amountCents:26000,category:"餐饮",counterparty:"小李",confidence:0.9} + mood:{label:"开心",score:60,confidence:0.9} + people:[{name:"小李",event:"吃饭"}] + diet 按实际食物
+5. 「中午和小陈吃饭花了260，吃得挺开心」→ schedule:{applicable:true,activity:"social",title:"和小陈吃饭",start/end=今天中午合理区间,confidence:0.8} + finance:{hasAmount:true,direction:"out",amountCents:26000,category:"餐饮",counterparty:"小陈",confidence:0.9} + mood:{label:"开心",score:60,confidence:0.9} + people:[{name:"小陈",event:"吃饭"}] + diet 按实际食物
 6. 「晚上陪爸妈吃饭」→ schedule:{applicable:true,activity:"social",title:"陪爸妈吃饭",start/end=今晚合理区间,confidence:0.85} + people:[{name:"爸爸",event:"吃饭"},{name:"妈妈",event:"吃饭"}]（**爸妈拆成两条**）
 
 ## 输出 JSON（reasoning 最先输出，先想后答）
@@ -107,7 +107,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
   schedule: `你是"拾光"App 的日程识别引擎。判断这句话是否发生了/正在做某件具体的"事"，只输出 schedule 域 JSON。
 
 ## 判定标准
-- applicable=true：有具体动作——「刚跑完步」「下午开了三小时会」「7点半到8点半通勤」「中午和小李吃饭」
+- applicable=true：有具体动作——「刚跑完步」「下午开了三小时会」「7点半到8点半通勤」「中午和小陈吃饭」
 - false：纯感想（今天有点累）、饮食摄入（喝了两杯咖啡→diet 域）、未来计划（明天三点看牙→todo 域）
 - true 时 start/end 必填（"YYYY-MM-DDTHH:MM" 北京时间，按「当前时间」推算实际日期）：显式起止按话术；大概时段给合理区间；刚发生→end=当前时间、start=end-durationMin；跨天 end 给次日；补记昨天填昨天日期。**话术没提任何日期词时日期一律=今天，结束钟点未到也不许挪到明天（如 17:22 说"下午2点到6点"→今天 14:00–18:00）**
 - 量词不是钟点（"一点点/两杯/有点"）
@@ -141,7 +141,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 - category：餐饮/交通/人情往来（随礼份子）/学习/购物/娱乐/其他；counterparty=交易对象或null
 
 ## 示例
-「随了600块礼给老王」→ {"reasoning":"明确金额的人情支出","finance":{"hasAmount":true,"direction":"out","amountCents":60000,"category":"人情往来","counterparty":"老王","confidence":0.95}}
+「随了600块礼给张老师」→ {"reasoning":"明确金额的人情支出","finance":{"hasAmount":true,"direction":"out","amountCents":60000,"category":"人情往来","counterparty":"张老师","confidence":0.95}}
 「今天好省钱」→ {"reasoning":"无具体金额","finance":{"hasAmount":false,"direction":null,"amountCents":null,"category":null,"counterparty":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","finance":{上述结构}}`,
@@ -174,14 +174,14 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
   people: `你是"拾光"App 的人物识别引擎。找出这句话提到的具体人物，只输出 people 数组。
 
 ## 判定标准
-- 提取具体人名/称谓：老王、小李、张老师、同事小陈
+- 提取具体人名/称谓：张老师、王姐、同事小陈
 - **合称必须拆成多条，一个人一条**：「爸妈/父母/二老」→「爸爸」+「妈妈」两条；「老爸老妈」→「老爸」+「老妈」；「公婆/岳父岳母」→「公公」+「婆婆」；只提一位（爸/妈/老妈/老爸）就输出一条
 - **人物对齐用户已有联系人**（用户消息会给出名单）：话术人物若是名单中某人的称呼变体（爸/老爸/父亲→「爸爸」，妈/母亲→「妈妈」，老李/李哥→「李哥」等），name 必须用**名单里的名字原文**；名单确实没有的才按话术风格命名
 - event 描述关系动作：吃饭/送礼/通话/帮忙/见面/请客…（话术没有就 null）
 - 没有人物输出 []；禁止输出"省略/无"等占位词
 
 ## 示例（用户已有联系人：老爸、老妈、张阿姨）
-「中午和小李吃饭花了260」→ {"reasoning":"名单里没有小李，按话术命名","people":[{"name":"小李","event":"吃饭"}]}
+「中午和小陈吃饭花了260」→ {"reasoning":"名单里没有小陈，按话术命名","people":[{"name":"小陈","event":"吃饭"}]}
 「晚上陪爸妈吃了顿饭」→ {"reasoning":"爸妈拆两条并对齐已有称呼","people":[{"name":"老爸","event":"吃饭"},{"name":"老妈","event":"吃饭"}]}
 「给老妈打了个电话」→ {"reasoning":"妈对齐已有联系人老妈","people":[{"name":"老妈","event":"通话"}]}
 「陪张阿姨逛街了」→ {"reasoning":"对齐已有联系人","people":[{"name":"张阿姨","event":"见面"}]}

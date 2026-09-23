@@ -5,6 +5,8 @@
  * discard 在录音中任意时刻丢弃。音频仅内存中转，服务器不落盘。
  * handlers 需传稳定引用（创建时捕获一次，后续不更新）。
  */
+import { apiForm } from "@/shared/api";
+
 export type VoiceRecorderState = "idle" | "recording" | "transcribing";
 
 /** 长按说话上限：30 秒（GLM-ASR 单文件限制 0–30s，超时被拒） */
@@ -153,9 +155,7 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
       const wav = await blobToWav16k(blob);
       const form = new FormData();
       form.append("file", wav, "voice.wav");
-      const r = await fetch("/api/asr", { method: "POST", body: form });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error ?? `识别失败(${r.status})`);
+      const j = await apiForm<{ text?: string }>("/api/asr", form);
       if (!j.text) throw new Error("没有听清内容，请再试一次");
       backToIdle();
       if (!dead) h.onText(String(j.text));
