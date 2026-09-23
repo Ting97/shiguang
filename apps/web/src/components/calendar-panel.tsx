@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import WeekView from "@/components/week-view";
@@ -19,9 +19,17 @@ import type { Activity, Block, DayStat } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
 
 /** 日程页 · 日历子页：原 /calendar 页的四视图（日/周/月/年）+ AI 复盘，逻辑不变整体平移 */
-export default function CalendarPanel() {
+export default function CalendarPanel({ initialAnchor }: { initialAnchor?: string }) {
   const [view, setView] = useState<"day" | "week" | "month" | "year">("day");
   const [anchor, setAnchor] = useState<string>(todayStr()); // 当前锚定日期
+  // ?date= 直达锚定：参数在父层 useEffect 里才解析出来（晚于本组件首帧），定义后一次性采纳
+  const anchoredRef = useRef(false);
+  useEffect(() => {
+    if (initialAnchor && !anchoredRef.current) {
+      anchoredRef.current = true;
+      setAnchor(initialAnchor);
+    }
+  }, [initialAnchor]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]); // 日/周视图原始块
   const [stats, setStats] = useState<Map<string, DayStat>>(new Map()); // 月/年聚合
@@ -53,23 +61,28 @@ export default function CalendarPanel() {
     return { from, to: `${from.slice(0, 4)}-12-31` };
   }, [view, anchor]);
 
-  // 加载数据（日/周用原始块，月/年用聚合）
+  // 加载数据（日/周用原始块，月/年用聚合）；seq 守卫：锚定快速切换时只让最新请求落地
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setErr(null);
     try {
       const qs = `from=${range.from}&to=${range.to}`;
       if (view === "day" || view === "week") {
         const j = await api<any>(`/api/blocks/range?${qs}`);
+        if (seq !== loadSeq.current) return; // 锚定快速切换时旧响应可能后到，丢弃过期数据
         setBlocks(j.blocks ?? []);
       } else {
         const j = await api<any>(`/api/stats/range?${qs}`);
+        if (seq !== loadSeq.current) return;
         setStats(new Map((j.days ?? []).map((d: DayStat) => [d.date, d])));
       }
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [view, range.from, range.to]);
   useEffect(() => {
@@ -122,8 +135,7 @@ export default function CalendarPanel() {
   }
   async function removeEdit() {
     if (!editing) return;
-    const b = blocks.find((x) => x.id === editing.id);
-    if (!b || !window.confirm(`删除这条日程？\n「${b.title}」`)) return;
+    // 确认交互在 BlockEditor 的两步删除按钮内完成（3 秒内二次点按才会走到这里）
     try {
       await api<any>(`/api/blocks/${editing.id}`, "DELETE");
     } catch (e) {

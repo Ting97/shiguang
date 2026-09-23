@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { Activity } from "@/lib/types";
 
 export interface BlockDraft {
@@ -22,6 +23,22 @@ interface Props {
 
 /** 时间块编辑面板（工作台列表 / 日历日视图共用） */
 export default function BlockEditor({ draft, activities, onChange, onSave, onCancel, onDelete, saving }: Props) {
+  // 删除两步确认：首次点按只进入待确认态（3 秒内再点才真删），与站内样式化确认一致、免原生弹窗
+  const [armDelete, setArmDelete] = useState(false);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (armTimer.current) clearTimeout(armTimer.current); }, []);
+
+  function onDeleteClick() {
+    if (!onDelete) return;
+    if (armDelete) {
+      if (armTimer.current) clearTimeout(armTimer.current);
+      onDelete();
+      return;
+    }
+    setArmDelete(true);
+    armTimer.current = setTimeout(() => setArmDelete(false), 3000);
+  }
+
   return (
     <div className="rounded-lg border border-sky-500/40 bg-elevated/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -59,8 +76,11 @@ export default function BlockEditor({ draft, activities, onChange, onSave, onCan
       </div>
       <div className="mt-2 flex justify-end gap-2">
         {onDelete && (
-          <button onClick={onDelete} className="rounded px-3 py-1 text-xs text-danger hover:bg-soft">
-            删除
+          <button
+            onClick={onDeleteClick}
+            className={`rounded px-3 py-1 text-xs transition ${armDelete ? "bg-danger font-medium text-white hover:bg-danger/80" : "text-danger hover:bg-soft"}`}
+          >
+            {armDelete ? "确认删除？" : "删除"}
           </button>
         )}
         <button onClick={onCancel} className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft">

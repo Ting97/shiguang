@@ -127,3 +127,25 @@ test("detectDayRef：周X按北京星期（UTC 周三深夜 = 北京周四）", 
   assert.equal(detectDayRef("上周三", now), -8); // 北京 9-16
   assert.equal(detectDayRef("昨天", now), -1);
 });
+
+// ---- confidence 容错（LLM 偶发输出非数字 → 低置信转 pending，而非整包拒绝）----
+import { ScheduleDraftV2, TodoDraftV2, SpaceClassification } from "../src/schema.js";
+
+test("confidence 容错：字符串数字可解析、垃圾值回落 0.5（转待确认）", () => {
+  const ok = ScheduleDraftV2.parse({
+    applicable: true, activity: "study", title: "背单词",
+    start: "2026-09-23T08:00:00+08:00", end: "2026-09-23T08:40:00+08:00",
+    confidence: "0.8",
+  });
+  assert.equal(ok.confidence, 0.8);
+
+  const junk = TodoDraftV2.parse({ applicable: true, due: "2026-09-24T10:00:00+08:00", confidence: "medium" });
+  assert.equal(junk.confidence, 0.5); // 低于 0.6 阈值 → pending 待确认，而非整体校验失败
+});
+
+test("confidence 容错：缺失同样回落 0.5；合法值不受影响", () => {
+  const missing = SpaceClassification.parse({ spaceId: null });
+  assert.equal(missing.confidence, 0.5);
+  const good = SpaceClassification.parse({ spaceId: null, confidence: 0.95 });
+  assert.equal(good.confidence, 0.95);
+});

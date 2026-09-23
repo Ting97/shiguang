@@ -173,7 +173,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) void addAction();
               }}
               maxLength={200}
-              placeholder="添加行动，回车保存（自动标记今日）"
+              placeholder="添加行动，回车保存"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
             />
             {newTitle.trim() && (
@@ -189,10 +189,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
 
           {pending.length === 0 && done.length === 0 ? (
             <div className="py-2 text-center">
-              <p className="text-xs text-ink-dim">今天还没有行动 —— 在上面直接添加一条，把 todo 标为今日（☀️），或在 todo 里 ✨ 拆解出可执行的行动</p>
-              <a href="/schedule?tab=todo" className="mt-2 inline-block text-xs font-medium text-accent hover:underline">
-                去「日程 · todo」规划 →
-              </a>
+              <p className="text-xs text-ink-dim">今天还没有行动 —— 在上面直接添加一条（自动标记今日 ☀️），或在 todo 里 ✨ 拆解出可执行的行动</p>
             </div>
           ) : (
             <>

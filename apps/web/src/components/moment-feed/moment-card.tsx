@@ -16,6 +16,11 @@ import { RecognitionSection } from "./recognition-section";
 import { PendingConfirms } from "./pending-confirms";
 import type { IntentTag, MenuPos, MomentFeedProps } from "./types";
 
+/** ISO 时刻 → 北京日历日 YYYY-MM-DD（跨时区设备也按北京日界，与全站 bj* 口径一致） */
+function bjYmd(iso: string): string {
+  return new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+}
+
 /** 单条动态卡片：原文 + 心情 + AI 识别产物（日程/待办/金额/人物，均可修改/删除） */
 export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps & { m: FeedMoment }) {
   const [confirming, setConfirming] = useState(false);
@@ -164,6 +169,14 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           (m.recognitions.schedule.reason?.includes("已有日程") || m.recognitions.schedule.reason?.includes("时间冲突")) && (
             <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-warn/90">
               <span className="min-w-0 flex-1">⚠️ 未生成日程：{m.recognitions.schedule.reason}</span>
+              {/* 就地给出处理入口：跳日程页对应日（按记录时刻的北京日期，跨天冲突需自行翻页） */}
+              <a
+                href={`/schedule?date=${bjYmd(m.created_at)}`}
+                className="shrink-0 whitespace-nowrap font-medium text-warn underline decoration-warn/40 underline-offset-2 transition hover:decoration-warn"
+                title="打开日程页调整时间"
+              >
+                去调整 →
+              </a>
               <button
                 onClick={() =>
                   run(async () => {

@@ -23,10 +23,15 @@ export default function SchedulePage() {
   const [tab, setTab] = useState<Tab>("calendar");
   // 首次激活才挂载（避免首屏三份请求）；挂过后保留状态（日历锚点/TODO 视图不被切换重置）
   const [mounted, setMounted] = useState<Record<Tab, boolean>>({ calendar: true, todo: false, categories: false });
+  // ?date=YYYY-MM-DD 直达某天（动态流冲突提示「去调整」跳转用）；非法值回落今天
+  const [initialDate, setInitialDate] = useState<string | undefined>();
 
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("tab");
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("tab");
     if (t === "todo" || t === "categories") setTab(t);
+    const d = sp.get("date");
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setInitialDate(d);
   }, []);
 
   useEffect(() => {
@@ -58,7 +63,7 @@ export default function SchedulePage() {
 
         {mounted.calendar && (
           <div className={tab === "calendar" ? "" : "hidden"}>
-            <CalendarPanel />
+            <CalendarPanel initialAnchor={initialDate} />
           </div>
         )}
         {mounted.todo && (

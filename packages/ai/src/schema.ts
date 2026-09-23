@@ -21,12 +21,16 @@ export const ACTIVITY_NAMES: Record<(typeof ACTIVITY_IDS)[number], string> = {
 /** 时间推断模式：显式时长 / 相对时段 / 类别默认 / 未来计划（→ 创建 TODO） */
 export const TimeMode = z.enum(["explicit", "relative", "default", "future"]);
 
+// 模型 confidence 偶发输出非数字（如 "medium"）→ 整包校验失败会白白丢弃其余合法字段；
+// 容错为 0.5（低于 CONFIDENCE_THRESHOLD → 该域转 pending 待确认），宁让人工确认不可信结果
+const llmConfidence = z.coerce.number().min(0).max(1).catch(0.5);
+
 export const TimeBlock = z.object({
   mode: TimeMode,
   start: z.string().datetime({ offset: true }),
   end: z.string().datetime({ offset: true }),
   durationMin: z.number().int().positive(),
-  confidence: z.number().min(0).max(1),
+  confidence: llmConfidence,
 });
 
 /** 财务域联动草稿（amountCents 恒为正数，方向由 direction 表达） */
@@ -75,7 +79,7 @@ export const CONFIDENCE_THRESHOLD = 0.6;
 /** 空间归属分类（REQ-001 R3）：spaceId 必须来自候选列表或为 null */
 export const SpaceClassification = z.object({
   spaceId: z.string().uuid().nullable(),
-  confidence: z.number().min(0).max(1),
+  confidence: llmConfidence,
 });
 export type SpaceClassificationT = z.infer<typeof SpaceClassification>;
 
@@ -158,7 +162,7 @@ export const ScheduleDraftV2 = z
       .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
       .nullish()
       .catch(null),
-    confidence: z.coerce.number().min(0).max(1),
+    confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
     if (!v.applicable) return;
@@ -179,7 +183,7 @@ export const TodoDraftV2 = z
   .object({
     applicable: z.coerce.boolean(),
     due: localMoment.nullish(),
-    confidence: z.coerce.number().min(0).max(1),
+    confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
     if (v.applicable && !v.due) {
@@ -195,7 +199,7 @@ export const FinanceDraftV2 = z
     amountCents: z.coerce.number().int().nullish(),
     category: z.string().nullish(),
     counterparty: z.string().nullish(),
-    confidence: z.coerce.number().min(0).max(1),
+    confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
     if (!v.hasAmount) return;
@@ -212,7 +216,7 @@ export const MoodDraftV2 = z
   .object({
     label: z.string().nullish(),
     score: z.coerce.number().int().min(-100).max(100).nullish(),
-    confidence: z.coerce.number().min(0).max(1),
+    confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
     if (v.label && v.score == null) {
@@ -236,7 +240,7 @@ export const DietDraftV2 = z
     meal: z.enum(["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"]).nullish().transform((m) => m ?? "未知"),
     items: z.array(DietItemV2).default([]),
     totalKcal: z.coerce.number().int().nullish(),
-    confidence: z.coerce.number().min(0).max(1),
+    confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
     if (v.applicable && v.items.length === 0) {

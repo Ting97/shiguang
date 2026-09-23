@@ -43,13 +43,14 @@ test("schema v2：end 早于 start → 拒绝", () => {
   assert.ok(!r.success);
 });
 
-test("schema v2：漏报 confidence → 拒绝（不再默认 0.9 掩盖）", () => {
+test("schema v2：漏报 confidence → 回落 0.5（低于阈值转 pending，不默认高置信掩盖）", () => {
   const bad = structuredClone(GOLD_FULL) as Record<string, unknown>;
   const fin = { ...(bad.finance as object) };
   delete (fin as Record<string, unknown>).confidence;
   bad.finance = fin;
   const r = FullExtractionV2.safeParse(bad);
-  assert.ok(!r.success);
+  assert.ok(r.success); // 不再整包拒绝：其余合法字段保留
+  assert.equal((r.data.finance as { confidence: number }).confidence, 0.5); // 0.5 < 0.6 阈值 → 转待确认
 });
 
 test("schema v2：finance hasAmount 缺金额 → 拒绝；todo applicable 缺 due → 拒绝；mood 有词缺分 → 拒绝", () => {
