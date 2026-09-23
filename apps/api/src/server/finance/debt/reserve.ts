@@ -193,7 +193,19 @@ export async function autoCheckAfterPayment(userId: string, liabilityId: string,
   const ymNext = nextMonth(ymFirst);
   const extra = due && due >= ymFirst && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
   const need = Number(l.monthly_cents ?? 0) + extra;
-  if (need <= 0 || paidCents < need) return;
+  // 月度合计口径（FR-3.4 语义是「当月已还合计 ≥ need」）：单笔 paidCents 比较会把同月多笔小额还款漏勾。
+  // 调用方在还款提交后触发，当月合计通常已含本笔；max 兜底兼容合计尚未含本笔的调用时点
+  const monthPaid = Number(
+    (
+      await pool.query(
+        `select coalesce(sum(amount_cents), 0)::bigint as paid from liability_payments
+         where liability_id = $1 and user_id = $2
+           and to_char((paid_at at time zone 'Asia/Shanghai'), 'YYYY-MM') = $3`,
+        [liabilityId, userId, ymFirst.slice(0, 7)],
+      )
+    ).rows[0]?.paid ?? 0,
+  );
+  if (need <= 0 || Math.max(monthPaid, paidCents) < need) return;
   await pool.query(
     `insert into debt_reserve_checks (user_id, ym, liability_id) values ($1,$2,$3)
      on conflict (user_id, ym, liability_id) do nothing`,

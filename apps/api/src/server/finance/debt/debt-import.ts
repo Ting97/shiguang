@@ -42,6 +42,12 @@ function validateRows(data: ImportPayload) {
     if (!Number.isInteger(r.principalCents) || r.principalCents < 0) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）本金需为非负整数（分）`);
     if (r.balanceCents != null && (!Number.isInteger(r.balanceCents) || r.balanceCents < 0)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）余额需为非负整数（分）`);
     if (r.monthlyCents != null && (!Number.isInteger(r.monthlyCents) || r.monthlyCents < 0)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）月供需为非负整数（分）`);
+    // ratePct/payDay 与 validateDebtBody 同口径：非数值/越界曾穿透到 PG 列约束抛 500
+    if (r.ratePct != null) {
+      const v = Number(r.ratePct);
+      if (!Number.isFinite(v) || v < 0 || v > 36) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）年化利率需在 0~36 之间`);
+    }
+    if (r.payDay != null && (!Number.isInteger(r.payDay) || (r.payDay as number) < 1 || (r.payDay as number) > 31)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）还款日需为 1~31 或空`);
     // 形状合法但非真实日历日（2024-13-01）曾穿透到 PG date 列抛 500
     if (r.dueDate != null && !isValidCalendarDate(r.dueDate)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）到期日需为真实存在的日期（YYYY-MM-DD）`);
   });

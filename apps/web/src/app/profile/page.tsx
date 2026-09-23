@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
+import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
 
 interface Me {
@@ -22,7 +23,11 @@ const zhDate = (iso: string | null) => {
 };
 
 export default function ProfilePage() {
+  const { refresh } = useSession();
   const [me, setMe] = useState<Me | null>(null);
+  // 身份加载失败态：失败要落错误 + 重试入口（历史 bug：catch 空吞，永久「加载中…」；同 admin 页 meErr 范式）
+  const [meErr, setMeErr] = useState<string | null>(null);
+  const [quotaErr, setQuotaErr] = useState<string | null>(null);
   const [nickname, setNickname] = useState("");
   const [savedNick, setSavedNick] = useState<string | null>(null);
   const [currentPwd, setCurrentPwd] = useState("");
@@ -40,19 +45,29 @@ export default function ProfilePage() {
     byModel?: { model: string; all: { calls: number; promptTokens: number; completionTokens: number }; d30: { calls: number } }[];
   } | null>(null);
 
-  useEffect(() => {
+  const loadMe = useCallback(() => {
+    setMeErr(null);
     api<Me>("/api/auth/me")
       .then((j) => {
         setMe(j);
         setNickname(j.nickname ?? "");
         setSavedNick(j.nickname ?? "");
       })
-      .catch(() => {});
+      .catch((e) => setMeErr(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  const loadQuota = useCallback(() => {
+    setQuotaErr(null);
     // 套餐与 AI 用量（30 天窗口）
     api("/api/billing/plan")
       .then((j) => setQuota(j))
-      .catch(() => {});
+      .catch((e) => setQuotaErr(e instanceof Error ? e.message : String(e)));
   }, []);
+
+  useEffect(() => {
+    loadMe();
+    loadQuota();
+  }, [loadMe, loadQuota]);
 
   async function saveNickname() {
     if (busy) return;
@@ -62,7 +77,7 @@ export default function ProfilePage() {
       const j = await api<any>("/api/auth/profile", "PATCH", { nickname });
       setMsgNick({ ok: true, text: "✅ 昵称已更新（导航栏即刻生效）" });
       setSavedNick(j.nickname);
-      setTimeout(() => location.reload(), 800); // 让 Nav 重新拉取
+      await refresh(); // 经 SessionProvider 重拉 /api/auth/me：Nav 昵称就地生效（替代旧的 location.reload）
     } catch (e) {
       setMsgNick({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -104,7 +119,16 @@ export default function ProfilePage() {
         <p className="mb-5 text-xs text-ink-dim">个性化你的账号信息</p>
 
         {!me ? (
-          <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+          meErr ? (
+            <div className="py-10 text-center">
+              <p className="text-xs text-danger">加载失败：{meErr}</p>
+              <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                重试
+              </button>
+            </div>
+          ) : (
+            <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+          )
         ) : (
           <>
             {/* 账号资料 */}
@@ -256,6 +280,13 @@ export default function ProfilePage() {
                   )}
                   <p className="mt-2 text-[11px] text-ink-faint">语音速记、AI 识别、复盘均消耗次数；Pro 不限量。支付通道接入前，内测期间联系管理员开通 Pro。</p>
                 </>
+              ) : quotaErr ? (
+                <div className="mt-1">
+                  <p className="text-xs text-danger">加载失败：{quotaErr}</p>
+                  <button onClick={loadQuota} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                    重试
+                  </button>
+                </div>
               ) : (
                 <p className="mt-1 text-xs text-ink-dim">加载中…</p>
               )}

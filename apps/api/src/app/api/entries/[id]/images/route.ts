@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam } from "@/server/platform/http/validate";
 import { addEntryImages } from "@/server/timeline";
 
 export const runtime = "nodejs";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export const POST = withAuthParams(async (req: NextRequest, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   let form: FormData;
   try {
     form = await req.formData();

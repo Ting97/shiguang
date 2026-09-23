@@ -35,13 +35,17 @@ export function timeCeiling(kind: ReviewKind, periodKey: string, nowMs = Date.no
       if (periodKey > today) return 0; // 未来
       return nowMs < eveningOf(today) ? 1 : M; // 当天 20:00 前留 1 次
     case "week":
-    case "trade_week":
-    case "trading": {
+    case "trade_week": {
       if (periodKey < monday) return M; // 历史周：全开
       if (periodKey > monday) return 0;
       const sunday = ymd(new Date(Date.parse(`${monday}T00:00:00Z`) + 6 * 86_400_000));
       return nowMs < eveningOf(sunday) ? 3 : M; // 周日晚 20:00 前留 2 次
     }
+    case "trading":
+      // trading 的 periodKey 是 trade_accounts.id（UUID），与周一日期串做字典序比较无意义
+      //（大多数 UUID 恒大于日期串 → 恒 return 0 → 该账号永久 429「该周期尚未开始」），
+      // 故不做时间解锁直接给满上限；次数上限 REVIEW_LIMITS.trading 仍由 acquireGeneration 的 used 统计生效
+      return M;
     case "month": {
       const cur = ym(now);
       if (periodKey < cur) return M;

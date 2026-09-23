@@ -156,9 +156,11 @@ export function birthdayCountdown(birthday: string | null | undefined, today = n
   const month = Number(m[2]);
   const day = Number(m[3]);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // 2/29 生日：new Date(y,1,29) 在平年会滚到 3/1 → 用「3 月 0 日」惯用法显式取 2 月最后一天（平年 2/28、闰年 2/29）
+  const dateOf = (y: number): Date => (month === 2 && day === 29 ? new Date(y, 2, 0) : new Date(y, month - 1, day));
   const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const thisYear = new Date(today.getFullYear(), month - 1, day);
-  const target = thisYear.getTime() >= dayStart(today) ? thisYear : new Date(today.getFullYear() + 1, month - 1, day);
+  const thisYear = dateOf(today.getFullYear());
+  const target = thisYear.getTime() >= dayStart(today) ? thisYear : dateOf(today.getFullYear() + 1);
   return Math.round((target.getTime() - dayStart(today)) / 86_400_000);
 }
 

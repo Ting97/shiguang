@@ -70,6 +70,8 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
     ).rows[0];
     return { block };
   } catch (e) {
+    // 23503：activityId 不存在触发复合 FK time_blocks_activity_id_fkey，属可预期输入错误（与 updateBlock 的映射对齐）
+    if (String(e).includes("time_blocks_activity_id_fkey")) throw ApiError.badRequest("类别不存在");
     mapBlockWriteError(e);
   }
 }

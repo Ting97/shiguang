@@ -116,7 +116,7 @@ function ruleExtract(text: string, contactNames?: string[]): LlmExtractionT {
           hasAmount: true,
           direction: /收到|到账|工资|红包|奖金|进账|报销|退款|退了|入账/.test(text) ? ("in" as const) : ("out" as const),
           amountCents: amount,
-          category: /随|礼|满月|红包/.test(text)
+          category: /随(礼|份子)|礼金|份子|红包/.test(text)
             ? "人情往来"
             : /超市|买菜|购物/.test(text)
               ? "购物"
@@ -232,11 +232,13 @@ async function openVocabExtract(text: string, now: Date, opts: HybridParseOption
   return parsed.data;
 }
 
-/** noul 答案 → 布尔 + 校准概率（概率缺失时按阈值给保守值） */
-function noulOf(jev: Awaited<ReturnType<typeof jevAsk>>, key: string): { v: boolean; p: number } {
+/** noul 答案 → 布尔 + 校准概率（概率存在时原样透传；缺失/undefined 时给 missingP，未指定按布尔给保守值） */
+function noulOf(jev: Awaited<ReturnType<typeof jevAsk>>, key: string, missingP?: number): { v: boolean; p: number } {
   const a = jev.answers[key];
   const v = a?.value === true;
-  const p = a?.probabilities && typeof a.probabilities.true === "number" ? a.probabilities.true : v ? 0.9 : 0.5;
+  const p = a?.probabilities && typeof a.probabilities.true === "number"
+    ? a.probabilities.true
+    : missingP ?? (v ? 0.9 : 0.5);
   return { v, p };
 }
 
@@ -274,7 +276,7 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
   const sched = noulOf(jev, "sched_applicable");
   const todo = noulOf(jev, "todo_applicable");
   const fin = noulOf(jev, "fin_applicable");
-  const moodA = noulOf(jev, "mood_applicable");
+  const moodA = noulOf(jev, "mood_applicable", 0.6);
   const dietA = noulOf(jev, "diet_applicable");
   const peopleA = noulOf(jev, "people_applicable");
   const recordFuture = jev.answers["record_type"]?.value === "future";
@@ -292,12 +294,15 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
     ? (periodRaw as LlmExtractionT["schedule"]["periodHint"])
     : null;
 
+  const scheduleApplicableHybrid = sched.v && !recordFuture;
+
   const ext: LlmExtractionT = {
     reasoning: {},
     schedule: {
-      applicable: sched.v && !recordFuture,
+      applicable: scheduleApplicableHybrid,
       activity,
-      title: g.title ?? "",
+      // applicable 但 GLM 未抽出标题 → 从原话兜底（v2 同语义：空标题日程不得入库）；超 30 字截断（ParseResult 契约）
+      title: scheduleApplicableHybrid && !(g.title ?? "").trim() ? makeTitle(text) : (g.title ?? "").slice(0, 30),
       durationMin: g.durationMin ?? null,
       // 瘦身模型给出的起止（ISO）；mapAiResult 的确定性校验兜住不合法区间（域降级）
       start: g.start ?? null,
@@ -318,7 +323,8 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
     mood: {
       label: moodA.v ? g.mood?.label ?? null : null,
       score: moodA.v ? g.mood?.score ?? null : null,
-      confidence: moodA.v ? Math.max(moodA.p, 0.6) : moodA.p,
+      // 概率存在时原样透传，不抬轿（Math.max 低概率强抬过 0.6 阈值会让该域跳过待确认）；仅缺失时回落 0.6
+      confidence: moodA.p,
     },
     diet: {
       applicable: dietA.v,
@@ -397,7 +403,7 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
 
   return ParseResult.parse({
     activity: ext.schedule.activity,
-    title: ext.schedule.title?.trim(),
+    title: ext.schedule.title?.trim().slice(0, 30), // 上游瘦身契约允许 40 字，超 30 会让 zod 抛错且无法降级 → 此处截断
     time: {
       mode: tb.mode,
       start: tb.start.toISOString(),
@@ -467,7 +473,7 @@ function rulesPipeline(
 
   return ParseResult.parse({
     activity: ext.schedule.activity,
-    title: ext.schedule.title?.trim() || makeTitle(text),
+    title: ext.schedule.title?.trim().slice(0, 30) || makeTitle(text),
     time: {
       mode: tb.mode,
       start: tb.start.toISOString(),

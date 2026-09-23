@@ -75,7 +75,8 @@ export async function buildReviewCtx(
     to = localYmd(new Date(y, m, 0));
     periodLabel = `周期：${month}月（${from} 至 ${to}）`;
   } else {
-    const year = period.year ?? String(new Date().getFullYear());
+    // 年报默认年份取北京自然年：+8h 后读 UTC 年（本地 getter 在跨年瞬间/非 CST 宿主会切错年份，同 buildLatest 口径）
+    const year = period.year ?? String(new Date(Date.now() + 8 * 3600_000).getUTCFullYear());
     from = `${year}-01-01`;
     to = `${year}-12-31`;
     periodLabel = `周期：${year} 年（${from} 至 ${to}）`;
@@ -292,7 +293,8 @@ async function buildChain(userId: string, kind: ReviewContentKind, period: Revie
     );
     return lines.length ? "本月各周小结：\n" + lines.join("\n") : "";
   }
-  const year = period.year ?? String(new Date().getFullYear());
+  // 年报小结链默认年份同上：+8h 后读 UTC 年（宿主时区无关）
+  const year = period.year ?? String(new Date(Date.now() + 8 * 3600_000).getUTCFullYear());
   const lines = await fetchChainSummaries(
     userId,
     "year",

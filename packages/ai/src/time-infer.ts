@@ -9,7 +9,7 @@ import { parseDuration, cnToNumber } from "./duration";
 export type PeriodHint =
   | "now" | "morning" | "noon" | "afternoon" | "evening" | "night" | "lateNight";
 
-export type FutureHint = "soon" | "tomorrow" | "dayAfter" | "nextWeek";
+export type FutureHint = "soon" | "tomorrow" | "dayAfter" | "twoDaysAfter" | "nextWeek";
 
 export interface TimeBlockInferred {
   mode: "explicit" | "relative" | "default" | "future";
@@ -52,6 +52,7 @@ export function detectPeriod(text: string): Exclude<PeriodHint, "now"> | null {
 
 /** 未来话术检测：返回天数提示；非未来返回 null */
 export function detectFuture(text: string): FutureHint | null {
+  if (/大后天/.test(text)) return "twoDaysAfter"; // 必须先于 /后天/ 判定，否则被吞成 +2
   if (/后天/.test(text)) return "dayAfter";
   if (/明天|明早|明晚/.test(text)) return "tomorrow";
   if (/下周|下礼拜|下星期/.test(text)) return "nextWeek";
@@ -103,6 +104,9 @@ export function parseClock(text: string, period: PeriodHint | null): { hour: num
   if (minute > 59) return null;
   // "下午三点"→15、"晚上八点"→20（小时制+下午/晚上偏移）
   if (hour < 12 && (period === "afternoon" || period === "evening" || period === "night")) hour += 12;
+  // "晚上12点"是午夜非正午：映射为 24（=次日 0 点）——atHour 的 setUTCHours(24) 自然进位到次日凌晨，
+  // 「明天晚上12点睡觉」落次日零点而非当天正午
+  if (hour === 12 && (period === "evening" || period === "night")) hour = 24;
   return { hour, minute };
 }
 
@@ -235,7 +239,7 @@ function inferFuture(
         start = new Date(start.getTime() + offset * 24 * 3600_000);
       }
     } else {
-      const days = future === "tomorrow" ? 1 : 2;
+      const days = future === "tomorrow" ? 1 : future === "twoDaysAfter" ? 3 : 2;
       start = new Date(now.getTime() + days * 24 * 3600_000);
     }
     const hour = clock ? clock.hour : period ? PERIOD_ANCHORS[period] : 9;

@@ -240,3 +240,82 @@ test("parseDuration：'下午3点50分开了个会' 不再把 50 当时长", () 
   assert.equal(parseDuration("下午3点50分开了个会"), null);
   assert.equal(parseDuration("开了50分钟的会"), 50); // 真时长不受影响
 });
+
+/* ---- 回归8：批量语义修复（大后天/晚上12点/title 截断/随礼误判/2-29 生日） ---- */
+
+import { mock } from "node:test";
+import { detectFuture } from "../src/time-infer.js";
+import { parseInput, parseHybridInput } from "../src/parse.js";
+import { birthdayCountdown } from "@shiguangri/shared/social";
+
+test("大后天：+3 天（不再被 /后天/ 先命中成 +2）", () => {
+  assert.equal(detectFuture("大后天交季度报告"), "twoDaysAfter");
+  assert.equal(detectFuture("后天回老家"), "dayAfter"); // 既有语义不变
+  const tb = inferTimeBlock("大后天上午十点开会", NOW, 60);
+  assert.equal(tb.mode, "future");
+  // 9-17（周四）说"大后天" → 9-20 上午十点
+  assert.equal(tb.start.getTime(), CST("2026-09-20T10:00:00+08:00"));
+});
+
+test("晚上12点：午夜非正午 → 次日 0 点（'明天晚上12点'落 9-19 00:00，不再落当天正午）", () => {
+  const tb = inferTimeBlock("明天晚上12点才睡", NOW, 30);
+  assert.equal(tb.mode, "future");
+  assert.equal(tb.start.getTime(), CST("2026-09-19T00:00:00+08:00"));
+  // 中午12点不受影响（仍是正午）
+  assert.equal(inferTimeBlock("明天中午12点吃饭", NOW, 30).start.getTime(), CST("2026-09-18T12:00:00+08:00"));
+});
+
+test("混合引擎：GLM 抽出 31~40 字标题 → 截断到 30（曾越界 zod 抛错且无法降级）", async () => {
+  // 环境门（与 hybrid.test.ts 同款）：fetch 全程 mock 不会真连
+  process.env.ZHIPUAI_API_KEY ??= "test-key";
+  process.env.TYPESAFE_API_KEY ??= "test-key";
+  process.env.JEV_MODE = "on";
+  const impl = async (url: string | URL | Request) => {
+    const u = String(url instanceof Request ? url.url : url);
+    if (u.includes("/v1/systemone")) {
+      return new Response(
+        JSON.stringify({
+          model: "jev-latest",
+          answers: {
+            sched_applicable: { noul: 0.95 },
+            todo_applicable: { noul: 0.05 },
+            record_type: { choice: "past", probabilities: { past: 0.97, future: 0.03 } },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (u.includes("chat/completions")) {
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ title: "很".repeat(40), people: [], dietItems: [] }) } }],
+          usage: { prompt_tokens: 100, completion_tokens: 50 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    throw new Error(`mock: 未预期的请求 ${u}`);
+  };
+  mock.method(globalThis, "fetch", impl);
+  try {
+    const r = await parseHybridInput("下午开了一个很长的会", { now: NOW });
+    assert.equal(r.engine, "jev-hybrid");
+    assert.equal(r.title.length, 30, "瘦身契约允许 40 字，入库契约 30 字 → 此处必须截断");
+  } finally {
+    mock.restoreAll();
+  }
+});
+
+test("规则兜底：「随便逛逛花了230」不再误判人情往来（裸'随'不再命中，仅随礼/份子/礼金/红包）", async () => {
+  const r = await parseInput("随便逛逛花了230", { now: NOW, forceRules: true });
+  assert.equal(r.finance.hasAmount, true);
+  assert.equal(r.finance.amountCents, 23000);
+  assert.notEqual(r.finance.category, "人情往来");
+});
+
+test("2/29 生日：平年倒计时显式取 2/28（不再滚到 3/1），闰年仍 2/29", () => {
+  assert.equal(birthdayCountdown("1996-02-29", new Date(2026, 1, 27)), 1); // 平年 2/27 → 明天 2/28
+  assert.equal(birthdayCountdown("1996-02-29", new Date(2026, 1, 28)), 0); // 平年 2/28 当天即生日
+  assert.equal(birthdayCountdown("1996-02-29", new Date(2026, 2, 1)), 364); // 已过 → 明年 2/28
+  assert.equal(birthdayCountdown("1996-02-29", new Date(2024, 1, 28)), 1); // 闰年仍是 2/29（回归）
+});

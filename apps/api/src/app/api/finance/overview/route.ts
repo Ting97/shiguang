@@ -87,13 +87,15 @@ export const GET = withAuth(async (req, { user }) => {
                  select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
                  from transactions t
                  where t.account_id = a.id and t.is_draft = false
-               ), 0))::int as balance_cents
+               ), 0))::bigint as balance_cents
        from accounts a
        where a.user_id = $1 and a.archived = false
      ) x
      order by x.sort_order, x.created_at`,
     [user.id],
   );
+  // ::bigint 防 int4 溢出，但 node-pg 对 bigint 返回 string：序列化统一 Number()，响应类型不变
+  const accountList = accounts.map((r) => ({ ...r, balanceCents: Number(r.balanceCents) }));
 
   return NextResponse.json({
     month,
@@ -104,7 +106,7 @@ export const GET = withAuth(async (req, { user }) => {
     trend,
     draftCount: draftRows[0].n,
     budget: budgetRows[0] ?? { monthly_limit_cents: 0, alert_threshold: 80 },
-    accounts,
+    accounts: accountList,
   });
 });
 

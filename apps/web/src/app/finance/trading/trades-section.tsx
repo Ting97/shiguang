@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Skeleton from "@/components/skeleton";
 import { FilterChip, TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
@@ -63,17 +63,23 @@ export default function TradesSection({ accountId }: { accountId: string }) {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // seq 守卫：筛选/翻页快速切换时慢的旧响应可能后到，只让最新请求落地（同 calendar-panel 的 loadSeq 范式）
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setBusy(true);
     setLoadErr(null);
     const sp = new URLSearchParams({ accountId, ...filters, page: String(page) });
     try {
-      setData(await api<TradesPage>(`/api/trading/trades?${sp}`));
+      const j = await api<TradesPage>(`/api/trading/trades?${sp}`);
+      if (seq !== loadSeq.current) return; // 过期响应丢弃
+      setData(j);
     } catch (e) {
+      if (seq !== loadSeq.current) return; // 过期错误不覆盖新请求的状态
       setData(null);
       setLoadErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if (seq === loadSeq.current) setBusy(false);
     }
   }, [accountId, filters, page]);
 

@@ -18,7 +18,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
   - 刚发生/正做着（"刚跑完步40分钟"）→ end=当前时间、start=end 减 durationMin
   - 跨天（"晚上10.30到6.30睡觉"）→ end 填次日
   - 补记昨天的（"昨天下午…"）→ 填昨天的日期
-- todo.applicable=true 时 **due 必填**："明天下午三点看牙"→明天15:00；"待会儿倒垃圾"→当前+1小时；"下周三开会"→下周三的合理钟点。
+- todo.applicable=true 时 **due 必填**（用实际日期拼 "YYYY-MM-DDTHH:MM"）："明天下午三点看牙"→<明天日期>T15:00；"待会儿倒垃圾"→当前+1小时；"下周三开会"→下周三的合理钟点。
 - **未提日期 → 一律今天**：话术没有任何日期词（今天/昨天/明天/周X…）时，日期一律用「今天」——**哪怕结束钟点还没到也不许挪到明天**（用户常提前几分钟打卡，如 17:22 说"下午2点到6点"是今天 14:00–18:00）。
 - **时态定日期**：过去式话术（"开了/完成了/做了/弄了/一直在/进行了/刚…"）且钟点在今天已过 → 日期=今天；未来词（明天/下周/待会儿）→ 未来日期；凌晨（0-5点）补记白天的 → 昨天。
 - **量词不是钟点**："一点点薯条""两杯咖啡""有点累"里的"一点/两杯"绝对不是时间，禁止当 01:00。
@@ -56,8 +56,8 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
 ## 金标准示例（对照学习）
 1. 「今天有点累」→ 各域 false，mood:{label:"疲惫",score:-40,confidence:0.95}，people:[]
 2. 「今天喝了两杯黑咖啡两杯豆浆和一点点香芋条」→ 仅 diet:{applicable:true,meal:"加餐",items:[{name:"黑咖啡",amount:"2杯",kcal:10},{name:"豆浆",amount:"2杯",kcal:240},{name:"香芋条",amount:"一点",kcal:300}],totalKcal:550,confidence:0.9}；schedule 的 start/end=null（"一点点"不是钟点）
-3. 「7点半到8点半 通勤+读书」→ 仅 schedule:{applicable:true,activity:"commute",title:"通勤读书",start:"今天07:30",end:"今天08:30",durationMin:60,confidence:0.95}
-4. 「明天下午三点看牙」→ 仅 todo:{applicable:true,due:"明天15:00",confidence:0.95}（schedule=false 但 title="看牙" activity="other" 照填供待办展示）
+3. 「7点半到8点半 通勤+读书」→ 仅 schedule:{applicable:true,activity:"commute",title:"通勤读书",start:"<今天日期>T07:30",end:"<今天日期>T08:30",durationMin:60,confidence:0.95}（start/end 用今天实际日期拼成 "YYYY-MM-DDTHH:MM"，禁止输出"今天07:30"这类非日期串）
+4. 「明天下午三点看牙」→ 仅 todo:{applicable:true,due:"<明天日期>T15:00",confidence:0.95}（due 用明天实际日期拼 ISO 串；schedule=false 但 title="看牙" activity="other" 照填供待办展示）
 5. 「中午和小陈吃饭花了260，吃得挺开心」→ schedule:{applicable:true,activity:"social",title:"和小陈吃饭",start/end=今天中午合理区间,confidence:0.8} + finance:{hasAmount:true,direction:"out",amountCents:26000,category:"餐饮",counterparty:"小陈",confidence:0.9} + mood:{label:"开心",score:60,confidence:0.9} + people:[{name:"小陈",event:"吃饭"}] + diet 按实际食物
 6. 「晚上陪爸妈吃饭」→ schedule:{applicable:true,activity:"social",title:"陪爸妈吃饭",start/end=今晚合理区间,confidence:0.85} + people:[{name:"爸爸",event:"吃饭"},{name:"妈妈",event:"吃饭"}]（**爸妈拆成两条**）
 
@@ -125,7 +125,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 - 先对照「当前时间」：钟点已过（"今天9:10到9:30工作准备"现在11:50）→ 已发生的事，false
 - true：「明天下午三点看牙」「待会儿倒垃圾」「下周三要开会」「打算/准备去做/记得去做」（动词性）
 - false：已发生、习惯陈述（我经常跑步）、名词性（工作计划/准备工作）、饮食摄入
-- true 时 due 必填（"YYYY-MM-DDTHH:MM"）：明天15:00；"待会儿"=当前+1小时；"下周三"给工作时段合理钟点
+- true 时 due 必填（"YYYY-MM-DDTHH:MM"，用实际日期拼）："明天下午三点看牙"→<明天日期>T15:00；"待会儿"=当前+1小时；"下周三"给工作时段合理钟点
 
 ## 示例
 「明天下午三点看牙」→ {"reasoning":"明确的未来计划带钟点","todo":{"applicable":true,"due":"<明天日期>T15:00","confidence":0.95}}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuthParams } from "@/server/platform/http/route";
+import { assertUuidParam } from "@/server/platform/http/validate";
 import { chat, extractJson, activeModel } from "@shiguangri/ai";
 import { z } from "zod";
 import { getPromptBundle, assembleUserPrompt, checkAiQuota, writeAuditRecord } from "@/server/ai";
@@ -31,6 +32,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     );
   }
   const { id } = await params;
+  assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const { mode } = (await req.json().catch(() => ({}))) as { mode?: "append" | "replace" };
 
   const todo = (

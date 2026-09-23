@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { TYPE_EMOJI, type InteractionType } from "@/lib/social";
-import { api } from "@/lib/client-api";
+import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 
 export function InteractionFormModal({
   contactName,

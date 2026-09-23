@@ -86,7 +86,7 @@ create table if not exists public.entry_recognitions (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles(id) on delete cascade,
   entry_id   uuid not null references public.entries(id) on delete cascade,
-  domain     text not null check (domain in ('schedule','todo','finance','mood','diet')),
+  domain     text not null check (domain in ('schedule','todo','finance','mood','diet','people')),
   status     text not null default 'none' check (status in ('applied','pending','none')),
   result     jsonb not null default '{}',
   confidence real,
@@ -164,7 +164,7 @@ create table if not exists public.todos (
   start_at     timestamptz,                          -- 起始时间（进行中收尾待办/带区间计划；migrations/016）
   remind_at    timestamptz,                          -- 提醒时间（默认 due_at 前 15 分钟）
   status       text not null default 'pending' check (status in ('pending','done','skipped','expired')),
-  source       text not null default 'voice' check (source in ('voice','keyboard','manual')),
+  source       text not null default 'voice' check (source in ('voice','keyboard','manual','ai')),
   done_at      timestamptz,
   done_entry_id uuid references public.entries(id) on delete set null, -- 完成时的打卡记录
   done_block_id uuid references public.time_blocks(id) on delete set null, -- 完成时生成的时间块（恢复未完成时删除）

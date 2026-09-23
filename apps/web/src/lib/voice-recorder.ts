@@ -1,13 +1,14 @@
 /**
  * 语音录音管线（Web 端共用）：getUserMedia → MediaRecorder → 解码重采样 16kHz WAV → POST /api/asr。
  * 从 voice-button.tsx 抽出为可复用状态机，供桌面听写按钮与移动端悬浮圆圈共用。
- * 状态流转：idle → (begin) recording → (release) transcribing → (onText) idle；
+ * 状态流转：idle → (begin) requesting → recording → (release) transcribing → (onText) idle；
  * discard 在录音中任意时刻丢弃。音频仅内存中转，服务器不落盘。
  * handlers 需传稳定引用（创建时捕获一次，后续不更新）。
  */
 import { apiForm } from "@/shared/api";
 
-export type VoiceRecorderState = "idle" | "recording" | "transcribing";
+/** requesting = getUserMedia 权限申请中（同步占位，防止弹窗期间二次 begin() 重入泄漏麦克风流） */
+export type VoiceRecorderState = "idle" | "requesting" | "recording" | "transcribing";
 
 /** 长按说话上限：30 秒（GLM-ASR 单文件限制 0–30s，超时被拒） */
 export const VOICE_MAX_SECONDS = 30;
@@ -62,17 +63,20 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
   }
 
   async function begin() {
-    if (state !== "idle") return; // 转写中或已在录
+    if (state !== "idle") return; // 转写中、已在录或权限申请中
+    setState("requesting"); // 同步占位：getUserMedia 弹窗期间二次 begin() 不再重入（旧实现等 await 返回才置态，会泄漏第一路麦克风流）
     releaseBeforeReady = false;
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (dead) {
         s.getTracks().forEach((t) => t.stop());
+        setState("idle"); // 回滚占位态（dead 时 onState 不外发）
         return;
       }
       if (releaseBeforeReady) {
         // 按下期间已松开：拆流不录，按太短提示
         s.getTracks().forEach((t) => t.stop());
+        setState("idle"); // 回滚占位态
         note("按住说话，松开后自动识别");
         return;
       }
@@ -99,6 +103,9 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
       }, AUTO_STOP_MS);
       setState("recording");
     } catch {
+      // MediaRecorder 构造/rec.start() 失败也必须拆流回 idle，否则麦克风直到页面刷新都被占用
+      stream?.getTracks().forEach((t) => t.stop());
+      stream = null;
       setState("idle");
       if (!dead) h.onError("无法访问麦克风，请检查浏览器权限");
     }
@@ -114,10 +121,10 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
     if (rec.state !== "inactive") rec.stop();
   }
 
-  /** 松开：已开录则停止送识别；还在起流则记取消意图 */
+  /** 松开：已开录则停止送识别；还在起流（含权限申请中）则记取消意图 */
   function release() {
     if (state === "recording") return stopRecorder();
-    if (state === "idle") releaseBeforeReady = true;
+    if (state === "idle" || state === "requesting") releaseBeforeReady = true;
   }
 
   /** 中断（来电/切走/上滑取消）：丢弃，不送识别 */

@@ -34,6 +34,7 @@ export default function FinancePage() {
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirming, setConfirming] = useState<Tx | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+  const [confirmBusy, setConfirmBusy] = useState(false); // 入账提交中：防双击双发 PATCH
   const [editing, setEditing] = useState<Tx | null>(null);
 
   useEffect(() => {
@@ -69,7 +70,8 @@ export default function FinancePage() {
   const confirmed = useMemo(() => txs.filter((t) => !t.is_draft), [txs]);
 
   async function confirmTx(accountId: string | null) {
-    if (!confirming) return;
+    if (!confirming || confirmBusy) return;
+    setConfirmBusy(true); // 提交期间锁按钮：防双击双发 PATCH 重复入账
     try {
       await api(`/api/transactions/${confirming.id}`, "PATCH", { confirm: true, accountId });
       setMsg({ ok: true, text: `✅ 已入账：${confirming.direction === "out" ? "支出" : "收入"} ¥${yuan(confirming.amount_cents)}` });
@@ -77,12 +79,15 @@ export default function FinancePage() {
       await load();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
   /** 一键全部入账：所有待确认流水记入同一账户（或都不记） */
   async function confirmAllTx(accountId: string | null) {
-    if (drafts.length === 0) return;
+    if (drafts.length === 0 || confirmBusy) return;
+    setConfirmBusy(true); // 提交期间锁按钮：防双击双发整批 PATCH
     try {
       await Promise.all(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true, accountId })));
       setConfirmAll(false);
@@ -91,6 +96,8 @@ export default function FinancePage() {
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
       await load();
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -197,6 +204,7 @@ export default function FinancePage() {
           setConfirming={setConfirming}
           confirmAll={confirmAll}
           setConfirmAll={setConfirmAll}
+          confirmBusy={confirmBusy}
           onConfirm={confirmTx}
           onConfirmAll={confirmAllTx}
           onEdit={setEditing}

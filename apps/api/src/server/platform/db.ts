@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { log } from "./http/logger";
 
 /** 开发期单用户（Phase 1 接入 Supabase Auth 后由会话取代） */
 export const DEV_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -7,6 +8,9 @@ const connectionString =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/shiguangri";
 
 export const pool = new Pool({ connectionString, max: 5 });
+
+// 空闲连接出错（DB 重启/网络闪断）会以 EventEmitter error 事件冒泡：无监听即未捕获异常打崩整个进程
+pool.on("error", (e) => log.error({ err: String(e) }, "pg-idle-client-error"));
 
 /** 时间轴约束：一个时刻只能做一件事。返回与 [startAt, endAt) 重叠的已有时间块（无则 null） */
 export async function findOverlap(

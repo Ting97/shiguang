@@ -239,11 +239,11 @@ export const MoodDraftV2 = z
     }
   });
 
-/** 严格饮食域：条目名 2-16 字、禁止整句片段 */
+/** 严格饮食域：条目名 1-16 字（单字食物名如"盐/茶"合法）、禁止整句片段 */
 export const DietItemV2 = z.object({
   name: z
     .string()
-    .min(2)
+    .min(1)
     .max(16)
     .refine((n) => !/^(今天|今日|刚才|刚刚|我|现在)/.test(n.trim()), { message: "items[].name 不能是句子片段" }),
   amount: z.string().nullish(),

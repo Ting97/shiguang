@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { isUuid } from "@/server/platform/http/validate";
 import { getQuota } from "@/server/ai";
 
 export const runtime = "nodejs";
@@ -53,6 +54,8 @@ export const POST = withAuth(async (req, { user }) => {
   if (months !== undefined && (!Number.isInteger(months) || months < 1 || months > 24)) {
     throw ApiError.badRequest("months 需为 1~24 的整数");
   }
+  // 非法 uuid 落 update where id = $3 会 22P02 → 500，先拦成 400（缺省/空串回退自己，不拦）
+  if (userId && !isUuid(userId)) throw ApiError.badRequest("userId 参数不合法");
   const target = userId || user.id;
   const expires =
     plan === "pro"

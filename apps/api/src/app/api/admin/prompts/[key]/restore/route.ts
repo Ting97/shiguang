@@ -24,6 +24,10 @@ export const POST = withAdminParams(async (req, { user, params }) => {
     throw ApiError.notFound("未知的 prompt key");
   }
   const { versionId } = (await req.json().catch(() => ({}))) as { versionId?: number };
+  // 非整数 versionId（字符串/小数）落 where id = $1 会 cast 失败 → 500，先拦成 400
+  if (versionId !== undefined && !Number.isInteger(versionId)) {
+    throw ApiError.badRequest("versionId 需为整数");
+  }
   if (!versionId) throw ApiError.badRequest("缺少 versionId");
 
   const ver = (

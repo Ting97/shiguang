@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam } from "@/server/platform/http/validate";
 import { dedupeKey, parseBill, type ImportRow } from "@shiguangri/shared/csv-import";
 
 export const runtime = "nodejs";
@@ -39,6 +40,7 @@ export const POST = withAuth(async (req, { user }) => {
   // 账户归属校验
   let accountId: string | null = null;
   if (body.accountId) {
+    assertUuidParam(body.accountId, "accountId"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
     const owned = await pool.query(
       `select id, name from accounts where id = $1 and user_id = $2 and archived = false`,
       [body.accountId, user.id],
@@ -141,24 +143,35 @@ export const POST = withAuth(async (req, { user }) => {
   }
 
   // ---- 批量插入（分块；外部单号唯一索引兜底并发重复）----
+  // 整包单事务（与 debt-import 一致）：任一 chunk 失败整体 rollback，避免账单「导一半」的半提交状态
+  const client = await pool.connect();
   let imported = 0;
-  const CHUNK = 100;
-  for (let i = 0; i < toImport.length; i += CHUNK) {
-    const chunk = toImport.slice(i, i + CHUNK);
-    const values: unknown[] = [user.id, accountId];
-    const tuples = chunk.map((r, j) => {
-      const b = j * 7;
-      values.push(r.direction, r.amountCents, r.category, r.counterparty, r.note, r.occurredAt, r.externalNo);
-      return `($1, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9}, 'csv_import', false, $2)`;
-    });
-    const { rowCount } = await pool.query(
-      `insert into transactions
-         (user_id, direction, amount_cents, category, counterparty, note, occurred_at, external_no, source, is_draft, account_id)
-       values ${tuples.join(",")}
-       on conflict (user_id, external_no) where external_no is not null do nothing`,
-      values,
-    );
-    imported += rowCount ?? 0;
+  try {
+    await client.query("begin");
+    const CHUNK = 100;
+    for (let i = 0; i < toImport.length; i += CHUNK) {
+      const chunk = toImport.slice(i, i + CHUNK);
+      const values: unknown[] = [user.id, accountId];
+      const tuples = chunk.map((r, j) => {
+        const b = j * 7;
+        values.push(r.direction, r.amountCents, r.category, r.counterparty, r.note, r.occurredAt, r.externalNo);
+        return `($1, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9}, 'csv_import', false, $2)`;
+      });
+      const { rowCount } = await client.query(
+        `insert into transactions
+           (user_id, direction, amount_cents, category, counterparty, note, occurred_at, external_no, source, is_draft, account_id)
+         values ${tuples.join(",")}
+         on conflict (user_id, external_no) where external_no is not null do nothing`,
+        values,
+      );
+      imported += rowCount ?? 0;
+    }
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
   }
 
   return NextResponse.json({

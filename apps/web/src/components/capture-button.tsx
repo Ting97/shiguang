@@ -126,8 +126,8 @@ export default function CaptureButton({
 
   return (
     <>
-      {/* 录音/识别浮层：全屏蒙层（指针捕获在圆钮上，浮层不拦截手势事件流） */}
-      {state !== "idle" && (
+      {/* 录音/识别浮层：全屏蒙层（指针捕获在圆钮上，浮层不拦截手势事件流）；requesting=权限弹窗中不弹蒙层（该阶段此前无蒙层，别误显「识别中」） */}
+      {state !== "idle" && state !== "requesting" && (
         <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60">
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-line-soft bg-surface px-8 py-6 text-center">
             {recording ? (

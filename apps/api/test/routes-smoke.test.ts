@@ -389,6 +389,8 @@ test("正常层：联系人创建→往来→删除", async (t) => {
 test("正常层：账户创建→记账→删账", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
+  // 幂等自洁：上次运行若在 teardown 前中断，同名残留会让本用例撞「已存在同名账户」
+  await pool.query(`delete from accounts where user_id = $1 and name = '冒烟账户'`, [UA]);
   const acc = await call("POST", "/api/accounts", { user: UA, body: { name: "冒烟账户" } });
   assert.equal(acc.status, 200, `建账户应 200：${JSON.stringify(acc.json).slice(0, 120)}`);
   const accId = (acc.json.account ?? acc.json).id;

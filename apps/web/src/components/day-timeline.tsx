@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseYmd, todayStr } from "@/lib/date";
+import { bjToday } from "@/lib/date";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import type { Activity, Block } from "@/lib/types";
 
@@ -22,16 +22,20 @@ function hmOf(minutes: number): string {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
+/** 当前北京时刻的分钟数（UTC+8 推算，禁本地 getter：海外设备的本地时刻会偏 8 小时） */
+function bjNowMin(): number {
+  const d = new Date(Date.now() + 8 * 3600_000);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
 export default function DayTimeline({ date, blocks, activities, onCreate, onEditBlock, loading = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastAutoDate = useRef<string | null>(null);
-  const isToday = date === todayStr();
-  const dayStart = useMemo(() => parseYmd(date), [date]);
+  const isToday = date === bjToday(); // 锚定日对比北京今天（本地 todayStr 在海外设备会差一天）
+  const dayStartMs = useMemo(() => Date.parse(`${date}T00:00:00+08:00`), [date]); // 北京零点基点（本地零点会偏 8 小时）
 
-  const [nowMin, setNowMin] = useState(() => {
-    const n = new Date();
-    return n.getHours() * 60 + n.getMinutes();
-  });
+  // 初值固定 null 不画线：首帧就用真实时钟会 SSR 水合不匹配，挂载后 useEffect 里再校准
+  const [nowMin, setNowMin] = useState<number | null>(null);
   const [draft, setDraft] = useState<BlockDraftValue | null>(null);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -43,9 +47,9 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
 
   useEffect(() => {
     if (!isToday) return;
+    setNowMin(bjNowMin()); // 挂载先校准一次（初值为 null 不画线）
     const t = setInterval(() => {
-      const n = new Date();
-      setNowMin(n.getHours() * 60 + n.getMinutes());
+      setNowMin(bjNowMin());
     }, 60_000);
     return () => clearInterval(t);
   }, [isToday]);
@@ -56,7 +60,8 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     if (!el || loading || lastAutoDate.current === date) return;
     lastAutoDate.current = date;
     if (isToday) {
-      el.scrollTop = Math.max(0, nowMin * PX_PER_MIN - 160);
+      // 直接取实时北京时刻而非 nowMin state：state 初值 null，本 effect 先于定时器校准执行会定位到顶部
+      el.scrollTop = Math.max(0, bjNowMin() * PX_PER_MIN - 160);
       return;
     }
     const starts = blocks.map((b) => minOfDay(b.start_at));
@@ -64,13 +69,13 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, loading, isToday, blocks]);
 
-  /** ISO → 当天分钟数（跨天块钳到 0~1440） */
+  /** ISO → 当天分钟数（基点北京零点；跨午夜块可为负，钳到 0~1440） */
   const minOfDay = (iso: string) => {
-    const m = Math.floor((new Date(iso).getTime() - dayStart.getTime()) / 60_000);
+    const m = Math.floor((new Date(iso).getTime() - dayStartMs) / 60_000);
     return Math.max(0, Math.min(1440, m));
   };
   const isoFromMinutes = (minutes: number) =>
-    new Date(dayStart.getTime() + minutes * 60_000).toISOString();
+    new Date(dayStartMs + minutes * 60_000).toISOString();
 
   // 合并已记录区间 → 未记录缺口（>2 分钟）
   const gaps = useMemo(() => {
@@ -213,7 +218,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
             );
           })}
 
-          {isToday && (
+          {isToday && nowMin != null && (
             <div className="pointer-events-none absolute inset-x-0 z-10" style={{ top: `${nowMin * PX_PER_MIN}px` }}>
               <div className="relative border-t-2 border-rose-500/80">
                 <span className="absolute -top-2.5 right-1 rounded bg-rose-500 px-1 text-[9px] font-bold tabular-nums text-white">

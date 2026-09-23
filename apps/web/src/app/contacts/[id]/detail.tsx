@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import { TagChip, TONE_BG } from "@/components/tag-chip";
-import { api, ApiClientError } from "@/lib/client-api";
+import { api, ApiClientError } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
 import { GROUP_TONE } from "@/lib/group-tone";
 import { InteractionFormModal } from "../../../components/contacts/interaction-form-modal";

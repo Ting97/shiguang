@@ -7,7 +7,7 @@ import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
 import { TagChip, FilterChip, TONE_BG } from "@/components/tag-chip";
-import { api } from "@/lib/client-api";
+import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
 import { GROUP_TONE } from "@/lib/group-tone";
 

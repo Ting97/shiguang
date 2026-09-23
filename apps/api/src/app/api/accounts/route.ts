@@ -19,14 +19,16 @@ export const GET = withAuth(async (_req, { user }) => {
                  select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
                  from transactions t
                  where t.account_id = a.id and t.is_draft = false
-               ), 0))::int as balance_cents
+               ), 0))::bigint as balance_cents
        from accounts a
        where a.user_id = $1 and a.archived = false
      ) x
      order by x.sort_order, x.created_at`,
     [user.id],
   );
-  return NextResponse.json({ accounts: rows });
+  // ::bigint 防 int4 溢出，但 node-pg 对 bigint 返回 string：序列化统一 Number()，响应类型不变
+  const accounts = rows.map((r) => ({ ...r, balance_cents: Number(r.balance_cents), balanceCents: Number(r.balanceCents) }));
+  return NextResponse.json({ accounts });
 });
 
 /** POST /api/accounts —— 新建账户 {name, icon?, openingBalanceCents?} */

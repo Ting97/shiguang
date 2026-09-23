@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { api } from "@/shared/api";
 import { RowAction } from "./row-action";
-import { combineHM, dayPrefix, zhClock } from "./kit";
+import { combineHM } from "@/lib/bj-time"; // 北京口径版：本地 setHours 在海外设备会偏 8 小时（与日程页同源）
+import { dayPrefix, zhClock } from "./kit";
 import type { DelFn, RunFn } from "./types";
 
 /** 日程块行内编辑态 */

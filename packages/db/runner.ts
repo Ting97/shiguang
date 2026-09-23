@@ -3,7 +3,8 @@
  *   npm run db:migrate          增量执行 packages/db/migrations/*.sql 中未跑的
  *   npm run db:migrate -- --status   只看差异不执行
  * - 记录表 schema_migrations（035）；已执行文件的 checksum 变更即报错（防手改已上线迁移）
- * - 首跑自举：表为空时把既有全部迁移按序回填（applied_by='backfill'），不重复执行
+ * - 首跑自举：表为空且已有业务表（profiles 存在）时把既有全部迁移按序回填（applied_by='backfill'），不重复执行；
+ *   真空库（无业务表）直接报错退出，须 --fresh 全量执行（防空库被回填成"已应用"的单向门）
  * - 连接串取 DATABASE_URL；单条迁移整体事务执行，失败即停
  */
 import { readFileSync, readdirSync } from "node:fs";
@@ -79,6 +80,13 @@ async function main() {
     if (statusOnly) {
       console.log(`[migrate] 未初始化：${files.length} 个既有迁移待回填（执行 db:migrate 完成回填）`);
       return;
+    }
+    // 单向门守卫：连 profiles 都没有 = 真空库（测试/新环境忘加 --fresh）。静默回填会让零业务表的库
+    // 假装"迁移已应用"，且 --fresh（要求记录表为空）从此永久跳过——必须显式 --fresh 全量执行。
+    const probe = await client.query(`select to_regclass('public.profiles') as t`);
+    if (!probe.rows[0]?.t) {
+      console.error("[migrate] 检测到空库（无 public.profiles 业务表）：测试/新库请使用 --fresh 全量执行：npm run db:migrate -- --fresh");
+      process.exit(1);
     }
     for (const f of files) {
       const checksum = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));

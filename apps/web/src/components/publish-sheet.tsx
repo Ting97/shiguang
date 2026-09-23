@@ -107,7 +107,8 @@ export default function PublishSheet({
     const files = images.filter((i) => i.status !== "error").map((i) => i.file);
     const entryId = await onPublish(t);
     if (!entryId) {
-      onClose(); // 文字发布失败：关面板，错误提示在主页横幅
+      // 失败保留面板与已输文本（旧实现直接 onClose 会把没发出去的内容弄丢），错误原因在主页横幅
+      setSheetMsg("发布失败，内容已保留，可直接重试");
       return;
     }
     lastEntryId.current = entryId;

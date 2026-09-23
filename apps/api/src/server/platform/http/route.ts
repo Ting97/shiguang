@@ -59,16 +59,19 @@ export function withRoute<C extends Record<string, unknown> = { params: Promise<
     const requestId = newRequestId();
     const route = new URL(req.url).pathname;
     const startedAt = Date.now();
-    const run = runWithRequestContext({ requestId, route }, () => handler(req, arg as C));
-    try {
-      const resp = await run;
-      log.info({ status: resp.status, latencyMs: Date.now() - startedAt, method: req.method }, "req");
-      return resp;
-    } catch (e) {
-      const resp = jsonError(e);
-      log.warn({ status: resp.status, latencyMs: Date.now() - startedAt, method: req.method }, "req-failed");
-      return resp;
-    }
+    // try/catch 与请求摘要日志必须整体留在 als.run 回调内：await 到外层后 ALS 上下文已退出，
+    // req/req-failed/错误日志会丢 requestId/route/userId（requestId 贯穿因此失效）
+    return runWithRequestContext({ requestId, route }, async () => {
+      try {
+        const resp = await handler(req, arg as C);
+        log.info({ status: resp.status, latencyMs: Date.now() - startedAt, method: req.method }, "req");
+        return resp;
+      } catch (e) {
+        const resp = jsonError(e);
+        log.warn({ status: resp.status, latencyMs: Date.now() - startedAt, method: req.method }, "req-failed");
+        return resp;
+      }
+    });
   };
 }
 

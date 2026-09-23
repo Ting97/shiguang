@@ -59,7 +59,14 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   async function toggle(liabilityId: string, checked: boolean) {
     setBusy(true);
     try {
-      await api("/api/debts/reserve", "PUT", { ym, liabilityId, checked });
+      // 合并组「组内任一勾选即整组已勾」：取消勾选只发单 id 会对组内其他行静默无效，
+      // 须把该行整组 liabilityIds 逐个取消（PUT 只收单个 id）；勾选发单 id 即可
+      const ids = checked
+        ? [liabilityId]
+        : (data?.items.find((r) => r.liabilityId === liabilityId)?.liabilityIds ?? [liabilityId]);
+      for (const id of ids) {
+        await api("/api/debts/reserve", "PUT", { ym, liabilityId: id, checked });
+      }
       await load();
       onChanged?.();
     } catch (e) {

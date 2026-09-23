@@ -89,7 +89,8 @@ export default function DailySection({ accountId }: { accountId: string }) {
             <span className="text-success">▮</span> 盈利日 <span className="text-danger">▮</span> 亏损日
           </p>
 
-          <div className="mt-3 border-t border-line-soft pt-3">
+          {/* 横向滚动防溢出：固定列宽合计超 375px 小屏（不重排列，溢出可左右滑） */}
+          <div className="mt-3 overflow-x-auto border-t border-line-soft pt-3">
             <div className="flex items-center gap-2 px-1 pb-1 text-[10px] text-ink-faint">
               <span className="w-20">日期</span>
               <span className="w-10 text-right">笔数</span>

@@ -16,9 +16,11 @@ export const GET = withAuth(async (req, { user }) => {
 
   const [entries, blocks, todos, transactions, diets, contacts, interactions, accounts, budgets] = await Promise.all([
     pool.query(
-      `select id, raw_text, source, mood, mood_score, (created_at at time zone $2) as created_at
+      // 不再 at time zone 预转北京墙上时间：pg 会按宿主本地时区解析该 timestamp，再被上方 bj 的 +8h 二次偏移；
+      // 统一取绝对时刻（timestamptz），展示层统一 +8h 换算（与其他表列口径一致）
+      `select id, raw_text, source, mood, mood_score, created_at
        from entries where user_id = $1 order by created_at`,
-      [user.id, TZ],
+      [user.id],
     ),
     pool.query(
       `select b.title, b.activity_id, a.name as activity, b.start_at, b.end_at, b.duration_min, b.time_mode, b.source
@@ -62,8 +64,10 @@ export const GET = withAuth(async (req, { user }) => {
       },
     });
 
-  const localYmd = (v: unknown) => { const d = new Date(String(v)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const localClock = (v: unknown) => { const d = new Date(String(v)); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  // 北京时间口径：+8h 后读 UTC getter（getFullYear/getHours 等本地 getter 随宿主时区漂移，UTC 容器上会差 8 小时）
+  const bj = (v: unknown) => new Date(new Date(String(v)).getTime() + 8 * 3600_000);
+  const localYmd = (v: unknown) => { const d = bj(v); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`; };
+  const localClock = (v: unknown) => { const d = bj(v); return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
 
   if (format === "md") {
     const lines: string[] = [

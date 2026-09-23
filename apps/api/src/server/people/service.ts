@@ -345,7 +345,9 @@ export async function generateAiProfile(userId: string, id: string) {
     };
   } catch (e) {
     await audit(false, String(e).slice(0, 300));
-    throw new ApiError(502, "upstream", `AI 提炼失败：${e instanceof Error ? e.message : e}`);
+    // 固定文案：原始错误只进服务端日志/审计，不随 502 外泄（与 decompose 路由同口径）
+    console.warn(`[ai-profile] 提炼失败: ${String(e).slice(0, 300)}`);
+    throw new ApiError(502, "upstream", "AI 提炼失败，请稍后重试");
   }
   await audit(true);
 

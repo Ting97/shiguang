@@ -161,7 +161,8 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
   // 不能再按 start_at 的日期过滤（会把凌晨占用段筛没，导致"看得见的冲突缺口"）
   const dayBlocks = blocks;
   // 统计口径与月/年视图统一（stats/range 的交集钳制）：跨天块只计落在当天的部分
-  const dayStartMs = new Date(`${anchor}T00:00:00`).getTime();
+  // 基点北京零点（+08:00）：本地零点在海外设备会把当天块算偏 8 小时
+  const dayStartMs = new Date(`${anchor}T00:00:00+08:00`).getTime();
   const dayEndMs = dayStartMs + 86_400_000;
   const dayClampedMin = (b: { start_at: string; end_at: string }) => {
     const s = new Date(b.start_at).getTime();

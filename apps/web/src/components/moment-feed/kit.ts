@@ -67,14 +67,6 @@ export const DOMAIN_LABELS: Record<string, string> = {
 
 export const FEED_PAGE_SIZE_HINT = 10; // 超过一页才显示「到底啦」提示
 
-/** 用原块日期 + 新的 HH:MM 组装 ISO（保持本地时区与原日期） */
-export function combineHM(originalIso: string, hm: string): string {
-  const d = new Date(originalIso);
-  const [h, m] = hm.split(":").map(Number);
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
-}
-
 export const isoToLocalInput = (iso: string | null) => {
   if (!iso) return "";
   const d = new Date(iso);

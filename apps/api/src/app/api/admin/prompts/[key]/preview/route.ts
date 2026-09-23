@@ -233,9 +233,12 @@ export const POST = withAdminParams(async (req, { user, params }) => {
     };
     userPrompt = await assembleUserPrompt(key as PromptKey, bundle, ctxOut, { userId: user.id });
   } else if (key === "space_classify") {
+    // 读侧钳制：caps 来自 DB 覆盖配置可能非整数/非正数，回退默认 20；limit 一律参数化防注入/拼接坏 SQL
+    const spaceCapCfg = cfg.caps.spaceCount ?? 20;
+    const spaceCap = Number.isInteger(spaceCapCfg) && spaceCapCfg > 0 ? spaceCapCfg : 20;
     const { rows: spaces } = await pool.query(
-      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit ${cfg.caps.spaceCount ?? 20}`,
-      [user.id],
+      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit $2`,
+      [user.id, spaceCap],
     );
     const candidates = spaces
       .map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`)

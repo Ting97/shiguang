@@ -6,6 +6,7 @@
 import { pool } from "@/server/platform/db";
 import { ApiError } from "../platform/http/errors";
 import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
+import { isUuid } from "../platform/http/validate";
 import type { TodoItem, TodoRow } from "@shiguangri/shared/types";
 import { todoRepo, spaceRepo, reflectionRepo } from "./repo";
 
@@ -113,6 +114,8 @@ async function createTodo(userId: string, body: TodoCreateInput) {
   let parentId: string | null = null;
   let parentSpaceId: string | null = null;
   if (body.parentId) {
+    // 引用字段 uuid 预检：非 uuid 落 SQL 触发 PG 22P02 cast 500，先拦成 400
+    if (!isUuid(body.parentId)) throw ApiError.badRequest("parentId 参数不合法");
     const hit = await todoRepo.topTodoOf(body.parentId, userId);
     if (!hit) throw ApiError.badRequest("只能给未完成的顶层 todo 添加行动");
     parentId = hit.id;
@@ -122,6 +125,8 @@ async function createTodo(userId: string, body: TodoCreateInput) {
   // 空间归属：显式指定校验属主；行动未显式指定时继承父待办
   let spaceId: string | null = null;
   if (body.spaceId) {
+    // 引用字段 uuid 预检（同 parentId：非 uuid 落 SQL 会 22P02 → 500）
+    if (!isUuid(body.spaceId)) throw ApiError.badRequest("spaceId 参数不合法");
     const hit = await spaceRepo.ownedId(body.spaceId, userId);
     if (!hit) throw ApiError.badRequest("空间不存在");
     spaceId = hit.id;
@@ -152,6 +157,8 @@ async function createTodo(userId: string, body: TodoCreateInput) {
   let sort: number;
   if (parentId) {
     if (body.afterId) {
+      // 引用字段 uuid 预检（同 parentId：非 uuid 落 SQL 会 22P02 → 500）
+      if (!isUuid(body.afterId)) throw ApiError.badRequest("afterId 参数不合法");
       const anchor = await todoRepo.sortAnchor(body.afterId, userId, parentId);
       if (!anchor) throw ApiError.badRequest("插入位置不存在");
       await todoRepo.shiftSortAfter(userId, parentId, anchor.sort);
@@ -238,6 +245,8 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
   if (body.spaceId) {
     const own = await todoRepo.parentOf(id, userId);
     if (own?.parent_todo_id) throw ApiError.conflict("行动随父 todo 关联空间，不可单独设置");
+    // 引用字段 uuid 预检（非 uuid 落 SQL 会 22P02 → 500）
+    if (!isUuid(body.spaceId)) throw ApiError.badRequest("spaceId 参数不合法");
     const hit = await todoRepo.spaceWithStatus(body.spaceId, userId);
     if (!hit) throw ApiError.badRequest("空间不存在");
     if (hit.status !== "active") throw ApiError.badRequest("空间已归档，不可新关联");
@@ -254,6 +263,10 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
   }
   if (body.startAt != null && !isParsableMoment(body.startAt)) {
     throw ApiError.badRequest("startAt 需为合法时间（ISO 格式，如 2025-06-01T09:00）");
+  }
+  // 引用字段 uuid 预检：buildPatch 会把 activityId 原样进 activity_id = $n，非 uuid 触发 PG 22P02 → 500
+  if (body.activityId != null && !isUuid(body.activityId)) {
+    throw ApiError.badRequest("activityId 参数不合法");
   }
   const { sets, vals } = todoRepo.buildPatch(body, spaceId);
   if (sets.length === 0) throw ApiError.badRequest("没有可更新的字段");

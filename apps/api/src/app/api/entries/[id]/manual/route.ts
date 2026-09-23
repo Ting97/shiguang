@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withAuthParams } from "@/server/platform/http/route";
+import { assertUuidParam } from "@/server/platform/http/validate";
 import { appendManual } from "@/server/timeline";
 
 export const runtime = "nodejs";
@@ -10,6 +11,7 @@ export const runtime = "nodejs";
  */
 export const POST = withAuthParams(async (req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as {
     domain?: string;
     payload?: Record<string, unknown>;

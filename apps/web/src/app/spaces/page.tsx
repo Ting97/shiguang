@@ -7,6 +7,7 @@ import { Dismissable } from "@/components/dismissable";
 import InlineRename from "@/components/inline-rename";
 import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
+import { bjToday } from "@/lib/date"; // 北京口径今天：本地 getter 在海外设备会差一天
 import { api, ApiClientError } from "@/shared/api";
 
 /**
@@ -62,10 +63,8 @@ export default function SpacesPage() {
   }, [load]);
 
   function openNew() {
-    // 本地时区的今天；toISOString() 会取 UTC 日期，北京 0-8 点会默认成昨天
-    const d = new Date();
-    const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    setEditing({ ...EMPTY, startedAt: localToday });
+    // 默认开始日期取北京口径的今天（bjToday）：本地时区在海外设备会差一天，toISOString() 又会取 UTC 日期（北京 0-8 点落昨天）
+    setEditing({ ...EMPTY, startedAt: bjToday() });
     setEditingId(null);
   }
   function openEdit(s: Space) {

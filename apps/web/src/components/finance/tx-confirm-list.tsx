@@ -14,6 +14,7 @@ export function DraftConfirmSection({
   setConfirming,
   confirmAll,
   setConfirmAll,
+  confirmBusy,
   onConfirm,
   onConfirmAll,
   onEdit,
@@ -25,6 +26,7 @@ export function DraftConfirmSection({
   setConfirming: Dispatch<SetStateAction<Tx | null>>;
   confirmAll: boolean;
   setConfirmAll: Dispatch<SetStateAction<boolean>>;
+  confirmBusy: boolean;
   onConfirm: (accountId: string | null) => Promise<void>;
   onConfirmAll: (accountId: string | null) => Promise<void>;
   onEdit: (t: Tx) => void;
@@ -51,13 +53,14 @@ export function DraftConfirmSection({
           {accounts.map((a) => (
             <button
               key={a.id}
+              disabled={confirmBusy}
               onClick={() => onConfirmAll(a.id)}
-              className="rounded-full bg-elevated px-3 py-1 text-[11px] text-ink transition hover:bg-sky-600"
+              className="rounded-full bg-elevated px-3 py-1 text-[11px] text-ink transition hover:bg-sky-600 disabled:opacity-40"
             >
               {a.icon} {a.name}
             </button>
           ))}
-          <button onClick={() => onConfirmAll(null)} className="rounded-full px-3 py-1 text-[11px] text-ink-mute hover:text-accent">
+          <button disabled={confirmBusy} onClick={() => onConfirmAll(null)} className="rounded-full px-3 py-1 text-[11px] text-ink-mute hover:text-accent disabled:opacity-40">
             不记账户
           </button>
           <button onClick={() => setConfirmAll(false)} className="ml-auto text-[11px] text-ink-dim hover:text-ink-soft">
@@ -74,13 +77,14 @@ export function DraftConfirmSection({
                 {accounts.map((a) => (
                   <button
                     key={a.id}
+                    disabled={confirmBusy}
                     onClick={() => onConfirm(a.id)}
-                    className="rounded-full bg-elevated px-3 py-1 text-[11px] text-ink transition hover:bg-sky-600"
+                    className="rounded-full bg-elevated px-3 py-1 text-[11px] text-ink transition hover:bg-sky-600 disabled:opacity-40"
                   >
                     {a.icon} {a.name}
                   </button>
                 ))}
-                <button onClick={() => onConfirm(null)} className="rounded-full px-3 py-1 text-[11px] text-ink-mute hover:text-accent">
+                <button disabled={confirmBusy} onClick={() => onConfirm(null)} className="rounded-full px-3 py-1 text-[11px] text-ink-mute hover:text-accent disabled:opacity-40">
                   不记账户
                 </button>
                 <button onClick={() => setConfirming(null)} className="ml-auto text-[11px] text-ink-dim hover:text-ink-soft">

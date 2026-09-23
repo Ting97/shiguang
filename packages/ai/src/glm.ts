@@ -111,56 +111,37 @@ export async function chat(opts: ChatOptions): Promise<string> {
     }
   }
 
-  // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）
+  // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）。
+  // legacy 与 sdk 共用同一套 attempt 循环（次数/退避/可重试判定一致），差异只在单次传输实现。
   const chatOnce = glmTransport() === "sdk"
-    ? (m: string, deadline: number) => sdkOnce(m, deadline, opts)
-    : (m: string, deadline: number) => legacyOnce(m, deadline, opts, body);
+    ? (m: string, deadline: number) => chatWithRetry(m, deadline, () => sdkOnce(m, deadline, opts))
+    : (m: string, deadline: number) => chatWithRetry(m, deadline, () => legacyOnce(m, deadline, opts, body));
 
-  async function legacyOnce(m: string, deadline: number, opts: ChatOptions, body: Record<string, unknown>): Promise<string> {
+  /** 重试驱动（legacy/sdk 共用）：总尝试 5 次，指数退避 1500ms*2^n（不超剩余预算）。
+   * 可重试：HTTP 429/5xx、网络瞬断、空输出（content 与 reasoning 均空，max_tokens 被思考耗尽）；
+   * 立即抛：quota/auth/参数类 GlmError（重试无意义）；超时（预算耗尽）即停不再重试。 */
+  async function chatWithRetry(m: string, deadline: number, once: () => Promise<string>): Promise<string> {
     const maxAttempts = 5;
     let lastErr: Error = new Error(`GLM(${m}) 未响应`);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const remainMs = deadline - Date.now();
       if (remainMs <= 0) break;
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), remainMs);
       try {
-        const res = await fetch(`${base}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-          body: JSON.stringify({ ...body, model: m }),
-          signal: ctl.signal,
-        });
-        if (res.ok) {
-          const json = (await res.json()) as any;
-          const u = json.usage;
-          if (opts.onUsage && u) {
-            opts.onUsage({
-              prompt_tokens: Number(u.prompt_tokens ?? 0),
-              completion_tokens: Number(u.completion_tokens ?? 0),
-            });
-          }
-          const content = String(json.choices?.[0]?.message?.content ?? "");
-          if (content) return content;
-          // 思考模型兜底：max_tokens 被思考耗尽时 content 可能为空，思考文本里通常已有答案 JSON
-          const reasoning = String(json.choices?.[0]?.message?.reasoning_content ?? "");
-          if (reasoning) return reasoning;
-          return "";
-        }
-        const errBody = (await res.text()).slice(0, 300);
-        const httpErr = new GlmError(classifyGlmFailure(res.status, errBody), `GLM(${m}) HTTP ${res.status}: ${errBody}`);
-        lastErr = httpErr;
-        if (httpErr.kind !== "rate" && httpErr.kind !== "server") throw httpErr; // 参数/鉴权/额度错误重试无意义
+        const content = await once();
+        if (content) return content;
+        // content 与 reasoning 均空 → 视为可重试失败，重试耗尽后按现有错误路径抛
+        lastErr = new GlmError("badOutput", `GLM(${m}) 返回空内容`);
       } catch (e) {
-        if (e instanceof GlmError) throw e;
-        if (e instanceof Error && e.name === "AbortError") {
+        if (e instanceof GlmError) {
+          if (e.kind !== "rate" && e.kind !== "server") throw e; // 参数/鉴权/额度错误重试无意义
+          lastErr = e;
+        } else if (e instanceof Error && e.name === "AbortError") {
           // 总预算内的等待已耗尽（挂起的连接被掐断）——继续重试只会再超时
           lastErr = new GlmError("timeout", `GLM(${m}) 响应超时（预算耗尽）`);
           break;
+        } else {
+          lastErr = e instanceof Error ? e : new GlmError("network", String(e)); // 网络瞬断等其他异常：可重试
         }
-        lastErr = e instanceof Error ? e : new GlmError("network", String(e)); // 网络瞬断等其他异常：可重试
-      } finally {
-        clearTimeout(timer);
       }
       if (attempt < maxAttempts) {
         const waitMs = Math.min(1500 * 2 ** (attempt - 1), deadline - Date.now());
@@ -168,6 +149,40 @@ export async function chat(opts: ChatOptions): Promise<string> {
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
+
+  /** legacy 单次传输：一次 fetch；res.ok 时返回 content/reasoning（可能为空串=失败信号，由重试驱动接手）；
+   * 非 2xx 抛 GlmError（rate/server 由重试驱动接手，其余立即失败） */
+  async function legacyOnce(m: string, deadline: number, opts: ChatOptions, body: Record<string, unknown>): Promise<string> {
+    const remainMs = deadline - Date.now();
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), Math.max(0, remainMs));
+    try {
+      const res = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ ...body, model: m }),
+        signal: ctl.signal,
+      });
+      if (res.ok) {
+        const json = (await res.json()) as any;
+        const u = json.usage;
+        if (opts.onUsage && u) {
+          opts.onUsage({
+            prompt_tokens: Number(u.prompt_tokens ?? 0),
+            completion_tokens: Number(u.completion_tokens ?? 0),
+          });
+        }
+        const content = String(json.choices?.[0]?.message?.content ?? "");
+        if (content) return content;
+        // 思考模型兜底：max_tokens 被思考耗尽时 content 可能为空，思考文本里通常已有答案 JSON
+        return String(json.choices?.[0]?.message?.reasoning_content ?? "");
+      }
+      const errBody = (await res.text()).slice(0, 300);
+      throw new GlmError(classifyGlmFailure(res.status, errBody), `GLM(${m}) HTTP ${res.status}: ${errBody}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
@@ -185,13 +200,25 @@ export async function chat(opts: ChatOptions): Promise<string> {
 
 /** 从模型输出中剥出 JSON（容忍 markdown 代码围栏/前后废话） */
 export function extractJson(raw: string): unknown {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const body = fenced ? fenced[1] : raw;
-  const start = body.search(/[{[]/);
-  if (start === -1) throw new Error("输出中无 JSON");
-  // 括号配平截取第一个完整 JSON 值：模型常在 JSON 后补话（"以上是结果"），
-  // 旧实现切到串尾导致 JSON.parse 必炸、白白多烧一次修复重问
-  return JSON.parse(body.slice(start, jsonBodyEnd(body, start)));
+  // 模型偶发输出多个围栏（先一段废话/示例围栏、真 JSON 在后面）：非贪婪只取第一个会拿错体。
+  // 扫描全部 ``` 围栏体，逐个尝试「括号配平 + JSON.parse」，取第一个成功者
+  const bodies: string[] = [];
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)```/g;
+  for (let fm = fenceRe.exec(raw); fm !== null; fm = fenceRe.exec(raw)) bodies.push(fm[1]);
+  // 无围栏或全部围栏体失败 → 对原文做同款解析（未配平仍由 JSON.parse 报错）
+  bodies.push(raw);
+  let parseErr: unknown;
+  for (const body of bodies) {
+    const start = body.search(/[{[]/);
+    if (start === -1) continue;
+    try {
+      return JSON.parse(body.slice(start, jsonBodyEnd(body, start)));
+    } catch (e) {
+      parseErr = e;
+    }
+  }
+  if (parseErr === undefined) throw new Error("输出中无 JSON");
+  throw parseErr instanceof Error ? parseErr : new Error("输出中无 JSON");
 }
 
 /** 从 start 起扫描至括号配平处，返回完整 JSON 的结束下标（字符串字面量内的括号/转义不参与配平；未配平则退回串尾，交由 JSON.parse 报错） */

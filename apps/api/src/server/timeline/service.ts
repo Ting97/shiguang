@@ -12,6 +12,7 @@ import { writeAuditRecord } from "../ai/audit";
 import { assembleUserPrompt, getPromptBundle, type PromptKey } from "../ai/prompts";
 import { deleteImageFile, sniffImageMime, IMAGE_MIME_EXT, newStorageKey, saveImageFile } from "@/server/timeline/storage";
 import { ApiError } from "../platform/http/errors";
+import { isUuid } from "../platform/http/validate";
 import { analyzeAndPersist, listContactNames } from "./analyze";
 import { entriesRepo } from "./repo";
 
@@ -75,6 +76,10 @@ export async function confirmPending(
       }
       case "schedule": {
         if (result.startAt && result.endAt && result.activityId && result.title) {
+          // 快照防御：识别产物可能含脏时间，Invalid Date 落 findOverlap 的 ::timestamptz 会 500，先拦成 400
+          if (Number.isNaN(new Date(result.startAt).getTime()) || Number.isNaN(new Date(result.endAt).getTime())) {
+            throw ApiError.badRequest("识别快照时间无效，请重新识别");
+          }
           // pending 快照是识别时刻的，确认可能发生在数小时后——落库前同样做重叠检测
           //（与 createBlock/appendManual/reRecognize 对齐，否则确认路径可绕过「一个时刻只做一件事」）
           const conflict = await findOverlap(userId, result.startAt, result.endAt);
@@ -94,6 +99,10 @@ export async function confirmPending(
       }
       case "todo": {
         if (result.dueAt && result.title) {
+          // 快照防御：无效 dueAt 会让 remind_at 推算与 ::timestamptz 落库 500，与 schedule 分支同口径 400
+          if (Number.isNaN(new Date(result.dueAt).getTime())) {
+            throw ApiError.badRequest("识别快照时间无效，请重新识别");
+          }
           await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [entryId, userId]);
           await client.query(
             `insert into todos (user_id, entry_id, title, due_at, remind_at, source, space_id)
@@ -254,6 +263,9 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
   if (body.spaceId !== undefined) {
     let sid: string | null = null;
     if (body.spaceId) {
+      // 归属是赋值语义（null=移除），listFeed 的 "none"/"all" 过滤语义值在这里无意义且同样会
+      // 在 spaceOwnerExists 的 uuid cast 上 500 → 一律 uuid 预检拦成 400
+      if (!isUuid(body.spaceId)) throw ApiError.badRequest("spaceId 参数不合法");
       const hit = await entriesRepo.spaceOwnerExists(body.spaceId, userId);
       if (!hit.rows[0]) throw ApiError.badRequest("空间不存在");
       sid = hit.rows[0].id;
@@ -408,7 +420,12 @@ export async function appendManual(
         if (!label) {
           throw ApiError.badRequest("请选择心情");
         }
-        await client.query(`update entries set mood = $2, mood_score = $3 where id = $1`, [entryId, label, Number(p.score ?? 0)]);
+        // mood_score 列 check(-100~100)：非有限数/越界曾直落 PG 违约 500，先拦成 400
+        const score = Number(p.score ?? 0);
+        if (!Number.isFinite(score) || score < -100 || score > 100) {
+          throw ApiError.badRequest("心情强度需为 -100~100 的数值");
+        }
+        await client.query(`update entries set mood = $2, mood_score = $3 where id = $1`, [entryId, label, score]);
         result = { label };
         message = `😊 已设置心情「${label}」`;
         break;
