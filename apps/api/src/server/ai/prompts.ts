@@ -17,6 +17,7 @@ import {
 } from "@/server/insight/review-prompts";
 import { OPEN_VOCAB_SYSTEM_PROMPT } from "@shiguangri/ai";
 import { AI_INPUT_REGISTRY, mergeContextConfig } from "./ai-inputs";
+import { buildUserDataBlock } from "./admin-data";
 
 export const PROMPT_KEYS = [
   "extract_full",
@@ -188,16 +189,36 @@ export async function getPromptBundle(key: PromptKey): Promise<PromptBundle> {
 export interface PromptBundle {
   system: string;
   userTemplate: string;
-  config: { inject: Record<string, boolean>; caps: Record<string, number> };
+  config: {
+    inject: Record<string, boolean>;
+    caps: Record<string, number>;
+    /** 个性化注入（REQ-005 FR-5.6）：存在且调用方传 userId 时装配 {userData} 数据块 */
+    userData?: Array<{ dataset: string; days?: number; limit?: number }>;
+  };
 }
 
-/** 统一装配器（REQ-003 FR-A3）：按模板替换占位符 + 空块折叠。
+/** 统一装配器（REQ-003 FR-A3；REQ-005 FR-5.6 扩个性化注入）：按模板替换占位符 + 空块折叠。
  * ctx 由调用方按 bundle.config 构造（开关关闭的注入项不取数、cap 在查询层生效），关闭项传空串即可。 */
-export function assembleUserPrompt(key: PromptKey, bundle: PromptBundle, ctx: Record<string, string>): string {
+export async function assembleUserPrompt(
+  key: PromptKey,
+  bundle: PromptBundle,
+  ctx: Record<string, string>,
+  opts?: { userId?: string },
+): Promise<string> {
   const spec = AI_INPUT_REGISTRY[key];
   let out = bundle.userTemplate;
   for (const ph of spec.placeholders) {
     out = out.split(`{${ph}}`).join(ctx[ph] ?? "");
+  }
+  // FR-5.6 个性化注入：userTemplate 含 {userData} 占位符时原位替换；未写占位符但配置了数据集 → 追加在末尾。
+  // 未配置 / 未传 userId → 不注入（现状不变）。
+  const userDataCfg = bundle.config.userData;
+  if (out.includes("{userData}")) {
+    const block = opts?.userId && userDataCfg?.length ? await buildUserDataBlock(opts.userId, userDataCfg) : "";
+    out = out.split("{userData}").join(block);
+  } else if (opts?.userId && userDataCfg?.length) {
+    const block = await buildUserDataBlock(opts.userId, userDataCfg);
+    if (block) out = `${out}\n\n${block}`;
   }
   // 清理空块留下的行尾空白与 3+ 连续换行（段落间距保留为空行）
   return out

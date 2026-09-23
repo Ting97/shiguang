@@ -8,9 +8,11 @@ interface RegistrySpec {
   injects: InjectSpec[];
   caps: CapSpec[];
 }
-interface CtxConfig { inject?: Record<string, boolean>; caps?: Record<string, number> }
+/** 个性化注入条目（REQ-005 FR-5.6）：dataset 必填；days/limit 缺省 = 不限时间窗 / 服务端默认 10 条 */
+interface UserDataEntry { dataset: string; days?: number; limit?: number }
+interface CtxConfig { inject?: Record<string, boolean>; caps?: Record<string, number>; userData?: UserDataEntry[] }
 
-export type { CapSpec, CtxConfig, InjectSpec, RegistrySpec };
+export type { CapSpec, CtxConfig, InjectSpec, RegistrySpec, UserDataEntry };
 
 export interface PromptItem {
   key: string;
@@ -25,7 +27,7 @@ export interface PromptItem {
   userTemplate: string | null;
   userTemplateDefault: string;
   contextConfig: CtxConfig | null;
-  effectiveConfig: { inject: Record<string, boolean>; caps: Record<string, number> };
+  effectiveConfig: { inject: Record<string, boolean>; caps: Record<string, number>; userData?: UserDataEntry[] };
   registry: RegistrySpec;
 }
 

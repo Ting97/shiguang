@@ -2,7 +2,9 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { FilterChip, TagChip } from "@/components/tag-chip";
-import type { PromptItem } from "./types";
+import type { DatasetSpec } from "@/components/admin-data-panel/types";
+import UserDataSection from "./user-data-section";
+import type { PromptItem, UserDataEntry } from "./types";
 
 interface Props {
   sel: PromptItem;
@@ -28,6 +30,15 @@ interface Props {
   previewText: string | null;
   isReview: boolean;
   periodPlaceholder: string;
+  // 🧩 个性化注入（REQ-005 FR-5.6）：独立折叠区，透传给 UserDataSection
+  userDataDraft: UserDataEntry[];
+  setUserDataDraft: Dispatch<SetStateAction<UserDataEntry[]>>;
+  userDataDirty: boolean;
+  userDataEstChars: number;
+  userDataOverCap: boolean;
+  catalogDatasets: DatasetSpec[] | null;
+  catalogLoading: boolean;
+  onEnsureCatalog: () => void;
 }
 
 /** ===== 第二段：输入装配（3-A）：user 模板 + 占位符校验/一键补齐 + 注入开关 + 参数 + 装配预览（零 token） ===== */
@@ -55,6 +66,14 @@ export default function InputAssemblySection({
   previewText,
   isReview,
   periodPlaceholder,
+  userDataDraft,
+  setUserDataDraft,
+  userDataDirty,
+  userDataEstChars,
+  userDataOverCap,
+  catalogDatasets,
+  catalogLoading,
+  onEnsureCatalog,
 }: Props) {
   return (
     <section className="glass mb-3 rounded-2xl p-4">
@@ -200,6 +219,19 @@ export default function InputAssemblySection({
           {previewText}
         </pre>
       )}
+
+      {/* ===== 🧩 个性化注入（REQ-005 FR-5.6）：独立折叠、默认收起；上方注入开关/caps/模板功能不变 ===== */}
+      <UserDataSection
+        userDataDraft={userDataDraft}
+        setUserDataDraft={setUserDataDraft}
+        setDirty={setDirty}
+        userDataDirty={userDataDirty}
+        userDataEstChars={userDataEstChars}
+        userDataOverCap={userDataOverCap}
+        catalogDatasets={catalogDatasets}
+        catalogLoading={catalogLoading}
+        onEnsureCatalog={onEnsureCatalog}
+      />
     </section>
   );
 }

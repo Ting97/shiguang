@@ -498,11 +498,11 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     contactsOn && contactNames && contactNames.length
       ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
       : "";
-  const userPrompt = assembleUserPrompt(key, bundle, {
+  const userPrompt = await assembleUserPrompt(key, bundle, {
     nowCst: toCstWallClock(new Date()),
     contactList,
     text: entry.raw_text,
-  });
+  }, { userId });
   const r: ParseResult = await parseInput(entry.raw_text, {
     domain, // 单域专属提示词：只判本域，更准更省
     contactNames,

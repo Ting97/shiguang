@@ -36,12 +36,12 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     ? `【必须保留的契约约束】\n${CONTRACT_HINTS[key as PromptKey]}`
     : "【必须保留的契约约束】\n保持原文中的输出 JSON 结构、字段名、枚举值与占位符完全不变。";
 
-  const userPrompt = assembleUserPrompt("prompt_optimizer", optBundle, {
+  const userPrompt = await assembleUserPrompt("prompt_optimizer", optBundle, {
     purpose: `${PROMPT_META[key as PromptKey].title}（key=${key}）——「拾光」系统的 AI 提示词`,
     contract,
     current: target,
     intent: hint?.trim() ? hint.trim().slice(0, 500) : "（无，按专家判断全面优化）",
-  });
+  }, { userId: user.id });
 
   const t0 = Date.now();
   try {

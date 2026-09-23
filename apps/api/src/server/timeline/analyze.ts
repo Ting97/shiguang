@@ -76,7 +76,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
     }
 
     const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`).join("\n");
-    const userPrompt = assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) });
+    const userPrompt = await assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) }, { userId });
     const t0 = Date.now();
     const raw = await chat({
       system: bundle.system,
@@ -213,12 +213,12 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       contactsOn && contactNames.length
         ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
         : "";
-    const userPrompt = assembleUserPrompt("extract_full", bundle, {
+    const userPrompt = await assembleUserPrompt("extract_full", bundle, {
       nowCst: toCstWallClock(new Date()),
       catList,
       contactList,
       text: rawText,
-    });
+    }, { userId });
     // 3-D：管理台模式 on 且 Jev 可用 → 混合引擎（Jev 闭集 + GLM 瘦身开放词汇）；
     // 混合任一环失败 → 回落全量 GLM（其内部再失败才 rules），降级链 Jev→GLM→rules 完整
     const mode = await getJevMode();
@@ -237,14 +237,14 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       mode === "on" && jevEnabled()
         ? await (async () => {
             const slimBundle = await getPromptBundle("extract_open_vocab");
-            const slimUserPrompt = assembleUserPrompt("extract_open_vocab", slimBundle, {
+            const slimUserPrompt = await assembleUserPrompt("extract_open_vocab", slimBundle, {
               nowCst: toCstWallClock(new Date()),
               contactList:
                 slimBundle.config.inject.contactList && contactNames.length
                   ? `\n已有联系人（称呼对齐到名单原文）：${contactNames.join("、")}`
                   : "",
               text: rawText,
-            });
+            }, { userId });
             try {
               return await parseHybridInput(rawText, {
                 contactNames: slimBundle.config.inject.contactList ? contactNames : undefined,

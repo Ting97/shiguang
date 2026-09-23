@@ -89,7 +89,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
   const profileCtxOn = bundle.config.inject.profileBlock;
   const profileBlock = profileCtxOn ? await loadProfileBlock(user.id) : null;
   const note = todo.note || (isAction ? parent?.note : null) || null;
-  const userPrompt = assembleUserPrompt(promptKey, bundle, {
+  const userPrompt = await assembleUserPrompt(promptKey, bundle, {
     todoBlock: `${isAction ? `所属 todo：${parent?.title ?? ""}` : `todo：${todo.title}`}${note ? `\n相关描述：${note}` : ""}`,
     spaceBlock: spaceCtxOn && space ? `所属空间：${space.name}${space.description ? `（${space.description}）` : ""}` : "",
     existingBlock: listed.length
@@ -100,7 +100,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     profileBlock: profileCtxOn && profileBlock ? `用户画像（供参考）：\n${profileBlock}` : "",
     target: isAction ? `「${todo.title}」` : "上述 todo",
     modeSuffix: mode === "replace" ? "（重新生成：只输出新的行动清单）" : "",
-  });
+  }, { userId: user.id });
   const system = bundle.system;
 
   // ---- 调 LLM（temperature 0.3；失败走一次 repair 风格重试） ----

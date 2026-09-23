@@ -57,7 +57,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
         : "";
     const text = sampleText ?? (await latestEntry()) ?? "（管理员名下暂无动态，可粘贴样例话术）";
     ctxOut = { nowCst: toCstWallClock(new Date()), catList, contactList, text };
-    userPrompt = assembleUserPrompt(key as PromptKey, bundle, ctxOut);
+    userPrompt = await assembleUserPrompt(key as PromptKey, bundle, ctxOut, { userId: user.id });
   } else if (key.startsWith("review_")) {
     const kind = key.slice("review_".length) as ReviewKind;
     const built = await buildReviewCtx(
@@ -155,7 +155,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       txDetail = lines.length > 0 ? `本周流水（时间升序）：\n${lines.join("\n")}` : "本周无流水明细。";
     }
     ctxOut = { facts, txDetail };
-    userPrompt = assembleUserPrompt(key as PromptKey, bundle, ctxOut);
+    userPrompt = await assembleUserPrompt(key as PromptKey, bundle, ctxOut, { userId: user.id });
   } else if (key === "todo_decompose" || key === "action_decompose") {
     const isAction = key === "action_decompose";
     const todo = (
@@ -212,7 +212,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       target: isAction ? `「${title}」` : "上述 todo",
       modeSuffix: "",
     };
-    userPrompt = assembleUserPrompt(key as PromptKey, bundle, ctxOut);
+    userPrompt = await assembleUserPrompt(key as PromptKey, bundle, ctxOut, { userId: user.id });
   } else if (key === "space_classify") {
     const { rows: spaces } = await pool.query(
       `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit ${cfg.caps.spaceCount ?? 20}`,
@@ -223,7 +223,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       .join("\n");
     const text = (sampleText ?? (await latestEntry()) ?? "（示例）今天背了两百个单词").slice(0, 500);
     ctxOut = { candidates, text };
-    userPrompt = assembleUserPrompt("space_classify", bundle, ctxOut);
+    userPrompt = await assembleUserPrompt("space_classify", bundle, ctxOut, { userId: user.id });
   } else {
     // prompt_optimizer：current 为管理员粘贴的目标 prompt（缺省取当前生效的 system）
     const contract =
@@ -234,7 +234,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       current: sampleText ?? (await getPrompt(key as PromptKey)),
       intent: "（无，按专家判断全面优化）",
     };
-    userPrompt = assembleUserPrompt("prompt_optimizer", bundle, ctxOut);
+    userPrompt = await assembleUserPrompt("prompt_optimizer", bundle, ctxOut, { userId: user.id });
   }
 
   void writeAuditRecord({

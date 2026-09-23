@@ -40,7 +40,16 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
         {ai.sel && (
           <div className="min-w-0">
             {/* 标题行 */}
-            <EditorHeader sel={ai.sel} dirty={ai.dirty} saving={ai.saving} draft={ai.draft} onSave={ai.save} onRevert={ai.revertDefault} />
+            <EditorHeader
+              sel={ai.sel}
+              dirty={ai.dirty}
+              saving={ai.saving}
+              draft={ai.draft}
+              onSave={ai.save}
+              onRevert={ai.revertDefault}
+              saveBlocked={ai.userDataOverCap}
+              saveBlockReason="个性化注入估算超 8000 字符上限，请下调条数或移除数据集"
+            />
 
             {/* ===== 第一段：System prompt ===== */}
             <SystemPromptSection
@@ -84,6 +93,14 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
               previewText={ai.previewText}
               isReview={ai.isReview}
               periodPlaceholder={ai.periodPlaceholder}
+              userDataDraft={ai.userDataDraft}
+              setUserDataDraft={ai.setUserDataDraft}
+              userDataDirty={ai.userDataDirty}
+              userDataEstChars={ai.userDataEstChars}
+              userDataOverCap={ai.userDataOverCap}
+              catalogDatasets={ai.catalogDatasets}
+              catalogLoading={ai.catalogLoading}
+              onEnsureCatalog={ai.ensureCatalog}
             />
 
             {/* ===== 第三段：版本历史 ===== */}

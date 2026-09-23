@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
-import { AI_INPUT_REGISTRY, invalidatePrompts, PROMPT_KEYS, validateUserTemplate, type PromptKey } from "@/server/ai";
+import { AI_INPUT_REGISTRY, invalidatePrompts, PROMPT_KEYS, validateUserTemplate, validateUserDataConfig, type PromptKey } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CtxConfig = { inject?: Record<string, boolean>; caps?: Record<string, number> };
+type UserDataEntry = { dataset: string; days?: number; limit?: number };
+type CtxConfig = { inject?: Record<string, boolean>; caps?: Record<string, number>; userData?: UserDataEntry[] };
 
 /** 管理员门禁（动态路由：withAuthParams + role 校验，语义与 withAdmin 一致） */
 function requireAdmin(role: string) {
@@ -64,7 +65,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   }
 
   // ---- 注入配置校验（开关仅限注册表项且 required 不可关；caps 整数且在范围内） ----
-  let cfgToSave: { inject: Record<string, boolean>; caps: Record<string, number> } | null = null;
+  let cfgToSave: { inject: Record<string, boolean>; caps: Record<string, number>; userData?: UserDataEntry[] } | null = null;
   if (contextConfig !== undefined) {
     if (contextConfig === null) {
       cfgToSave = null;
@@ -80,6 +81,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
           if (typeof v === "boolean") inject[k] = v;
         }
       }
+      const userData = validateUserDataConfig(contextConfig.userData ?? null);
       const caps: Record<string, number> = {};
       if (contextConfig.caps) {
         for (const [k, v] of Object.entries(contextConfig.caps)) {
@@ -91,7 +93,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
           caps[k] = Math.round(v);
         }
       }
-      cfgToSave = { inject, caps };
+      cfgToSave = userData.length ? { inject, caps, userData } : { inject, caps };
     }
   }
 
@@ -101,7 +103,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   const finalCfg =
     contextConfig !== undefined
       ? cfgToSave
-      : ((prev?.context_config as { inject: Record<string, boolean>; caps: Record<string, number> } | null) ?? null);
+      : ((prev?.context_config as { inject: Record<string, boolean>; caps: Record<string, number>; userData?: UserDataEntry[] } | null) ?? null);
 
   const { rows } = await pool.query(
     `insert into ai_prompts (key, content, enabled, remark, user_template, context_config, updated_by, updated_at)

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
 import { MODE_META, validateTpl, zhTime } from "./kit";
 import type { EngineMode, PromptItem, Version } from "./types";
+import { useAdminUserData } from "./use-admin-user-data";
 
 /**
  * AI 管理面板取数与提交逻辑（自 admin-ai-panel.tsx 原样迁出）：
  * prompt 清单加载 / 三段式草稿状态 / 保存·恢复默认·回滚 / AI 优化 / 装配预览 / 引擎模式开关。
+ * 个性化注入（REQ-005 FR-5.6）的 userData 草稿与 catalog 懒加载在 ./use-admin-user-data。
  */
 export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   const [items, setItems] = useState<PromptItem[] | null>(null);
@@ -35,6 +37,8 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   // 版本历史
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [showVersions, setShowVersions] = useState(false);
+  // 个性化注入（REQ-005 FR-5.6）：userData 草稿 + catalog 懒加载 + 超顶估算
+  const ud = useAdminUserData(notify, sel);
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +96,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     setTplDraft(item.userTemplate ?? item.userTemplateDefault);
     setInjectDraft({ ...item.effectiveConfig.inject });
     setCapsDraft({ ...item.effectiveConfig.caps });
+    ud.resetUserData(item);
     setPreviewText(null);
     setPreviewSample("");
     setPreviewPeriod("");
@@ -105,6 +110,10 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     ? sel.registry.injects.some((i) => (injectDraft[i.key] ?? i.default) !== (sel.effectiveConfig.inject[i.key] ?? i.default)) ||
       sel.registry.caps.some((c) => (capsDraft[c.key] ?? c.default) !== (sel.effectiveConfig.caps[c.key] ?? c.default))
     : false;
+  // contextConfig 提交口径：inject/caps 有改动，或 userData 有改动，或该 key 配置过 userData
+  //（第三条保证已配置个性化注入的 key 在无关保存（如只改 system）时原样回传，不被 contextConfig:null 清空）
+  const sendCfg =
+    !!sel && (cfgDirty || ud.userDataDirty || (sel.effectiveConfig.userData?.length ?? 0) > 0);
 
   async function save() {
     if (!sel || !draft.trim() || saving) return;
@@ -119,7 +128,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
         enabled,
         // 改回默认值 = 清除覆盖（null）；有改动才提交覆盖
         userTemplate: tplDirty ? tplDraft : null,
-        contextConfig: cfgDirty ? { inject: injectDraft, caps: capsDraft } : null,
+        contextConfig: sendCfg ? { inject: injectDraft, caps: capsDraft, userData: ud.userDataDraft } : null,
       });
       notify(`「${sel.title}」已保存并即时生效`);
       const list = await load();
@@ -264,6 +273,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     setShowVersions,
     isReview,
     periodPlaceholder,
+    ...ud,
     switchEngineMode,
     pick,
     save,

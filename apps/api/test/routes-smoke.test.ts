@@ -134,6 +134,9 @@ const AUTHED_GETS: Array<[string, string]> = [
   ["admin/ai-mode", "/api/admin/ai-mode"],
   ["admin/prompts/[key]", "/api/admin/prompts/parse"],
   ["billing/users", "/api/billing/users"],
+  ["admin/data/categories", "/api/admin/data/categories"],
+  ["admin/data/catalog", "/api/admin/data/catalog"],
+  ["admin/data/[dataset]", "/api/admin/data/entries?from=2026-09-01&to=2026-09-30"],
   ["files/[...key]", "/api/files/2026/01/x.jpg"],
   ["trading/accounts", "/api/trading/accounts"],
   ["trading/daily", "/api/trading/daily?accountId=x&from=2026-09-01&to=2026-09-30"],
@@ -222,6 +225,9 @@ test("权限层：管理员路由普通用户 403", async (t) => {
     ["GET", "admin/grants", "/api/admin/grants"],
     ["GET", "admin/ai-mode", "/api/admin/ai-mode"],
     ["GET", "billing/users", "/api/billing/users"],
+    ["GET", "admin/data/categories", "/api/admin/data/categories"],
+    ["GET", "admin/data/catalog", "/api/admin/data/catalog"],
+    ["GET", "admin/data/entries", "/api/admin/data/entries?from=2026-09-01&to=2026-09-30"],
   ];
   for (const [method, , path] of cases) {
     const { status } = await call(method, path, { user: UB });
@@ -300,6 +306,8 @@ test("正常层：核心读接口 200", async (t) => {
     ["tokens/usage", "/api/tokens/usage"],
     ["admin/prompts", "/api/admin/prompts"],
     ["admin/ai-mode", "/api/admin/ai-mode"],
+    ["admin/data/categories", "/api/admin/data/categories"],
+    ["admin/data/catalog", "/api/admin/data/catalog"],
   ];
   for (const [, path] of reads) {
     const { status, json } = await call("GET", path, { user: UA });

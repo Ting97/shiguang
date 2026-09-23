@@ -176,7 +176,7 @@ test("ai：提示词读取/失效缓存/装配（DB 版本链路）", async (t) 
   const bundle = await getPromptBundle(key as any);
   assert.ok(bundle.system && "userTemplate" in bundle, "三件套应齐");
   invalidatePrompts?.();
-  const assembled = assembleUserPrompt(key as any, bundle, { now: "2026-09-23 12:00" });
+  const assembled = await assembleUserPrompt(key as any, bundle, { now: "2026-09-23 12:00" });
   assert.ok(typeof assembled === "string", "装配应产出用户提示词字符串");
 });
 
@@ -399,6 +399,39 @@ test("trading：导入去重/日聚合/权益曲线/明细/摘要（R1）", asyn
   );
   // 清理
   await pool.query(`delete from trade_accounts where user_id = $1`, [UA]);
+});
+
+test("ai：admin-data 目录/查询/注入块（R5）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  const ad = await import("../src/server/ai/admin-data");
+  const cat = ad.catalogPayload();
+  assert.ok(cat.datasets.length >= 15, "数据集目录应完整");
+  assert.ok(cat.datasets.every((d: any) => ["category", "behavior", "derived"].includes(d.partition)), "三分类合法");
+  await assert.rejects(
+    () => ad.queryDataset(UA, "not_a_dataset", {}),
+    (e: any) => e?.status === 404,
+    "未知数据集应 404",
+  );
+  // 时间窗护栏：跨 92 天拒绝；合法窗口返回 {total, items}
+  await assert.rejects(
+    () => ad.queryDataset(UA, "entries", { from: "2026-01-01", to: "2026-09-23" }),
+    /92/,
+    "超 92 天应拒绝",
+  );
+  const r = await ad.queryDataset(UA, "entries", { from: "2026-09-01", to: "2026-09-30", limit: 10 });
+  assert.ok(Array.isArray(r.items) && typeof r.total === "number", "查询返回 {total, items}");
+
+  // 个性化注入块：配置校验 + 空配置零输出
+  assert.throws(() => ad.validateUserDataConfig([{ dataset: "nope" }]), /未知数据集/);
+  assert.throws(() => ad.validateUserDataConfig([{ dataset: "entries", days: 999 }]), /92/);
+  assert.deepEqual(ad.validateUserDataConfig(null), []);
+  // 空数据用户 → 注入块为空（零变化）；有数据用户 → 非空且受字符硬顶约束
+  const emptyUser = crypto.randomUUID();
+  const emptyBlock = await ad.buildUserDataBlock(emptyUser, [{ dataset: "entries", days: 7, limit: 5 }]);
+  assert.equal(emptyBlock, "", "无数据用户注入块为空（零变化）");
+  const block = await ad.buildUserDataBlock(UA, [{ dataset: "entries", days: 7, limit: 5 }]);
+  assert.ok(block.length <= 8000, "注入块受 8000 字符硬顶");
 });
 
 test("teardown: 清理 svc 测试数据", async (t) => {

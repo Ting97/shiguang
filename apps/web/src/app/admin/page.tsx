@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react";
 import { api } from "@/shared/api";
 import AdminAiPanel from "@/components/admin-ai-panel";
+import AdminDataPanel from "@/components/admin-data-panel";
 import AdminMarketingPanel from "@/components/admin-marketing-panel";
 import { FilterChip, TagChip } from "@/components/tag-chip";
 
 /**
- * /admin 后台（REQ-001 R4）：仅管理员。AI 管理（prompt 在线调优 + AI 协助优化）+ 营销管理。
+ * /admin 后台（REQ-001 R4 + REQ-005 R5）：仅管理员。AI 管理（prompt 在线调优 + AI 协助优化）
+ * + 营销管理 + 数据面（类别清单/数据目录/在线试查）。
  * 门禁：静态导出页面无服务端鉴权——前端 403 态 + /api/admin/* 层 role 硬校验（安全边界）。
  */
 
-type Tab = "ai" | "marketing";
+type Tab = "ai" | "marketing" | "data";
 
 export default function AdminPage() {
   const [me, setMe] = useState<{ nickname: string | null; isAdmin: boolean } | null>(null);
@@ -49,12 +51,13 @@ export default function AdminPage() {
               <h1 className="text-gradient text-xl font-bold tracking-wide">
                 后台管理
                 <span className="ml-2 align-middle text-xs font-normal tracking-normal text-ink-dim">
-                  AI prompt 在线调优 · 营销集中
+                  AI prompt 在线调优 · 营销集中 · 数据面
                 </span>
               </h1>
               <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
                 <FilterChip variant="pill" active={tab === "ai"} onClick={() => setTab("ai")} label="🤖 AI 管理" />
                 <FilterChip variant="pill" active={tab === "marketing"} onClick={() => setTab("marketing")} label="📣 营销管理" />
+                <FilterChip variant="pill" active={tab === "data"} onClick={() => setTab("data")} label="📊 数据" />
               </div>
             </div>
 
@@ -78,8 +81,10 @@ export default function AdminPage() {
                 </p>
                 <AdminAiPanel notify={notify} />
               </section>
-            ) : (
+            ) : tab === "marketing" ? (
               <AdminMarketingPanel notify={notify} />
+            ) : (
+              <AdminDataPanel notify={notify} />
             )}
           </>
         )}

@@ -128,7 +128,7 @@ export async function generateTradingReview(userId: string, accountId: string, r
 
   const bundle = await getPromptBundle("trading_review");
   const digest = await buildDigest(userId, accountId);
-  const userPrompt = assembleUserPrompt("trading_review", bundle, { facts: digest.facts });
+  const userPrompt = await assembleUserPrompt("trading_review", bundle, { facts: digest.facts }, { userId });
 
   let result;
   try {

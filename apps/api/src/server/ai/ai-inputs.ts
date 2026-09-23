@@ -286,11 +286,11 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
   },
 };
 
-/** 合并 DB 覆盖与注册表默认：inject 缺省=注册表默认，caps 数值钳制到 [min,max] */
+/** 合并 DB 覆盖与注册表默认：inject 缺省=注册表默认，caps 数值钳制到 [min,max]；userData（个性化注入）原样透传 */
 export function mergeContextConfig(
   key: PromptKey,
-  dbConfig: { inject?: Record<string, boolean>; caps?: Record<string, number> } | null,
-): { inject: Record<string, boolean>; caps: Record<string, number> } {
+  dbConfig: { inject?: Record<string, boolean>; caps?: Record<string, number>; userData?: unknown } | null,
+): { inject: Record<string, boolean>; caps: Record<string, number>; userData?: Array<{ dataset: string; days?: number; limit?: number }> } {
   const spec = AI_INPUT_REGISTRY[key];
   const inject: Record<string, boolean> = {};
   for (const i of spec.injects) inject[i.key] = i.required ? true : i.default;
@@ -311,7 +311,8 @@ export function mergeContextConfig(
       }
     }
   }
-  return { inject, caps };
+  const userData = Array.isArray(dbConfig?.userData) ? (dbConfig!.userData as Array<{ dataset: string; days?: number; limit?: number }>) : undefined;
+  return userData ? { inject, caps, userData } : { inject, caps };
 }
 
 /** user 模板占位符完整性校验（FR-1.2）：缺失与未知占位符清单（空数组=合法） */

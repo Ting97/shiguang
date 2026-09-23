@@ -226,12 +226,12 @@ export async function updateProfileFromReview(
     // 输入装配（3-A）：profile_merge 三要素必需；画像条数上限可调（caps.profileItems）
     const bundle = await getPromptBundle("profile_merge");
     const old = await loadProfileBlock(userId);
-    const userPrompt = assembleUserPrompt("profile_merge", bundle, {
+    const userPrompt = await assembleUserPrompt("profile_merge", bundle, {
       oldProfile: old ?? "（暂无，首次建立）",
       period,
       factsText: clip(factsText, 1600),
       reviewText: clip(reviewText, 1200),
-    });
+    }, { userId });
     const raw = await chat({
       system: bundle.system,
       user: userPrompt,

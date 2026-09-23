@@ -11,10 +11,13 @@ interface Props {
   draft: string;
   onSave: () => void;
   onRevert: () => void;
+  /** 保存拦截（REQ-005 FR-5.6：个性化注入估算超 8000 字符时禁用；不传 = 不拦截，既有行为不变） */
+  saveBlocked?: boolean;
+  saveBlockReason?: string;
 }
 
 /** 三段式编辑器标题行：覆盖态徽标 + 保存 / 恢复代码默认 */
-export default function EditorHeader({ sel, dirty, saving, draft, onSave, onRevert }: Props) {
+export default function EditorHeader({ sel, dirty, saving, draft, onSave, onRevert, saveBlocked, saveBlockReason }: Props) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <h3 className="text-sm font-semibold text-ink">{sel.title}</h3>
@@ -29,7 +32,8 @@ export default function EditorHeader({ sel, dirty, saving, draft, onSave, onReve
       {dirty && <TagChip label="未保存" tone="amber" size="sm" />}
       <button
         onClick={onSave}
-        disabled={saving || !draft.trim()}
+        disabled={saving || !draft.trim() || saveBlocked}
+        title={saveBlocked ? (saveBlockReason ?? "当前配置暂不可保存") : undefined}
         className="btn-primary rounded-xl px-4 py-1.5 text-xs font-medium disabled:opacity-50"
       >
         {saving ? "保存中…" : "保存（立即生效）"}

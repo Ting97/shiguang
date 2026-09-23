@@ -146,7 +146,7 @@ export const POST = withModule("trade_review", async (req, { user }) => {
     txDetail = lines.length > 0 ? `本周流水（时间升序）：\n${lines.join("\n")}` : "本周无流水明细。";
   }
 
-  const userPrompt = assembleUserPrompt("trade_review_week", bundle, { facts, txDetail });
+  const userPrompt = await assembleUserPrompt("trade_review_week", bundle, { facts, txDetail }, { userId: user.id });
 
   // 数据新鲜度：本周流水最后一次入库时间
   const latest = (

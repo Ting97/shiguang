@@ -228,7 +228,7 @@ export async function buildReviewCtx(
     todoDetail,
     profileBlock: profileCtx,
   };
-  const userPrompt = assembleUserPrompt(key, bundle, ctx);
+  const userPrompt = await assembleUserPrompt(key, bundle, ctx, { userId });
 
   return {
     from,
