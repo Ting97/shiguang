@@ -57,14 +57,22 @@ export default function ContactsPage() {
   const [q, setQ] = useState("");
   const [view, setView] = useState<"list" | "graph">("list");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 加载失败态：持久呈现 + 重试入口（历史 bug：失败只有 8 秒横幅，骨架永久）
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Contact | "new" | null>(null);
 
   const load = useCallback(async () => {
-    const j = await api("/api/contacts", "GET");
-    setContacts(j.contacts ?? []);
+    setLoadErr(null);
+    try {
+      const j = await api("/api/contacts", "GET");
+      setContacts(j.contacts ?? []);
+    } catch (e) {
+      // 失败不停在骨架屏（对齐 finance/page.tsx 的 loadErr 模式）
+      setLoadErr(e instanceof Error ? e.message : String(e));
+    }
   }, []);
   useEffect(() => {
-    load().catch((e) => setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }));
+    void load();
   }, [load]);
 
   useEffect(() => {
@@ -178,8 +186,29 @@ export default function ContactsPage() {
           </div>
         )}
 
+        {/* 已有数据时的刷新失败提示（首次加载失败走下方整页错误态） */}
+        {contacts !== null && loadErr && (
+          <div
+            className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger"
+          >
+            加载失败：{loadErr}
+            <button onClick={() => void load()} className="ml-2 underline underline-offset-2">
+              重试
+            </button>
+          </div>
+        )}
+
         {contacts === null ? (
-          <Skeleton rows={4} className="py-2" />
+          loadErr ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-danger">加载失败：{loadErr}</p>
+              <button onClick={() => void load()} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs">
+                重试
+              </button>
+            </div>
+          ) : (
+            <Skeleton rows={4} className="py-2" />
+          )
         ) : view === "graph" ? (
           <>
             {/* 4-F/QA：图谱视图空数据也渲染轨道+中心「我」（原空数据短路只显示列表空态文案） */}

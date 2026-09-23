@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
 import FinanceTabs from "@/components/finance-tabs";
@@ -42,16 +42,21 @@ export default function FinancePage() {
     return () => clearTimeout(t);
   }, [msg]);
 
+  // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoadErr(null);
     try {
       const [o, t] = await Promise.all([
         api<Overview>(`/api/finance/overview?month=${month}`),
         api<{ transactions?: Tx[] }>(`/api/transactions?month=${month}`),
       ]);
+      if (seq !== loadSeq.current) return; // 过期响应丢弃
       setOv(o);
       setTxs(t.transactions ?? []);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       // 失败不停在骨架屏（历史 bug：无 catch 时 unhandled rejection + 永久加载中）
       setLoadErr(e instanceof Error ? e.message : String(e));
     }
@@ -220,7 +225,13 @@ export default function FinancePage() {
               accounts={ov.accounts}
               onCancel={() => setAdding(false)}
               onSubmit={async (payload) => {
-                await api("/api/transactions", "POST", payload);
+                try {
+                  await api("/api/transactions", "POST", payload);
+                } catch (e) {
+                  // 失败提示且不关表单（无 catch 会静默 + unhandled rejection 触发整页刷新清空表单）
+                  setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                  return;
+                }
                 setAdding(false);
                 setMsg({ ok: true, text: "✅ 已记一笔" });
                 await load();

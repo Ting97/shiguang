@@ -15,6 +15,9 @@ import { ApiError } from "../platform/http/errors";
 import { analyzeAndPersist, listContactNames } from "./analyze";
 import { entriesRepo } from "./repo";
 
+/** 标准 uuid 形状（宽松的 36 位会放行无连字符串，PG ::uuid cast 直接 500） */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** POST /api/parse：动态本体先落地秒回 + 配额 + 后台五域识别（fire-and-forget，成败都打 analyzed_at） */
 export async function ingest(userId: string, text: string) {
   const q = await checkAiQuota(userId);
@@ -72,6 +75,14 @@ export async function confirmPending(
       }
       case "schedule": {
         if (result.startAt && result.endAt && result.activityId && result.title) {
+          // pending 快照是识别时刻的，确认可能发生在数小时后——落库前同样做重叠检测
+          //（与 createBlock/appendManual/reRecognize 对齐，否则确认路径可绕过「一个时刻只做一件事」）
+          const conflict = await findOverlap(userId, result.startAt, result.endAt);
+          if (conflict) {
+            throw ApiError.conflict(overlapError(conflict, {
+              title: result.title, start: result.startAt, end: result.endAt,
+            }));
+          }
           await client.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [entryId, userId]);
           await client.query(
             `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
@@ -149,8 +160,11 @@ export async function listFeed(userId: string, query: FeedQuery) {
   let spaceSql = "";
   // 占位符动态取号：q 存在时检索 ilike 占用 $4，空间过滤顺延为 $5（避免双 $4 实参错位 → uuid 解析 500）
   const spaceParamIndex = q ? 5 : 4;
+  // 是否带空间过滤必须与实参数组用同一谓词，否则绑定参数数量与占位符不一致 → bind message 500；
+  // uuid 形状用严格 8-4-4-4-12（宽松 36 位会放行无连字符串 → PG ::uuid cast 500）
+  const spaceFiltered = spaceId !== "none" && spaceId !== "all" && UUID_RE.test(spaceId);
   if (spaceId === "none") spaceSql = ` and e.space_id is null`;
-  else if (spaceId !== "all" && /^[0-9a-f-]{36}$/.test(spaceId)) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
+  else if (spaceFiltered) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
 
   const searchSql = q
     ? `and (
@@ -217,10 +231,10 @@ export async function listFeed(userId: string, query: FeedQuery) {
      order by e.created_at desc
      limit $2 offset $3`,
     q
-      ? spaceId !== "all" && spaceId !== "none"
+      ? spaceFiltered
         ? [userId, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`, spaceId]
         : [userId, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`]
-      : spaceId !== "all" && spaceId !== "none"
+      : spaceFiltered
         ? [userId, limit, offset, spaceId]
         : [userId, limit, offset],
   );
@@ -262,8 +276,10 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
     let updated;
     try {
       await client.query("begin");
-      await entriesRepo.clearDerived(client, entryId, userId);
+      // editRawText 先更新 entry 行（取得行锁）再清子表——统一「先锁 entry 再动子表」顺序，
+      // 防与后台补跑识别（select for update → 清旧插新）反序加锁死锁
       updated = (await entriesRepo.editRawText(client, entryId, userId, text)).rows[0];
+      await entriesRepo.clearDerived(client, entryId, userId);
       if (!updated) {
         await client.query("rollback");
         throw ApiError.notFound("动态不存在");
@@ -404,6 +420,8 @@ export async function appendManual(
         }
         const meal = ["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"].includes(String(p.meal)) ? String(p.meal) : "未知";
         const kcal = Number.isFinite(Number(p.kcal)) && Number(p.kcal) > 0 ? Number(p.kcal) : null;
+        // diet_records.entry_id 有唯一索引：动态已有饮食记录（AI 已落/已确认）时先删旧再插，否则唯一冲突整个事务 500
+        await client.query(`delete from diet_records where entry_id = $1 and user_id = $2`, [entryId, userId]);
         await client.query(
           `insert into diet_records (user_id, entry_id, meal, items, total_kcal) values ($1,$2,$3,$4,$5)`,
           [userId, entryId, meal, JSON.stringify([{ name: text.slice(0, 40), amount: null, kcal }]), kcal],
@@ -823,6 +841,12 @@ export async function deleteFeed(userId: string, entryId: string) {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // 先锁 entry 行（与 analyzeAndPersist/confirmPending 同序），防与后台补跑识别反序加锁死锁
+    const gone = await entriesRepo.rawTextOf(entryId, userId, client);
+    if (!gone) {
+      await client.query("rollback");
+      throw ApiError.notFound("动态不存在");
+    }
     const imageKeys = await entriesRepo.imageKeysOf(client, entryId, userId);
     if (imageKeys.length) {
       await client.query(`delete from entry_images where entry_id = $1 and user_id = $2`, [entryId, userId]);

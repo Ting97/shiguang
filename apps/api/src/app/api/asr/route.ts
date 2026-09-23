@@ -108,10 +108,12 @@ export const POST = withAuth(async (req, { user }) => {
       ok: false,
       error: msg.slice(0, 300),
     });
-    // 429 多为资源包不足/限流：对用户友好化（管理员侧去智谱控制台买 GLM-ASR 资源包即可恢复）
+    // 429 多为资源包不足/限流：对用户友好化（管理员侧去智谱控制台买 GLM-ASR 资源包即可恢复）；
+    // 其余固定文案，不把上游原始信息外泄到响应（细节只进服务端日志）
     const friendly = msg.includes("429") || msg.includes("1113")
       ? "语音识别服务暂不可用（资源包不足或限流），请稍后重试或使用键盘输入"
-      : `语音识别失败：${msg}`;
+      : "语音识别失败，请稍后重试";
+    console.warn(`[asr] 识别失败: ${msg.slice(0, 300)}`);
     return NextResponse.json({ error: friendly }, { status: 502 });
   }
 });

@@ -59,15 +59,19 @@ export default function TradesSection({ accountId }: { accountId: string }) {
   const [filters, setFilters] = useState<Filters>({ dir: "", period: "", durBand: "", pnlBand: "" });
   const [page, setPage] = useState(1);
   const [data, setData] = useState<TradesPage | null>(null);
+  // 加载失败态：错误显式呈现 + 重试，不再 setData(null) 永久骨架（对齐 daily/equity-section）
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
+    setLoadErr(null);
     const sp = new URLSearchParams({ accountId, ...filters, page: String(page) });
     try {
       setData(await api<TradesPage>(`/api/trading/trades?${sp}`));
-    } catch {
+    } catch (e) {
       setData(null);
+      setLoadErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -111,7 +115,16 @@ export default function TradesSection({ accountId }: { accountId: string }) {
       </div>
 
       {!data ? (
-        <Skeleton rows={3} />
+        loadErr ? (
+          <div className="py-4 text-center">
+            <p className="text-xs text-danger">加载失败：{loadErr}</p>
+            <button onClick={() => void load()} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+              重试
+            </button>
+          </div>
+        ) : (
+          <Skeleton rows={3} />
+        )
       ) : data.items.length === 0 ? (
         <p className="py-4 text-center text-xs text-ink-faint">该筛选条件下没有成交记录</p>
       ) : (

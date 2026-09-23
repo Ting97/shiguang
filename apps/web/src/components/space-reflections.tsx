@@ -36,15 +36,20 @@ export default function SpaceReflections({
   const [total, setTotal] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, string>>({}); // id → 全文
   const [loadingMore, setLoadingMore] = useState(false);
+  // 首屏加载失败态：只 notify 不改 items 会永远停在「加载中…」，需给出重试入口
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const load = useCallback(
     async (offset: number) => {
       try {
         const j = await api<any>(`/api/spaces/${spaceId}/reflections?limit=20&offset=${offset}`, "GET");
+        setLoadErr(null);
         setTotal(j.total ?? 0);
         setItems((prev) => (offset === 0 ? (j.items as ReflectionItem[]) : [...(prev ?? []), ...(j.items as ReflectionItem[])]));
       } catch (e) {
-        notify({ ok: false, text: `感悟加载失败：${e instanceof Error ? e.message : e}` });
+        const text = `感悟加载失败：${e instanceof Error ? e.message : e}`;
+        setLoadErr(text);
+        notify({ ok: false, text });
       }
     },
     [spaceId, notify],
@@ -52,6 +57,7 @@ export default function SpaceReflections({
 
   useEffect(() => {
     setItems(null);
+    setLoadErr(null);
     setExpanded({});
     void load(0);
   }, [load, rev]); // rev bump（FR-4.1）：父侧保存成功 → 列表立即重拉
@@ -90,13 +96,14 @@ export default function SpaceReflections({
     }
   }
 
+  // 北京时间口径：UTC getter + 8h（本地 getter 在非中国时区设备会错 8 小时）
   const fmtDay = (iso: string) => {
-    const d = new Date(iso);
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+    return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
   };
   const fmtTime = (iso: string) => {
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
   };
 
   return (
@@ -109,7 +116,19 @@ export default function SpaceReflections({
       </div>
 
       {items === null ? (
-        <p className="py-4 text-center text-xs text-ink-dim">加载中…</p>
+        loadErr ? (
+          <div className="py-4 text-center text-xs">
+            <p className="text-danger">{loadErr}</p>
+            <button
+              onClick={() => void load(0)}
+              className="mt-2 rounded-lg border border-line-soft px-3 py-1.5 text-ink-mute transition hover:text-accent"
+            >
+              重试
+            </button>
+          </div>
+        ) : (
+          <p className="py-4 text-center text-xs text-ink-dim">加载中…</p>
+        )
       ) : items.length === 0 ? (
         <p className="py-4 text-center text-xs text-ink-dim">
           还没有感悟 —— 阶段心得、踩坑复盘、自我对话，写给未来某个时刻的自己
@@ -160,12 +179,14 @@ export default function SpaceReflections({
           </ul>
           {items.length < total && (
             <button
+              disabled={loadingMore}
               onClick={async () => {
+                if (loadingMore) return; // 双击守卫：避免重复追加同一页
                 setLoadingMore(true);
                 await load(items.length);
                 setLoadingMore(false);
               }}
-              className="mt-3 w-full rounded-xl border border-line-soft py-2 text-xs text-ink-mute transition hover:text-accent"
+              className="mt-3 w-full rounded-xl border border-line-soft py-2 text-xs text-ink-mute transition hover:text-accent disabled:opacity-50"
             >
               {loadingMore ? "加载中…" : `加载更多（${total - items.length} 篇）`}
             </button>

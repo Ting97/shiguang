@@ -6,19 +6,21 @@ import type { TodoRow } from "@/lib/types";
 
 export const pad = (n: number) => String(n).padStart(2, "0");
 
+/** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时） */
+const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
+
 export const zhTime = (iso: string | null) => {
   if (!iso) return "";
-  const d = new Date(iso);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 };
 
 /** due 标签：已过期红 / 今天 / 明天 / N 天后 / 无时间 */
 export const dueTag = (iso: string | null) => {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (d < new Date()) return { text: "已过期", cls: "text-danger" };
-  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const days = Math.round((dayStart(d) - dayStart(new Date())) / 86400_000);
+  const t = Date.parse(iso);
+  if (t < Date.now()) return { text: "已过期", cls: "text-danger" };
+  const days = bjDayIdx(t) - bjDayIdx(Date.now());
   if (days === 0) return { text: "今天", cls: "text-warn" };
   if (days === 1) return { text: "明天", cls: "text-accent" };
   return { text: `${days} 天后`, cls: "text-ink-mute" };

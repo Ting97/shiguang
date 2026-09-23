@@ -37,6 +37,9 @@ function AggList({ title, rows }: { title: string; rows: Digest["aggregations"][
 /** 「统计」卡（digest 常显）+「AI 复盘」卡（生成/缓存秒显/降级徽标） */
 export default function DigestSection({ accountId }: { accountId: string }) {
   const [digest, setDigest] = useState<Digest | null>(null);
+  // 加载失败态：错误显式呈现 + 重试，不再永久骨架（对齐 daily/equity-section）
+  const [digestErr, setDigestErr] = useState<string | null>(null);
+  const [rev, setRev] = useState(0);
   const [review, setReview] = useState<ReviewState>(null);
   const [genBusy, setGenBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +49,14 @@ export default function DigestSection({ accountId }: { accountId: string }) {
     setDigest(null);
     setReview(null);
     setError(null);
+    setDigestErr(null);
     api<Digest>(`/api/trading/digest?accountId=${accountId}`)
       .then((j) => {
         if (live) setDigest(j);
       })
-      .catch(() => {});
+      .catch((e) => {
+        if (live) setDigestErr(e instanceof Error ? e.message : String(e));
+      });
     // 只读缓存（GET 不耗配额），缓存命中秒显
     api<{ review: TradingReview | null; cached?: boolean; generatedAt?: string }>(`/api/trading/review?accountId=${accountId}`)
       .then((j) => {
@@ -60,7 +66,11 @@ export default function DigestSection({ accountId }: { accountId: string }) {
     return () => {
       live = false;
     };
-  }, [accountId]);
+  }, [accountId, rev]);
+
+  function retryDigest() {
+    setRev((r) => r + 1);
+  }
 
   const generate = useCallback(async () => {
     setGenBusy(true);
@@ -102,7 +112,16 @@ export default function DigestSection({ accountId }: { accountId: string }) {
           )}
         </p>
         {!digest ? (
-          <Skeleton rows={2} />
+          digestErr ? (
+            <div className="py-4 text-center">
+              <p className="text-xs text-danger">加载失败：{digestErr}</p>
+              <button onClick={retryDigest} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                重试
+              </button>
+            </div>
+          ) : (
+            <Skeleton rows={2} />
+          )
         ) : (
           <div className="space-y-4">
             {/* 峰值前后两阶段对比 */}

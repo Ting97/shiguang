@@ -1,14 +1,15 @@
 /** 财务页共享类型与工具（004 4-G 自 page.tsx 拆出） */
 "use client";
 
+import { bjToday } from "@/lib/date";
 import { yuan } from "@/lib/finance";
 
 export interface Account {
   id: string;
   name: string;
   icon: string;
-  opening_balance_cents: number;
-  balance_cents: number;
+  openingBalanceCents: number;
+  balanceCents: number;
 }
 export interface Tx {
   id: string;
@@ -38,13 +39,14 @@ export interface Overview {
 }
 
 export const pad = (n: number) => String(n).padStart(2, "0");
+/** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时；参照 contacts/[id]/detail.tsx） */
+const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 export const zhDay = (iso: string) => {
-  const d = new Date(iso);
-  const now = new Date();
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day(now) - day(d)) / 86_400_000);
-  const label = diff === 0 ? "今天" : diff === 1 ? "昨天" : `${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${label} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const t = Date.parse(iso);
+  const diff = bjDayIdx(Date.now()) - bjDayIdx(t);
+  const d = new Date(t + 8 * 3600_000);
+  const label = diff === 0 ? "今天" : diff === 1 ? "昨天" : `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+  return `${label} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 };
 export const monthTitle = (m: string) => `${Number(m.slice(0, 4))}年${Number(m.slice(5, 7))}月`;
 /** 负数放负号在前：-¥260（直接拼接会出现 ¥-260） */
@@ -54,10 +56,7 @@ export function shiftMonth(m: string, delta: number): string {
   const d = new Date(y, mm - 1 + delta, 1);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 }
-export const nowMonth = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-};
+export const nowMonth = () => bjToday().slice(0, 7); // 北京月：服务端按北京月分组，本地 getter 在海外设备会跨月错位
 
 
 /** 统一取数封装（REQ-004 FR-E1.1）：转发 @/shared/api，导出签名不变，调用方无需改动 */

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuthParams, type AuthedCtx } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam, optionalTrimmed } from "@/server/platform/http/validate";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { getModuleUser } from "@/server/platform";
 import { serializeDebt, serializePayment, autoCheckAfterPayment } from "@/server/finance";
 
@@ -23,6 +25,7 @@ const withDebtParams = (
  * 同负债同日同额重复提交 409（防双击/重试）。 */
 export const POST = withDebtParams(async (req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as {
     amountCents?: number;
     paidAt?: string;
@@ -33,8 +36,9 @@ export const POST = withDebtParams(async (req, { user, params }) => {
     throw ApiError.badRequest("还款金额需为正整数（分）");
   }
   const paidAt = body.paidAt ?? new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt)) {
-    throw ApiError.badRequest("还款日期需为 YYYY-MM-DD");
+  // 形状校验放行 2025-02-30 → PG date cast 500：需为真实日历日
+  if (!isValidCalendarDate(paidAt)) {
+    throw ApiError.badRequest("还款日期需为真实存在的 YYYY-MM-DD 日期");
   }
 
   const client = await pool.connect();
@@ -61,6 +65,7 @@ export const POST = withDebtParams(async (req, { user, params }) => {
     // 可选：联动资产账户记一笔支出（避免与既有记账重复时可关掉）
     let accountId: string | null = null;
     if (body.accountId) {
+      assertUuidParam(body.accountId, "accountId");
       const owned = await client.query(
         `select id from accounts where id = $1 and user_id = $2 and archived = false`,
         [body.accountId, user.id],
@@ -91,7 +96,7 @@ export const POST = withDebtParams(async (req, { user, params }) => {
       await client.query(
         `insert into liability_payments (user_id, liability_id, amount_cents, paid_at, account_id, tx_id, note)
          values ($1,$2,$3,$4,$5,$6,$7) returning *`,
-        [user.id, id, body.amountCents, paidAt, accountId, txId, body.note?.trim() || null],
+        [user.id, id, body.amountCents, paidAt, accountId, txId, optionalTrimmed(body.note, "note") ?? null],
       )
     ).rows[0];
     const updated = (
@@ -119,6 +124,7 @@ export const POST = withDebtParams(async (req, { user, params }) => {
 /** GET /api/debts/[id]/payments —— 还款记录（余额曲线数据源，时间升序） */
 export const GET = withDebtParams(async (_req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id");
   const owned = await pool.query(`select id from liabilities where id = $1 and user_id = $2`, [id, user.id]);
   if (!owned.rows[0]) throw ApiError.notFound("负债不存在");
   const { rows } = await pool.query(

@@ -19,6 +19,8 @@ export interface ReviewPeriod { date?: string; month?: string; year?: string }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const localYmd = (x: Date) => `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+/** 北京「今天」YYYY-MM-DD（+8h 后读 UTC getter；宿主时区无关） */
+const bjNowYmd = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
 
 /** 行上限截断（含真实总数的截断注记；cap=0 全量保留。修正原 withCap 的「条条/条个」叠字） */
@@ -57,17 +59,17 @@ export async function buildReviewCtx(
   let to: string;
   let periodLabel: string;
   if (kind === "day") {
-    const date = period.date ?? localYmd(new Date());
+    const date = period.date ?? bjNowYmd();
     from = to = date;
     periodLabel = `日期：${date}`;
   } else if (kind === "week") {
-    const d = new Date((period.date ?? localYmd(new Date())) + "T00:00:00");
+    const d = new Date((period.date ?? bjNowYmd()) + "T00:00:00");
     const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * 86_400_000);
     from = localYmd(monday);
     to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
     periodLabel = `周期：${from} 至 ${to}`;
   } else if (kind === "month") {
-    const month = period.month ?? localYmd(new Date()).slice(0, 7);
+    const month = period.month ?? bjNowYmd().slice(0, 7);
     const [y, m] = month.split("-").map(Number);
     from = `${month}-01`;
     to = localYmd(new Date(y, m, 0));
@@ -263,7 +265,7 @@ async function buildChain(userId: string, kind: ReviewContentKind, period: Revie
   if (kind === "day") return "";
   if (kind === "week") {
     const WD = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-    const d = new Date((period.date ?? localYmd(new Date())) + "T00:00:00");
+    const d = new Date((period.date ?? bjNowYmd()) + "T00:00:00");
     const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * 86_400_000);
     const lines = await fetchChainSummaries(
       userId,
@@ -276,7 +278,7 @@ async function buildChain(userId: string, kind: ReviewContentKind, period: Revie
     return lines.length ? "本周各日小结：\n" + lines.join("\n") : "";
   }
   if (kind === "month") {
-    const month = period.month ?? localYmd(new Date()).slice(0, 7);
+    const month = period.month ?? bjNowYmd().slice(0, 7);
     const [yy, mm] = month.split("-").map(Number);
     const firstDow = (new Date(yy, mm - 1, 1).getDay() + 6) % 7;
     const weekKeys: string[] = [];
@@ -307,30 +309,30 @@ async function buildProfileCtxValue(userId: string): Promise<string> {
 /** 数据最近变动时刻（day/week/month 用 from–to 区间；year 按自然年字段匹配，与原实现一致） */
 async function buildLatest(userId: string, kind: ReviewContentKind, period: ReviewPeriod): Promise<Date | null> {
   if (kind !== "day" && kind !== "week" && kind !== "month") {
-    const year = Number(period.year ?? new Date().getFullYear());
+    const year = Number(period.year ?? new Date(Date.now() + 8 * 3600_000).getUTCFullYear());
     const { rows } = await pool.query(
       `select greatest(
-         (select max(created_at) from entries where user_id = $1 and extract(year from created_at) = $2::int),
-         (select max(done_at) from todos where user_id = $1 and status = 'done' and extract(year from done_at) = $2::int),
-         (select max(occurred_at) from transactions where user_id = $1 and extract(year from occurred_at) = $2::int),
-         (select max(start_at) from time_blocks where user_id = $1 and extract(year from start_at) = $2::int and start_at <= now()),
-         (select max(occurred_at) from interactions where user_id = $1 and extract(year from occurred_at) = $2::int)
+         (select max(created_at) from entries where user_id = $1 and extract(year from (created_at at time zone $2)) = $3::int),
+         (select max(done_at) from todos where user_id = $1 and status = 'done' and extract(year from (done_at at time zone $2)) = $3::int),
+         (select max(occurred_at) from transactions where user_id = $1 and extract(year from (occurred_at at time zone $2)) = $3::int),
+         (select max(start_at) from time_blocks where user_id = $1 and extract(year from (start_at at time zone $2)) = $3::int and start_at <= now()),
+         (select max(occurred_at) from interactions where user_id = $1 and extract(year from (occurred_at at time zone $2)) = $3::int)
        ) as latest`,
-      [userId, year],
+      [userId, TZ, year],
     );
     return (rows[0]?.latest as Date | null) ?? null;
   }
   let from: string;
   let to: string;
   if (kind === "day") {
-    from = to = period.date ?? localYmd(new Date());
+    from = to = period.date ?? bjNowYmd();
   } else if (kind === "week") {
-    const d = new Date((period.date ?? localYmd(new Date())) + "T00:00:00");
+    const d = new Date((period.date ?? bjNowYmd()) + "T00:00:00");
     const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * 86_400_000);
     from = localYmd(monday);
     to = localYmd(new Date(monday.getTime() + 6 * 86_400_000));
   } else {
-    const month = period.month ?? localYmd(new Date()).slice(0, 7);
+    const month = period.month ?? bjNowYmd().slice(0, 7);
     const [y, m] = month.split("-").map(Number);
     from = `${month}-01`;
     to = localYmd(new Date(y, m, 0));

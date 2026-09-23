@@ -45,6 +45,8 @@ export function DebtForm({
   const [priority, setPriority] = useState(initial ? String(initial.priority) : "0");
   const [note, setNote] = useState(initial?.note ?? "");
   const [busy, setBusy] = useState(false);
+  // 提交失败就地提示（历史 bug：try/finally 无 catch，失败静默 + unhandled rejection 触发整页刷新清空表单）
+  const [err, setErr] = useState<string | null>(null);
 
   return (
     <div className="space-y-2.5">
@@ -89,12 +91,14 @@ export function DebtForm({
         </label>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="备注（可空）" className={inputCls} />
       </div>
+      {err && <p className="text-[11px] text-danger">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
         <button
           disabled={busy || !name.trim() || !principal}
           onClick={async () => {
             setBusy(true);
+            setErr(null);
             try {
               const cents = (v: string, fallback: number | null = null) => {
                 const n = Math.round(parseFloat(v) * 100);
@@ -112,6 +116,8 @@ export function DebtForm({
                 priority: Number.isFinite(Number(priority)) ? Number(priority) : 0,
                 note: note || null,
               });
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : String(e));
             } finally {
               setBusy(false);
             }

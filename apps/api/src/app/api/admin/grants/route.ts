@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAdmin } from "@/server/platform/http/route";
+import { isUuid } from "@/server/platform/http/validate";
 import { MODULES, listUserModules } from "@/server/platform/modules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const VALID = new Set<string>(MODULES);
+// 错误文案动态列出真实合法值，避免 MODULES 扩容后提示漏项
+const MODULES_HINT = MODULES.join("/");
 
 /** GET /api/admin/grants —— 全部用户的模块授权矩阵 */
 export const GET = withAdmin(async () => {
@@ -21,7 +24,10 @@ export const GET = withAdmin(async () => {
 export const POST = withAdmin(async (req, { user }) => {
   const { userId, module } = (await req.json().catch(() => ({}))) as { userId?: string; module?: string };
   if (!userId || !module || !VALID.has(module)) {
-    return NextResponse.json({ error: "userId 与 module（debt/trade_review）必填" }, { status: 400 });
+    return NextResponse.json({ error: `userId 与 module（${MODULES_HINT}）必填` }, { status: 400 });
+  }
+  if (!isUuid(userId)) {
+    return NextResponse.json({ error: "userId 参数不合法" }, { status: 400 });
   }
   const exists = await pool.query(`select 1 from profiles where id = $1`, [userId]);
   if (!exists.rows[0]) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
@@ -39,7 +45,10 @@ export const DELETE = withAdmin(async (req) => {
   const userId = searchParams.get("userId");
   const module = searchParams.get("module");
   if (!userId || !module || !VALID.has(module)) {
-    return NextResponse.json({ error: "userId 与 module（debt/trade_review）必填" }, { status: 400 });
+    return NextResponse.json({ error: `userId 与 module（${MODULES_HINT}）必填` }, { status: 400 });
+  }
+  if (!isUuid(userId)) {
+    return NextResponse.json({ error: "userId 参数不合法" }, { status: 400 });
   }
   await pool.query(`delete from user_module_grants where user_id = $1 and module = $2`, [userId, module]);
   return NextResponse.json({ ok: true });

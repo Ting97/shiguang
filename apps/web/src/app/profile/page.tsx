@@ -224,7 +224,7 @@ export default function ProfilePage() {
                     <span className={quota.plan === "pro" ? "font-semibold text-amber-400" : "font-semibold text-ink"}>
                       {quota.plan === "pro" ? "Pro" : "免费版"}
                     </span>
-                    {quota.planExpiresAt && ` · Pro 有效期至 ${new Date(quota.planExpiresAt).toLocaleDateString("zh-CN")}`}
+                    {quota.planExpiresAt && ` · Pro 有效期至 ${zhDate(quota.planExpiresAt)}`}
                     {quota.isAdmin && " · 管理员不限量"}
                   </p>
                   <div className="mt-2.5">

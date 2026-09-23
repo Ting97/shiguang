@@ -9,6 +9,7 @@
 import { api as baseApi, apiForm as baseApiForm, ApiClientError } from "@shiguangri/shared/client-api";
 
 const NO_REDIRECT_PATHS = ["/login", "/setup"];
+export { NO_REDIRECT_PATHS };
 
 async function with401Redirect<T>(run: () => Promise<T>): Promise<T> {
   try {
@@ -26,8 +27,13 @@ async function with401Redirect<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-export function api<T = any>(url: string, method = "GET", body?: unknown): Promise<T> {
-  return with401Redirect(() => baseApi<T>(url, method, body));
+export function api<T = any>(
+  url: string,
+  method = "GET",
+  body?: unknown,
+  headers?: Record<string, string>,
+): Promise<T> {
+  return with401Redirect(() => baseApi<T>(url, method, body, headers));
 }
 
 export function apiForm<T = any>(url: string, form: FormData, method = "POST"): Promise<T> {

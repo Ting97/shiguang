@@ -4,6 +4,7 @@
  */
 import { pool } from "@/server/platform/db";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 
 export interface ImportLiabilityRow {
   name: string;
@@ -33,13 +34,16 @@ const DEBT_TYPES = new Set(["credit_card", "mortgage", "car_loan", "consumer_loa
 
 function validateRows(data: ImportPayload) {
   if (!data || !Array.isArray(data.liabilities)) throw ApiError.badRequest("data.liabilities 缺失");
+  // 行数上限：防超大 payload 拖垮逐行 insert 事务
+  if (data.liabilities.length > 5000) throw ApiError.badRequest("单次最多导入 5000 条");
   data.liabilities.forEach((r, i) => {
     if (!r?.name?.trim() || r.name.length > 40) throw ApiError.badRequest(`第 ${i + 1} 行名称必填且 ≤40 字`);
     if (!DEBT_TYPES.has(r.type)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）无效的负债类型：${r.type}`);
     if (!Number.isInteger(r.principalCents) || r.principalCents < 0) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）本金需为非负整数（分）`);
     if (r.balanceCents != null && (!Number.isInteger(r.balanceCents) || r.balanceCents < 0)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）余额需为非负整数（分）`);
     if (r.monthlyCents != null && (!Number.isInteger(r.monthlyCents) || r.monthlyCents < 0)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）月供需为非负整数（分）`);
-    if (r.dueDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(r.dueDate)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）到期日需为 YYYY-MM-DD`);
+    // 形状合法但非真实日历日（2024-13-01）曾穿透到 PG date 列抛 500
+    if (r.dueDate != null && !isValidCalendarDate(r.dueDate)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）到期日需为真实存在的日期（YYYY-MM-DD）`);
   });
   if (data.accounts && !Array.isArray(data.accounts)) throw ApiError.badRequest("data.accounts 需为数组");
   (data.accounts ?? []).forEach((a, i) => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidYearMonth } from "@/server/platform/http/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +11,9 @@ export const dynamic = "force-dynamic";
 export const GET = withAuth(async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    throw ApiError.badRequest("month 需为 YYYY-MM");
+  // 仅验形状会放行 2025-13 → to_char 永不命中静默空数据：月份需在 01-12
+  if (!isValidYearMonth(month)) {
+    throw ApiError.badRequest("month 需为 YYYY-MM（月份 01-12）");
   }
   const TZ = "Asia/Shanghai"; // 与时间模块一致：按北京日期切月
 
@@ -76,15 +78,20 @@ export const GET = withAuth(async (req, { user }) => {
   );
 
   const { rows: accounts } = await pool.query(
-    `select a.id, a.name, a.icon, a.opening_balance_cents,
-            (a.opening_balance_cents + coalesce((
-               select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
-               from transactions t
-               where t.account_id = a.id and t.is_draft = false
-             ), 0))::int as balance_cents
-     from accounts a
-     where a.user_id = $1 and a.archived = false
-     order by a.sort_order, a.created_at`,
+    `select x.id, x.name, x.icon,
+            x.opening_balance_cents as "openingBalanceCents",
+            x.balance_cents as "balanceCents"
+     from (
+       select a.id, a.name, a.icon, a.sort_order, a.created_at, a.opening_balance_cents,
+              (a.opening_balance_cents + coalesce((
+                 select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
+                 from transactions t
+                 where t.account_id = a.id and t.is_draft = false
+               ), 0))::int as balance_cents
+       from accounts a
+       where a.user_id = $1 and a.archived = false
+     ) x
+     order by x.sort_order, x.created_at`,
     [user.id],
   );
 

@@ -60,7 +60,8 @@ export default function IconPicker({ value, onChange }: { value: string; onChang
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && custom.trim()) {
+                  // IME 守卫：中文输入法选词回车不应当作确认
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing && custom.trim()) {
                     onChange([...custom.trim()][0] ?? custom.trim());
                     setCustom("");
                     setOpen(false);

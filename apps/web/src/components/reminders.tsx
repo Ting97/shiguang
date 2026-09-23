@@ -68,7 +68,8 @@ export default function Reminders({
               </Link>
             ) : (
               <>
-                <a href="#todos" className={it.overdue ? "text-danger underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}>
+                {/* 目标区是 actions-today 的 id="actions"（原 #todos 指向不存在的锚点） */}
+                <a href="#actions" className={it.overdue ? "text-danger underline-offset-2 hover:underline" : "underline-offset-2 hover:underline"}>
                   {it.label}
                 </a>
                 {it.todoId && onMarkToday && (

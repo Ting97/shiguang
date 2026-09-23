@@ -75,7 +75,11 @@ export async function reserveOverview(userId: string, ym: string) {
     [userId, ymFirst],
   );
   const checkedSet = new Set(checks.map((r) => String(r.liability_id)));
-  for (const row of list) row.checked = checkedSet.has(row.liabilityId);
+  for (const row of list) {
+    // 合并行勾选 = 组内任一负债已勾选：autoCheckAfterPayment 落库的可能是组内非首笔
+    // liabilityId，只认首笔会把已勾选显示成未勾、checkedNeed 漏计
+    row.checked = liabilities.filter((l) => l.name === row.name).some((l) => checkedSet.has(String(l.id)));
+  }
 
   // 合并行勾选 = 该名称下任一负债已勾选；liabilityIds 供一键/单项落库
   const items = list.map((row) => {

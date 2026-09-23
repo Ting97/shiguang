@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasApiKey } from "@shiguangri/ai";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight";
@@ -9,8 +10,6 @@ import { buildReviewCtx } from "@/server/insight";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 interface WeekReview {
   summary: string;
@@ -24,20 +23,11 @@ interface WeekReview {
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
 export const POST = withAuth(async (req, { user }) => {
-  if (user.role !== "admin") {
-    const q = await checkAiQuota(user.id);
-    if (!q.allowed) {
-      return NextResponse.json(
-        { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
-        { status: 402 },
-      );
-    }
-  }
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
-  if (!date || !DATE_RE.test(date)) {
-    throw ApiError.badRequest("date 需为 YYYY-MM-DD");
+  // 形状校验放行 2025-13-45 → ::date cast 500 且周期静默算错：需为真实日历日
+  if (!date || !isValidCalendarDate(date)) {
+    throw ApiError.badRequest("date 需为真实存在的 YYYY-MM-DD 日期");
   }
-  if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
   const bundle = await getPromptBundle("review_week");
   const built = await buildReviewCtx(user.id, "week", { date }, bundle);
@@ -46,6 +36,14 @@ export const POST = withAuth(async (req, { user }) => {
   let result;
   try {
     result = await getOrGenerateReview(user.id, "week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      // 额度/KEY 门禁仅校验于真正要生成时——缓存命中零成本秒回，配额用尽的用户也能读到已生成的复盘
+      if (user.role !== "admin") {
+        const q = await checkAiQuota(user.id);
+        if (!q.allowed) {
+          throw new ReviewGateError(`AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`);
+        }
+      }
+      if (!hasApiKey()) throw new ReviewGateError("未配置 AI 服务");
       await acquireGeneration(user.id, "week", from, latest ? new Date(latest) : null);
       const parsed = await chatReviewJson<Partial<WeekReview>>({
         system: bundle.system,

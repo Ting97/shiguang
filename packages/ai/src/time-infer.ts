@@ -192,7 +192,10 @@ function cstHour(d: Date): number {
 export function anchorRangeToToday<T extends { start: Date; end: Date }>(range: T, text: string, now: Date): T {
   if (hasExplicitDayRef(text) || detectFuture(text) !== null) return range;
   const diff = cstDayIdx(now) - cstDayIdx(range.start);
-  if (diff === 0 || (diff === 1 && cstHour(now) < 5)) return range;
+  // 跨午夜区间且终点落在今天（早晨补记昨晚睡眠「10.30到6.30」）→ 是昨天的真实记录，不前移；
+  // 终点也在昨天的（模型漂移）仍按下方规则归今天
+  if (diff === 0 || (diff === 1 && cstDayIdx(range.end) === cstDayIdx(now))) return range;
+  if (diff === 1 && cstHour(now) < 5) return range;
   const shift = diff * 86400_000;
   return { ...range, start: new Date(range.start.getTime() + shift), end: new Date(range.end.getTime() + shift) };
 }
@@ -277,7 +280,20 @@ export function inferTimeBlock(
     const base = new Date(now.getTime() - back);
     const start = atHour(base, range.start.hour, range.start.minute);
     let end = atHour(base, range.end.hour, range.end.minute);
-    if (end <= start) end = new Date(end.getTime() + 24 * 3600_000); // 跨天区间（如 22.30-6.30）
+    if (end <= start) {
+      end = new Date(end.getTime() + 24 * 3600_000); // 跨天区间（如 22.30-6.30）
+      // 中午前补记昨晚睡眠（07:30 说「10.30到6.30」，起点还在未来）→ 归昨晚，
+      // 而非记成今晚的未来块；晚间说（21:00 说「11点到1点」）则按今晚计划保留
+      if (start.getTime() > now.getTime() && cstHour(now) < 12) {
+        const back1 = 24 * 3600_000;
+        return {
+          mode: "explicit",
+          start: new Date(start.getTime() - back1),
+          end: new Date(end.getTime() - back1),
+          durationMin: Math.round((end.getTime() - start.getTime()) / 60_000),
+        };
+      }
+    }
     return {
       mode: "explicit",
       start,

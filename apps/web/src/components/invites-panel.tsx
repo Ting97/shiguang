@@ -53,7 +53,9 @@ const fmtTotal = (u: Usage) => fmtTokens(u.promptTokens + u.completionTokens);
 
 export default function InvitesPanel() {
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [state, setState] = useState<"loading" | "ok" | "forbidden">("loading");
+  const [state, setState] = useState<"loading" | "ok" | "forbidden" | "error">("loading");
+  // 非 403 加载失败的原因：失败要落错误终态（历史 bug：直接 return，state 永远 "loading"）
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -66,6 +68,11 @@ export default function InvitesPanel() {
       j = await api("/api/auth/invites");
     } catch (e) {
       if (e instanceof ApiClientError && e.status === 403) setState("forbidden");
+      else {
+        // 非 403 失败也要落终态（错误 + 重试入口），不能停在永久「加载中」
+        setLoadErr(e instanceof Error ? e.message : String(e));
+        setState("error");
+      }
       return;
     }
     setInvites(j.invites ?? []);
@@ -129,6 +136,25 @@ export default function InvitesPanel() {
       <section className="glass mb-5 rounded-2xl p-5">
         <h2 className="text-sm font-semibold text-ink-soft">📣 邀请管理</h2>
         <p className="mt-2 py-4 text-center text-xs text-ink-dim">加载中…</p>
+      </section>
+    );
+  }
+  if (state === "error") {
+    return (
+      <section className="glass mb-5 rounded-2xl p-5">
+        <h2 className="text-sm font-semibold text-ink-soft">📣 邀请管理</h2>
+        <div className="mt-2 py-4 text-center">
+          <p className="text-xs text-danger">加载失败：{loadErr}</p>
+          <button
+            onClick={() => {
+              setState("loading");
+              void load();
+            }}
+            className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium"
+          >
+            重试
+          </button>
+        </div>
       </section>
     );
   }

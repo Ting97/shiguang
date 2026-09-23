@@ -74,7 +74,16 @@ export async function importTrades(userId: string, body: ImportBody) {
     [userId, accountId, tickets],
   );
   const dupSet = new Set(existing.rows.map((r) => String(r.ticket)));
-  const fresh = body.rows.filter((r) => !dupSet.has(String(r.ticket)));
+  // 批内同 ticket 去重（CSV 合并场景）：保留首行、其余计入 rowsDup——
+  // 不去重时批内重复/并发导入会撞 unique (user_id, account_id, ticket) → 23505 整批 500
+  const seenBatch = new Set<string>();
+  const fresh: TradeRowInput[] = [];
+  for (const r of body.rows) {
+    const tk = String(r.ticket);
+    if (dupSet.has(tk) || seenBatch.has(tk)) continue;
+    seenBatch.add(tk);
+    fresh.push(r);
+  }
   const firstAt = fresh.length ? fresh.map((r) => r.closeTime).sort()[0] : null;
   const lastAt = fresh.length ? fresh.map((r) => r.closeTime).sort().at(-1) : null;
 
@@ -124,6 +133,8 @@ export async function importTrades(userId: string, body: ImportBody) {
     };
   } catch (e) {
     await client.query("rollback").catch(() => {});
+    // 兜底：并发导入撞 unique (user_id, account_id, ticket) → 400（批内重复已在上面去重挡住）
+    if ((e as { code?: string }).code === "23505") throw ApiError.badRequest("存在重复 ticket");
     throw e;
   } finally {
     client.release();

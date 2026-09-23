@@ -133,9 +133,13 @@ export async function acquireGeneration(
      returning bonus, used`,
     [userId, kind, periodKey, latestDataAt],
   );
-  // 日/周的晚 8 点预留是硬边界：bonus 只对月/年的进度解锁生效
-  const hardReserve = kind === "day" || kind === "week" || kind === "trade_week";
+  // 日/周的晚 8 点预留是硬边界：bonus 只对月/年的进度解锁生效（trading 与 week 同为周日晚 20:00 口径，同列硬预留）
+  const hardReserve = kind === "day" || kind === "week" || kind === "trade_week" || kind === "trading";
   const ceiling = timeCeiling(kind, periodKey);
+  // 未来周期：时间解锁为 0，bonus 不参与——否则已排期 time_blocks 的 latest 前移可提前打开未来周期的次数
+  if (ceiling === 0) {
+    throw new ReviewGateError("该周期尚未开始，暂不可生成复盘");
+  }
   const effectiveBonus = hardReserve ? 0 : rows[0].bonus;
   const available = Math.min(M, ceiling + effectiveBonus) - rows[0].used;
   if (available < 1) {

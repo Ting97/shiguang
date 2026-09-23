@@ -187,7 +187,13 @@ async function blobToWav16k(blob: Blob): Promise<Blob> {
   const ab = await blob.arrayBuffer();
   const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctx();
-  const audio = await ctx.decodeAudioData(ab);
+  let audio: AudioBuffer;
+  try {
+    audio = await ctx.decodeAudioData(ab);
+  } finally {
+    // 解码失败也要关闭上下文（泄漏累积后浏览器会拒绝新建 AudioContext，录音从此不可用）
+    ctx.close().catch(() => {});
+  }
   const targetRate = 16000;
   const channels = audio.numberOfChannels;
   const srcLen = audio.length;
@@ -199,7 +205,6 @@ async function blobToWav16k(blob: Blob): Promise<Blob> {
     for (let c = 0; c < channels; c++) sum += audio.getChannelData(c)[src] ?? 0;
     mono[i] = sum / channels;
   }
-  await ctx.close();
 
   const pcm = new ArrayBuffer(44 + outLen * 2);
   const view = new DataView(pcm);

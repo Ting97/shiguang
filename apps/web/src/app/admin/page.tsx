@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/shared/api";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminDataPanel from "@/components/admin-data-panel";
@@ -17,16 +17,23 @@ type Tab = "ai" | "marketing" | "data";
 
 export default function AdminPage() {
   const [me, setMe] = useState<{ nickname: string | null; isAdmin: boolean } | null>(null);
+  // 身份加载失败态：失败要落错误 + 重试入口（历史 bug：catch 空吞，永久「加载中…」）
+  const [meErr, setMeErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("ai");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 上一条成功提示的定时器：notify 前先清，避免 3.5s 内第二条提示被第一条的定时器提前清掉
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  const loadMe = useCallback(() => {
+    setMeErr(null);
     api("/api/auth/me")
       .then((j) => setMe(j))
-      .catch(() => {});
+      .catch((e) => setMeErr(e instanceof Error ? e.message : String(e)));
   }, []);
+
+  useEffect(() => {
+    loadMe();
+  }, [loadMe]);
 
   useEffect(() => () => {
     if (msgTimer.current) clearTimeout(msgTimer.current);
@@ -79,7 +86,16 @@ export default function AdminPage() {
             )}
 
             {!me ? (
-              <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+              meErr ? (
+                <div className="py-10 text-center">
+                  <p className="text-xs text-danger">加载失败：{meErr}</p>
+                  <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                    重试
+                  </button>
+                </div>
+              ) : (
+                <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+              )
             ) : tab === "ai" ? (
               <section className="glass rounded-2xl p-5">
                 <p className="mb-4 flex items-center gap-1.5 text-[11px] text-ink-dim">

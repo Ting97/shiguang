@@ -5,23 +5,26 @@
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时，与 moment-card 的 bjYmd 同口径） */
+const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
+
 export const zhClock = (iso: string) => {
-  const d = new Date(iso);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 };
 
 /** 记录时刻 →「今天 15:32 / 昨天 21:04 / 9月15日 08:30」 */
 export const zhRecordTime = (iso: string) => {
-  const d = new Date(iso);
-  const now = new Date();
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diffDays = Math.round((day(now) - day(d)) / 86_400_000);
+  const t = Date.parse(iso);
+  const nowT = Date.now();
+  const diffDays = bjDayIdx(nowT) - bjDayIdx(t);
+  const d = new Date(t + 8 * 3600_000);
   const clock = zhClock(iso);
   if (diffDays === 0) return { day: "今天", clock };
   if (diffDays === 1) return { day: "昨天", clock };
-  const sameYear = d.getFullYear() === now.getFullYear();
+  const sameYear = d.getUTCFullYear() === new Date(nowT + 8 * 3600_000).getUTCFullYear();
   return {
-    day: `${sameYear ? "" : d.getFullYear() + "年"}${d.getMonth() + 1}月${d.getDate()}日`,
+    day: `${sameYear ? "" : d.getUTCFullYear() + "年"}${d.getUTCMonth() + 1}月${d.getUTCDate()}日`,
     clock,
   };
 };
@@ -32,11 +35,10 @@ export const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 ==
 export function todoTimeLabel(startAt: string | null | undefined, dueAt: string | null): string | null {
   if (!dueAt) return null;
   if (startAt) {
-    const a = new Date(startAt);
-    const b = new Date(dueAt);
-    const sameDay =
-      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-    if (sameDay && b.getTime() !== a.getTime()) return `${zhClock(startAt)}–${zhClock(dueAt)}`;
+    const a = Date.parse(startAt);
+    const b = Date.parse(dueAt);
+    const sameDay = bjDayIdx(a) === bjDayIdx(b);
+    if (sameDay && b !== a) return `${zhClock(startAt)}–${zhClock(dueAt)}`;
   }
   const t = zhRecordTime(dueAt);
   return `${t.day} ${t.clock}`;
@@ -44,10 +46,11 @@ export function todoTimeLabel(startAt: string | null | undefined, dueAt: string 
 
 /** 跨天时间块的日期前缀：非今天 →「9月17日 」（避免凌晨记录的"昨天下午"被误读为今天） */
 export const dayPrefix = (iso: string) => {
-  const d = new Date(iso);
-  const now = new Date();
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  return Math.round((day(now) - day(d)) / 86_400_000) === 0 ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `;
+  const t = Date.parse(iso);
+  const d = new Date(t + 8 * 3600_000);
+  return bjDayIdx(Date.now()) - bjDayIdx(t) === 0
+    ? ""
+    : `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 `;
 };
 
 export const COMMON_MOODS = ["开心", "满足", "兴奋", "放松", "平静", "疲惫", "焦虑", "烦躁", "难过", "生气"];

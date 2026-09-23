@@ -8,7 +8,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "./api";
+import { api, ApiClientError, NO_REDIRECT_PATHS } from "./api";
 
 export interface SessionUser {
   id: string;
@@ -48,9 +48,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await api<SessionUser>("/api/auth/me", "GET");
       setUser(me);
-    } catch {
-      setUser(null);
-      router.replace(LOGIN_PATH);
+    } catch (e) {
+      // 仅会话失效（401）才清会话跳登录；/setup 等免登录页停留本页（与 NO_REDIRECT_PATHS 同语义）。
+      // 网络抖动/5xx 不能把用户踢出——旧实现任何失败都跳登录，弱网下会清掉正在填写的页面
+      if (
+        e instanceof ApiClientError &&
+        e.status === 401 &&
+        typeof window !== "undefined" &&
+        !NO_REDIRECT_PATHS.includes(window.location.pathname)
+      ) {
+        setUser(null);
+        router.replace(LOGIN_PATH);
+      }
     } finally {
       setLoading(false);
     }

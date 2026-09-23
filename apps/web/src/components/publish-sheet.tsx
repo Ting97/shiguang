@@ -62,6 +62,15 @@ export default function PublishSheet({
     return () => clearTimeout(t);
   }, [open, initialText]);
 
+  // 关闭时统一释放残留的 blob URL（取消/发布失败等路径漏 revoke 的兜底；发布成功路径已 revoke，重复 revoke 无害）
+  useEffect(() => {
+    if (open) return;
+    setImages((prev) => {
+      prev.forEach((i) => URL.revokeObjectURL(i.url));
+      return [];
+    });
+  }, [open]);
+
   if (!open) return null;
 
   /** N3 取消：点空白/Esc/×——内容相对打开时有改动则轻提示"已取消，未保存" */
@@ -69,10 +78,19 @@ export default function PublishSheet({
     if (value.trim() && value.trim() !== initialRef.current.trim()) {
       notify?.({ ok: true, text: "已取消，未保存" });
     }
+    // 取消路径也要释放已选图片的 blob URL（发布成功/逐张移除路径已 revoke，这里补齐）
+    setImages((prev) => {
+      prev.forEach((i) => URL.revokeObjectURL(i.url));
+      return [];
+    });
     onClose();
   }
 
   function addImages(files: File[], source: "gallery" | "camera") {
+    if (images.length >= 9) {
+      setSheetMsg("最多 9 张");
+      return;
+    }
     const imgs = files
       .filter((f) => /^image\/(jpeg|png|webp|gif)$/.test(f.type))
       .slice(0, 9 - images.length)

@@ -6,7 +6,8 @@ import DayDonut from "@/components/day-donut";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
-import { parseYmd, todayStr, zhDuration } from "@/lib/date";
+import { bjToday, zhDuration } from "@/lib/date";
+import { combineHM } from "@/lib/bj-time";
 import type { Activity, Block } from "@/lib/types";
 import { zhTime } from "./kit";
 import type { BlockDraft, Notify } from "./types";
@@ -37,14 +38,7 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     });
   }
 
-  /** 用原块北京日期 + 新的 HH:MM 组装 ISO（北京时间口径：+8h 推算 setUTC 后再回移 8h） */
-  function combineHM(originalIso: string, hm: string): string {
-    const d = new Date(new Date(originalIso).getTime() + 8 * 3600_000);
-    const [h, m] = hm.split(":").map(Number);
-    d.setUTCHours(h, m, 0, 0);
-    return new Date(d.getTime() - 8 * 3600_000).toISOString();
-  }
-
+  /** 用原块北京日期 + 新的 HH:MM 组装 ISO（combineHM 收敛到 @/lib/bj-time，与日程页同源） */
   async function saveEdit() {
     if (!editing) return;
     if (editing.end <= editing.start) {
@@ -108,9 +102,10 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
   // ---------- 列表视图新增日程 ----------
 
   const hmLocal = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  /** ISO 时刻 → 北京当日分钟数（0~1440；基点是北京日界而非本地午夜，与 zhTime/combineHM 同口径） */
   const minOfDayLocal = (iso: string) => {
-    const day = parseYmd(todayStr());
-    return Math.max(0, Math.min(1440, Math.floor((new Date(iso).getTime() - day.getTime()) / 60_000)));
+    const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+    return Math.max(0, Math.min(1440, d.getUTCHours() * 60 + d.getUTCMinutes()));
   };
 
   /** 从当前小时起找第一个空闲的整点 1 小时槽位（都占用则用当前小时，由冲突提示兜底）。
@@ -135,11 +130,12 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     setListSaving(true);
     const [sh, sm] = listDraft.start.split(":").map(Number);
     const [eh, em] = listDraft.end.split(":").map(Number);
-    const day = parseYmd(todayStr());
+    // 北京今天 0 点作基（Date.parse 的 T00:00:00Z 即北京午夜），本地午夜基在海外设备会整体错 8 小时
+    const dayMs = Date.parse(`${bjToday()}T00:00:00Z`);
     const ok = await createBlock({
       title: listDraft.title.trim(),
-      startAt: new Date(day.getTime() + (sh * 60 + sm) * 60_000).toISOString(),
-      endAt: new Date(day.getTime() + (eh * 60 + em) * 60_000).toISOString(),
+      startAt: new Date(dayMs + (sh * 60 + sm) * 60_000).toISOString(),
+      endAt: new Date(dayMs + (eh * 60 + em) * 60_000).toISOString(),
       activityId: listDraft.activityId,
     });
     setListSaving(false);
@@ -170,7 +166,7 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
             <DayDonut byActivity={todayByActivity} activities={activities} size={90} thickness={12} />
           </div>
           <DayTimeline
-            date={todayStr()}
+            date={bjToday()}
             blocks={blocks}
             activities={activities}
             onCreate={createBlock}

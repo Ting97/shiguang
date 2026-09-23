@@ -111,8 +111,9 @@ export default function SpacesPage() {
     try {
       await api<any>(`/api/spaces/${s.id}`, "PATCH", { status });
     } catch (e) {
-      // 原 fetch 版未检查响应：失败也提示并刷新
-      if (!(e instanceof ApiClientError)) throw e;
+      // 失败报错并中止，不提示成功（历史 bug：吞掉 ApiClientError 后无条件弹「已归档/已恢复」）
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      return;
     }
     setMsg({ ok: true, text: status === "archived" ? `「${s.name}」已归档` : `「${s.name}」已恢复` });
     load();
@@ -124,8 +125,9 @@ export default function SpacesPage() {
     try {
       await api<any>(`/api/spaces/${s.id}`, "DELETE");
     } catch (e) {
-      // 原 fetch 版未检查响应：失败也提示并刷新
-      if (!(e instanceof ApiClientError)) throw e;
+      // 失败报错并中止，不提示成功（历史 bug：吞掉 ApiClientError 后无条件弹「已删除」）
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      return;
     }
     setMsg({ ok: true, text: `「${s.name}」已删除` });
     load();

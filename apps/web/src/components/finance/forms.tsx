@@ -29,6 +29,8 @@ export function TxForm({
   const [note, setNote] = useState(initial?.note ?? "");
   const [counterparty, setCounterparty] = useState(initial?.counterparty ?? "");
   const [busy, setBusy] = useState(false);
+  // 提交失败就地提示（历史 bug：无 catch 时静默失败，unhandled rejection 还会触发整页刷新清空表单）
+  const [err, setErr] = useState<string | null>(null);
 
   return (
     <div className="space-y-2.5">
@@ -104,6 +106,7 @@ export function TxForm({
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
         />
       </div>
+      {err && <p className="text-[11px] text-danger">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
           取消
@@ -114,6 +117,7 @@ export function TxForm({
             const cents = Math.round(parseFloat(amount) * 100);
             if (!Number.isFinite(cents) || cents <= 0) return;
             setBusy(true);
+            setErr(null);
             try {
               await onSubmit({
                 direction,
@@ -124,6 +128,8 @@ export function TxForm({
                 note: note || null,
                 counterparty: counterparty.trim() || null,
               });
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : String(e));
             } finally {
               setBusy(false);
             }
@@ -144,9 +150,11 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
   const [opening, setOpening] = useState("");
   const [busy, setBusy] = useState(false);
   const ICONS = ["💵", "🅰", "💬", "💳", "🏦", "📈", "🎓", "🏠"];
-  // 行内改名草稿与错误提示（重名 400 就地显示）
+  // 行内改名草稿与错误提示（重名 400 就地显示；期初余额/图标/归档失败也复用行内提示）
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [rowErr, setRowErr] = useState<Record<string, string | null>>({});
+  // 新增账户失败提示（历史 bug：try/finally 无 catch，失败静默 + unhandled rejection）
+  const [addErr, setAddErr] = useState<string | null>(null);
   // 图标选择浮层（打开的账户 id）
   const [iconPick, setIconPick] = useState<string | null>(null);
 
@@ -189,13 +197,17 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
               <input
                 type="number"
                 step="0.01"
-                defaultValue={a.opening_balance_cents / 100}
+                defaultValue={a.openingBalanceCents / 100}
                 title="期初余额（元）"
                 onBlur={async (e) => {
                   const v = Math.round(parseFloat(e.target.value) * 100);
-                  if (Number.isFinite(v) && v !== a.opening_balance_cents) {
-                    await api(`/api/accounts/${a.id}`, "PATCH", { openingBalanceCents: v });
-                    await onChanged();
+                  if (Number.isFinite(v) && v !== a.openingBalanceCents) {
+                    try {
+                      await api(`/api/accounts/${a.id}`, "PATCH", { openingBalanceCents: v });
+                      await onChanged();
+                    } catch (ce) {
+                      setRowErr((prev) => ({ ...prev, [a.id]: ce instanceof Error ? ce.message : "保存失败" }));
+                    }
                   }
                 }}
                 className="w-24 rounded border border-line bg-surface px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-sky-500"
@@ -204,8 +216,12 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 title="归档账户（历史流水保留）"
                 onClick={async () => {
                   if (!window.confirm(`归档「${a.name}」？归档后不再显示，历史流水保留。`)) return;
-                  await api(`/api/accounts/${a.id}`, "DELETE");
-                  await onChanged();
+                  try {
+                    await api(`/api/accounts/${a.id}`, "DELETE");
+                    await onChanged();
+                  } catch (ce) {
+                    setRowErr((prev) => ({ ...prev, [a.id]: ce instanceof Error ? ce.message : "归档失败" }));
+                  }
                 }}
                 className="row-actions-hidden hidden text-xs text-ink-dim hover:text-danger group-hover:block"
               >
@@ -222,8 +238,12 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                       onClick={async () => {
                         setIconPick(null);
                         if (i === a.icon) return;
-                        await api(`/api/accounts/${a.id}`, "PATCH", { icon: i });
-                        await onChanged();
+                        try {
+                          await api(`/api/accounts/${a.id}`, "PATCH", { icon: i });
+                          await onChanged();
+                        } catch (ce) {
+                          setRowErr((prev) => ({ ...prev, [a.id]: ce instanceof Error ? ce.message : "更换图标失败" }));
+                        }
                       }}
                       className={`h-8 w-8 rounded-lg text-lg transition hover:bg-soft ${i === a.icon ? "bg-sky-500/15 ring-1 ring-sky-500" : ""}`}
                     >
@@ -261,12 +281,15 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
           disabled={busy || !name.trim()}
           onClick={async () => {
             setBusy(true);
+            setAddErr(null);
             try {
               const cents = opening ? Math.round(parseFloat(opening) * 100) : 0;
               await api("/api/accounts", "POST", { name: name.trim(), icon, openingBalanceCents: Number.isFinite(cents) ? cents : 0 });
               setName("");
               setOpening("");
               await onChanged();
+            } catch (ce) {
+              setAddErr(ce instanceof Error ? ce.message : "添加失败");
             } finally {
               setBusy(false);
             }
@@ -276,6 +299,7 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
           添加
         </button>
       </div>
+      {addErr && <p className="text-[11px] text-danger">{addErr}</p>}
     </div>
   );
 }

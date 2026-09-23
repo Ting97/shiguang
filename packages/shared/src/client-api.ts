@@ -60,10 +60,15 @@ export async function getSessionToken(): Promise<string | null> {
   return store.get();
 }
 
-/** 通用 JSON 请求封装：可选 JSON body；返回解析后的 JSON（默认 any——历史调用点直接取字段） */
- 
-export async function api<T = any>(url: string, method: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
+/** 通用 JSON 请求封装：可选 JSON body 与附加头（如 setup 一次性令牌 x-setup-token）；返回解析后的 JSON（默认 any——历史调用点直接取字段） */
+
+export async function api<T = any>(
+  url: string,
+  method: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
+  const headers: Record<string, string> = { ...extraHeaders };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const token = await store.get();
   if (token) headers["Authorization"] = `Bearer ${token}`;

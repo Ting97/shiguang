@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiClientError } from "@/shared/api";
 import { bjToday, fmt } from "./kit";
 
@@ -34,13 +34,19 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // seq 守卫：快速切月时旧响应可能后到，只让最新请求落地
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
       const r = await api<ReserveData>(`/api/debts/reserve?ym=${ym}`);
+      if (seq !== loadSeq.current) return; // 过期响应丢弃
       setData(r);
       const a = await api<{ accounts?: Array<{ id: string; name: string; balanceCents: number; reserveTracked?: boolean }> }>("/api/accounts");
+      if (seq !== loadSeq.current) return;
       setSavings((a.accounts ?? []).map((x) => ({ id: x.id, name: x.name, balanceCents: x.balanceCents, reserveTracked: Boolean(x.reserveTracked) })));
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       if (e instanceof ApiClientError && e.status === 403) return; // 未开通模块：整页已是锁定态
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     }
@@ -130,7 +136,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
           <ul className="space-y-1.5">
             {data.items.map((r) => (
               <li
-                key={r.name}
+                key={r.liabilityId}
                 className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-3 py-2.5 text-xs ${
                   r.checked ? "border-emerald-500/30 bg-emerald-500/[0.06]" : "border-line-soft bg-bg/40"
                 }`}

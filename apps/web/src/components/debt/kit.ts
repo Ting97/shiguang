@@ -53,7 +53,7 @@ export interface Overview {
   };
   hints: string[];
 }
-export interface Account { id: string; name: string; icon: string; balance_cents: number }
+export interface Account { id: string; name: string; icon: string; balanceCents: number }
 export interface SimPack {
   strategy: string;
   order: string[];

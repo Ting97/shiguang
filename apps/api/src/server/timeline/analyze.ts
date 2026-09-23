@@ -2,6 +2,7 @@ import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import {
   parseInput, parseHybridInput, SpaceClassification, chat, jevAsk, jevEnabled,
   spaceClassifyQuestions, HybridUnavailableError, activeModel, extractJson,
+  type ParseResult,
 } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
@@ -10,6 +11,8 @@ import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/server/ai/audit";
 import { jevShadowCompare } from "@/server/ai/jev-shadow";
 import { getJevMode } from "@/server/ai/ai-mode";
+import { loadConfig } from "@/server/platform/config";
+import { entriesRepo } from "./repo";
 
 /** 空间自动归属置信阈值（低于不写入） */
 const SPACE_CONFIDENCE_THRESHOLD = 0.7;
@@ -59,7 +62,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
         }
         void writeAuditRecord({
           userId, entryId, stage: "space_classify",
-          model: process.env.JEV_MODEL ?? "jev-latest", engine: "space-classify-jev",
+          model: loadConfig().jevModel, engine: "space-classify-jev",
           latencyMs: Date.now() - t0, ok: true,
           error: accepted ? undefined : `skip: p=${pBelongs?.toFixed(2) ?? "null"} choice=${choice} conf=${confidence === null ? "null" : confidence.toFixed(2)}`,
         });
@@ -69,7 +72,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
         console.warn("[space-classify] Jev 归属失败，回落 GLM:", String(e).slice(0, 120));
         void writeAuditRecord({
           userId, entryId, stage: "space_classify",
-          model: process.env.JEV_MODEL ?? "jev-latest", engine: "space-classify-jev",
+          model: loadConfig().jevModel, engine: "space-classify-jev",
           ok: false, error: String(e).slice(0, 200),
         });
       }
@@ -197,7 +200,10 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   let model: string | null = null;
   let promptTokens = 0;
   let completionTokens = 0;
-  const client = await pool.connect();
+
+  // —— 识别阶段：prompt 装配 + LLM 调用全程不占池连接 ——
+  // LLM 单次可达 45s+（含修复重问更久），若期间占住 max=5 的池连接，几条并发后台识别即可拖垮全站
+  let r: ParseResult;
   try {
     // 输入装配（3-A）：按 DB 配置开关/参数组装 user prompt；联系人注入关闭时不取数
     const bundle = await getPromptBundle("extract_full");
@@ -233,7 +239,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       userPrompt,
       onUsage,
     };
-    const r =
+    r =
       mode === "on" && jevEnabled()
         ? await (async () => {
             const slimBundle = await getPromptBundle("extract_open_vocab");
@@ -259,25 +265,38 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
             }
           })()
         : await parseInput(rawText, fullOpts);
-    engine = r.engine;
-    if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
-    // 规则兜底但 LLM 已被调用过（如输出不合格重问后仍失败）时也记模型名：token 消耗要如实归属
-    if (r.engine !== "rules" || promptTokens > 0) model = activeModel();
+  } catch (e) {
+    void writeAudit(userId, entryId, {
+      engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: false, error: String(e).slice(0, 300),
+      promptTokens, completionTokens,
+    });
+    throw e;
+  }
 
-    // 陈旧文本竞态防护（巡检补跑用的是扫描时的旧快照）：写库前回读当前原文，
-    // 与识别所用文本不一致（期间被编辑）或动态已删除 → 本次产物作废，
-    // analyzed_at 留空待巡检用新文本重跑，避免旧识别结果覆盖新编辑
-    const { rows: current } = await pool.query(
-      `select raw_text from entries where id = $1 and user_id = $2`,
+  engine = r.engine;
+  if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);
+  // 规则兜底但 LLM 已被调用过（如输出不合格重问后仍失败）时也记模型名：token 消耗要如实归属
+  if (r.engine !== "rules" || promptTokens > 0) model = activeModel();
+
+  // —— 落库阶段：短事务（锁行 → 陈旧校验 → 清旧产物 → 插入 → analyzed_at 原子提交）——
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    // for update 串行化同一动态的并发识别（发布后台识别 vs 巡检补跑），防止清旧插新交错出重复产物
+    const { rows: current } = await client.query(
+      `select raw_text from entries where id = $1 and user_id = $2 for update`,
       [entryId, userId],
     );
     if (current[0]?.raw_text !== rawText) {
+      // 陈旧文本竞态防护（巡检补跑用的是扫描时的旧快照）：写库前回读当前原文，
+      // 与识别所用文本不一致（期间被编辑）或动态已删除 → 本次产物作废，
+      // analyzed_at 留空待巡检用新文本重跑，避免旧识别结果覆盖新编辑
       throw new Error(`原文已变更/动态已删除，本次识别产物作废（待巡检补跑）entry=${entryId}`);
     }
+    // 幂等清理：上次识别可能已提交产物但 analyzed_at 打点失败（重跑会成倍复制日程块/流水），先清再插
+    await entriesRepo.clearDerived(client, entryId, userId);
 
     const pendingDomains: string[] = [];
-
-    await client.query("begin");
 
     // 心情域：置信度足够才回写动态本体
     const moodOk = !!r.mood.label && r.mood.confidence >= CONFIDENCE_THRESHOLD;
@@ -382,9 +401,10 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       await recordRecognition(client, userId, entryId, "diet", "none", { reason: "无食物信号" }, r.diet.confidence, r.engine);
     }
 
+    // FR-C2.4：analyzed_at 与产物同一事务原子提交——原先在 commit 后单独打点，
+    // 中间失败/重启会让 analyzed_at 留空 → 巡检全量重跑、五域产物成倍复制（流水双计）
+    await client.query(`update entries set analyzed_at = now() where id = $1`, [entryId]);
     await client.query("commit");
-    // FR-C2.4：成功才打 analyzed_at（失败留 null 供巡检补跑；调用方不再无脑 finally 打点）
-    await pool.query(`update entries set analyzed_at = now() where id = $1 and analyzed_at is null`, [entryId]);
     void writeAudit(userId, entryId, {
       engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: true,
       promptTokens, completionTokens,
@@ -399,11 +419,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       kind: r.intent === "todo" ? "todo" : r.intent === "schedule" ? "block" : "moment",
     };
   } catch (e) {
-    try {
-      await client.query("rollback");
-    } catch {
-      /* 事务尚未开启（识别阶段失败）时忽略 */
-    }
+    await client.query("rollback").catch(() => {});
     void writeAudit(userId, entryId, {
       engine, model, durationMs: Date.now() - startedAt, textLen: rawText.length, ok: false, error: String(e).slice(0, 300),
       promptTokens, completionTokens,

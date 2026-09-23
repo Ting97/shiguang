@@ -8,6 +8,7 @@ export default function SetupPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [setupToken, setSetupToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -29,10 +30,17 @@ export default function SetupPage() {
     setBusy(true);
     setMsg(null);
     try {
-      await api("/api/auth/setup", "POST", { nickname, phone, password });
+      // 部署配置了 SETUP_TOKEN 时服务端强制校验 x-setup-token 头（一次性）；
+      // 旧实现从不携带该头——令牌模式的部署首次提交即 403 且令牌作废，初始化走不通
+      await api(
+        "/api/auth/setup",
+        "POST",
+        { nickname, phone, password },
+        setupToken.trim() ? { "x-setup-token": setupToken.trim() } : undefined,
+      );
       location.href = "/";
     } catch (e) {
-      if (e instanceof ApiClientError && e.status === 403) {
+      if (e instanceof ApiClientError && e.status === 403 && e.message.includes("管理员已存在")) {
         setMsg({ ok: false, text: "管理员已存在，即将跳转登录页…" });
         setTimeout(() => (location.href = "/login"), 1200);
         return;
@@ -82,6 +90,12 @@ export default function SetupPage() {
               onChange={(e) => setConfirm(e.target.value)}
               type="password"
               placeholder="确认密码"
+              className={inputCls}
+            />
+            <input
+              value={setupToken}
+              onChange={(e) => setSetupToken(e.target.value)}
+              placeholder="初始化令牌（部署配置了 SETUP_TOKEN 时必填）"
               className={inputCls}
             />
             <button onClick={submit} disabled={busy} className="btn-primary w-full rounded-xl py-2.5 text-sm font-medium">

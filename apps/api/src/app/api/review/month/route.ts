@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasApiKey } from "@shiguangri/ai";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidYearMonth } from "@/server/platform/http/validate";
 import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle } from "@/server/ai";
 import { chatReviewJson, updateProfileFromReview } from "@/server/insight";
@@ -9,8 +10,6 @@ import { buildReviewCtx } from "@/server/insight";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const DATE_RE = /^\d{4}-\d{2}$/;
 
 interface MonthReview {
   summary: string;
@@ -25,20 +24,11 @@ interface MonthReview {
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
 export const POST = withAuth(async (req, { user }) => {
-  if (user.role !== "admin") {
-    const q = await checkAiQuota(user.id);
-    if (!q.allowed) {
-      return NextResponse.json(
-        { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
-        { status: 402 },
-      );
-    }
-  }
   const { month, refresh } = (await req.json().catch(() => ({}))) as { month?: string; refresh?: boolean };
-  if (!month || !DATE_RE.test(month)) {
-    throw ApiError.badRequest("month 需为 YYYY-MM");
+  // 形状校验放行 2025-13 → 查询永不命中/算错周期：月份需在 01-12
+  if (!month || !isValidYearMonth(month)) {
+    throw ApiError.badRequest("month 需为 YYYY-MM（月份 01-12）");
   }
-  if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
   const bundle = await getPromptBundle("review_month");
   const built = await buildReviewCtx(user.id, "month", { month }, bundle);
@@ -47,6 +37,14 @@ export const POST = withAuth(async (req, { user }) => {
   let result;
   try {
     result = await getOrGenerateReview(user.id, "month", month, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      // 额度/KEY 门禁仅校验于真正要生成时——缓存命中零成本秒回，配额用尽的用户也能读到已生成的复盘
+      if (user.role !== "admin") {
+        const q = await checkAiQuota(user.id);
+        if (!q.allowed) {
+          throw new ReviewGateError(`AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`);
+        }
+      }
+      if (!hasApiKey()) throw new ReviewGateError("未配置 AI 服务");
       await acquireGeneration(user.id, "month", month, latest ? new Date(latest) : null);
       const parsed = await chatReviewJson<Partial<MonthReview>>({
         system: bundle.system,

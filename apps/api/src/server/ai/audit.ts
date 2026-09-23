@@ -18,7 +18,9 @@ export interface AuditRecord {
     | "space_classify"
     | "decompose"
     | "prompt_preview"
-    | "jev_shadow";
+    | "jev_shadow"
+    | "admin_data"
+    | "ai_profile";
   model: string | null;
   engine?: string | null;
   latencyMs?: number | null;

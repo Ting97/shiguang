@@ -44,6 +44,8 @@ export function parseDuration(text: string): number | null {
   const re =
     /(\d+(?:\.\d+)?|[零一二两俩三四五六七八九十百]+)\s*(个)?\s*(半)?\s*(个小时|小时|钟头|h|分钟|分|min)/g;
   for (const m of text.matchAll(re)) {
+    // 钟点上下文的 "X点Y分"（如 "下午3点50分开会"）不是时长：前一字符为 点/时 且单位为分 → 跳过
+    if (/分|min/.test(m[4]) && m.index > 0 && /[点时]/.test(text[m.index - 1])) continue;
     const n = /^\d+(?:\.\d+)?$/.test(m[1]) ? parseFloat(m[1]) : cnToNumber(m[1]);
     if (n === null || n === 0) continue;
     const isHour = /小时|钟头|^h$/.test(m[4]);
@@ -67,9 +69,13 @@ export function parseAmountCents(text: string): number | null {
   if (withUnit) return toCents(withUnit[1]);
   // 2) 动词暗示（无单位）："花了260""随了600""付了86"；负向断言排除时长/日期词
   //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类）
+  //    万/千量词："花了1万"=100万分（旧实现漏乘，静默缩小 100/10 倍）
   const noUnit = text.match(
-    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)(?![\d.天日个月年时分秒块元小周])/,
+    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?(?![\d.天日个月年时分秒块元小周])/,
   );
-  if (noUnit) return toCents(noUnit[1]);
+  if (noUnit) {
+    const mult = noUnit[2] === "万" ? 10_000 : noUnit[2] === "千" ? 1_000 : 1;
+    return Math.round(parseFloat(noUnit[1]) * mult * 100);
+  }
   return null;
 }

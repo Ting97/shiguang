@@ -20,8 +20,9 @@ export function useSpaceMutations(opts: {
     try {
       await api<any>(`/api/spaces/${space.id}`, "PATCH", { status });
     } catch (e) {
-      // 原 fetch 版未检查响应：失败也返回列表（此导航非 401 处理，保留）
-      if (!(e instanceof ApiClientError)) throw e;
+      // 失败报错且不跳转（历史 bug：吞掉 ApiClientError 后无条件跳回列表）
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      return;
     }
     location.href = "/spaces";
   }
@@ -50,8 +51,9 @@ export function useSpaceMutations(opts: {
     try {
       await api<any>(`/api/spaces/${space.id}`, "DELETE");
     } catch (e) {
-      // 原 fetch 版未检查响应：失败也返回列表
-      if (!(e instanceof ApiClientError)) throw e;
+      // 失败报错且不跳转（历史 bug：吞掉 ApiClientError 后无条件跳回列表）
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      return;
     }
     location.href = "/spaces";
   }

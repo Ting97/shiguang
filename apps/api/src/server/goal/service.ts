@@ -5,7 +5,7 @@
  */
 import { pool } from "@/server/platform/db";
 import { ApiError } from "../platform/http/errors";
-import { isParsableMoment } from "../platform/http/datetime";
+import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
 import type { TodoItem, TodoRow } from "@shiguangri/shared/types";
 import { todoRepo, spaceRepo, reflectionRepo } from "./repo";
 
@@ -283,6 +283,14 @@ export const todoService = { list: listTodos, create: createTodo, update: update
 
 const MAX_ACTIVE_SPACES = 20;
 
+/** YYYY-MM-DD 真实日历日校验：只验形状会放行 2024-13-01 穿透 date 列 → PG 500。
+ * 空/缺省归 null（=不设/清除）；显式传入非法值按 400 拒绝（不静默吞掉，避免「日期设了却消失」） */
+function calendarDateOrNull(v: string | null | undefined, label: string): string | null {
+  if (v == null || v === "") return null;
+  if (!isValidCalendarDate(v)) throw ApiError.badRequest(`${label}需为真实存在的日期（YYYY-MM-DD，如 2024-13-01 非法）`);
+  return v;
+}
+
 /** GET /api/spaces —— 空间列表（active 在前）+ 聚合统计：
  * todoTotal/todoDone（顶层待办）、actionTotal/actionDone（行动=子待办）、entryCount、reflectionCount（REQ-002 N2） */
 async function listSpaces(userId: string) {
@@ -299,8 +307,8 @@ async function createSpace(userId: string, body: SpaceCreateInput) {
   if (active[0].n >= MAX_ACTIVE_SPACES) {
     throw ApiError.badRequest(`进行中的空间已达 ${MAX_ACTIVE_SPACES} 个，请先归档`);
   }
-  const started = startedAt && /^\d{4}-\d{2}-\d{2}$/.test(startedAt) ? startedAt : null;
-  const target = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : null;
+  const started = calendarDateOrNull(startedAt, "开始日期");
+  const target = calendarDateOrNull(targetDate, "目标日期");
   const { rows } = await spaceRepo.insert(userId, trimmed, description?.trim() || null, icon?.trim() || null, color ?? null, started, target);
   return { ok: true as const, space: rows[0] };
 }
@@ -314,7 +322,10 @@ async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
   if (name !== undefined && (!name.trim() || name.trim().length > 40)) {
     throw ApiError.badRequest("名称必填且不超过 40 字");
   }
-  const dateOr = (v?: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  // sort 是 int 列："abc"/1.5 曾穿透 → PG cast 500；存在时必须为整数
+  if (sort !== undefined && !Number.isInteger(sort)) {
+    throw ApiError.badRequest("sort 需为整数");
+  }
   const { rows } = await spaceRepo.update(id, userId, {
     name: name?.trim() ?? null,
     hasDescription: description !== undefined,
@@ -322,9 +333,9 @@ async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
     icon: icon?.trim() || null,
     color: color ?? null,
     hasStartedAt: startedAt !== undefined,
-    startedAt: dateOr(startedAt),
+    startedAt: calendarDateOrNull(startedAt, "开始日期"),
     hasTargetDate: targetDate !== undefined,
-    targetDate: dateOr(targetDate),
+    targetDate: calendarDateOrNull(targetDate, "目标日期"),
     status: status ?? null,
     sort: sort ?? null,
   });

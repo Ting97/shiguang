@@ -7,13 +7,11 @@ import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
  * 目标：输入随周期范围渐进变丰满（原文+日程+待办+小结链+画像），让 AI 越用越懂用户。
  */
 
-// 各周期原始动态行上限（day 自然量不设限；year 走抽样）
-export const ENTRY_CAPS = { week: 200, month: 300, year: 60 } as const;
-export const BLOCK_CAPS = { week: 100, month: 150, year: 100 } as const;
-export const TODO_CAPS = { week: 100, month: 150, year: 100 } as const;
-
 const clip = (s: string, n = 80) => (s.length > n ? s.slice(0, n) + "…" : s);
 const pad2 = (n: number) => String(n).padStart(2, "0");
+/** 北京墙钟偏移 Date：+8h 后必须读 UTC getter（生产是 UTC 容器，getMonth/getHours 等本地 getter 会差 8 小时） */
+const bj = (v: string | Date): Date => new Date(new Date(v).getTime() + 8 * 3600_000);
+const utcDayKey = (d: Date) => `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
 
 export interface EntryRow {
   created_at: string | Date;
@@ -25,9 +23,9 @@ export interface EntryRow {
 /** 原始动态行：`MM-DD HH:MM 「原文」(心情:愉快 +40)`——发布时间+原文+心情一次给全 */
 export function entryLines(rows: EntryRow[]): string[] {
   return rows.map((r) => {
-    const d = new Date(r.created_at);
+    const d = bj(r.created_at);
     const mood = r.mood ? `(心情:${r.mood}${r.mood_score != null ? ` ${r.mood_score > 0 ? "+" : ""}${r.mood_score}` : ""})` : "";
-    return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} 「${clip(r.raw_text)}」${mood}`;
+    return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} 「${clip(r.raw_text)}」${mood}`;
   });
 }
 
@@ -36,7 +34,7 @@ export function sampleEntryRows<T extends EntryRow>(rows: T[], n: number): T[] {
   const pri = (r: T) => (r.mood_score != null ? Math.abs(r.mood_score) : -1) * 1000 + clip(r.raw_text, 60).length;
   const byMonth = new Map<number, T[]>();
   for (const r of rows) {
-    const m = new Date(r.created_at).getMonth();
+    const m = bj(r.created_at).getUTCMonth();
     const list = byMonth.get(m) ?? [];
     list.push(r);
     byMonth.set(m, list);
@@ -69,11 +67,11 @@ export interface BlockRow {
 /** 日程块行：`MM-DD HH:MM-HH:MM 💼工作·开会` */
 export function blockLines(rows: BlockRow[]): string[] {
   return rows.map((r) => {
-    const s = new Date(r.start_at);
-    const e = new Date(r.end_at);
-    const sameDay = s.toDateString() === e.toDateString();
-    const day = `${pad2(s.getMonth() + 1)}-${pad2(s.getDate())}`;
-    const hm = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    const s = bj(r.start_at);
+    const e = bj(r.end_at);
+    const sameDay = utcDayKey(s) === utcDayKey(e);
+    const day = `${pad2(s.getUTCMonth() + 1)}-${pad2(s.getUTCDate())}`;
+    const hm = (d: Date) => `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     const span = sameDay ? `${hm(s)}-${hm(e)}` : `${hm(s)}-次日${hm(e)}`;
     return `${day} ${span} ${r.icon}${r.name}${r.title && r.title !== r.name ? `·${clip(r.title, 16)}` : ""}`;
   });
@@ -89,15 +87,9 @@ export function todoDoneLines(rows: TodoRow[]): string[] {
   return rows
     .filter((r) => r.done_at)
     .map((r) => {
-      const d = new Date(r.done_at!);
-      return `✅ ${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} ${clip(r.title, 30)}`;
+      const d = bj(r.done_at!);
+      return `✅ ${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} ${clip(r.title, 30)}`;
     });
-}
-
-/** 行列表截断：超限截断并附注，让模型知道数据被裁剪过 */
-export function withCap(lines: string[], cap: number, label: string): string[] {
-  if (lines.length <= cap) return lines;
-  return [...lines.slice(0, cap), `（另有 ${lines.length - cap} 条${label}未展示）`];
 }
 
 export interface ChainKey {

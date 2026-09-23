@@ -48,18 +48,22 @@ export function useTodoActions(opts: {
   const [actionDrafts, setActionDrafts] = useState<Record<string, string>>({});
   // N1：行级空间关联浮层（待办行）
   const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
+  // 添加提交防抖：busy 期间忽略重复提交（连按两次回车会 POST 两条）
+  const [addingTodo, setAddingTodo] = useState(false);
+  const [addingAction, setAddingAction] = useState(false);
 
   async function addTodo() {
     const t = newTodo.trim();
-    if (!t) return;
+    if (!t || addingTodo) return;
+    setAddingTodo(true);
     try {
       await api<any>("/api/todos", "POST", { title: t, spaceId: id });
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "添加失败" : e.message });
-        return;
-      }
-      throw e;
+      // 失败要报错（含网络错误就地消化，避免 unhandled rejection 触发整页刷新）
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "添加失败" });
+      return;
+    } finally {
+      setAddingTodo(false);
     }
     setNewTodo("");
     await load();
@@ -88,8 +92,9 @@ export function useTodoActions(opts: {
     try {
       await api<any>(`/api/todos/${todoId}`, "DELETE");
     } catch (e) {
-      // 原 fetch 版未检查响应：删除失败也照常提示并刷新
-      if (!(e instanceof ApiClientError)) throw e;
+      // 失败报错并中止，不提示成功（历史 bug：吞掉 ApiClientError 后无条件提示「已删除」）
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      return;
     }
     setMsg({ ok: true, text: "已删除" });
     await load();
@@ -202,15 +207,16 @@ export function useTodoActions(opts: {
   /** C1：手动添加行动（回车保存；行动经 parentId 继承空间归属） */
   async function addAction(t: { id: string }) {
     const title = (actionDrafts[t.id] ?? "").trim();
-    if (!title) return;
+    if (!title || addingAction) return;
+    setAddingAction(true);
     try {
       await api<any>("/api/todos", "POST", { title, parentId: t.id });
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "添加失败" : e.message });
-        return;
-      }
-      throw e;
+      // 失败要报错（含网络错误就地消化，避免 unhandled rejection 触发整页刷新）
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "添加失败" });
+      return;
+    } finally {
+      setAddingAction(false);
     }
     setActionDrafts((d) => ({ ...d, [t.id]: "" }));
     setMsg({ ok: true, text: "📌 行动已添加" });

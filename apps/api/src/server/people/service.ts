@@ -4,8 +4,10 @@
  * （同名 400、农历生日 400、亲密度/重要度 400、画像空记录 400、AI 失败 502 等）。
  */
 import { CONTACT_GROUPS, INTERACTION_TYPES } from "@shiguangri/shared/social";
-import { chat, extractJson, hasApiKey } from "@shiguangri/ai";
+import { chat, extractJson, hasApiKey, activeModel } from "@shiguangri/ai";
 import { ApiError } from "../platform/http/errors";
+import { isValidCalendarDate } from "../platform/http/datetime";
+import { checkAiQuota, writeAuditRecord, type AuditRecord } from "../ai";
 import { contactsRepo, interactionsRepo, peopleMoneyRepo } from "./repo";
 
 interface ContactUpsertBody {
@@ -23,8 +25,14 @@ interface ContactUpsertBody {
   intimacy?: number;
 }
 
-/** YYYY-MM-DD 形状校验，非法置 null */
-const dateOrNull = (v?: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+/** 生日/纪念日校验：只验形状会放行 2024-13-01 穿透 date 列 → PG 500。
+ * 显式传入非法日期按 400 拒绝（与同域「农历生日需选择月和日」等 400 语义一致）；
+ * 空/缺省仍置 null 保持宽松 */
+const dateOrNull = (v?: string | null) => {
+  if (!v) return null;
+  if (!isValidCalendarDate(v)) throw ApiError.badRequest("日期需为真实存在的日期（YYYY-MM-DD）");
+  return v;
+};
 
 /** 农历月/日取值域钳制 */
 const lunarMonthOf = (v?: number) =>
@@ -71,6 +79,7 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
     ).rows[0];
     return { contact: created };
   } catch (e) {
+    if (e instanceof ApiError) throw e; // dateOrNull 等校验的 400 不落 upstream（与 updateContact 同模式）
     if (String(e).includes("contacts_user_id_name_key")) {
       throw ApiError.badRequest(`已有联系人「${name}」`);
     }
@@ -237,6 +246,15 @@ interface AiProfile {
   facts: string[];
 }
 
+/** date/timestamptz 列（node-pg → Date 对象）→ 北京日历日串：String(Date) 得 "Wed Sep 23..." 脏串
+ * 且随宿主时区漂移，统一 +8h 归一化后再切日（与 finance/debt 同口径）；字符串入参按 YYYY-MM-DD 前缀取 */
+const bjDateStr = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (v instanceof Date) return new Date(v.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+  const s = String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+};
+
 /** GET /api/contacts/:id/ai-profile —— 只读已缓存的画像（不触发 AI；QA 验收补齐） */
 export async function cachedAiProfile(userId: string, id: string) {
   const row = await contactsRepo.aiProfileOf(id, userId);
@@ -249,6 +267,11 @@ export async function cachedAiProfile(userId: string, id: string) {
  * 只依据真实记录（往来时间线 + 人情账 + 档案备注），禁止编造；结果缓存于 contacts.ai_profile
  */
 export async function generateAiProfile(userId: string, id: string) {
+  // 配额门槛（M3）：与 trading 复盘等 AI 入口同语义——免费用户 30 天窗口额度用尽直接 402，不打 LLM
+  const q = await checkAiQuota(userId);
+  if (!q.allowed) {
+    throw new ApiError(402, "quota", `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限提炼`);
+  }
   if (!hasApiKey()) throw new ApiError(503, "upstream", "未配置 AI 服务");
 
   const contact = await contactsRepo.profileInputById(id, userId);
@@ -263,11 +286,12 @@ export async function generateAiProfile(userId: string, id: string) {
 
   const lines = [
     `人物：${contact.name}${contact.alias ? `（备注名 ${contact.alias}）` : ""}，分组 ${contact.group_tag}`,
-    contact.birthday ? `生日 ${contact.birthday}` : "",
+    // birthday 是 date 列（Date 对象）：直接内插得 "Wed Sep 23..." 脏串，必须先归一化成北京日历日
+    contact.birthday ? `生日 ${bjDateStr(contact.birthday)}` : "",
     contact.notes ? `档案备注：${contact.notes}` : "",
     interactions.length
       ? `往来记录（最近 ${interactions.length} 条）：\n${interactions
-          .map((i: Record<string, unknown>) => `- [${i.type}] ${i.summary ?? ""}${i.occurred_at ? `（${String(i.occurred_at).slice(0, 10)}）` : ""}`)
+          .map((i: Record<string, unknown>) => `- [${i.type}] ${i.summary ?? ""}${i.occurred_at ? `（${bjDateStr(i.occurred_at)}）` : ""}`)
           .join("\n")}`
       : "",
     money.length
@@ -284,6 +308,23 @@ export async function generateAiProfile(userId: string, id: string) {
   "dislikes": ["TA 的忌讳/反感/雷区（来自记录，没有就空数组）"],
   "facts": ["值得记住的重要事实（如家人生日、口味、约定）"]
 }`;
+
+  // 审计计量（成本监控，与 decompose/trading 复盘同落 audit_logs）；writeAuditRecord 内部自兜底，绝不抛错
+  const t0 = Date.now();
+  const audit = (ok: boolean, error?: string) =>
+    writeAuditRecord({
+      userId,
+      entryId: id,
+      // audit_logs.stage 为自由文本列；AuditRecord 联合类型归 ai 域维护、暂未收录 ai_profile，
+      // 这里经 string 断言写入新 stage（getQuota 只按 parse/review/asr 计费，ai_profile 不占免费额度）
+      stage: "ai_profile" as string as AuditRecord["stage"],
+      model: activeModel(),
+      engine: "ai_profile",
+      latencyMs: Date.now() - t0,
+      textLen: lines.join("\n").length,
+      ok,
+      error: error ?? null,
+    });
 
   let profile: AiProfile;
   try {
@@ -303,8 +344,10 @@ export async function generateAiProfile(userId: string, id: string) {
       facts: arr(parsed.facts),
     };
   } catch (e) {
+    await audit(false, String(e).slice(0, 300));
     throw new ApiError(502, "upstream", `AI 提炼失败：${e instanceof Error ? e.message : e}`);
   }
+  await audit(true);
 
   const updated = (
     await contactsRepo.setAiProfile(id, userId, JSON.stringify(profile))

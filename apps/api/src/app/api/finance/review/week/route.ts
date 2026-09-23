@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { hasApiKey } from "@shiguangri/ai";
 import { withModule } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { getOrGenerateReview, acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle, assembleUserPrompt } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight";
@@ -11,7 +13,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TZ = "Asia/Shanghai";
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(0)}`;
@@ -25,8 +26,12 @@ interface WeekReview {
 /** GET /api/finance/review/week?date= —— 只读缓存（不调 LLM、不耗配额）；无缓存返回 {review:null} */
 export const GET = withModule("trade_review", async (req, { user }) => {
   const { searchParams } = new URL(req.url);
-  const q = searchParams.get("date") ?? bjToday();
-  const anchor = DATE_RE.test(q) ? q : bjToday();
+  const q = searchParams.get("date");
+  // 形状校验放行 2025-13-01 → bjMondayOf RangeError 500：必须为真实日历日
+  if (q !== null && !isValidCalendarDate(q)) {
+    throw ApiError.badRequest("date 需为真实存在的 YYYY-MM-DD 日期");
+  }
+  const anchor = q ?? bjToday();
   const from = bjMondayOf(anchor);
   const hit = await pool.query(
     `select review, updated_at from review_caches where user_id = $1 and kind = 'trade_week' and period_key = $2`,
@@ -54,10 +59,10 @@ export const POST = withModule("trade_review", async (req, { user }) => {
     }
   }
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
-  const anchor = date && DATE_RE.test(date) ? date : bjToday();
-  if (date && !DATE_RE.test(date)) {
-    return NextResponse.json({ error: "date 需为 YYYY-MM-DD" }, { status: 400 });
+  if (date && !isValidCalendarDate(date)) {
+    return NextResponse.json({ error: "date 需为真实存在的 YYYY-MM-DD 日期" }, { status: 400 });
   }
+  const anchor = date ?? bjToday();
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
   const from = bjMondayOf(anchor);

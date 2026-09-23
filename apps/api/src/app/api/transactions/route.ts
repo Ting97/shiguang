@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidYearMonth, optionalTrimmed, assertUuidParam } from "@/server/platform/http/validate";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
@@ -14,8 +15,9 @@ export const GET = withAuth(async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
   const status = url.searchParams.get("status") ?? "all";
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    throw ApiError.badRequest("month 需为 YYYY-MM");
+  // 仅验形状会放行 2025-13 → to_char 永不命中静默空数据：月份需在 01-12
+  if (!isValidYearMonth(month)) {
+    throw ApiError.badRequest("month 需为 YYYY-MM（月份 01-12）");
   }
   const draftCond =
     status === "draft" ? " and t.is_draft = true" : status === "confirmed" ? " and t.is_draft = false" : "";
@@ -52,10 +54,13 @@ export const POST = withAuth(async (req, { user }) => {
   if (!Number.isInteger(body.amountCents) || (body.amountCents ?? 0) <= 0) {
     throw ApiError.badRequest("金额必须大于 0");
   }
-  const category = body.category?.trim() || "其他";
+  // 可选字符串字段预检：非字符串（如 123）原 `?.trim()` 会 TypeError → 500，统一 400
+  const category = optionalTrimmed(body.category, "category") || "其他";
   if (!TX_CATEGORIES.includes(category)) {
     throw ApiError.badRequest("无效分类");
   }
+  const counterparty = optionalTrimmed(body.counterparty, "counterparty") ?? null;
+  const note = optionalTrimmed(body.note, "note") ?? null;
   const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
   if (isNaN(occurredAt.getTime())) {
     throw ApiError.badRequest("时间格式不正确");
@@ -64,6 +69,7 @@ export const POST = withAuth(async (req, { user }) => {
   // 账户归属校验（只能挂自己的账户）
   let accountId: string | null = null;
   if (body.accountId) {
+    assertUuidParam(body.accountId, "accountId"); // 非法 uuid 落 SQL 会 22P02 → 500
     const owned = await pool.query(
       `select id from accounts where id = $1 and user_id = $2 and archived = false`,
       [body.accountId, user.id],
@@ -84,8 +90,8 @@ export const POST = withAuth(async (req, { user }) => {
         body.amountCents,
         category,
         accountId,
-        body.counterparty?.trim() || null,
-        body.note?.trim() || null,
+        counterparty,
+        note,
         occurredAt.toISOString(),
       ],
     )

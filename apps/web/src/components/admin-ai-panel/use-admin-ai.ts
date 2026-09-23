@@ -13,6 +13,8 @@ import { useAdminUserData } from "./use-admin-user-data";
  */
 export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   const [items, setItems] = useState<PromptItem[] | null>(null);
+  // 清单加载失败态：失败要落明确错误（否则 items 永远 null，面板停在永久「加载中」）
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [sel, setSel] = useState<PromptItem | null>(null);
   const [draft, setDraft] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -41,11 +43,14 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   const ud = useAdminUserData(notify, sel);
 
   const load = useCallback(async () => {
+    setLoadErr(null);
     try {
       const j = await api<any>("/api/admin/prompts");
       setItems(j.items as PromptItem[]);
       return j.items as PromptItem[];
     } catch (e) {
+      // 失败置错误终态（面板据此展示重试按钮），不再只 notify 后停在永久「加载中」
+      setLoadErr(e instanceof Error ? e.message : "加载失败");
       notify(e instanceof Error ? e.message : "加载失败", false);
     }
   }, [notify]);
@@ -71,6 +76,13 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
       .catch(() => {});
     // （原文件的 react-hooks/exhaustive-deps disable 注释不迁移：该规则在本仓库 eslint 配置中已全局关闭）
   }, []);
+
+  /** 首次加载失败后的重试：与 useEffect 首载同语义（重拉清单并选中第一项） */
+  function retryLoad() {
+    void load().then((list) => {
+      if (list?.length) pick(list[0]);
+    });
+  }
 
   async function switchEngineMode(mode: EngineMode) {
     if (engineSaving || mode === engineMode) return;
@@ -234,6 +246,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
 
   return {
     items,
+    loadErr,
     sel,
     draft,
     setDraft,
@@ -276,6 +289,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     ...ud,
     switchEngineMode,
     pick,
+    retryLoad,
     save,
     revertDefault,
     rollback,

@@ -126,7 +126,9 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       latencyMs: Date.now() - t0, ok: false, error: String(e).slice(0, 300),
       promptTokens, completionTokens,
     });
-    return NextResponse.json({ error: `AI 拆解失败，请稍后再试（${String(e).slice(0, 80)}）` }, { status: 502 });
+    // 固定文案：原始错误只进服务端日志/审计，不外泄到响应
+    console.warn(`[decompose] 生成失败: ${String(e).slice(0, 300)}`);
+    return NextResponse.json({ error: "AI 拆解失败，请稍后再试" }, { status: 502 });
   }
   void writeAuditRecord({
     userId: user.id, entryId: null, stage: "decompose",

@@ -44,7 +44,8 @@ export function OverviewCard({
         </div>
         <div>
           <p className="text-[11px] text-ink-dim">结余</p>
-          <p className={`mt-1 text-xl font-bold tabular-nums ${ov.inCents - ov.outCents >= 0 ? "text-accent" : "text-danger"}`}>
+          {/* whitespace-nowrap：移动端窄容器会把 -¥1506.50 从负号后断行成「-」/「¥1506.50」两行 */}
+          <p className={`mt-1 whitespace-nowrap text-xl font-bold tabular-nums ${ov.inCents - ov.outCents >= 0 ? "text-accent" : "text-danger"}`}>
             {fmtMoney(ov.inCents - ov.outCents)}
           </p>
           {rate != null && <p className="mt-0.5 text-[10px] text-ink-dim">储蓄率 {rate}%</p>}

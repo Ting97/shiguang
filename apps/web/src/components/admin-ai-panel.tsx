@@ -20,7 +20,19 @@ import { useAdminAi } from "./admin-ai-panel/use-admin-ai";
 export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: boolean) => void }) {
   const ai = useAdminAi(notify);
 
-  if (!ai.items) return <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>;
+  // 首次加载失败：明确错误态 + 重试按钮（历史 bug：失败后 items 永远 null → 永久「加载中」）
+  if (!ai.items) {
+    return ai.loadErr ? (
+      <div className="py-10 text-center">
+        <p className="text-xs text-danger">加载失败：{ai.loadErr}</p>
+        <button onClick={ai.retryLoad} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+          重试
+        </button>
+      </div>
+    ) : (
+      <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+    );
+  }
 
   return (
     <div>

@@ -98,23 +98,30 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
 async function unzipEntries(buf: ArrayBuffer): Promise<ZipEntry[]> {
   const u8 = new Uint8Array(buf);
   const dv = new DataView(buf);
+  const badZip = () => new Error("解析失败：不是有效的 xlsx（zip）文件，请确认由 MT5 导出");
   let eocd = -1;
   for (let i = u8.length - 22; i >= Math.max(0, u8.length - 22 - 65535) && eocd < 0; i--) {
     if (dv.getUint32(i, true) === 0x06054b50) eocd = i;
   }
-  if (eocd < 0) throw new Error("解析失败：不是有效的 xlsx（zip）文件，请确认由 MT5 导出");
+  if (eocd < 0) throw badZip();
   const total = dv.getUint16(eocd + 10, true);
   if (total === 0xffff) throw new Error("解析失败：不支持 zip64 格式，请用 MT5 直接导出的报表");
   let ptr = dv.getUint32(eocd + 16, true);
   const entries: ZipEntry[] = [];
-  for (let n = 0; n < total && dv.getUint32(ptr, true) === 0x02014b50; n++) {
+  // 损坏 zip 的偏移是任意值：每步 DataView 读取前校验边界，越界统一走友好错误（而非裸 RangeError）
+  for (let n = 0; n < total; n++) {
+    if (ptr + 46 > u8.length) throw badZip();
+    if (dv.getUint32(ptr, true) !== 0x02014b50) break; // 目录提前结束（正常 zip 以 EOCD 收尾）
     const nameLen = dv.getUint16(ptr + 28, true);
+    const extraLen = dv.getUint16(ptr + 30, true);
+    const commentLen = dv.getUint16(ptr + 32, true);
     const compSize = dv.getUint32(ptr + 20, true);
     const method = dv.getUint16(ptr + 10, true);
     const lho = dv.getUint32(ptr + 42, true);
+    if (ptr + 46 + nameLen + extraLen + commentLen > u8.length) throw badZip();
     const name = TD.decode(u8.subarray(ptr + 46, ptr + 46 + nameLen));
-    ptr += 46 + nameLen + dv.getUint16(ptr + 30, true) + dv.getUint16(ptr + 32, true);
-    if (dv.getUint32(lho, true) !== 0x04034b50) continue;
+    ptr += 46 + nameLen + extraLen + commentLen;
+    if (lho + 30 > u8.length || dv.getUint32(lho, true) !== 0x04034b50) continue;
     const dataStart = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
     const raw = u8.subarray(dataStart, dataStart + compSize);
     if (method !== 0 && method !== 8) continue;

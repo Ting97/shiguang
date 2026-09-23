@@ -13,6 +13,13 @@ interface Props {
 
 const PX_PER_MIN = 0.3; // 一天 432px 竖条
 
+/** 块与 [fromMs, fromMs + spanMin 分钟) 区间的交集分钟数（跨天块只计落在区间内的部分，列小计与周合计同口径） */
+const clampMin = (b: Block, fromMs: number, spanMin: number) => {
+  const s = Math.max(Math.min((new Date(b.start_at).getTime() - fromMs) / 60_000, spanMin), 0);
+  const e = Math.max(Math.min((new Date(b.end_at).getTime() - fromMs) / 60_000, spanMin), 0);
+  return e - s;
+};
+
 /** 周视图：7 列缩略时间条 + 各类合计 */
 export default function WeekView({ days, blocks, activities, onPickDay }: Props) {
   const dayStarts = new Map(days.map((d) => [d, new Date(d + "T00:00:00").getTime()]));
@@ -28,9 +35,10 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
     }
   }
 
-  // 各类合计（水平堆叠条）
+  // 各类合计：与列小计同口径，按本周 7 天交集钳制求和（跨周块全额计入会和列内小计对不上）
+  const weekFromMs = dayStarts.get(days[0]) ?? 0;
   const totals: Record<string, number> = {};
-  for (const b of blocks) totals[b.activity_id] = (totals[b.activity_id] ?? 0) + b.duration_min;
+  for (const b of blocks) totals[b.activity_id] = (totals[b.activity_id] ?? 0) + clampMin(b, weekFromMs, 7 * 1440);
   const grand = Object.values(totals).reduce((s, v) => s + v, 0);
   const actMap = new Map(activities.map((a) => [a.id, a]));
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
@@ -45,12 +53,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
           const list = byDay.get(d) ?? [];
           const day0 = dayStarts.get(d) ?? 0;
           // 每列合计按当天交集算，跨天块不重复计入两天
-          const clampMin = (b: Block) => {
-            const s = Math.max(Math.min((new Date(b.start_at).getTime() - day0) / 60_000, 1440), 0);
-            const e = Math.max(Math.min((new Date(b.end_at).getTime() - day0) / 60_000, 1440), 0);
-            return e - s;
-          };
-          const total = list.reduce((s, b) => s + clampMin(b), 0);
+          const total = list.reduce((s, b) => s + clampMin(b, day0, 1440), 0);
           const isToday = d === todayStr();
           return (
             <button key={d} onClick={() => onPickDay(d)} className="group text-left">

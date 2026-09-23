@@ -20,16 +20,12 @@ const HIT_SQL: Record<VerifyChannel, string> = {
    returning id`,
 };
 
-/** 未命中时对最新一条未过期记录累计失败次数（尽力而为，非原子也不影响一次性语义） */
+/** 未命中时对全部未过期记录累计失败次数（旧实现只烧最新一条：60s 间隔连发并存时，旧码错 5 次永不作废） */
 const BUMP_SQL: Record<VerifyChannel, string> = {
   sms_codes: `update sms_codes set attempts = attempts + 1
-   where id = (select id from sms_codes
-               where phone = $1 and purpose = $2 and expires_at > now()
-               order by created_at desc limit 1)`,
+   where phone = $1 and purpose = $2 and expires_at > now()`,
   email_codes: `update email_codes set attempts = attempts + 1
-   where id = (select id from email_codes
-               where email = $1 and purpose = $2 and expires_at > now()
-               order by created_at desc limit 1)`,
+   where email = $1 and purpose = $2 and expires_at > now()`,
 };
 
 /** 校验并一次性核销验证码：正确且未过期 → true（该行已删）；否则 false */

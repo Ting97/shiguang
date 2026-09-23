@@ -11,9 +11,10 @@ import { api, zhDay } from "./kit";
 export /* ---------- 子组件 ---------- */
 
 function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () => void; onEdit?: () => void; onDelete?: () => void }) {
-  const d = new Date(t.occurred_at);
-  const sameYear = d.getFullYear() === new Date().getFullYear();
-  const compactDay = `${sameYear ? "" : `${String(d.getFullYear()).slice(2)}/`}${d.getMonth() + 1}/${d.getDate()}`;
+  // 北京时间口径：UTC getter + 8h（本地 getter 在非中国时区设备会错 8 小时）
+  const d = new Date(new Date(t.occurred_at).getTime() + 8 * 3600_000);
+  const sameYear = d.getUTCFullYear() === new Date(Date.now() + 8 * 3600_000).getUTCFullYear();
+  const compactDay = `${sameYear ? "" : `${String(d.getUTCFullYear()).slice(2)}/`}${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
   return (
     <>
       {/* 上行：徽章 + 分类/对方/备注 + 金额；窄屏自动折行后下行是 日期+账户+操作 */}
@@ -107,6 +108,7 @@ export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel
   const [limit, setLimit] = useState(ov.budget.monthly_limit_cents > 0 ? String(ov.budget.monthly_limit_cents / 100) : "");
   const [threshold, setThreshold] = useState(ov.budget.alert_threshold);
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -137,10 +139,14 @@ export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel
           disabled={busy}
           onClick={async () => {
             setBusy(true);
+            setMsg(null);
             try {
               const cents = limit ? Math.round(parseFloat(limit) * 100) : 0;
               await api("/api/budget", "PUT", { monthlyLimitCents: Number.isFinite(cents) ? cents : 0, alertThreshold: threshold });
               await onSaved();
+            } catch (e) {
+              // 失败就地提示（无 catch 会 unhandled rejection 且弹层卡在编辑态没有反馈）
+              setMsg(e instanceof Error ? e.message : "保存失败");
             } finally {
               setBusy(false);
             }
@@ -150,6 +156,7 @@ export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel
           保存
         </button>
       </span>
+      {msg && <p className="w-full text-[11px] text-danger">{msg}</p>}
     </div>
   );
 }

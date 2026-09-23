@@ -6,18 +6,24 @@ import { ApiError } from "@/server/platform/http/errors";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/accounts —— 全部账户（含动态余额） */
+/** GET /api/accounts —— 全部账户（含动态余额 + 备付参与标记；camelCase 规范字段，snake_case 旧别名兼容一版） */
 export const GET = withAuth(async (_req, { user }) => {
   const { rows } = await pool.query(
-    `select a.id, a.name, a.icon, a.sort_order, a.opening_balance_cents,
-            (a.opening_balance_cents + coalesce((
-               select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
-               from transactions t
-               where t.account_id = a.id and t.is_draft = false
-             ), 0))::int as balance_cents
-     from accounts a
-     where a.user_id = $1 and a.archived = false
-     order by a.sort_order, a.created_at`,
+    `select x.id, x.name, x.icon, x.sort_order,
+            x.opening_balance_cents, x.opening_balance_cents as "openingBalanceCents",
+            x.balance_cents, x.balance_cents as "balanceCents",
+            coalesce(x.reserve_tracked, false) as "reserveTracked"
+     from (
+       select a.id, a.name, a.icon, a.sort_order, a.created_at, a.opening_balance_cents, a.reserve_tracked,
+              (a.opening_balance_cents + coalesce((
+                 select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
+                 from transactions t
+                 where t.account_id = a.id and t.is_draft = false
+               ), 0))::int as balance_cents
+       from accounts a
+       where a.user_id = $1 and a.archived = false
+     ) x
+     order by x.sort_order, x.created_at`,
     [user.id],
   );
   return NextResponse.json({ accounts: rows });

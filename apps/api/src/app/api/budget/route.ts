@@ -26,7 +26,11 @@ export const PUT = withAuth(async (req, { user }) => {
   if (!Number.isInteger(body.monthlyLimitCents) || (body.monthlyLimitCents ?? 0) < 0) {
     throw ApiError.badRequest("上限需为非负整数（分，0=不设上限）");
   }
-  const threshold = Math.min(Math.max(body.alertThreshold ?? 80, 1), 100);
+  // 非数值（如 "高"）先 400：否则 Math.max 产 NaN → int 列 500；数值再 clamp（取整防小数落 int 列）
+  if (body.alertThreshold !== undefined && (typeof body.alertThreshold !== "number" || !Number.isFinite(body.alertThreshold))) {
+    throw ApiError.badRequest("提醒阈值需为数值");
+  }
+  const threshold = Math.round(Math.min(Math.max(body.alertThreshold ?? 80, 1), 100));
   const { rows } = await pool.query(
     `insert into budgets (user_id, monthly_limit_cents, alert_threshold)
      values ($1, $2, $3)

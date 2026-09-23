@@ -12,16 +12,17 @@ import WeekReviewCard from "@/app/calendar/week-review-card";
 import MonthReviewCard from "@/app/calendar/month-review-card";
 import YearReviewCard from "@/app/calendar/year-review-card";
 import {
-  addDays, parseYmd, startOfMonth, startOfWeek, startOfYear, todayStr,
+  addDays, bjToday, parseYmd, startOfMonth, startOfWeek, startOfYear,
   weekName, ymd, zhDate, zhDuration,
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { combineHM, zhTime } from "@/lib/bj-time";
 
 /** 日程页 · 日历子页：原 /calendar 页的四视图（日/周/月/年）+ AI 复盘，逻辑不变整体平移 */
 export default function CalendarPanel({ initialAnchor }: { initialAnchor?: string }) {
   const [view, setView] = useState<"day" | "week" | "month" | "year">("day");
-  const [anchor, setAnchor] = useState<string>(todayStr()); // 当前锚定日期
+  const [anchor, setAnchor] = useState<string>(bjToday()); // 当前锚定日期（北京口径，海外设备的本地日会错 8 小时）
   // ?date= 直达锚定：参数在父层 useEffect 里才解析出来（晚于本组件首帧），定义后一次性采纳
   const anchoredRef = useRef(false);
   useEffect(() => {
@@ -95,6 +96,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     else if (view === "week") setAnchor(addDays(anchor, dir * 7));
     else if (view === "month") {
       const d = parseYmd(anchor);
+      d.setDate(1); // 锚定在 29~31 日时 setMonth 会滚到下下月（如 1/31 → 3/3），先钉回 1 号再翻月
       d.setMonth(d.getMonth() + dir);
       setAnchor(ymd(d));
     } else setAnchor(`${Number(anchor.slice(0, 4)) + dir}-06-15`);
@@ -102,7 +104,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
 
   // ----- 日视图编辑/补录 -----
   function startEdit(b: Block) {
-    setEditing({ id: b.id, title: b.title, start: zhTimeC(b.start_at), end: zhTimeC(b.end_at), activityId: b.activity_id });
+    setEditing({ id: b.id, title: b.title, start: zhTime(b.start_at), end: zhTime(b.end_at), activityId: b.activity_id });
   }
   async function saveEdit() {
     if (!editing) return;
@@ -112,17 +114,12 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     }
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
-    const withHM = (iso: string, hm: string) => {
-      const d = new Date(iso);
-      const [h, m] = hm.split(":").map(Number);
-      d.setHours(h, m, 0, 0);
-      return d.toISOString();
-    };
     try {
       await api<any>(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
-        startAt: withHM(b.start_at, editing.start),
-        endAt: withHM(b.end_at, editing.end),
+        // 存储口径与首页统一（北京时间 combineHM）：本地 setHours 在海外设备会存出错 8 小时的时刻
+        startAt: combineHM(b.start_at, editing.start),
+        endAt: combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
       });
     } catch (e) {
@@ -191,7 +188,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
           <button onClick={() => shift(-1)} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-elevated/80">‹</button>
           <h2 className="text-gradient min-w-44 text-center text-lg font-semibold">{title}</h2>
           <button onClick={() => shift(1)} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50 hover:bg-elevated/80">›</button>
-          <button onClick={() => setAnchor(todayStr())} className="ml-1 whitespace-nowrap rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-ink-soft transition hover:border-sky-500/50 hover:bg-elevated/80">今天</button>
+          <button onClick={() => setAnchor(bjToday())} className="ml-1 whitespace-nowrap rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-ink-soft transition hover:border-sky-500/50 hover:bg-elevated/80">今天</button>
         </div>
         <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs">
           {([["day", "日"], ["week", "周"], ["month", "月"], ["year", "年"]] as [typeof view, string][]).map(([v, label]) => (
@@ -262,9 +259,3 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     </>
   );
 }
-
-const padC = (n: number) => String(n).padStart(2, "0");
-const zhTimeC = (iso: string) => {
-  const d = new Date(iso);
-  return `${padC(d.getHours())}:${padC(d.getMinutes())}`;
-};

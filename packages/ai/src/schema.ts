@@ -25,6 +25,21 @@ export const TimeMode = z.enum(["explicit", "relative", "default", "future"]);
 // 容错为 0.5（低于 CONFIDENCE_THRESHOLD → 该域转 pending 待确认），宁让人工确认不可信结果
 const llmConfidence = z.coerce.number().min(0).max(1).catch(0.5);
 
+/** 模型布尔容错：z.coerce.boolean 会把字符串 "false" 强转成 true——纯感想句被模板字段幻影出日程/流水；
+ * 这里只收真布尔/"true"/"false"/1/0，缺答或垃圾值按校验失败走修复重问（V2 漏答即不合格语义不变） */
+const llmBoolean = z.any().transform((v, ctx) => {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "true") return true;
+    if (t === "false") return false;
+  }
+  if (v === 1) return true;
+  if (v === 0) return false;
+  ctx.addIssue({ code: z.ZodIssueCode.custom, message: "布尔字段需为 true/false" });
+  return z.NEVER;
+});
+
 export const TimeBlock = z.object({
   mode: TimeMode,
   start: z.string().datetime({ offset: true }),
@@ -152,12 +167,12 @@ const localMoment = z
 /** 严格日程域：applicable=true → start/end 必填且 end 晚于 start */
 export const ScheduleDraftV2 = z
   .object({
-    applicable: z.coerce.boolean(),
+    applicable: llmBoolean,
     activity: ActivityId,
     title: z.string().max(30),
     start: localMoment.nullish(),
     end: localMoment.nullish(),
-    durationMin: z.coerce.number().int().positive().nullish(),
+    durationMin: z.coerce.number().int().positive().max(24 * 60).nullish(),
     periodHint: z
       .enum(["now", "morning", "noon", "afternoon", "evening", "night", "lateNight"])
       .nullish()
@@ -181,7 +196,7 @@ export const ScheduleDraftV2 = z
 /** 严格待办域：applicable=true → due 必填 */
 export const TodoDraftV2 = z
   .object({
-    applicable: z.coerce.boolean(),
+    applicable: llmBoolean,
     due: localMoment.nullish(),
     confidence: llmConfidence,
   })
@@ -194,9 +209,9 @@ export const TodoDraftV2 = z
 /** 严格收支域：hasAmount=true → 金额与方向必填 */
 export const FinanceDraftV2 = z
   .object({
-    hasAmount: z.coerce.boolean(),
+    hasAmount: llmBoolean,
     direction: z.enum(["out", "in"]).nullish(),
-    amountCents: z.coerce.number().int().nullish(),
+    amountCents: z.coerce.number().int().max(100_000_000).nullish(),
     category: z.string().nullish(),
     counterparty: z.string().nullish(),
     confidence: llmConfidence,
@@ -236,7 +251,7 @@ export const DietItemV2 = z.object({
 });
 export const DietDraftV2 = z
   .object({
-    applicable: z.coerce.boolean(),
+    applicable: llmBoolean,
     meal: z.enum(["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"]).nullish().transform((m) => m ?? "未知"),
     items: z.array(DietItemV2).default([]),
     totalKcal: z.coerce.number().int().nullish(),

@@ -149,3 +149,94 @@ test("confidence 容错：缺失同样回落 0.5；合法值不受影响", () =>
   const good = SpaceClassification.parse({ spaceId: null, confidence: 0.95 });
   assert.equal(good.confidence, 0.95);
 });
+
+/* ---- 回归5：跨午夜区间早晨补记（07:30 说「10.30到6.30睡觉」曾记成今晚的未来块） ---- */
+import { anchorRangeToToday } from "../src/time-infer.js";
+import { FinanceDraftV2 } from "../src/schema.js";
+
+test("跨午夜早晨补记：规则路径归昨晚（起点在未来才回移，晚间说保留今晚）", () => {
+  // 北京 2026-09-20 07:30（= 09-19T23:30Z）
+  const morning = new Date("2026-09-19T23:30:00Z");
+  const tb = inferTimeBlock("晚上10.30到6.30睡觉", morning, 480, "evening");
+  assert.equal(tb.start.getTime(), CST("2026-09-19T22:30:00+08:00"), "起点=昨晚22:30");
+  assert.equal(tb.end.getTime(), CST("2026-09-20T06:30:00+08:00"), "终点=今晨06:30");
+  assert.equal(tb.durationMin, 480);
+
+  // 晚间 21:00 说同样的话：起点已在今晚 → 保留今晚（不当昨晚处理）
+  const evening = new Date("2026-09-20T13:00:00Z"); // 北京 21:00
+  const tb2 = inferTimeBlock("晚上10.30到6.30睡觉", evening, 480, "evening");
+  assert.equal(tb2.start.getTime(), CST("2026-09-20T22:30:00+08:00"));
+  assert.equal(tb2.end.getTime(), CST("2026-09-21T06:30:00+08:00"));
+});
+
+test("AI 锚定：跨午夜区间终点落今天（早晨补记昨晚睡眠）→ 保留不前移", () => {
+  const now = new Date("2026-09-19T23:30:00Z"); // 北京 09-20 07:30
+  const range = {
+    start: new Date(CST("2026-09-19T22:30:00+08:00")), // 模型给了昨晚 22:30
+    end: new Date(CST("2026-09-20T06:30:00+08:00")),   // 今晨 06:30
+  };
+  const r = anchorRangeToToday(range, "睡觉", now);
+  assert.equal(r.start.getTime(), range.start.getTime(), "已整体过去的昨晚区间不动");
+  assert.equal(r.end.getTime(), range.end.getTime());
+});
+
+test("AI 锚定：终点也在昨天的漂移区间（白天说下午2-6点）→ 仍归今天（原事故语义不变）", () => {
+  const now = new Date("2026-09-20T09:22:00Z"); // 北京 09-20 17:22
+  const r = anchorRangeToToday(
+    { start: new Date(CST("2026-09-19T14:00:00+08:00")), end: new Date(CST("2026-09-19T18:00:00+08:00")) },
+    "下午2点到6点在写代码",
+    now,
+  );
+  assert.equal(r.start.getTime(), CST("2026-09-20T14:00:00+08:00"));
+  assert.equal(r.end.getTime(), CST("2026-09-20T18:00:00+08:00"));
+});
+
+/* ---- 回归6：V2 域布尔契约（z.coerce.boolean 曾把 "false" 强转 true → 幻影日程/流水） ---- */
+
+test("llmBoolean：字符串 \"false\" 是 false，\"true\"/true 是 true，缺答仍校验失败", () => {
+  const off = ScheduleDraftV2.safeParse({
+    applicable: "false", activity: "other", title: "有点累",
+    start: null, end: null, confidence: 0.9,
+  });
+  assert.equal(off.success, true);
+  assert.equal(off.success ? off.data.applicable : null, false, "\"false\" 不得强转 true");
+
+  const on = ScheduleDraftV2.parse({
+    applicable: "true", activity: "study", title: "背单词",
+    start: "2026-09-24T08:00", end: "2026-09-24T08:40", confidence: 0.9,
+  });
+  assert.equal(on.applicable, true);
+
+  const missing = ScheduleDraftV2.safeParse({
+    activity: "study", title: "背单词",
+    start: "2026-09-24T08:00", end: "2026-09-24T08:40", confidence: 0.9,
+  });
+  assert.equal(missing.success, false, "V2 漏答即不合格语义保留（触发修复重问）");
+
+  const fin = FinanceDraftV2.parse({ hasAmount: "false", direction: "out", amountCents: null, confidence: 0.9 });
+  assert.equal(fin.hasAmount, false);
+});
+
+test("V2 上限：超大金额/时长不再放行（防 PG int4 溢出 500）", () => {
+  const huge = FinanceDraftV2.safeParse({ hasAmount: true, direction: "out", amountCents: 999_999_999_999, confidence: 0.9 });
+  assert.equal(huge.success, false);
+  const long = ScheduleDraftV2.safeParse({
+    applicable: true, activity: "sleep", title: "睡觉",
+    start: "2026-09-24T08:00", end: "2026-09-24T09:00",
+    durationMin: 999_999, confidence: 0.9,
+  });
+  assert.equal(long.success, false);
+});
+
+/* ---- 回归7：金额万/千量词 + 钟点上下文的"Y分"不再误判为时长 ---- */
+
+test("parseAmountCents：'花了1万'=100万分，'花了2千'=20万分，裸数字不变", () => {
+  assert.equal(parseAmountCents("今天花了1万买手机"), 1_000_000);
+  assert.equal(parseAmountCents("花了2千请客"), 200_000);
+  assert.equal(parseAmountCents("花了260"), 26_000);
+});
+
+test("parseDuration：'下午3点50分开了个会' 不再把 50 当时长", () => {
+  assert.equal(parseDuration("下午3点50分开了个会"), null);
+  assert.equal(parseDuration("开了50分钟的会"), 50); // 真时长不受影响
+});

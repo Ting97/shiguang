@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import { TagChip, TONE_BG } from "@/components/tag-chip";
-import { api } from "@/lib/client-api";
+import { api, ApiClientError } from "@/lib/client-api";
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
 import { GROUP_TONE } from "@/lib/group-tone";
 import { InteractionFormModal } from "../../../components/contacts/interaction-form-modal";
@@ -77,6 +77,9 @@ export function ContactDetailPage() {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [money, setMoney] = useState<MoneyItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // 加载失败态：与 404（真不存在）区分开（历史 bug：请求失败也渲染「联系人不存在」）
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [rev, setRev] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -105,10 +108,19 @@ export function ContactDetailPage() {
 
   useEffect(() => {
     setLoading(true);
+    setLoadErr(null);
     load()
-      .catch((e) => setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }))
+      .catch((e) => {
+        // 404 才是「不存在」；其余失败置错误态（信息可见 + 重试），不再伪装成 404
+        if (e instanceof ApiClientError && e.status === 404) setContact(null);
+        else setLoadErr(e instanceof Error ? e.message : String(e));
+      })
       .finally(() => setLoading(false));
-  }, [load]);
+  }, [load, rev]);
+
+  function retryLoad() {
+    setRev((r) => r + 1);
+  }
 
   useEffect(() => {
     if (!msg) return;
@@ -121,6 +133,20 @@ export function ContactDetailPage() {
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <Skeleton rows={3} className="py-2" />
+        </div>
+      </main>
+    );
+  }
+  if (loadErr) {
+    return (
+      <main className="min-h-screen text-ink">
+        <div className="mx-auto max-w-2xl px-5 py-8">
+          <div className="py-16 text-center">
+            <p className="text-sm text-danger">加载失败：{loadErr}</p>
+            <button onClick={retryLoad} className="btn-primary mt-3 rounded-xl px-5 py-2 text-xs">
+              重试
+            </button>
+          </div>
         </div>
       </main>
     );

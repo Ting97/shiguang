@@ -23,8 +23,14 @@ export default function ActivityPanel() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
-    const j = await api<any>("/api/activities");
-    setList(j.activities ?? []);
+    try {
+      const j = await api<any>("/api/activities");
+      setList(j.activities ?? []);
+    } catch (e) {
+      // 失败置空列表 + 提示（裸 rejection 会触发 ChunkErrorReloader 整页刷新循环）
+      setList([]);
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "加载失败" });
+    }
   }, []);
   useEffect(() => {
     load();
@@ -90,7 +96,7 @@ export default function ActivityPanel() {
         <input
           value={adding.name}
           onChange={(e) => setAdding({ ...adding, name: e.target.value })}
-          onKeyDown={(e) => e.key === "Enter" && add()}
+          onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && add()}
           placeholder="新分类名称（如：带娃 / 冥想 / 副业）"
           maxLength={30}
           className="min-w-36 flex-1 rounded border border-line-strong bg-surface px-2.5 py-2 text-sm outline-none focus:border-sky-500"

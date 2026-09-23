@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withModule } from "@/server/platform/http/route";
+import { ApiError } from "@/server/platform/http/errors";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { categoryBreakdown } from "@shiguangri/shared/finance";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 
@@ -8,14 +10,18 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TZ = "Asia/Shanghai";
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 
 /** GET /api/finance/stats?period=day|week&date=YYYY-MM-DD —— 交易统计（纯 SQL，零 AI 消耗，FR-C2.7 ①） */
 export const GET = withModule("trade_review", async (req, { user }) => {
   const url = new URL(req.url);
   const period = url.searchParams.get("period") === "week" ? "week" : "day";
-  const date = DATE_RE.test(url.searchParams.get("date") ?? "") ? url.searchParams.get("date")! : bjToday();
+  const q = url.searchParams.get("date");
+  // 形状校验放行 2025-13-01 → bjAddDays/bjMondayOf RangeError 500：必须为真实日历日
+  if (q !== null && !isValidCalendarDate(q)) {
+    throw ApiError.badRequest("date 需为真实存在的 YYYY-MM-DD 日期");
+  }
+  const date = q ?? bjToday();
 
   const totals = async (cond: string, params: unknown[]) => {
     const { rows } = await pool.query(

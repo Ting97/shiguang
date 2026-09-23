@@ -288,17 +288,17 @@ export default function DebtPage() {
                       {d.pay_day != null && <span>每月 {d.pay_day} 日</span>}
                       {d.due_date && <span>{d.due_date} 到期</span>}
                     </div>
-                    {/* 进度条：已还本金占比 */}
+                    {/* 进度条：已还本金占比（余额可能大于本金，宽度和文案都要防负数） */}
                     {d.principal_cents > 0 && (
                       <div className="mt-2">
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-elevated">
                           <div
                             className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-400 transition-all duration-500"
-                            style={{ width: `${Math.min(100, ((d.principal_cents - d.balance_cents) / d.principal_cents) * 100)}%` }}
+                            style={{ width: `${Math.max(0, Math.min(100, ((d.principal_cents - d.balance_cents) / d.principal_cents) * 100))}%` }}
                           />
                         </div>
                         <p className="mt-1 text-[10px] text-ink-faint tabular-nums">
-                          已还 {fmt(d.principal_cents - d.balance_cents)} / 本金 {fmt(d.principal_cents)}
+                          已还 {fmt(Math.max(0, d.principal_cents - d.balance_cents))} / 本金 {fmt(d.principal_cents)}
                           {d.paid_cents != null && d.paid_cents > 0 && ` · 累计还款 ${fmt(d.paid_cents)}（${d.payments_count} 笔）`}
                         </p>
                       </div>
@@ -323,8 +323,12 @@ export default function DebtPage() {
                           {d.status === "archived" && (
                             <button
                               onClick={async () => {
-                                await api(`/api/debts/${d.id}`, "PATCH", { status: "active" });
-                                await load();
+                                try {
+                                  await api(`/api/debts/${d.id}`, "PATCH", { status: "active" });
+                                  await load();
+                                } catch (e) {
+                                  setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                                }
                               }}
                               className="text-[10px] text-ink-faint hover:text-accent"
                             >

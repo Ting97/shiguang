@@ -18,20 +18,39 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
   const [groups, setGroups] = useState<CategoryGroup[] | null>(null);
   const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  // 加载失败态：非 403 失败要落明确错误 + 重试入口（历史 bug：只 notify，groups/catalog 永久骨架）
+  const [groupsErr, setGroupsErr] = useState<string | null>(null);
+  const [catalogErr, setCatalogErr] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadGroups() {
+    setGroupsErr(null);
     api<{ groups: CategoryGroup[] }>("/api/admin/data/categories")
       .then((j) => setGroups(j.groups))
       .catch((e) => {
         if (e instanceof ApiClientError && e.status === 403) setForbidden(true);
-        else notify("类别清单加载失败", false);
+        else {
+          setGroupsErr(e instanceof Error ? e.message : "类别清单加载失败");
+          notify("类别清单加载失败", false);
+        }
       });
+  }
+
+  function loadCatalog() {
+    setCatalogErr(null);
     api<CatalogPayload>("/api/admin/data/catalog")
       .then((j) => setCatalog(j))
       .catch((e) => {
         if (e instanceof ApiClientError && e.status === 403) setForbidden(true);
-        else notify("数据目录加载失败", false);
+        else {
+          setCatalogErr(e instanceof Error ? e.message : "数据目录加载失败");
+          notify("数据目录加载失败", false);
+        }
       });
+  }
+
+  useEffect(() => {
+    loadGroups();
+    loadCatalog();
     // （notify 为父组件每次渲染重建的函数，不进依赖：该规则在本仓库 eslint 配置中已全局关闭）
   }, []);
 
@@ -54,7 +73,20 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
           <span className="text-[10px] font-normal text-ink-faint">AI 识别可用类别全域（活动分类 / 目标空间为 DB 实时，其余为共享包枚举）</span>
         </h2>
         <div className="mt-3">
-          {!groups ? <p className="text-xs text-ink-dim">加载中…</p> : <CategoryGroups groups={groups} />}
+          {!groups ? (
+            groupsErr ? (
+              <div className="py-2 text-center">
+                <p className="text-xs text-danger">加载失败：{groupsErr}</p>
+                <button onClick={loadGroups} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                  重试
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-ink-dim">加载中…</p>
+            )
+          ) : (
+            <CategoryGroups groups={groups} />
+          )}
         </div>
       </section>
 
@@ -65,7 +97,20 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
           <span className="text-[10px] font-normal text-ink-faint">个性化注入 / 注入项可引用的全部数据集注册表（列白名单 + 分区）</span>
         </h2>
         <div className="mt-3">
-          {!catalog ? <p className="text-xs text-ink-dim">加载中…</p> : <CatalogTable catalog={catalog} />}
+          {!catalog ? (
+            catalogErr ? (
+              <div className="py-2 text-center">
+                <p className="text-xs text-danger">加载失败：{catalogErr}</p>
+                <button onClick={loadCatalog} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                  重试
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-ink-dim">加载中…</p>
+            )
+          ) : (
+            <CatalogTable catalog={catalog} />
+          )}
         </div>
       </section>
 
@@ -76,7 +121,20 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
           <span className="text-[10px] font-normal text-ink-faint">只读白名单查询（强制时间窗 ≤92 天；仅行为型 / AI 衍生可查）</span>
         </h2>
         <div className="mt-3">
-          {!catalog ? <p className="text-xs text-ink-dim">加载中…</p> : <TrialQuery catalog={catalog} />}
+          {!catalog ? (
+            catalogErr ? (
+              <div className="py-2 text-center">
+                <p className="text-xs text-danger">加载失败：{catalogErr}</p>
+                <button onClick={loadCatalog} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                  重试
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-ink-dim">加载中…</p>
+            )
+          ) : (
+            <TrialQuery catalog={catalog} />
+          )}
         </div>
       </section>
     </div>

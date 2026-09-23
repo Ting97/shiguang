@@ -1,4 +1,5 @@
 /** 负债档案字段校验（debts 路由共用；route 文件不可导出非 handler，故放这里） */
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 
 /** bigint/numeric 列在 node-pg 返回 string，date 列返回 Date 对象 —— 统一转 number/字符串再下发 */
 export function serializeDebt(row: Record<string, unknown>) {
@@ -70,7 +71,8 @@ export function validateDebtBody(body: Record<string, unknown>, partial: boolean
   if (body.dueDate !== undefined) {
     const v = body.dueDate;
     if (v === null || v === "") out.due_date = null;
-    else if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw { message: "到期日需为 YYYY-MM-DD" };
+    // 形状合法但非真实日历日（2024-13-01）曾穿透到 PG date 列抛 500，这里双重校验
+    else if (typeof v !== "string" || !isValidCalendarDate(v)) throw { message: "到期日需为真实存在的日期（YYYY-MM-DD）" };
     else out.due_date = v;
   }
   if (body.priority !== undefined) {

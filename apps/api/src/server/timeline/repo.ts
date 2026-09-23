@@ -3,8 +3,11 @@ import { pool } from "@/server/platform/db";
 
 export const entriesRepo = {
   async rawTextOf(entryId: string, userId: string, client: import("pg").PoolClient | typeof pool = pool): Promise<{ raw_text: string } | undefined> {
+    // 事务内首条语句用 for update：所有写路径统一「先锁 entry 行再动子表」的加锁顺序，
+    // 与 analyzeAndPersist（select for update → 清旧插新）互斥串行，避免 patch/delete 与
+    // 后台补跑识别对 entries/子表反序加锁触发 PG deadlock（services-smoke 偶发复现）
     return (
-      await client.query(`select raw_text from entries where id = $1 and user_id = $2`, [entryId, userId])
+      await client.query(`select raw_text from entries where id = $1 and user_id = $2 for update`, [entryId, userId])
     ).rows[0];
   },
   insert(userId: string, source: string, text: string) {

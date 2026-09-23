@@ -246,7 +246,8 @@ function noulOf(jev: Awaited<ReturnType<typeof jevAsk>>, key: string): { v: bool
  * 由调用方降级全量 GLM（rules 兜底仍在 parseInput 内）。
  */
 export async function parseHybridInput(text: string, opts: HybridParseOptions = {}): Promise<ParseResultT> {
-  const now = opts.now ?? new Date();
+  // 拷贝后再清秒：原地 setSeconds 会突变调用方传入的 opts.now（埋雷）
+  const now = new Date((opts.now ?? new Date()).getTime());
   now.setSeconds(0, 0);
   if (opts.forceRules) throw new HybridUnavailableError("force-rules");
   if (!hasApiKey() || isQuotaTripped()) throw new HybridUnavailableError("glm-unavailable");
@@ -505,7 +506,8 @@ function rulesPipeline(
 // ---------- 主入口 ----------
 
 export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
-  const now = opts.now ?? new Date();
+  // 拷贝后再清秒：原地 setSeconds 会突变调用方传入的 opts.now（埋雷）
+  const now = new Date((opts.now ?? new Date()).getTime());
   now.setSeconds(0, 0); // 时间对齐到整分钟：时间轴记录到分即可
   const domain = opts.domain && (DOMAIN_MODES as readonly string[]).includes(opts.domain) ? opts.domain : undefined;
 

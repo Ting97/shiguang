@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuthParams, type AuthedCtx } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam } from "@/server/platform/http/validate";
 import { getModuleUser } from "@/server/platform";
 import { validateDebtBody, serializeDebt } from "@/server/finance";
 
@@ -21,6 +22,7 @@ const withDebtParams = (
 /** PATCH /api/debts/[id] —— 部分更新（balance_cents 允许手工校正） */
 export const PATCH = withDebtParams(async (req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const owned = await pool.query(`select id from liabilities where id = $1 and user_id = $2`, [id, user.id]);
   if (!owned.rows[0]) throw ApiError.notFound("负债不存在");
 
@@ -52,6 +54,7 @@ export const PATCH = withDebtParams(async (req, { user, params }) => {
 /** DELETE /api/debts/[id] —— 软归档（保留档案与还款历史） */
 export const DELETE = withDebtParams(async (_req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id");
   const updated = (
     await pool.query(
       `update liabilities set status = 'archived', updated_at = now()

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam, optionalTrimmed } from "@/server/platform/http/validate";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export const runtime = "nodejs";
 /** PATCH /api/transactions/:id —— 修正流水（方向/金额/类别/交易对象/账户）；{confirm:true} 草稿转正 */
 export const PATCH = withAuthParams(async (req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as {
     direction?: "out" | "in";
     amountCents?: number; // 正整数（方向由 direction 决定）
@@ -31,8 +33,9 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     vals.push(body.amountCents);
     sets.push(`amount_cents = $${vals.length}`);
   }
-  if (body.category?.trim()) {
-    const category = body.category.trim();
+  // 可选字符串字段预检：非字符串原 `?.trim()` 会 TypeError → 500，统一 400
+  const category = optionalTrimmed(body.category, "category");
+  if (category) {
     if (!TX_CATEGORIES.includes(category)) {
       throw ApiError.badRequest("无效分类");
     }
@@ -40,7 +43,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     sets.push(`category = $${vals.length}`);
   }
   if (body.counterparty !== undefined) {
-    vals.push(body.counterparty?.trim() || null);
+    vals.push(optionalTrimmed(body.counterparty, "counterparty") ?? null);
     sets.push(`counterparty = $${vals.length}`);
   }
   if (body.accountId !== undefined) {
@@ -48,6 +51,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
       vals.push(null);
       sets.push(`account_id = $${vals.length}`);
     } else {
+      assertUuidParam(body.accountId, "accountId");
       const owned = await pool.query(
         `select id from accounts where id = $1 and user_id = $2 and archived = false`,
         [body.accountId, user.id],
@@ -82,6 +86,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
 /** DELETE /api/transactions/:id —— 删除识别错的流水 */
 export const DELETE = withAuthParams(async (_req, { user, params }) => {
   const { id } = await params;
+  assertUuidParam(id, "id");
   const deleted = (
     await pool.query(
       `delete from transactions where id = $1 and user_id = $2 returning id`,

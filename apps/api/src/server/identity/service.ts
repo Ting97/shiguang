@@ -4,6 +4,7 @@
  */
 import { ApiError } from "../platform/http/errors";
 import { assertLoginAllowed, recordLoginAttempt, clientIp } from "../platform/security/login-guard";
+import { timingSafeEqual } from "node:crypto";
 import { loadConfig } from "@/server/platform/config";
 import { createSession, destroySession } from "@/server/identity/auth";
 import { verifyPassword, hashPassword, isValidPhone } from "@/server/identity/auth-crypto";
@@ -12,6 +13,12 @@ import { verifySmsCode, smsConfigured, sendSmsCode } from "@/server/identity/sms
 import { PRESET_ACTIVITIES } from "@/server/time/seed";
 import { pool } from "@/server/platform/db";
 import { profilesRepo } from "./repo";
+
+/** 登录防护记录失败不影响主流程：悬空 Promise 的 rejection 在 Node ≥15 会崩进程，必须就地兜底 */
+const noteAttempt = (identity: string, ip: string, ok: boolean) =>
+  recordLoginAttempt(identity, ip, ok).catch((e) =>
+    console.warn("[login-guard] 尝试记录失败（忽略）:", String(e).slice(0, 120)),
+  );
 
 export interface LoginInput {
   phone?: string;
@@ -48,13 +55,13 @@ export async function login(input: LoginInput) {
     ApiError.unauthorized(byEmail ? "邮箱或密码不正确" : "手机号或密码不正确");
 
   if (!user) {
-    void recordLoginAttempt(identity, input.ip, false);
+    void noteAttempt(identity, input.ip, false);
     throw fuzzyFail();
   }
 
   if (input.password) {
     if (!user.password_hash || !verifyPassword(input.password, user.password_hash)) {
-      void recordLoginAttempt(identity, input.ip, false);
+      void noteAttempt(identity, input.ip, false);
       throw fuzzyFail();
     }
   } else if (byEmail) {
@@ -62,7 +69,7 @@ export async function login(input: LoginInput) {
       throw new ApiError(403, "forbidden", "该邮箱未完成验证，请使用密码登录");
     }
     if (!input.emailCode || !(await verifyEmailCode(identity, "login", input.emailCode))) {
-      void recordLoginAttempt(identity, input.ip, false);
+      void noteAttempt(identity, input.ip, false);
       throw ApiError.unauthorized("验证码错误或已过期");
     }
   } else {
@@ -70,12 +77,12 @@ export async function login(input: LoginInput) {
       throw new ApiError(403, "forbidden", "该账号手机号未验证，请使用密码登录");
     }
     if (!input.smsCode || !(await verifySmsCode(identity, "login", input.smsCode))) {
-      void recordLoginAttempt(identity, input.ip, false);
+      void noteAttempt(identity, input.ip, false);
       throw ApiError.unauthorized("验证码错误或已过期");
     }
   }
 
-  await recordLoginAttempt(identity, input.ip, true);
+  await noteAttempt(identity, input.ip, true);
   await profilesRepo.touchLastLogin(user.id);
   const token = await createSession(user.id, input.userAgent ?? undefined);
   return { ok: true as const, token, user: { id: user.id, nickname: user.nickname } };
@@ -164,16 +171,19 @@ export function validateRegisterIdentity(input: { phone?: string; email?: string
   return byEmail;
 }
 
-/** setup 一次性令牌校验（FR-C2.3）：配置了 SETUP_TOKEN 即强制；任一次调用（成败）都消费 */
+/**
+ * setup 一次性令牌校验（FR-C2.3）：配置了 SETUP_TOKEN 即强制。
+ * 校验通过才消费（一次性）；输错不烧令牌——否则一次手滑就永久作废，只能改 env 重置。
+ */
 export async function assertSetupToken(tokenHeader: string | null) {
   const expect = loadConfig().setupToken;
   if (!expect) return;
   const { rows: used } = await pool.query(`select value from app_config where key = 'setup_token_used'`, []);
   if (used[0]) throw new ApiError(410, "conflict", "初始化令牌已失效");
-  const got = tokenHeader ?? "";
-  if (got !== expect) {
-    await consumeSetupToken();
-    throw new ApiError(403, "forbidden", "初始化令牌不正确（已作废）");
+  const a = Buffer.from(tokenHeader ?? "");
+  const b = Buffer.from(expect);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new ApiError(403, "forbidden", "初始化令牌不正确");
   }
   await consumeSetupToken();
 }
@@ -188,7 +198,7 @@ async function consumeSetupToken() {
 
 /** 初始化管理员（一次性令牌校验 + 抢占防护） */
 export async function setup(input: { nickname?: string; phone?: string; password?: string }, tokenHeader: string | null, userAgent?: string | null) {
-  await assertSetupToken(tokenHeader);
+  // 先完成全部入参/前置校验，最后一步才消费一次性令牌（否则畸形请求也会烧掉令牌）
   if (!input.nickname?.trim() || !input.phone || !isValidPhone(input.phone)) {
     throw ApiError.badRequest("请填写昵称和正确的手机号");
   }
@@ -199,6 +209,7 @@ export async function setup(input: { nickname?: string; phone?: string; password
   if (existing.rows.length > 0) {
     throw ApiError.forbidden("管理员已存在，请直接登录");
   }
+  await assertSetupToken(tokenHeader);
   const { rows } = await profilesRepo.claimDevAdmin(input.nickname.trim(), input.phone, hashPassword(input.password));
   if (!rows[0]) throw ApiError.upstream("初始化失败");
   const token = await createSession(rows[0].id, userAgent ?? undefined);
@@ -302,6 +313,10 @@ export async function register(input: RegisterInput) {
       await client.query("rollback");
     } catch {
       // 连接已不可用：释放即可
+    }
+    // 并发注册同一手机号/邮箱：快查双双通过后唯一约束兜底，转友好提示而非 500
+    if ((e as { code?: string }).code === "23505") {
+      throw ApiError.conflict("该手机号/邮箱已注册，请直接登录");
     }
     throw e;
   } finally {

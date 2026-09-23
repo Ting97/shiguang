@@ -3,6 +3,8 @@ import { pool } from "@/server/platform/db";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
 import { withAdminParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
+import { isValidYearMonth } from "@/server/platform/http/validate";
 import { assembleUserPrompt, getPrompt, getPromptBundle, PROMPT_KEYS, writeAuditRecord, type PromptKey } from "@/server/ai";
 import { listContactNames } from "@/server/timeline";
 import { loadProfileBlock } from "@/server/insight";
@@ -59,6 +61,20 @@ export const POST = withAdminParams(async (req, { user, params }) => {
     userPrompt = await assembleUserPrompt(key as PromptKey, bundle, ctxOut, { userId: user.id });
   } else if (key.startsWith("review_")) {
     const kind = key.slice("review_".length) as ReviewKind;
+    // period 形状合法但非真实日历日（如 2025-02-30）会进 buildReviewCtx ::date cast → 500，先拦成 400
+    if (period) {
+      const ok =
+        kind === "day" || kind === "week"
+          ? isValidCalendarDate(period)
+          : kind === "month"
+            ? isValidYearMonth(period)
+            : kind === "year"
+              ? /^\d{4}$/.test(period)
+              : true;
+      if (!ok) {
+        throw ApiError.badRequest("period 与该复盘周期不匹配（日/周 YYYY-MM-DD、月 YYYY-MM、年 YYYY）");
+      }
+    }
     const built = await buildReviewCtx(
       user.id,
       kind,
@@ -73,13 +89,17 @@ export const POST = withAdminParams(async (req, { user, params }) => {
     userPrompt = built.userPrompt;
   } else if (key === "trade_review_week") {
     // 交易周报预览（QA 验收修复：原落入 prompt_optimizer 兜底导致模板/占位符错配返回原始模板）
+    // period 形状合法但非真实日历日 → mondayOf 产 NaN date → toISOString RangeError 500，先拦成 400
+    if (period && !isValidCalendarDate(period)) {
+      throw ApiError.badRequest("period 需为真实存在的 YYYY-MM-DD 日期");
+    }
     const mondayOf = (dateStr: string) => {
       const d = new Date(`${dateStr}T00:00:00Z`);
       return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
     };
     const addDays = (dateStr: string, n: number) =>
       new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-    const from = mondayOf(period && /^\d{4}-\d{2}-\d{2}$/.test(period) ? period : new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
+    const from = mondayOf(period ?? new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
     const to = addDays(from, 6);
     const yuan = (cents: number) => `¥${(cents / 100).toFixed(0)}`;
 

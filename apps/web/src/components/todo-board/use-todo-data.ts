@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Activity, Space, TodoItem } from "@/lib/types";
 import { api } from "@/shared/api";
 import type { Msg, View } from "./types";
@@ -26,8 +26,13 @@ export function useTodoData(view: View) {
   }, [msg]);
 
   const loadActivities = useCallback(async () => {
-    const j = await api<any>("/api/activities");
-    setActivities(j.activities ?? []);
+    try {
+      const j = await api<any>("/api/activities");
+      setActivities(j.activities ?? []);
+    } catch {
+      // 失败置空数组（原无 catch：断网时 unhandled rejection 会触发整页刷新）
+      setActivities([]);
+    }
   }, []);
   useEffect(() => {
     loadActivities();
@@ -37,16 +42,22 @@ export function useTodoData(view: View) {
       .catch(() => setSpaces([]));
   }, [loadActivities]);
 
+  // 取数竞态守卫（参考 use-home-data 的 seq 范式）：仅最新一次 load 的响应可落地——
+  // 快速切视图时旧响应后到会覆盖新视图，序号过期即丢弃
+  const seqRef = useRef(0);
   const load = useCallback(async (v: View) => {
+    const seq = ++seqRef.current;
     setLoading(true);
     try {
       const j = await api<any>(`/api/todos?view=${v}`);
+      if (seq !== seqRef.current) return;
       setTodos(j.todos ?? []);
       setCounts(j.counts ?? { today: 0, important: 0, all: 0, done: 0 });
     } catch (e) {
+      if (seq !== seqRef.current) return;
       setMsg({ ok: false, text: `加载失败：${e instanceof Error ? e.message : e}` });
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
   }, []);
   useEffect(() => {
