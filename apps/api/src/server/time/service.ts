@@ -35,7 +35,8 @@ function assertDateRange(from: string, to: string) {
 }
 
 /** 倒挂/非法时间落库时 PG 约束兜底（QA 验收修复语义；detail 只进日志不下发）。
- *  23P01：time_blocks_no_overlap 排他约束（迁移 039）——findOverlap 先查后插的并发竞态由 DB 兜底，转 409 */
+ *  23P01：「一个时刻只做一件事」的 EXCLUDE 约束兜底——生产 PG13 缺 btree_gist（contrib 未装）
+ *  暂未上线，约束就绪后自动生效；应用层 findOverlap 预检（409 文案）仍是主防线 */
 function mapBlockWriteError(e: unknown, conflictTitle = "已有日程"): never {
   const msg = String(e);
   if (msg.includes("time_blocks_check") || msg.includes("end_at_start_at")) {

@@ -1,14 +1,11 @@
--- 039 · 检视修复：feed/清写路径性能索引 + 「一个时刻只做一件事」DB 级兜底 + 会话过期索引
+-- 039 · 检视修复：feed/清写路径性能索引 + 会话过期索引
 -- 背景（007 全仓检视）：listFeed 每行 6+ 个按 entry_id 的相关子查询、确认/删除/识别清写路径的
 -- delete where entry_id 全部无索引支撑（time_blocks/todos/transactions/interactions 四表）；
 -- contacts 列表人情净额按 counterparty 关联、巡检扫 analyzed_at is null 也全表扫。
-
--- 排他约束：「一个时刻只能做一件事」此前仅靠 findOverlap 先查后插，并发下可双双通过（TOCTOU）。
--- 上线前已核实生产 0 重叠（82 块）；应用层预检保留（负责友好 409 文案），约束只兜并发竞态。
-create extension if not exists btree_gist;
-alter table public.time_blocks
-  add constraint time_blocks_no_overlap
-  exclude using gist (user_id with =, tstzrange(start_at, end_at, '[)') with &&);
+--
+-- 注：「一个时刻只做一件事」的 EXCLUDE gist 约束（防 findOverlap 先查后插 TOCTOU）需要
+-- btree_gist 扩展——生产 PG13 未装 postgresql-contrib，留待 contrib 就绪后另起编号；
+-- 应用层 findOverlap 预检（409 文案）与 mapBlockWriteError 的 23P01 兜底保持不变。
 
 -- feed 关联/清写路径
 create index if not exists idx_time_blocks_entry on public.time_blocks (entry_id);
