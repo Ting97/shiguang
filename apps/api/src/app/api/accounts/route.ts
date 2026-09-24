@@ -6,24 +6,16 @@ import { ApiError } from "@/server/platform/http/errors";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/accounts —— 全部账户（含动态余额 + 备付参与标记；camelCase 规范字段，snake_case 旧别名兼容一版） */
+/** GET /api/accounts —— 全部账户（余额=期初，流水不入账；备付参与标记；camelCase 规范字段，snake_case 旧别名兼容一版） */
 export const GET = withAuth(async (_req, { user }) => {
   const { rows } = await pool.query(
-    `select x.id, x.name, x.icon, x.sort_order,
-            x.opening_balance_cents, x.opening_balance_cents as "openingBalanceCents",
-            x.balance_cents, x.balance_cents as "balanceCents",
-            coalesce(x.reserve_tracked, false) as "reserveTracked"
-     from (
-       select a.id, a.name, a.icon, a.sort_order, a.created_at, a.opening_balance_cents, a.reserve_tracked,
-              (a.opening_balance_cents + coalesce((
-                 select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
-                 from transactions t
-                 where t.account_id = a.id and t.is_draft = false
-               ), 0))::bigint as balance_cents
-       from accounts a
-       where a.user_id = $1 and a.archived = false
-     ) x
-     order by x.sort_order, x.created_at`,
+    `select a.id, a.name, a.icon, a.sort_order,
+            a.opening_balance_cents, a.opening_balance_cents as "openingBalanceCents",
+            a.opening_balance_cents as balance_cents, a.opening_balance_cents as "balanceCents",
+            coalesce(a.reserve_tracked, false) as "reserveTracked"
+     from accounts a
+     where a.user_id = $1 and a.archived = false
+     order by a.sort_order, a.created_at`,
     [user.id],
   );
   // ::bigint 防 int4 溢出，但 node-pg 对 bigint 返回 string：序列化统一 Number()，响应类型不变

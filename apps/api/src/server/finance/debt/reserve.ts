@@ -90,13 +90,9 @@ export async function reserveOverview(userId: string, ym: string) {
   const totalNeed = items.reduce((s, r) => s + r.need, 0);
   const checkedNeed = items.filter((r) => r.checked).reduce((s, r) => s + r.need, 0);
 
+  // 流水不入账（概览调整）：账户余额恒等于期初，备付储蓄同口径，不随流水变动
   const { rows: savingsRows } = await pool.query(
-    `select coalesce(sum(
-       a.opening_balance_cents + coalesce((
-         select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
-         from transactions t where t.account_id = a.id and t.is_draft = false
-       ), 0)
-     ), 0)::bigint as savings
+    `select coalesce(sum(a.opening_balance_cents), 0)::bigint as savings
      from accounts a where a.user_id = $1 and a.reserve_tracked = true and a.archived = false`,
     [userId],
   );

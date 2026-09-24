@@ -39,7 +39,7 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete, delArmed = false }: { tx: T
       )}
       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
         {onConfirm && (
-          <button onClick={onConfirm} title="确认入账" className="rounded px-1.5 py-0.5 text-xs text-warn hover:bg-soft">
+          <button onClick={onConfirm} title="确认记录" className="rounded px-1.5 py-0.5 text-xs text-warn hover:bg-soft">
             ✓
           </button>
         )}

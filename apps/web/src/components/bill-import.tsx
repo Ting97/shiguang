@@ -20,12 +20,6 @@ interface ImportPreview {
   sample?: { occurredAt: string; direction: string; amountCents: number; category: string; counterparty: string | null }[];
 }
 
-interface Account {
-  id: string;
-  name: string;
-  icon: string;
-}
-
 const PLATFORM_LABEL: Record<string, string> = { alipay: "🅰 支付宝", wechat: "💬 微信" };
 
 const PLATFORM_COLOR: Record<string, string> = {
@@ -52,20 +46,17 @@ function readFileText(file: File): Promise<string> {
 
 const fmtMoney = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
 
-/** 账单导入弹层：文件/粘贴 → 预览（dryRun）→ 确认入账 */
+/** 账单导入弹层：文件/粘贴 → 预览（dryRun）→ 确认导入（流水只作记录，不挂账户不入账） */
 export default function BillImport({
-  accounts,
   onClose,
   onImported,
 }: {
-  accounts: Account[];
   onClose: () => void;
   onImported: () => Promise<void>;
 }) {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [accountId, setAccountId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   // N3：点面板外空白关闭
   const ref = useDismiss<HTMLDivElement>(onClose);
@@ -91,11 +82,6 @@ export default function BillImport({
     try {
       const j = await api<ImportPreview>("/api/transactions/import", "POST", { text, dryRun: true });
       setPreview(j);
-      // 按平台预选账户
-      const match = accounts.find((a) =>
-        j.platform === "alipay" ? a.name.includes("支付宝") : a.name.includes("微信"),
-      );
-      if (match) setAccountId(match.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -110,7 +96,6 @@ export default function BillImport({
     try {
       const j = await api<ImportPreview & { imported: number; message?: string }>("/api/transactions/import", "POST", {
         text,
-        accountId: accountId || null,
         dryRun: false,
       });
       setResult(
@@ -253,23 +238,6 @@ export default function BillImport({
                 ))}
               </ul>
             )}
-
-            {/* 记入账户 */}
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-ink-mute">记入账户：</span>
-              {accounts.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => setAccountId(accountId === a.id ? "" : a.id)}
-                  className={`rounded-full px-3 py-1 text-[11px] transition ${
-                    accountId === a.id ? "bg-sky-600 text-white" : "bg-elevated text-ink-soft hover:bg-soft"
-                  }`}
-                >
-                  {a.icon} {a.name}
-                </button>
-              ))}
-              <span className="text-[10px] text-ink-faint">（不选则不记账户）</span>
-            </div>
 
             {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger">{error}</p>}
             <div className="flex justify-between gap-2">

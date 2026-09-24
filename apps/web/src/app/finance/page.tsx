@@ -32,9 +32,7 @@ export default function FinancePage() {
   const [importing, setImporting] = useState(false);
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
-  const [confirming, setConfirming] = useState<Tx | null>(null);
-  const [confirmAll, setConfirmAll] = useState(false);
-  const [confirmBusy, setConfirmBusy] = useState(false); // 入账提交中：防双击双发 PATCH
+  const [confirmBusy, setConfirmBusy] = useState(false); // 确认提交中：防双击双发 PATCH
   const [editing, setEditing] = useState<Tx | null>(null);
   // 删除流水两步确认：待确认的流水 id + 超时复位定时器
   const [armDel, setArmDel] = useState<string | null>(null);
@@ -72,13 +70,12 @@ export default function FinancePage() {
   const drafts = useMemo(() => txs.filter((t) => t.is_draft), [txs]);
   const confirmed = useMemo(() => txs.filter((t) => !t.is_draft), [txs]);
 
-  async function confirmTx(accountId: string | null) {
-    if (!confirming || confirmBusy) return;
-    setConfirmBusy(true); // 提交期间锁按钮：防双击双发 PATCH 重复入账
+  async function confirmTx(t: Tx) {
+    if (confirmBusy) return;
+    setConfirmBusy(true); // 提交期间锁按钮：防双击双发 PATCH 重复确认
     try {
-      await api(`/api/transactions/${confirming.id}`, "PATCH", { confirm: true, accountId });
-      setMsg({ ok: true, text: `✅ 已入账：${confirming.direction === "out" ? "支出" : "收入"} ¥${yuan(confirming.amount_cents)}` });
-      setConfirming(null);
+      await api(`/api/transactions/${t.id}`, "PATCH", { confirm: true });
+      setMsg({ ok: true, text: `✅ 已确认：${t.direction === "out" ? "支出" : "收入"} ¥${yuan(t.amount_cents)}` });
       await load();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -87,14 +84,13 @@ export default function FinancePage() {
     }
   }
 
-  /** 一键全部入账：所有待确认流水记入同一账户（或都不记） */
-  async function confirmAllTx(accountId: string | null) {
+  /** 一键全部确认（流水不入账：确认即计入报表，无需选账户） */
+  async function confirmAllTx() {
     if (drafts.length === 0 || confirmBusy) return;
     setConfirmBusy(true); // 提交期间锁按钮：防双击双发整批 PATCH
     try {
-      await Promise.all(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true, accountId })));
-      setConfirmAll(false);
-      setMsg({ ok: true, text: `✅ 已全部入账（${drafts.length} 笔）` });
+      await Promise.all(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true })));
+      setMsg({ ok: true, text: `✅ 已全部确认（${drafts.length} 笔）` });
       await load();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -201,14 +197,9 @@ export default function FinancePage() {
         {/* 账户 */}
         <AccountsCard accounts={ov.accounts} onManage={() => setManagingAccount(true)} />
 
-        {/* 草稿确认区 */}
+        {/* 待确认流水（确认即计入报表，不再选账户入账） */}
         <DraftConfirmSection
           drafts={drafts}
-          accounts={ov.accounts}
-          confirming={confirming}
-          setConfirming={setConfirming}
-          confirmAll={confirmAll}
-          setConfirmAll={setConfirmAll}
           confirmBusy={confirmBusy}
           onConfirm={confirmTx}
           onConfirmAll={confirmAllTx}
@@ -217,10 +208,9 @@ export default function FinancePage() {
           delArmed={armDel}
         />
 
-        {/* 已确认流水 */}
+        {/* 流水列表 */}
         <ConfirmedTxSection
           txs={confirmed}
-          accounts={ov.accounts}
           editing={editing}
           setEditing={setEditing}
           onSubmitEdit={async (t, payload) => {
@@ -237,7 +227,6 @@ export default function FinancePage() {
         {adding && (
           <Modal title="记一笔" onClose={() => setAdding(false)}>
             <TxForm
-              accounts={ov.accounts}
               onCancel={() => setAdding(false)}
               onSubmit={async (payload) => {
                 try {
@@ -258,7 +247,6 @@ export default function FinancePage() {
         {/* 账单导入弹层 */}
         {importing && (
           <BillImport
-            accounts={ov.accounts}
             onClose={() => setImporting(false)}
             onImported={async () => {
               await load();
@@ -279,7 +267,7 @@ export default function FinancePage() {
         )}
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
-          拾光 · 财务模块 v1 · 流水确认后计入月度报表
+          拾光 · 财务模块 v1 · 流水仅作记录与月度统计，不影响账户余额（余额在「管理」中维护）
         </footer>
       </div>
     </main>

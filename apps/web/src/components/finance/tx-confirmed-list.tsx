@@ -4,13 +4,12 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Dismissable } from "@/components/dismissable";
 import { TagChip } from "@/components/tag-chip";
-import type { Account, Tx } from "./kit";
+import type { Tx } from "./kit";
 import { TxRow } from "./display";
 import { TxForm } from "./forms";
 
 export function ConfirmedTxSection({
   txs,
-  accounts,
   editing,
   setEditing,
   onSubmitEdit,
@@ -18,7 +17,6 @@ export function ConfirmedTxSection({
   delArmed,
 }: {
   txs: Tx[];
-  accounts: Account[];
   editing: Tx | null;
   setEditing: Dispatch<SetStateAction<Tx | null>>;
   onSubmitEdit: (t: Tx, payload: Record<string, unknown>) => Promise<void>;
@@ -43,7 +41,6 @@ export function ConfirmedTxSection({
             <li key={t.id} className="rounded-xl border border-sky-500/40 bg-elevated/60 p-3">
               <Dismissable onClose={() => setEditing(null)}>
                 <TxForm
-                  accounts={accounts}
                   initial={t}
                   onCancel={() => setEditing(null)}
                   onSubmit={(payload) => onSubmitEdit(t, payload)}

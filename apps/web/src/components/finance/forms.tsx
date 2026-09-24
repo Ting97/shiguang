@@ -8,12 +8,10 @@ import { api, toLocalInput, fromLocalInput } from "./kit";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 
 export function TxForm({
-  accounts,
   initial,
   onCancel,
   onSubmit,
 }: {
-  accounts: Account[];
   initial?: Tx | null;
   onCancel: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
@@ -21,7 +19,6 @@ export function TxForm({
   const [direction, setDirection] = useState<"out" | "in">(initial?.direction ?? "out");
   const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
   const [category, setCategory] = useState(initial?.category ?? "餐饮");
-  const [accountId, setAccountId] = useState<string>(initial?.account_id ?? "");
   const [date, setDate] = useState(
     initial
       ? toLocalInput(initial.occurred_at).slice(0, 16)
@@ -75,21 +72,11 @@ export function TxForm({
         </select>
       </div>
       <div className="flex gap-2">
-        <select
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
-        >
-          <option value="">不记账户</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
-          ))}
-        </select>
         <input
           type="datetime-local"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
+          className="w-full rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
         />
       </div>
       <div className="flex gap-2">
@@ -124,7 +111,7 @@ export function TxForm({
                 direction,
                 amountCents: cents,
                 category,
-                accountId: accountId || null,
+                // 流水只作记录不入账：不挂账户（历史流水的账户标签保留不动）
                 // date 是北京墙上时间串（toLocalInput 产），须按 +08:00 解析——裸 new Date() 按宿主时区解释，海外设备记错账时间
                 occurredAt: fromLocalInput(date) ?? new Date().toISOString(),
                 note: note || null,
@@ -202,7 +189,7 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 type="number"
                 step="0.01"
                 defaultValue={a.openingBalanceCents / 100}
-                title="期初余额（元）"
+                title="当前余额（元）"
                 onBlur={async (e) => {
                   const v = Math.round(parseFloat(e.target.value) * 100);
                   if (Number.isFinite(v) && v !== a.openingBalanceCents) {
@@ -277,8 +264,8 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
           onChange={(e) => setOpening(e.target.value)}
           type="number"
           step="0.01"
-          placeholder="期初余额"
-          title="期初余额（元），可留空"
+          placeholder="当前余额"
+          title="当前余额（元），可留空"
           className="w-24 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-right text-xs tabular-nums outline-none focus:border-sky-500"
         />
         <button
