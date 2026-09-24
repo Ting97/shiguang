@@ -78,14 +78,14 @@ export const DietDraft = z.object({
 });
 
 /** 五域识别域类型 */
-export const DOMAINS = ["schedule", "todo", "finance", "mood", "diet"] as const;
+export const DOMAINS = ["schedule", "todo", "finance", "mood", "diet", "people"] as const;
 export type Domain = (typeof DOMAINS)[number];
 
 export const DOMAIN_LABELS: Record<Domain, string> = {
-  schedule: "日程", todo: "待办", finance: "收支", mood: "心情", diet: "饮食",
+  schedule: "日程", todo: "待办", finance: "收支", mood: "心情", diet: "饮食", people: "关系",
 };
 export const DOMAIN_ICONS: Record<Domain, string> = {
-  schedule: "🕒", todo: "📋", finance: "💰", mood: "😊", diet: "🍽",
+  schedule: "🕒", todo: "📋", finance: "💰", mood: "😊", diet: "🍽", people: "👥",
 };
 
 /** 低置信阈值：低于此值的域不自动落库，转 pending 待用户确认 */

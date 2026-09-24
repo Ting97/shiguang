@@ -43,6 +43,27 @@ export default tseslint.config(
     },
   },
   {
+    // 红线 1（AGENTS.md）机器化：业务代码禁止直读 process.env，必须走 platform/config。
+    // 白名单：config 自身、middleware/instrumentation（边缘运行时/框架生命周期不宜 import 携带 AI SDK 的 config）、
+    // packages/ai（纯包禁止 import apps/api，反向会循环依赖）、*.d.ts 与脚本。
+    files: ["apps/api/src/**/*.ts", "apps/web/src/**/*.ts", "apps/web/src/**/*.tsx"],
+    ignores: ["**/platform/config.ts", "**/platform/db.ts", "**/middleware.ts", "**/instrumentation.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[object.name='process'][property.name='env']",
+          message: "禁止直读 process.env——请从 @/server/platform/config 或既有集中入口读取（AGENTS.md 红线 1）",
+        },
+      ],
+    },
+  },
+  {
+    // packages/ai 与脚本文件需要 process.env（GLM/Jev 配置；纯包不能 import apps/api 的 config）
+    files: ["packages/ai/src/**/*.ts", "packages/shared/src/**/*.ts", "packages/db/**/*.ts"],
+    rules: {},
+  },
+  {
     // 领域依赖规则（FR-B1.3，lib 已清零）：
     // ① 业务域深路径禁止直引——路由只准引用域 index（对外 service 面）
     // ② @/lib/* 防御性禁止（lib 已删除）

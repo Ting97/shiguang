@@ -29,6 +29,8 @@ export interface TodoActionsCtx {
 export function useTodoActions(ctx: TodoActionsCtx) {
   const { view, todos, load, setMsg, draft, setDraft, setDraftOpen, subTitle, setSubTitle } = ctx;
   const [adding, setAdding] = useState(false);
+  // 添加行动进行中：防连按 Enter 重复建行动（历史 bug：双击 Enter 落两条重复行动）
+  const [addingSub, setAddingSub] = useState(false);
   // AI 拆解进行中的节点 id
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
 
@@ -83,21 +85,18 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     await patchTodo(t.id, done ? { undone: true } : { done: true }, done ? `↩️ 「${t.title}」已恢复` : `🎉 完成「${t.title}」`);
   }
 
-  /** AI 拆解（REQ-001 R3 · 插入式）：待办→≤10 行动（追加尾部/重新生成）；行动→≤3 同级细化（插入其后） */
-  async function decompose(t: TodoRow, isAction: boolean) {
+  /** 未完成行动数（菜单据此给出「重新生成 / 追加」显式选择） */
+  function pendingCount(t: TodoRow): number {
+    const parent = todos.find((x) => x.id === t.id);
+    return parent?.children.filter((c) => c.status === "pending").length ?? 0;
+  }
+
+  /** AI 拆解（REQ-001 R3 · 插入式）：待办→≤10 行动；行动→≤3 同级细化（插入其后）。
+   *  mode 由菜单显式传入（原 window.confirm「确定=重生成/取消=追加」双语义不可发现且易误触） */
+  async function decompose(t: TodoRow, isAction: boolean, mode?: "replace" | "append") {
     if (decomposingId) return;
     setDecomposingId(t.id);
     try {
-      let mode: string | undefined;
-      if (!isAction) {
-        const parent = todos.find((x) => x.id === t.id);
-        const pending = parent?.children.filter((c) => c.status === "pending").length ?? 0;
-        if (pending > 0) {
-          mode = window.confirm(`「${t.title}」已有 ${pending} 个未完成行动。\n\n「确定」= 重新生成（清空未完成，已完成与次数保留）\n「取消」= 追加到末尾`)
-            ? "replace"
-            : "append";
-        }
-      }
       let j: any;
       try {
         j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
@@ -122,7 +121,10 @@ export function useTodoActions(ctx: TodoActionsCtx) {
   }
 
   async function removeTodo(t: TodoRow, isChild: boolean) {
-    if (!window.confirm(`删除${isChild ? "行动" : "todo"}？${isChild ? "" : "\n其下行动将一并删除。"}\n「${t.title}」`)) return;
+    // ⚠ 保留原生 confirm：行菜单是 createPortal 渲染，008 实测 React 19 下 portal 内
+    // 经重渲染的按钮第二次点击事件不送达（两步确认不可靠），destructive 操作安全优先
+    const hint = isChild ? "" : "\n其下行动将一并删除。";
+    if (!window.confirm(`删除${isChild ? "行动" : "todo"}？${hint}\n「${t.title}」`)) return;
     try {
       await api<any>(`/api/todos/${t.id}`, "DELETE");
     } catch (e) {
@@ -144,7 +146,8 @@ export function useTodoActions(ctx: TodoActionsCtx) {
 
   async function addSubtask(parentId: string) {
     const title = subTitle.trim();
-    if (!title) return;
+    if (!title || addingSub) return;
+    setAddingSub(true);
     try {
       await api<any>("/api/todos", "POST", { title, parentId });
     } catch (e) {
@@ -153,6 +156,7 @@ export function useTodoActions(ctx: TodoActionsCtx) {
         ok: false,
         text: e instanceof ApiClientError ? (e.message === "操作失败" ? "添加失败" : e.message) : "网络异常，请稍后重试",
       });
+      setAddingSub(false); // 失败也要复位，否则输入行永久锁死
       return;
     }
     setSubTitle("");
@@ -161,8 +165,10 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     } catch {
       // 刷新列表失败同样只提示，不外抛
       setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    } finally {
+      setAddingSub(false);
     }
   }
 
-  return { adding, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask };
+  return { adding, addingSub, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask, pendingCount };
 }

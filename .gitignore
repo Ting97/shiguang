@@ -51,3 +51,9 @@ apps/mobile/ios/
 apps/mobile/.expo/
 .zcode/
 coverage-tmp
+
+# 测试/构建产物（曾误入库，008 清理）
+coverage/
+__pycache__/
+apps/api/.uploads/
+shiguang-import.json

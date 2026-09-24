@@ -42,7 +42,7 @@ export default function SpaceMenuModal(opts: {
           </button>
         )}
         <button
-          onClick={removeSpace}
+          onClick={() => { setSpaceMenu(false); void removeSpace(); }}
           className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
         >
           <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>

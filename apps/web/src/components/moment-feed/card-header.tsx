@@ -16,6 +16,8 @@ interface CardHeaderProps {
   /** 整条删除的二次确认态 */
   confirming: boolean;
   onConfirmDelete: () => void;
+  /** 删除请求进行中（按钮禁用，防双发） */
+  deleting?: boolean;
   setConfirming: Dispatch<SetStateAction<boolean>>;
   /** 原文行内编辑态：编辑中不显示「⋯」操作入口 */
   editRaw: string | null;
@@ -34,6 +36,7 @@ export function CardHeader({
   intent,
   confirming,
   onConfirmDelete,
+  deleting,
   setConfirming,
   editRaw,
   setEditRaw,
@@ -76,9 +79,10 @@ export function CardHeader({
         <span className="flex items-center gap-1">
           <button
             onClick={onConfirmDelete}
-            className="rounded bg-rose-600/80 px-2 py-0.5 text-[10px] text-white hover:bg-rose-500"
+            disabled={deleting}
+            className="rounded bg-rose-600/80 px-2 py-0.5 text-[10px] text-white hover:bg-rose-500 disabled:opacity-50"
           >
-            确认删除
+            {deleting ? "删除中…" : "确认删除"}
           </button>
           <button onClick={() => setConfirming(false)} className="px-1 text-[10px] text-ink-mute hover:text-ink">
             取消

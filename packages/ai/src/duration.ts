@@ -75,18 +75,22 @@ export function parseDuration(text: string): number | null {
 /** 解析金额（元）。返回分；无金额返回 null。例：260→26000、600块→60000、"花了260"→26000 */
 export function parseAmountCents(text: string): number | null {
   const toCents = (s: string) => Math.round(parseFloat(s) * 100);
+  // 千分位先归一："花了1,000元" 旧版会匹配 "000元" → 0 分；无单位分支会只取到 "1" → 1 元
+  const norm = text.replace(/[,，]/g, "");
   // 1) 带单位：260元 / 600块 / ¥99.9
-  const withUnit = text.match(/(\d+(?:\.\d{1,2})?)\s*(块|元|¥)/);
+  const withUnit = norm.match(/(\d+(?:\.\d{1,2})?)\s*(块|元|¥)/);
   if (withUnit) return toCents(withUnit[1]);
   // 2) 动词暗示（无单位）："花了260""随了600""付了86"；负向断言排除时长/日期词
   //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类）
   //    万/千量词："花了1万"=100万分（旧实现漏乘，静默缩小 100/10 倍）
-  const noUnit = text.match(
+  const noUnit = norm.match(
     /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?(?![\d.天日个月年时分秒块元小周])/,
   );
   if (noUnit) {
     const mult = noUnit[2] === "万" ? 10_000 : noUnit[2] === "千" ? 1_000 : 1;
-    return Math.round(parseFloat(noUnit[1]) * mult * 100);
+    // amount_cents 为 int4：与 AI 契约同上限（¥100 万），巨数直落会 22003
+    const cents = Math.round(parseFloat(noUnit[1]) * mult * 100);
+    return cents > 100_000_000 ? 100_000_000 : cents;
   }
   return null;
 }

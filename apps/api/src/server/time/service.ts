@@ -156,6 +156,8 @@ export async function listActivities(userId: string) {
 
 /** POST /api/activities —— 新增自定义分类 */
 export async function createActivity(userId: string, body: ActivityBody) {
+  if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("名称需为字符串");
+  if (body.icon != null && typeof body.icon !== "string") throw ApiError.badRequest("图标需为字符串");
   const name = body.name?.trim();
   if (!name) throw ApiError.badRequest("名称必填");
   // NaN 防御：非整数 defaultMin 过 Math.min/max 仍得 NaN，直落 int 列 500（PATCH 路径同款在路由层 assertNumericBody）
@@ -184,6 +186,8 @@ export async function createActivity(userId: string, body: ActivityBody) {
 /** PATCH /api/activities/:id —— 修改分类（名称/图标/颜色/默认时长） */
 export async function updateActivity(userId: string, id: string, body: ActivityBody) {
   const fields: Array<[string, unknown]> = [];
+  if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("名称需为字符串");
+  if (body.icon != null && typeof body.icon !== "string") throw ApiError.badRequest("图标需为字符串");
   if (body.name != null) fields.push(["name", body.name.trim()]);
   if (body.icon != null) fields.push(["icon", body.icon.trim() || "🏷"]);
   if (body.color != null && /^#[0-9a-fA-F]{6}$/.test(body.color)) fields.push(["color", body.color]);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
 import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 
 interface Me {
   id: string;
@@ -24,6 +25,7 @@ const zhDate = (iso: string | null) => {
 
 export default function ProfilePage() {
   const { refresh } = useSession();
+  const armLogout = useArmConfirm();
   const [me, setMe] = useState<Me | null>(null);
   // 身份加载失败态：失败要落错误 + 重试入口（历史 bug：catch 空吞，永久「加载中…」；同 admin 页 meErr 范式）
   const [meErr, setMeErr] = useState<string | null>(null);
@@ -228,13 +230,14 @@ export default function ProfilePage() {
               </p>
               <button
                 onClick={async () => {
-                  if (!window.confirm("在所有设备上退出登录？")) return;
+                  // 两步确认（全站规范）：首点进入待确认态，3 秒内再点执行
+                  if (!armLogout.arm("logout-all")) return;
                   await api("/api/auth/logout-all", "POST").catch(() => {});
                   window.location.href = "/login";
                 }}
-                className="w-full rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-medium text-danger transition hover:bg-rose-500/20"
+                className={`w-full rounded-xl border py-2.5 text-sm font-medium transition ${armLogout.armedId ? "border-rose-500 bg-rose-500/20 text-danger" : "border-rose-500/40 bg-rose-500/10 text-danger hover:bg-rose-500/20"}`}
               >
-                全端登出
+                {armLogout.armedId ? "确认在所有设备退出？（3 秒内再点）" : "全端登出"}
               </button>
             </section>
 

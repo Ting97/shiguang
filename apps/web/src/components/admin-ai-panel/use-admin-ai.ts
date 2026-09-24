@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/shared/api";
 import { MODE_META, validateTpl, zhTime } from "./kit";
 import type { EngineMode, PromptItem, Version } from "./types";
@@ -55,12 +55,22 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     }
   }, [notify]);
 
+  // 版本列表请求序号守卫：快速切换 prompt 时慢回包不再覆盖新选中的版本列表
+  const verSeq = useRef(0);
+  // 危险操作（恢复默认/回滚版本）两步确认：armed key + 3 秒超时复位
+  const [armKey, setArmKey] = useState<string | null>(null);
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function armTimer(ms: number) {
+    if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    armTimerRef.current = setTimeout(() => setArmKey(null), ms);
+  }
   const loadVersions = useCallback(async (key: string) => {
+    const seq = ++verSeq.current;
     try {
       const j = await api<any>(`/api/admin/prompts/${key}`);
-      setVersions(j.versions);
+      if (seq === verSeq.current) setVersions(j.versions);
     } catch {
-      setVersions(null);
+      if (seq === verSeq.current) setVersions(null);
     }
   }, []);
 
@@ -154,7 +164,10 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   }
 
   async function revertDefault() {
-    if (!sel || !window.confirm(`恢复「${sel.title}」为代码默认值？（删除 DB 覆盖：system/user 模板/注入配置全部回退，立即生效）`)) return;
+    if (!sel) return;
+    // 两步确认（全站规范）：首点进入待确认态，3 秒内再点执行
+    if (armKey !== `revert:${sel.key}`) { setArmKey(`revert:${sel.key}`); armTimer(3000); return; }
+    setArmKey(null);
     try {
       await api(`/api/admin/prompts/${sel.key}`, "DELETE");
       notify(`「${sel.title}」已恢复代码默认`);
@@ -167,7 +180,11 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   }
 
   async function rollback(v: Version) {
-    if (!sel || !window.confirm(`整体回滚到 ${zhTime(v.created_at)} 的版本？（system + user 模板 + 注入配置三件套，立即生效）`)) return;
+    if (!sel) return;
+    const key = `rollback:${v.id}`;
+    // 两步确认（全站规范）：首点进入待确认态，3 秒内再点执行
+    if (armKey !== key) { setArmKey(key); armTimer(3000); return; }
+    setArmKey(null);
     try {
       await api(`/api/admin/prompts/${sel.key}/restore`, "POST", { versionId: v.id });
       notify(`已回滚到 ${zhTime(v.created_at)} 的版本`);
@@ -245,6 +262,8 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   const periodPlaceholder = sel?.key === "review_month" ? "期间 YYYY-MM（空=本月）" : sel?.key === "review_year" ? "期间 YYYY（空=今年）" : "期间 YYYY-MM-DD（空=今天）";
 
   return {
+    armKey,
+    setArmKey,
     items,
     loadErr,
     sel,

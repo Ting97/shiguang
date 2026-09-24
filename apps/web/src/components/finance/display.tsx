@@ -10,7 +10,7 @@ import { api, zhDay } from "./kit";
 
 export /* ---------- 子组件 ---------- */
 
-function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () => void; onEdit?: () => void; onDelete?: () => void }) {
+function TxRow({ tx: t, onConfirm, onEdit, onDelete, delArmed = false }: { tx: Tx; onConfirm?: () => void; onEdit?: () => void; onDelete?: () => void; /** 删除待确认态（3 秒内再点执行） */ delArmed?: boolean }) {
   // 北京时间口径：UTC getter + 8h（本地 getter 在非中国时区设备会错 8 小时）
   const d = new Date(new Date(t.occurred_at).getTime() + 8 * 3600_000);
   const sameYear = d.getUTCFullYear() === new Date(Date.now() + 8 * 3600_000).getUTCFullYear();
@@ -49,8 +49,12 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete }: { tx: Tx; onConfirm?: () 
           </button>
         )}
         {onDelete && (
-          <button onClick={onDelete} title="删除" className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger">
-            🗑
+          <button
+            onClick={onDelete}
+            title={delArmed ? "3 秒内再点确认删除" : "删除"}
+            className={`rounded px-1.5 py-0.5 text-xs ${delArmed ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+          >
+            {delArmed ? "确认删除?" : "🗑"}
           </button>
         )}
       </span>

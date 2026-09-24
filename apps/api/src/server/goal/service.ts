@@ -103,6 +103,8 @@ async function listTodos(userId: string, view: string) {
  * - repeatDaily 每日重复（仅行动；06:00 日切惰性恢复）
  */
 async function createTodo(userId: string, body: TodoCreateInput) {
+  if (body.title != null && typeof body.title !== "string") throw ApiError.badRequest("标题需为字符串");
+  if (body.note != null && typeof body.note !== "string") throw ApiError.badRequest("详情需为字符串");
   const title = (body.title ?? "").trim();
   if (!title) throw ApiError.badRequest("标题不能为空");
   if (title.length > 200) throw ApiError.badRequest("标题太长了（≤200 字）");
@@ -254,6 +256,12 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
     if (hit.status !== "active") throw ApiError.badRequest("空间已归档，不可新关联");
     spaceId = hit.id;
   }
+  // 类型/长度预检：PATCH 通道与 POST 同规——非字符串 title/note 落 .trim() 会 TypeError → 500
+  if (body.title != null) {
+    if (typeof body.title !== "string") throw ApiError.badRequest("标题需为字符串");
+    if (body.title.trim().length > 200) throw ApiError.badRequest("标题太长了（≤200 字）");
+  }
+  if (body.note != null && typeof body.note !== "string") throw ApiError.badRequest("详情需为字符串");
   // note 长度校验（位置与迁移前一致：在字段映射、「没有可更新的字段」判定之前）
   if (body.note !== undefined) {
     const note = body.note?.trim() ? body.note.trim() : null;
@@ -319,6 +327,7 @@ async function listSpaces(userId: string) {
 /** POST /api/spaces —— 创建空间；active 超过 20 个时 400（控制 AI 分类 prompt 长度与认知负担） */
 async function createSpace(userId: string, body: SpaceCreateInput) {
   const { name, description, icon, color, startedAt, targetDate } = body;
+  if (name != null && typeof name !== "string") throw ApiError.badRequest("名称需为字符串");
   const trimmed = (name ?? "").trim();
   if (!trimmed || trimmed.length > 40) throw ApiError.badRequest("名称必填且不超过 40 字");
   const { rows: active } = await spaceRepo.countActive(userId);

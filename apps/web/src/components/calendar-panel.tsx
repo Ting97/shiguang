@@ -157,8 +157,10 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     try {
       await api<any>("/api/blocks", "POST", payload);
     } catch (e) {
+      // 与 saveEdit 同口径：非接口错误（断网等）也就地提示，不外抛（外抛会经 unhandledrejection 触发整页自愈刷新，丢表单输入）
       if (e instanceof ApiClientError) { setErr(e.message === "操作失败" ? "补录失败" : e.message); return false; }
-      throw e;
+      setErr("网络异常，请稍后重试");
+      return false;
     }
     await load();
     return true;

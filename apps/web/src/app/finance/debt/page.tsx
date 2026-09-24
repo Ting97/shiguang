@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
@@ -27,6 +28,8 @@ export default function DebtPage() {
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 归档两步确认（全站规范，替代原生 confirm）
+  const armArchive = useArmConfirm();
   const [editing, setEditing] = useState<Debt | null | "new">(null);
   const [paying, setPaying] = useState<Debt | null>(null);
   const [showCleared, setShowCleared] = useState(false);
@@ -266,9 +269,9 @@ export default function DebtPage() {
                         <button onClick={() => setPaying(d)} title="记还款" className="rounded px-1.5 py-0.5 text-xs text-success hover:bg-soft">💰</button>
                         <button onClick={() => setEditing(d)} title="编辑" className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent">✏️</button>
                         <button
-                          title="归档"
+                          title={armArchive.armedId === d.id ? "3 秒内再点确认归档" : "归档（不再统计，可随时恢复）"}
                           onClick={async () => {
-                            if (!window.confirm(`归档「${d.name}」？归档后不再统计，可随时恢复。`)) return;
+                            if (!armArchive.arm(d.id)) return;
                             try {
                               await api(`/api/debts/${d.id}`, "DELETE");
                               setMsg({ ok: true, text: "📦 已归档" });
@@ -277,9 +280,9 @@ export default function DebtPage() {
                               setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
                             }
                           }}
-                          className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
+                          className={`rounded px-1.5 py-0.5 text-xs ${armArchive.armedId === d.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
                         >
-                          🗑
+                          {armArchive.armedId === d.id ? "确认归档?" : "🗑"}
                         </button>
                       </span>
                     </div>

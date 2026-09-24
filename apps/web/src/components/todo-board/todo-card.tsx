@@ -80,8 +80,8 @@ export function TodoCard({
             <button onClick={() => edit.setEditingId(null)} className="rounded px-3 py-1 text-xs text-ink-mute hover:bg-soft">
               取消
             </button>
-            <button onClick={edit.saveEdit} className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500">
-              保存
+            <button onClick={edit.saveEdit} disabled={edit.editSaving} className="rounded bg-sky-600 px-3 py-1 text-xs font-medium hover:bg-sky-500 disabled:opacity-50">
+              {edit.editSaving ? "保存中…" : "保存"}
             </button>
           </div>
         </Dismissable>

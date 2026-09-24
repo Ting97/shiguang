@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Dismissable } from "@/components/dismissable";
 import { TX_CATEGORIES } from "@/lib/finance";
 import type { Account, Tx } from "./kit";
-import { api, toLocalInput } from "./kit";
+import { api, toLocalInput, fromLocalInput } from "./kit";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 
 export function TxForm({
   accounts,
@@ -124,7 +125,8 @@ export function TxForm({
                 amountCents: cents,
                 category,
                 accountId: accountId || null,
-                occurredAt: date ? new Date(date).toISOString() : new Date().toISOString(),
+                // date 是北京墙上时间串（toLocalInput 产），须按 +08:00 解析——裸 new Date() 按宿主时区解释，海外设备记错账时间
+                occurredAt: fromLocalInput(date) ?? new Date().toISOString(),
                 note: note || null,
                 counterparty: counterparty.trim() || null,
               });
@@ -157,6 +159,8 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
   const [addErr, setAddErr] = useState<string | null>(null);
   // 图标选择浮层（打开的账户 id）
   const [iconPick, setIconPick] = useState<string | null>(null);
+  // 归档两步确认（全站规范，替代原生 confirm）
+  const armArchive = useArmConfirm();
 
   async function saveName(a: Account) {
     const draft = (nameDrafts[a.id] ?? a.name).trim();
@@ -213,9 +217,9 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 className="w-24 rounded border border-line bg-surface px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-sky-500"
               />
               <button
-                title="归档账户（历史流水保留）"
+                title="归档账户（历史流水保留，3 秒内再点确认）"
                 onClick={async () => {
-                  if (!window.confirm(`归档「${a.name}」？归档后不再显示，历史流水保留。`)) return;
+                  if (!armArchive.arm(a.id)) return;
                   try {
                     await api(`/api/accounts/${a.id}`, "DELETE");
                     await onChanged();
@@ -223,9 +227,9 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                     setRowErr((prev) => ({ ...prev, [a.id]: ce instanceof Error ? ce.message : "归档失败" }));
                   }
                 }}
-                className="row-actions-hidden hidden text-xs text-ink-dim hover:text-danger group-hover:block"
+                className={`row-actions-hidden hidden text-xs group-hover:block ${armArchive.armedId === a.id ? "font-medium text-danger" : "text-ink-dim hover:text-danger"}`}
               >
-                🗑
+                {armArchive.armedId === a.id ? "确认归档?" : "🗑"}
               </button>
             </div>
             {rowErr[a.id] && <p className="mt-1 text-[11px] text-danger">{rowErr[a.id]}</p>}

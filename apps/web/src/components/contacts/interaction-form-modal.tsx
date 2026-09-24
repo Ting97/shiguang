@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { TYPE_EMOJI, type InteractionType } from "@/lib/social";
+import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 
 export function InteractionFormModal({
@@ -18,13 +19,10 @@ export function InteractionFormModal({
   const id = !params2.id || params2.id === "__shell__"
     ? (typeof window !== "undefined" ? window.location.pathname.split("/").filter(Boolean)[1] ?? "" : "")
     : params2.id;
-  const pad = (n: number) => String(n).padStart(2, "0");
   const [type, setType] = useState<InteractionType>("见面");
   const [summary, setSummary] = useState("");
-  const [when, setWhen] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  });
+  // 默认值与解析都走北京墙上时间口径：本地 getter 组串/裸 new Date 解析会让输入 20:30 落库成别的时间
+  const [when, setWhen] = useState(() => isoToBjInput(new Date().toISOString()));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -74,7 +72,7 @@ export function InteractionFormModal({
                   await api(`/api/contacts/${id}/interactions`, "POST", {
                     type,
                     summary,
-                    occurredAt: when ? new Date(when).toISOString() : undefined,
+                    occurredAt: bjInputToIso(when) ?? undefined,
                   });
                   await onSaved("🤝 已补记一笔往来");
                 } catch (e) {

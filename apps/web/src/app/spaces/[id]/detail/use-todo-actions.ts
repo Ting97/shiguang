@@ -77,18 +77,19 @@ export function useTodoActions(opts: {
       await load();
       return true;
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message });
-        return false;
-      }
-      throw e;
+      // 含网络错误就地消化：外抛会经 unhandledrejection 触发 ChunkErrorReloader 整页刷新，丢展开态与输入
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "网络异常，请稍后重试" });
+      return false;
     } finally {
       setBusyId(null);
     }
   }
 
   async function removeTodo(todoId: string, title: string) {
-    if (!window.confirm(`删除「${title}」？\n其下行动会一并删除。`)) return;
+    // ⚠ 保留原生 confirm：行菜单是 createPortal 渲染，008 实测 React 19 下 portal 内
+    // 经重渲染的按钮第二次点击事件不送达（两步确认不可靠），destructive 操作安全优先
+    if (!window.confirm(`删除「${title}」？
+其下行动会一并删除。`)) return;
     try {
       await api<any>(`/api/todos/${todoId}`, "DELETE");
     } catch (e) {
@@ -100,34 +101,25 @@ export function useTodoActions(opts: {
     await load();
   }
 
-  /** AI 拆解：待办→≤10 行动（已有未完成时询问追加/重生成）；行动→≤3 同级细化（插入其后） */
-  async function decompose(t: { id: string; title: string; isAction: boolean }) {
+  /** 未完成行动数（行 ✨ 与菜单据此给出「重新生成 / 追加」显式选择） */
+  function pendingCount(t: { id: string }): number {
+    const parent = todos.find((x) => x.id === t.id);
+    return parent?.children.filter((c) => c.status === "pending").length ?? 0;
+  }
+
+  /** AI 拆解：待办→≤10 行动；行动→≤3 同级细化（插入其后）。
+   *  mode 由调用方显式传入（原 window.confirm「确定=重生成/取消=追加」双语义不可发现且易误触清空行动） */
+  async function decompose(t: { id: string; title: string; isAction: boolean }, mode?: "replace" | "append") {
     const key = t.id;
     setBusyId(key);
     try {
-      const askMode = !t.isAction;
-      let mode: string | undefined;
-      if (askMode) {
-        const parent = todos.find((x) => x.id === t.id);
-        const pending = parent?.children.filter((c) => c.status === "pending").length ?? 0;
-        if (pending > 0) {
-          const yes = window.confirm(`「${t.title}」已有 ${pending} 个未完成行动。\n\n确定 = 重新生成（清空未完成，已完成保留）\n取消 = 改为追加到末尾\n\n（追加请点取消后在弹窗选择）`);
-          mode = yes ? "replace" : "append";
-          if (!yes) {
-            // append 需要再次确认语义
-            mode = "append";
-          }
-        }
-      }
       let j: any;
       try {
         j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
       } catch (e) {
-        if (e instanceof ApiClientError) {
-          setMsg({ ok: false, text: e.message === "操作失败" ? "AI 拆解失败" : e.message });
-          return;
-        }
-        throw e;
+        // 含网络错误就地消化（外抛会经 unhandledrejection 触发整页刷新）
+        setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "AI 拆解失败，请稍后重试" });
+        return;
       }
       setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${t.isAction ? "，已插入原行动之后" : ""}` });
       await load();
@@ -229,11 +221,9 @@ export function useTodoActions(opts: {
     try {
       await api<any>(`/api/todos/${todoId}`, "PATCH", { spaceId: target });
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "关联失败" : e.message });
-        return;
-      }
-      throw e;
+      // 含网络错误就地消化（同 patchTodo：外抛会触发整页刷新）
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "网络异常，请稍后重试" });
+      return;
     }
     setMsg({ ok: true, text: target ? "🎯 已关联空间" : "已移除空间归属" });
     await load();
@@ -258,7 +248,7 @@ export function useTodoActions(opts: {
     // 行级空间关联
     pickerRow, setPickerRow, pickSpace,
     // 通用提交
-    patchTodo, removeTodo, decompose,
+    patchTodo, removeTodo, decompose, pendingCount,
   };
 }
 

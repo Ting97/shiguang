@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FeedMoment } from "@/lib/types";
 import { api } from "@/shared/api";
 import type { CardMsg } from "./types";
@@ -14,6 +14,15 @@ import type { CardMsg } from "./types";
 export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
   const [cardMsg, setCardMsg] = useState<CardMsg>(null);
   const [busyDomain, setBusyDomain] = useState<string | null>(null);
+  // 两步删除的待确认 key（3 秒超时自动复位）
+  const [delArmed, setDelArmed] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (armTimer.current) clearTimeout(armTimer.current);
+    },
+    [],
+  );
 
   // 卡内消息自动消失：成功 3.5s / 失败 8s（失败停留更久方便看清原因）
   useEffect(() => {
@@ -55,8 +64,17 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
     }
   };
 
-  const del = (message: string, fn: () => Promise<unknown>) =>
-    window.confirm(message) ? run(async () => (await fn(), "🗑 已删除")) : undefined;
+  /** 两步删除（全站规范）：首点 arm(key)，按钮呈「确认删除？」；3 秒内再点同一 key 执行 */
+  const del = (key: string, fn: () => Promise<unknown>) => {
+    if (delArmed === key) {
+      setDelArmed(null);
+      void run(async () => (await fn(), "🗑 已删除"));
+      return;
+    }
+    setDelArmed(key);
+    if (armTimer.current) clearTimeout(armTimer.current);
+    armTimer.current = setTimeout(() => setDelArmed(null), 3000);
+  };
 
-  return { cardMsg, setCardMsg, busyDomain, run, recognizeDomain, manualAdd, del };
+  return { cardMsg, setCardMsg, busyDomain, run, recognizeDomain, manualAdd, del, delArmed };
 }

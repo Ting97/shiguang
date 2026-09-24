@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import TodoLogo from "./todo-logo";
-import { TodoCircle, dueTag, isoToLocalInput } from "./todo-bits";
+import { TodoCircle, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { Dismissable } from "./dismissable";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
 
@@ -28,6 +29,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   // 行内编辑保存进行中：防双击重复保存
   const [editSaving, setEditSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
+  // 删除两步确认（全站规范，替代原生 confirm）
+  const armDelete = useArmConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -78,11 +81,11 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     }
   }
 
-  /** N6：删除行动（独立/有父皆可，confirm 确认） */
+  /** N6：删除行动（独立/有父皆可；调用方已过两步确认） */
   async function removeAction(a: TodayAction) {
-    if (!window.confirm(`删除行动「${a.title}」？`)) return;
     try {
       await api(`/api/todos/${a.id}`, "DELETE");
+      armDelete.disarm();
       notify({ ok: true, text: "🗑 行动已删除" });
       await load();
     } catch (e) {
@@ -105,7 +108,9 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     try {
       await api(`/api/todos/${editingId}`, "PATCH", {
         title: editTitle.trim(),
-        dueAt: editDue ? new Date(editDue).toISOString() : null,
+        // editDue 是北京墙上时间串（isoToLocalInput 产），必须按 +08:00 解析——
+        // 裸 new Date() 按宿主时区解释，海外设备会存错 N 小时
+        dueAt: editDue ? localInputToIso(editDue) : null,
       });
       setEditingId(null);
       await load();
@@ -248,7 +253,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                           {/* N6 行操作（hover 显 / 触屏常显） */}
                           <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover:flex">
                             <button onClick={() => startEdit(a)} title="编辑行动" className="rounded px-1.5 py-0.5 text-xs text-ink-mute opacity-70 transition hover:bg-soft hover:text-ink">✏️</button>
-                            <button onClick={() => void removeAction(a)} title="删除行动" className="rounded px-1.5 py-0.5 text-xs text-ink-mute opacity-70 transition hover:bg-soft hover:text-danger">🗑</button>
+                            <button
+                              onClick={() => { if (armDelete.arm(a.id)) void removeAction(a); }}
+                              title="删除行动（3 秒内再点确认）"
+                              className={`rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-soft ${armDelete.armedId === a.id ? "font-medium text-danger opacity-100" : "text-ink-mute hover:text-danger"}`}
+                            >
+                              {armDelete.armedId === a.id ? "确认删除?" : "🗑"}
+                            </button>
                           </span>
                         </>
                       )}

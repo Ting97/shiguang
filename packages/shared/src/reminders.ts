@@ -71,11 +71,14 @@ export function pickReminders(
     // 北京口径：getHours 用宿主时区（非 +8 设备横幅时刻差 N 小时）；+8h 后读 UTC getter
     const bjHm = due ? new Date(due.getTime() + 8 * 3600_000) : null;
     const hm = bjHm ? `（${pad(bjHm.getUTCHours())}:${pad(bjHm.getUTCMinutes())}）` : "";
+    // 未过期按北京日历日差排序（契约注释「N 天后 N」；旧版恒 0，紧迫度信息丢失、顺序随入参）
+    const bjDayIdx = (ts: number) => Math.floor((ts + 8 * 3600_000) / 86_400_000);
+    const daysLeft = due && !overdue ? Math.max(0, bjDayIdx(due.getTime()) - bjDayIdx(now.getTime())) : 0;
     items.push({
       key: `td-${t.id}`,
       kind: "todo",
       todoId: t.id,
-      sort: overdue ? -1 : 0,
+      sort: overdue ? -1 : daysLeft,
       overdue,
       label: `${overdue ? "todo 已过期" : "todo 即将到期"}：${t.title}${hm}`,
     });

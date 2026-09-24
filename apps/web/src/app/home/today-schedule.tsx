@@ -9,6 +9,7 @@ import { api } from "@/shared/api";
 import { bjToday, zhDuration } from "@/lib/date";
 import { combineHM } from "@/lib/bj-time";
 import type { Activity, Block } from "@/lib/types";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { zhTime } from "./kit";
 import type { BlockDraft, Notify } from "./types";
 
@@ -26,6 +27,8 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [listDraft, setListDraft] = useState<BlockDraftValue | null>(null);
   const [listSaving, setListSaving] = useState(false);
+  // 删除两步确认（全站规范，替代原生 confirm）
+  const armDelete = useArmConfirm();
   // 行内编辑保存进行中：防双击重复提交（文案/禁用同 listSaving 口径）
   const [saving, setSaving] = useState(false);
   const listFormRef = useRef<HTMLDivElement>(null);
@@ -69,7 +72,7 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
   }
 
   async function removeBlock(b: Block) {
-    if (!window.confirm(`删除这条日程？\n「${b.title}」 ${zhTime(b.start_at)}–${zhTime(b.end_at)}`)) return;
+    if (!armDelete.arm(b.id)) return;
     try {
       await api(`/api/blocks/${b.id}`, "DELETE");
     } catch {
@@ -278,10 +281,10 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
                     </button>
                     <button
                       onClick={() => removeBlock(b)}
-                      title="删除"
-                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-danger"
+                      title={armDelete.armedId === b.id ? "3 秒内再点确认删除" : "删除"}
+                      className={`rounded px-1.5 py-0.5 text-xs ${armDelete.armedId === b.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
                     >
-                      🗑
+                      {armDelete.armedId === b.id ? "确认删除?" : "🗑"}
                     </button>
                   </span>
                 </li>

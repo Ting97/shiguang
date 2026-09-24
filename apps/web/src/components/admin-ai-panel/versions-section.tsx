@@ -14,6 +14,8 @@ interface Props {
   setDirty: Dispatch<SetStateAction<boolean>>;
   onLoadSystem: (v: Version) => void;
   onRollback: (v: Version) => Promise<void>;
+  /** 处于待确认态的回滚版本 id（按钮呈「确认回滚?」） */
+  armedRollbackId?: number | null;
 }
 
 /** ===== 第三段：版本历史（三件套快照，载入单件 / 整体回滚；启用开关关闭 = 整 key 回退代码默认） ===== */
@@ -26,6 +28,7 @@ export default function VersionsSection({
   setDirty,
   onLoadSystem,
   onRollback,
+  armedRollbackId,
 }: Props) {
   return (
     <section className="glass mb-3 rounded-2xl p-4">
@@ -63,10 +66,10 @@ export default function VersionsSection({
                   </button>
                   <button
                     onClick={() => void onRollback(v)}
-                    className="rounded px-2 py-0.5 text-ink-soft hover:bg-soft hover:text-warn"
-                    title="整体恢复该版本的三件套并立即生效"
+                    className={`rounded px-2 py-0.5 ${armedRollbackId === v.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-soft hover:bg-soft hover:text-warn"}`}
+                    title={armedRollbackId === v.id ? "3 秒内再点确认（三件套整体恢复并立即生效）" : "整体恢复该版本的三件套并立即生效"}
                   >
-                    回滚
+                    {armedRollbackId === v.id ? "确认回滚?" : "回滚"}
                   </button>
                 </li>
               ))}

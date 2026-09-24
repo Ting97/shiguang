@@ -38,9 +38,9 @@ npm workspaces monorepo，逻辑共享、UI 分端：
 apps/web      Web 客户端（Next.js 15 纯静态导出，PWA）
 apps/mobile   Android 原生主力端（Expo/RN，EAS 云构建 + OTA 热更）
 apps/android  Android WebView 壳（34KB 极简备选）   apps/native  iOS（Capacitor，待 Mac）
-apps/api      唯一服务端（Next.js standalone）：21 组 REST API + 静态托管 + 会话门卫
+apps/api      唯一服务端（Next.js standalone）：27 组 REST API + 静态托管 + 会话门卫
 packages/ai   AI 内核（GLM 客户端/五域管线/确定性时间引擎/ASR/46 句 PoC）
-packages/shared 双端共享逻辑（CSV/财务/农历/图谱/Bearer/CORS）   packages/db  Schema + 20 迁移
+packages/shared 双端共享逻辑（CSV/财务/农历/图谱/Bearer/CORS）   packages/db  Schema 基线 + 39 迁移
 ```
 
 部署：腾讯云单机（CentOS + Caddy HTTPS + PostgreSQL 13 + systemd），双 tar 原子发布秒级回滚。

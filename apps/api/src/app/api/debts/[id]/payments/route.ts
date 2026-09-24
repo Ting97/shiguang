@@ -114,7 +114,7 @@ export const POST = withDebtParams(async (req, { user, params }) => {
     void autoCheckAfterPayment(user.id, id, body.amountCents as number).catch(() => {});
     return NextResponse.json({ payment: serializePayment(payment), debt: serializeDebt(updated), transactionId: txId });
   } catch (e) {
-    await client.query("rollback");
+    await client.query("rollback").catch(() => {}); // 连接已死时 rollback 自身抛错会顶替原始错误
     throw e;
   } finally {
     client.release();

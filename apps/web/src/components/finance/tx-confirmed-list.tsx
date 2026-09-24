@@ -15,6 +15,7 @@ export function ConfirmedTxSection({
   setEditing,
   onSubmitEdit,
   onRemove,
+  delArmed,
 }: {
   txs: Tx[];
   accounts: Account[];
@@ -22,6 +23,8 @@ export function ConfirmedTxSection({
   setEditing: Dispatch<SetStateAction<Tx | null>>;
   onSubmitEdit: (t: Tx, payload: Record<string, unknown>) => Promise<void>;
   onRemove: (t: Tx) => void;
+  /** 处于删除待确认态的流水 id */
+  delArmed?: string | null;
 }) {
   return (
     <section className="glass rounded-2xl p-5">
@@ -49,7 +52,7 @@ export function ConfirmedTxSection({
             </li>
           ) : (
             <li key={t.id} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 hover:bg-elevated/60">
-              <TxRow tx={t} onEdit={() => setEditing(t)} onDelete={() => onRemove(t)} />
+              <TxRow tx={t} onEdit={() => setEditing(t)} onDelete={() => onRemove(t)} delArmed={delArmed === t.id} />
             </li>
           ),
         )}

@@ -29,7 +29,7 @@ export async function GET() {
   // 上传目录可写（生产 /opt/shiguangri_data/uploads；开发 .uploads/；不存在则尝试创建）
   let uploadsWritable = false;
   try {
-    const dir = process.env.UPLOAD_DIR || join(process.cwd(), ".uploads");
+    const dir = loadConfig().uploadDir || join(process.cwd(), ".uploads");
     await fs.mkdir(dir, { recursive: true });
     const probe = join(dir, `.health-${Date.now()}`);
     await fs.writeFile(probe, "ok");

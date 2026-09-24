@@ -2,6 +2,8 @@
 -- 拾光 shiguangri · 数据库 Schema v1（Phase 0：时间日记模块先行）
 -- 目标库：PostgreSQL 16+（Supabase 兼容）/ 含 pgvector 预留
 -- 设计文档：docs/03-技术方案与架构设计.md §3
+-- ⚠ 本文件仅作 runner --fresh 的建库基线：生产库终态以 migrations/ 001~NNN
+--   依次执行后的结果为准（部分表/约束/索引与迁移终态不同形，勿当现行 schema 阅读）
 -- ============================================================
 
 -- ---------- 用户（对接 Supabase auth.users 或自建 auth 时的用户表） ----------

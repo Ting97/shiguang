@@ -76,7 +76,9 @@ export const POST = withAdminParams(async (req, { user, params }) => {
       model: activeModel(), engine: "prompt-optimize",
       latencyMs: Date.now() - t0, ok: false, error: String(e).slice(0, 300),
     });
-    return NextResponse.json({ error: `AI 优化失败：${e instanceof Error ? e.message : String(e).slice(0, 200)}` }, { status: 502 });
+    // 上游错误串（可能含模型/网络内部信息）只进审计与日志，客户端固定文案（全站约定）
+    console.warn("[prompt-optimize] failed:", e);
+    return NextResponse.json({ error: "AI 优化失败，请稍后重试" }, { status: 502 });
   }
 });
 

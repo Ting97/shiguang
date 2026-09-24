@@ -202,6 +202,11 @@ export function parseBill(text: string, platform?: Platform): ParseResult {
       skips.push({ line: lineNo, reason: "金额无法解析" });
       continue;
     }
+    // 与 AI 契约/服务端上限一致（amount_cents int4）：超限行跳过计入 skips，避免整批导入事务回滚
+    if (amountCents > 100_000_000) {
+      skips.push({ line: lineNo, reason: "单笔金额超出上限（¥100 万）" });
+      continue;
+    }
     const occurredAt = parseCstTime(get(col.time));
     if (!occurredAt) {
       skips.push({ line: lineNo, reason: `时间无法解析（${get(col.time)}）` });

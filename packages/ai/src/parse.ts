@@ -92,8 +92,10 @@ function ruleExtract(text: string, contactNames?: string[]): LlmExtractionT {
   const amount = parseAmountCents(text);
   // 人物去重："同事小陈"与"小陈"同时命中时保留更短的称呼
   const rawNames = peopleRegexFrom(contactNames).map((re) => [...text.matchAll(re)].map((m) => m[0])).flat();
+  // 人物去重："同事小陈"与"小陈"同时命中时保留更短称呼——联系人名单里是"小陈"，
+  // 保留长串会让 people 落库成带前缀的称呼对不上名单（旧版行为与注释相反，实际保留了长串）
   const people = [...new Set(rawNames)]
-    .filter((n) => !rawNames.some((m) => m !== n && m.includes(n)))
+    .filter((n) => !rawNames.some((m) => m !== n && n.includes(m)))
     .map((name) => ({ name, event: undefined }));
   const mood = ruleMood(text);
   const isFuture = detectFuture(text) !== null;

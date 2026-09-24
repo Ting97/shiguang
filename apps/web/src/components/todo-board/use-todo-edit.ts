@@ -21,6 +21,8 @@ export interface TodoEditCtx {
  */
 export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  // 保存进行中：防双击/Enter+按钮双路径重复 PATCH
+  const [editSaving, setEditSaving] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDue, setEditDue] = useState("");
   const [editActivity, setEditActivity] = useState("other");
@@ -47,6 +49,8 @@ export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
       setMsg({ ok: false, text: "标题不能为空" });
       return;
     }
+    if (editSaving) return;
+    setEditSaving(true);
     try {
       const ok = await patchTodo(
         editingId,
@@ -63,6 +67,8 @@ export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
     } catch {
       // 兜底：任何异常只提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       setMsg({ ok: false, text: "网络异常，请稍后重试" });
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -77,6 +83,7 @@ export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
     setEditActivity,
     editRepeat,
     setEditRepeat,
+    editSaving,
     startEdit,
     closeEdit,
     saveEdit,

@@ -47,6 +47,7 @@ export async function listContacts(userId: string) {
 
 /** POST /api/contacts —— 手动建档 */
 export async function createContact(userId: string, body: ContactUpsertBody) {
+  if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("姓名需为字符串");
   const name = body.name?.trim();
   if (!name) throw ApiError.badRequest("姓名必填");
   if (name.length > 30) throw ApiError.badRequest("姓名过长");
@@ -101,10 +102,13 @@ export async function contactDetail(userId: string, id: string) {
 /** PATCH /api/contacts/:id —— 编辑档案 */
 export async function updateContact(userId: string, id: string, body: ContactUpsertBody) {
   const fields: Array<[string, unknown]> = [];
+  if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("姓名需为字符串");
   if (body.name?.trim()) {
+    if (body.name.trim().length > 30) throw ApiError.badRequest("姓名过长");
     fields.push(["name", body.name.trim()]);
   }
   if (body.alias !== undefined) {
+    if (body.alias !== null && typeof body.alias !== "string") throw ApiError.badRequest("备注名需为字符串");
     fields.push(["alias", body.alias?.trim() || null]);
   }
   if (body.group && (CONTACT_GROUPS as readonly string[]).includes(body.group)) {

@@ -40,6 +40,8 @@ export default function DebtImportDrawer({
   const [skipped, setSkipped] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 导入成功的面板内提示（替代原生 alert）
+  const [doneMsg, setDoneMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -82,8 +84,10 @@ export default function DebtImportDrawer({
       setPreview(r.summary ?? null);
       setRows(null);
       onDone();
-      alert(`✅ 导入完成：新建 ${r.created} 笔、跳过 ${r.skipped} 笔${r.accountsCreated ? `、账户 ${r.accountsCreated} 个` : ""}`);
-      onClose();
+      // 原生 alert 换面板内成功轻提示：短暂展示结果后自动关闭（阻塞式弹窗与全站交互不一致）
+      setErr(null);
+      setDoneMsg(`✅ 导入完成：新建 ${r.created} 笔、跳过 ${r.skipped} 笔${r.accountsCreated ? `、账户 ${r.accountsCreated} 个` : ""}`);
+      setTimeout(() => onClose(), 1200);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -175,6 +179,7 @@ export default function DebtImportDrawer({
               ))}
             </ul>
             {err && <p className="mb-2 text-[11px] text-danger">{err}</p>}
+      {doneMsg && <p className="text-xs text-success">{doneMsg}</p>}
             <div className="flex gap-2">
               <button onClick={() => setRows(null)} className="flex-1 rounded-xl border border-line-soft py-2 text-sm text-ink-mute hover:text-ink">
                 返回修改

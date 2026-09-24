@@ -158,10 +158,12 @@ export function birthdayCountdown(birthday: string | null | undefined, today = n
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   // 2/29 生日：new Date(y,1,29) 在平年会滚到 3/1 → 用「3 月 0 日」惯用法显式取 2 月最后一天（平年 2/28、闰年 2/29）
   const dateOf = (y: number): Date => (month === 2 && day === 29 ? new Date(y, 2, 0) : new Date(y, month - 1, day));
-  const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const thisYear = dateOf(today.getFullYear());
-  const target = thisYear.getTime() >= dayStart(today) ? thisYear : dateOf(today.getFullYear() + 1);
-  return Math.round((target.getTime() - dayStart(today)) / 86_400_000);
+  // 「今天」按北京日历日取（非 CST 设备的宿主日界与业务日界错位时，今天/明天边界会错报一天）
+  const shifted = new Date(today.getTime() + 8 * 3600_000);
+  const bjToday = new Date(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()).getTime();
+  const thisYear = dateOf(shifted.getUTCFullYear());
+  const target = thisYear.getTime() >= bjToday ? thisYear : dateOf(shifted.getUTCFullYear() + 1);
+  return Math.round((target.getTime() - bjToday) / 86_400_000);
 }
 
 /** 生日展示（自动区分阳历/农历）：null → null；返回 "10月2日"/"农历五月初二" 与倒计时短语 */

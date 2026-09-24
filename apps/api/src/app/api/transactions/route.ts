@@ -54,6 +54,10 @@ export const POST = withAuth(async (req, { user }) => {
   if (!Number.isInteger(body.amountCents) || (body.amountCents ?? 0) <= 0) {
     throw ApiError.badRequest("金额必须大于 0");
   }
+  // amount_cents 为 int4 列：与 AI 契约同上限（¥100 万），巨款直落会 22003 → 500
+  if ((body.amountCents ?? 0) > 100_000_000) {
+    throw ApiError.badRequest("单笔金额超出上限（¥100 万）");
+  }
   // 可选字符串字段预检：非字符串（如 123）原 `?.trim()` 会 TypeError → 500，统一 400
   const category = optionalTrimmed(body.category, "category") || "其他";
   if (!TX_CATEGORIES.includes(category)) {

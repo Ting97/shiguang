@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
+import { loadConfig } from "@/server/platform/config";
 import { hasApiKey, transcribeAudio, asrModel } from "@shiguangri/ai";
 import { withAuth } from "@/server/platform/http/route";
 import { writeAuditRecord } from "@/server/ai";
@@ -29,7 +30,7 @@ function runFfmpeg(bin: string, args: string[]): Promise<void> {
 
 /** 非 wav/mp3（安卓 MediaRecorder 只能出 3gp/m4a 等）→ 统一转 16k 单声道 wav 再送识别 */
 async function toWav(buffer: Buffer, contentType: string): Promise<Buffer> {
-  const ffmpeg = process.env.FFMPEG_PATH;
+  const ffmpeg = loadConfig().ffmpegPath;
   if (!ffmpeg) {
     throw new Error("该音频格式暂不支持，请使用键盘输入或重试");
   }
@@ -54,6 +55,11 @@ async function toWav(buffer: Buffer, contentType: string): Promise<Buffer> {
 export const POST = withAuth(async (req, { user }) => {
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
+  // body 上限前置预检（15MB 音频 + multipart 开销余量）：formData() 全量缓冲进内存，先拦超大 body
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declared) && declared > 20 * 1024 * 1024) {
+    return NextResponse.json({ error: "音频太长（上限 15MB）" }, { status: 400 });
+  }
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) {

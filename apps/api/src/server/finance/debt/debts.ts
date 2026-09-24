@@ -77,7 +77,10 @@ export function validateDebtBody(body: Record<string, unknown>, partial: boolean
   }
   if (body.priority !== undefined) {
     const v = body.priority;
-    if (!Number.isInteger(v)) throw { message: "优先级需为整数" };
+    // priority 为 int4：只验整数会放行 1e12 → 22003 → 500，按业务语义限 0~99
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 99) {
+      throw { message: "优先级需为 0~99 的整数" };
+    }
     out.priority = v;
   }
   if (body.note !== undefined) {

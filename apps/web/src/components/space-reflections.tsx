@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiClientError } from "@/shared/api";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 
 /** 列表条目：预览 300 字 + 字数（GET 列表不回全文，FR-N2.4） */
 export interface ReflectionItem {
@@ -38,6 +39,8 @@ export default function SpaceReflections({
   const [loadingMore, setLoadingMore] = useState(false);
   // 首屏加载失败态：只 notify 不改 items 会永远停在「加载中…」，需给出重试入口
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  // 删除两步确认（全站规范，替代原生 confirm）
+  const armDelete = useArmConfirm();
 
   const load = useCallback(
     async (offset: number) => {
@@ -80,7 +83,7 @@ export default function SpaceReflections({
   }
 
   async function remove(it: ReflectionItem) {
-    if (!window.confirm(`删除这篇感悟？（${it.chars} 字）`)) return;
+    if (!armDelete.arm(it.id)) return; // 两步确认（全站规范）：首点进入待确认态，3 秒内再点执行
     try {
       await api<any>(`/api/spaces/${spaceId}/reflections/${it.id}`, "DELETE");
       notify({ ok: true, text: "🗑 感悟已删除" });
@@ -158,10 +161,10 @@ export default function SpaceReflections({
                       </button>
                       <button
                         onClick={() => void remove(it)}
-                        title="删除"
-                        className="row-actions-hidden hidden rounded px-1.5 py-0.5 text-xs text-ink-mute hover:text-danger group-hover:block"
+                        title={armDelete.armedId === it.id ? "3 秒内再点确认删除" : "删除"}
+                        className={`row-actions-hidden hidden rounded px-1.5 py-0.5 text-xs group-hover:block ${armDelete.armedId === it.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:text-danger"}`}
                       >
-                        🗑
+                        {armDelete.armedId === it.id ? "确认删除?" : "🗑"}
                       </button>
                     </span>
                   </div>

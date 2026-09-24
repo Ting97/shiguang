@@ -19,6 +19,7 @@ export function DraftConfirmSection({
   onConfirmAll,
   onEdit,
   onRemove,
+  delArmed,
 }: {
   drafts: Tx[];
   accounts: Account[];
@@ -31,6 +32,8 @@ export function DraftConfirmSection({
   onConfirmAll: (accountId: string | null) => Promise<void>;
   onEdit: (t: Tx) => void;
   onRemove: (t: Tx) => void;
+  /** 处于删除待确认态的流水 id */
+  delArmed?: string | null;
 }) {
   if (drafts.length === 0) return null;
   return (
@@ -92,7 +95,7 @@ export function DraftConfirmSection({
                 </button>
               </Dismissable>
             ) : (
-              <TxRow tx={t} onConfirm={() => setConfirming(t)} onEdit={() => onEdit(t)} onDelete={() => onRemove(t)} />
+              <TxRow tx={t} onConfirm={() => setConfirming(t)} onEdit={() => onEdit(t)} onDelete={() => onRemove(t)} delArmed={delArmed === t.id} />
             )}
           </li>
         ))}

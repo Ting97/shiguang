@@ -77,7 +77,7 @@ export default function Reminders({
                     onClick={() => markToday(it)}
                     disabled={marked.has(it.todoId!)}
                     title="加入今日 todo（跨零点自动失效）"
-                    className="mt-px shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 px-1.5 py-px text-[11px] text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
+                    className="mt-px shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 px-2.5 py-1 text-[11px] text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
                   >
                     {marked.has(it.todoId!) ? "已加入 ✓" : "☀️ 今日"}
                   </button>

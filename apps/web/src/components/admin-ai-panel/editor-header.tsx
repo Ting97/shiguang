@@ -11,13 +11,14 @@ interface Props {
   draft: string;
   onSave: () => void;
   onRevert: () => void;
+  revertArmed?: boolean;
   /** 保存拦截（REQ-005 FR-5.6：个性化注入估算超 8000 字符时禁用；不传 = 不拦截，既有行为不变） */
   saveBlocked?: boolean;
   saveBlockReason?: string;
 }
 
 /** 三段式编辑器标题行：覆盖态徽标 + 保存 / 恢复代码默认 */
-export default function EditorHeader({ sel, dirty, saving, draft, onSave, onRevert, saveBlocked, saveBlockReason }: Props) {
+export default function EditorHeader({ sel, dirty, saving, draft, onSave, onRevert, revertArmed, saveBlocked, saveBlockReason }: Props) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <h3 className="text-sm font-semibold text-ink">{sel.title}</h3>
@@ -39,8 +40,12 @@ export default function EditorHeader({ sel, dirty, saving, draft, onSave, onReve
         {saving ? "保存中…" : "保存（立即生效）"}
       </button>
       {sel.overridden && (
-        <button onClick={onRevert} className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-ink-soft transition hover:border-rose-500/50 hover:text-danger">
-          恢复代码默认
+        <button
+          onClick={onRevert}
+          title={revertArmed ? "3 秒内再点确认" : "删除 DB 覆盖，全部回退代码默认（立即生效）"}
+          className={`rounded-lg border px-3 py-1.5 text-xs transition ${revertArmed ? "border-rose-500 bg-rose-500/10 font-medium text-danger" : "border-line-soft bg-surface/60 text-ink-soft hover:border-rose-500/50 hover:text-danger"}`}
+        >
+          {revertArmed ? "确认恢复默认？" : "恢复代码默认"}
         </button>
       )}
     </div>

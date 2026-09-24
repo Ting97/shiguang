@@ -29,6 +29,12 @@ export interface AppConfig {
   isProd: boolean;
   databaseUrl: string;
   uploadDir: string | null;
+  /** ASR 音频转码兜底（安卓 m4a/webm → 16k wav）；未配置 = 该兜底不可用 */
+  ffmpegPath: string | null;
+  /** web 静态导出目录 env（standalone 托管用）；null = 未配置，消费方用默认 cwd/out。
+   *  ⚠ 本文件被 instrumentation 以 edge runtime 一并编译：禁止 import node 内置模块，
+   *    路径拼接必须留给 nodejs 侧消费方（见 app/[[...p]]/route.ts） */
+  staticDir: string | null;
   glmModel: string;
   glmBaseUrl: string;
   jevModel: string;
@@ -94,6 +100,8 @@ export function loadConfig(): AppConfig {
     isProd,
     databaseUrl,
     uploadDir: process.env.UPLOAD_DIR ?? null,
+    ffmpegPath: process.env.FFMPEG_PATH ?? null,
+    staticDir: process.env.STATIC_DIR ?? null,
     glmModel: process.env.GLM_MODEL ?? GLM_DEFAULT_MODEL,
     glmBaseUrl: process.env.ZHIPUAI_BASE_URL ?? GLM_DEFAULT_BASE_URL,
     jevModel: process.env.JEV_MODEL ?? "jev-latest",

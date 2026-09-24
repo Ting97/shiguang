@@ -22,10 +22,12 @@ interface TxRowsProps {
   m: FeedMoment;
   run: RunFn;
   del: DelFn;
+  /** 当前处于待确认态的删除 key */
+  delArmed: string | null;
 }
 
 /** ---- 金额流水 ----：展示 + 行内编辑/删除 */
-export function TxRows({ m, run, del }: TxRowsProps) {
+export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
   const [editTx, setEditTx] = useState<EditTxState | null>(null);
 
   return (
@@ -111,7 +113,8 @@ export function TxRows({ m, run, del }: TxRowsProps) {
                   counterparty: x.counterparty ?? "",
                 })
               }
-              onDelete={() => del(`删除这笔金额记录？（${x.direction === "out" ? "支出" : "收入"} ${yuan(x.amountCents)}）`, () =>
+              armed={delArmed === `tx:${x.id}`}
+              onDelete={() => del(`tx:${x.id}`, () =>
                 api(`/api/transactions/${x.id}`, "DELETE"))}
             />
           </p>

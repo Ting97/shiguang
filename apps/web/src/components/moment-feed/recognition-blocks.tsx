@@ -22,10 +22,12 @@ interface BlockRowsProps {
   activities: Activity[];
   run: RunFn;
   del: DelFn;
+  /** 当前处于待确认态的删除 key */
+  delArmed: string | null;
 }
 
 /** ---- 日程块 ----：展示 + 行内编辑/删除 */
-export function BlockRows({ m, activities, run, del }: BlockRowsProps) {
+export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps) {
   const [editBlock, setEditBlock] = useState<EditBlockState | null>(null);
 
   return (
@@ -102,10 +104,12 @@ export function BlockRows({ m, activities, run, del }: BlockRowsProps) {
                   activityId: activities.some((a) => a.id === b.activityId) ? b.activityId : activities[0]?.id ?? "",
                 })
               }
+              armed={delArmed === `block:${b.id}`}
               onDelete={() =>
-                del(`删除这条日程？\n「${b.title}」 ${zhClock(b.startAt)}–${zhClock(b.endAt)}`, () =>
+                del(`block:${b.id}`, () =>
                   api(`/api/blocks/${b.id}`, "DELETE"))
               }
+              
             />
           </p>
         ),

@@ -20,7 +20,7 @@ export default function TodoRowItem(opts: {
 }) {
   const { t, expanded, setExpanded, actions, activities, setMsg } = opts;
   const {
-    editingId, busyId, patchTodo, decompose, startEdit,
+    editingId, busyId, patchTodo, decompose, startEdit, pendingCount,
     noteOpen, setNoteOpen, openNote,
     actionDrafts, setActionDrafts, addAction,
     setMenuRow, setMenuPos,
@@ -36,7 +36,7 @@ export default function TodoRowItem(opts: {
       ) : (
         <>
           <div className="group flex items-center gap-2.5">
-            <TodoCircle size="md" done={done} onClick={() => patchTodo(t.id, done ? { undone: true } : { done: true }, done ? `↩️「${t.title}」已恢复` : `✅「${t.title}」已完成`)} />
+            <TodoCircle size="md" done={done} disabled={busyId === t.id} onClick={() => patchTodo(t.id, done ? { undone: true } : { done: true }, done ? `↩️「${t.title}」已恢复` : `✅「${t.title}」已完成`)} />
             <button
               onClick={() => startEdit(t)}
               className={`min-w-0 flex-1 truncate text-left text-sm transition hover:text-accent ${done ? "text-ink-faint line-through" : ""}`}
@@ -47,7 +47,16 @@ export default function TodoRowItem(opts: {
             {t.children.length > 0 && <span className="shrink-0 text-[11px] tabular-nums text-ink-faint">{(() => { const p = childProgress(t.children); return p ? `${p.n}/${p.m}` : ""; })()}</span>}
             {tag && <span className={`shrink-0 text-[11px] ${tag.cls}`}>{tag.text}</span>}
             <button
-              onClick={() => decompose({ id: t.id, title: t.title, isAction: false })}
+              onClick={(e) => {
+                if (pendingCount(t) > 0) {
+                  // 已有未完成行动：打开行菜单给出「重新生成 / 追加」显式选择，不盲发
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) });
+                  setMenuRow({ todo: t, isChild: false });
+                  return;
+                }
+                void decompose({ id: t.id, title: t.title, isAction: false });
+              }}
               disabled={busyId === t.id || done}
               title="AI 拆解为行动"
               className="row-actions hidden shrink-0 rounded px-1.5 py-0.5 text-xs text-ai opacity-60 transition hover:bg-soft disabled:opacity-30 group-hover:block"
@@ -70,7 +79,7 @@ export default function TodoRowItem(opts: {
               <button
                 onClick={() => setExpanded((s) => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
                 title={open ? "收起行动" : "展开行动"}
-                className={`shrink-0 text-[10px] text-ink-mute transition-transform ${open ? "rotate-180" : ""}`}
+                className={`-mx-2 -my-3 shrink-0 p-2 text-[10px] text-ink-mute transition-transform hover:text-ink ${open ? "rotate-180" : ""}`}
               >
                 ▼
               </button>
@@ -83,7 +92,7 @@ export default function TodoRowItem(opts: {
                 const cDone = c.status === "done";
                 return (
                   <div key={c.id} className="group/child flex items-center gap-2.5 rounded-lg px-1.5 py-1 hover:bg-elevated/60">
-                    <TodoCircle size="sm" done={cDone} onClick={() => patchTodo(c.id, cDone ? { undone: true } : { done: true }, cDone ? "↩️ 已恢复" : "✅ 已完成")}/>
+                    <TodoCircle size="sm" done={cDone} disabled={busyId === c.id} onClick={() => patchTodo(c.id, cDone ? { undone: true } : { done: true }, cDone ? "↩️ 已恢复" : "✅ 已完成")}/>
                     <span className={`min-w-0 flex-1 cursor-pointer truncate text-[13px] transition hover:text-accent ${cDone ? "text-ink-faint line-through" : ""}`} onClick={() => (noteOpen === c.id ? setNoteOpen(null) : openNote(c))} title={`${c.title}（点击编辑详情）`}>
                       {c.title}
                     </span>

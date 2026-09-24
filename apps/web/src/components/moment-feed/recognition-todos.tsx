@@ -22,10 +22,12 @@ interface TodoRowsProps {
   activities: Activity[];
   run: RunFn;
   del: DelFn;
+  /** 当前处于待确认态的删除 key */
+  delArmed: string | null;
 }
 
 /** ---- todo ----：展示 + 行内编辑/删除 */
-export function TodoRows({ m, activities, run, del }: TodoRowsProps) {
+export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
   const [editTodo, setEditTodo] = useState<EditTodoState | null>(null);
 
   return (
@@ -102,7 +104,8 @@ export function TodoRows({ m, activities, run, del }: TodoRowsProps) {
                   activityId: activities.some((a) => a.id === td.activityId) ? td.activityId! : activities[0]?.id ?? "",
                 })
               }
-              onDelete={() => del(`删除这条 todo？\n「${td.title}」`, () => api(`/api/todos/${td.id}`, "DELETE"))}
+              armed={delArmed === `todo:${td.id}`}
+              onDelete={() => del(`todo:${td.id}`, () => api(`/api/todos/${td.id}`, "DELETE"))}
             />
           </p>
         ),

@@ -10,6 +10,7 @@ import { api, ApiClientError } from "@/shared/api"; // 统一走 401 收口层�
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
 import { yuan } from "@/lib/finance"; // 金额展示统一走共享 yuan()（整数运算），替换原本地浮点除法版本（¥ 前缀在各调用点拼接）
 import { GROUP_TONE } from "@/lib/group-tone";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { InteractionFormModal } from "../../../components/contacts/interaction-form-modal";
 
 interface Contact {
@@ -84,6 +85,8 @@ export function ContactDetailPage() {
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
+  // 删除档案两步确认（全站规范，替代原生 confirm）
+  const armDelete = useArmConfirm();
 
   const load = useCallback(async () => {
     const j = await api(`/api/contacts/${id}`, "GET");
@@ -166,7 +169,7 @@ export function ContactDetailPage() {
   const giftOut = money.filter((m) => m.direction === "out").reduce((s, m) => s + m.amount_cents, 0);
 
   async function removeContact() {
-    if (!window.confirm(`删除「${contact!.name}」的档案？\n往来时间线将一并删除，动态与流水不受影响。`)) return;
+    if (!armDelete.arm(contact!.id)) return;
     try {
       await api(`/api/contacts/${contact!.id}`, "DELETE");
       router.push("/contacts");
@@ -230,8 +233,12 @@ export function ContactDetailPage() {
               <button onClick={() => setEditing(true)} title="编辑档案" className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft hover:text-accent">
                 ✏️
               </button>
-              <button onClick={removeContact} title="删除联系人" className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft hover:text-danger">
-                🗑
+              <button
+                onClick={removeContact}
+                title={armDelete.armedId ? "3 秒内再点确认删除（往来时间线将一并删除，动态与流水不受影响）" : "删除联系人"}
+                className={`rounded px-2 py-1 text-xs ${armDelete.armedId ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+              >
+                {armDelete.armedId ? "确认删除?" : "🗑"}
               </button>
             </div>
           </div>

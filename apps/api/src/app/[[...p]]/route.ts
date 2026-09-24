@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { join, normalize, extname } from "node:path";
 import { Readable } from "node:stream";
+import { loadConfig } from "@/server/platform/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +35,8 @@ const MIME: Record<string, string> = {
 };
 
 function staticDir(): string {
-  return process.env.STATIC_DIR || join(process.cwd(), "out");
+  // STATIC_DIR 由 config 收集（原始值）；node 内置 join 留在本 nodejs 路由做默认回退
+  return loadConfig().staticDir || join(process.cwd(), "out");
 }
 
 function fileStream(path: string): ReadableStream | null {

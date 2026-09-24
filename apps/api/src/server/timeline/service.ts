@@ -19,6 +19,31 @@ import { entriesRepo } from "./repo";
 /** 标准 uuid 形状（宽松的 36 位会放行无连字符串，PG ::uuid cast 直接 500） */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** 手动/确认路径金额上限（分）：与 AI 契约 FinanceDraftV2 max(100_000_000) 对齐，int4 列安全 */
+const MAX_AMOUNT_CENTS = 100_000_000;
+
+/** HH:MM 形状且真实存在（"25:99" 形状合法但拼出的 Date 是 Invalid，toISOString 会抛 RangeError → 500） */
+function parseHHMM(v: unknown): string | null {
+  const m = /^(\d{2}):(\d{2})$/.exec(String(v));
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  return h <= 23 && min <= 59 ? `${m[1]}:${m[2]}` : null;
+}
+
+/** 非法时间串归一：Invalid Date 的 toISOString 抛 RangeError → 500，统一预检拦成 400 */
+function toIsoOr400(v: unknown, message: string): string {
+  const d = new Date(String(v));
+  if (Number.isNaN(d.getTime())) throw ApiError.badRequest(message);
+  return d.toISOString();
+}
+
+/** activity 归属预检：不存在的 activityId 直插 time_blocks 触发复合 FK 23503 → 500，先拦成 400 */
+async function assertActivityExists(client: import("pg").PoolClient, userId: string, activityId: string): Promise<void> {
+  const hit = await client.query(`select 1 from activities where id = $1 and user_id = $2`, [activityId, userId]);
+  if (hit.rows.length === 0) throw ApiError.badRequest("类别不存在");
+}
+
 /** POST /api/parse：动态本体先落地秒回 + 配额 + 后台五域识别（fire-and-forget，成败都打 analyzed_at） */
 export async function ingest(userId: string, text: string) {
   const q = await checkAiQuota(userId);
@@ -90,6 +115,7 @@ export async function confirmPending(
               title: result.title, start: result.startAt, end: result.endAt,
             }));
           }
+          await assertActivityExists(client, userId, result.activityId);
           await client.query(`delete from time_blocks where entry_id = $1 and user_id = $2`, [entryId, userId]);
           await client.query(
             `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
@@ -367,12 +393,18 @@ export async function appendManual(
         if (!/^\d{2}:\d{2}$/.test(String(p.startTime)) || !/^\d{2}:\d{2}$/.test(String(p.endTime))) {
           throw ApiError.badRequest("起止时间格式需为 HH:MM");
         }
+        // 形状之外还须真实存在："25:99" 拼出的 Date 是 Invalid，下方 toISOString 会抛 RangeError → 500
+        const startHM = parseHHMM(p.startTime);
+        const endHM = parseHHMM(p.endTime);
+        if (!startHM || !endHM) {
+          throw ApiError.badRequest("起止时间需为真实存在的时刻（如 09:30）");
+        }
         // 以动态创建日（北京日历日）为基准日拼接 HH:MM：UTC getter + 8h 推算，不依赖宿主时区；
         // 解析时显式追加 +08:00（无后缀的 ISO 串会按宿主时区解析，非 CST 宿主上会偏 8 小时）
         const base = new Date(entry.created_at);
         const day = new Date(base.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
-        const start = new Date(`${day}T${p.startTime}:00+08:00`).toISOString();
-        const end = new Date(`${day}T${p.endTime}:00+08:00`).toISOString();
+        const start = new Date(`${day}T${startHM}:00+08:00`).toISOString();
+        const end = new Date(`${day}T${endHM}:00+08:00`).toISOString();
         if (end <= start) {
           throw ApiError.badRequest("结束时间必须晚于开始时间");
         }
@@ -381,6 +413,7 @@ export async function appendManual(
           throw ApiError.conflict(overlapError(conflict));
         }
         const activityId = typeof p.activityId === "string" && p.activityId ? p.activityId : "other";
+        await assertActivityExists(client, userId, activityId);
         await client.query(
           `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
            values ($1,$2,$3,$4,$5,$6,'explicit','manual')`,
@@ -395,7 +428,8 @@ export async function appendManual(
         if (!title) {
           throw ApiError.badRequest("标题不能为空");
         }
-        const dueAt = p.dueAt ? new Date(String(p.dueAt)).toISOString() : null;
+        // 快照防御：非法 dueAt 的 toISOString 会抛 RangeError → 500（与 confirmPending todo 分支同口径 400）
+        const dueAt = p.dueAt ? toIsoOr400(p.dueAt, "到期时间格式不正确") : null;
         const activityId = typeof p.activityId === "string" && p.activityId ? p.activityId : "other";
         await client.query(
           `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source, space_id)
@@ -410,6 +444,10 @@ export async function appendManual(
         const yuan = Number(p.yuan);
         if (!Number.isFinite(yuan) || yuan <= 0) {
           throw ApiError.badRequest("金额需大于 0");
+        }
+        // 上限与 AI 契约对齐：amount_cents 为 int4，巨款直落 22003 → 500
+        if (Math.round(yuan * 100) > MAX_AMOUNT_CENTS) {
+          throw ApiError.badRequest("单笔金额超出上限（¥100 万）");
         }
         const direction = p.direction === "in" ? "in" : "out";
         await client.query(
@@ -447,7 +485,9 @@ export async function appendManual(
           throw ApiError.badRequest("请填写吃了什么");
         }
         const meal = ["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"].includes(String(p.meal)) ? String(p.meal) : "未知";
-        const kcal = Number.isFinite(Number(p.kcal)) && Number(p.kcal) > 0 ? Number(p.kcal) : null;
+        // total_kcal 为 int4 且 AI 契约 max(5000)：非整数（22P02）/巨数（22003）直落 500，不合法时按"估不出"落 null
+        const kcalRaw = Number(p.kcal);
+        const kcal = Number.isInteger(kcalRaw) && kcalRaw > 0 && kcalRaw <= 5000 ? kcalRaw : null;
         // diet_records.entry_id 有唯一索引：动态已有饮食记录（AI 已落/已确认）时先删旧再插，否则唯一冲突整个事务 500
         await client.query(`delete from diet_records where entry_id = $1 and user_id = $2`, [entryId, userId]);
         await client.query(
@@ -580,6 +620,14 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     let applied = false;
     let result: unknown = null;
     let message = "";
+
+    // 快照防御：todo/finance/people 三个分支都用 r.time.* 推 remind_at 或落 ::timestamptz，
+    // 形状合法但日历非法的值（如 2025-02-30）会 NaN/PG 报错 → 500；与 schedule 分支同口径统一拦 400
+    if (domain === "todo" || domain === "finance" || domain === "people") {
+      if (Number.isNaN(new Date(r.time.start).getTime()) || Number.isNaN(new Date(r.time.end).getTime())) {
+        throw ApiError.badRequest("识别结果时间无效，请重试");
+      }
+    }
 
     switch (domain) {
       case "mood": {

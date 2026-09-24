@@ -3,7 +3,7 @@
 
 import { bjToday } from "@/lib/date";
 import { yuan } from "@/lib/finance";
-import { isoToBjInput } from "@/lib/bj-time";
+import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
 
 export interface Account {
   id: string;
@@ -68,5 +68,9 @@ export { api } from "@/shared/api";
 /** 北京墙上时间口径（lib/bj-time 单源）：本地 getter 版在海外设备上编辑框与列表展示错位 */
 export function toLocalInput(iso: string): string {
   return isoToBjInput(iso);
+}
+/** toLocalInput 的逆变换（北京墙上时间串 → ISO，显式 +08:00 解析） */
+export function fromLocalInput(v: string | null | undefined): string | null {
+  return bjInputToIso(v);
 }
 

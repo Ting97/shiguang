@@ -32,11 +32,9 @@ export function useSpaceMutations(opts: {
     try {
       await api<any>(`/api/spaces/${id}`, "PATCH", { targetDate: v });
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message });
-        return false;
-      }
-      throw e;
+      // 含网络错误就地消化：外抛会经 unhandledrejection 触发 ChunkErrorReloader 整页刷新
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "网络异常，请稍后重试" });
+      return false;
     }
     setSpace((s) => (s ? { ...s, target_date: v } : s));
     setAllSpaces((list) => list.map((x) => (x.id === id ? { ...x, target_date: v } : x)));
@@ -46,8 +44,11 @@ export function useSpaceMutations(opts: {
 
   async function removeSpace() {
     if (!space) return;
+    // ⚠ 保留原生 confirm：空间菜单是 createPortal 渲染，008 实测 React 19 下 portal 内
+    // 经重渲染的按钮第二次点击事件不送达（两步确认不可靠），destructive 操作安全优先
     const refN = space.reflection_count ?? 0;
-    if (!window.confirm(`删除空间「${space.name}」？\n含 ${refN} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`)) return;
+    if (!window.confirm(`删除空间「${space.name}」？
+含 ${refN} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`)) return;
     try {
       await api<any>(`/api/spaces/${space.id}`, "DELETE");
     } catch (e) {

@@ -31,6 +31,13 @@ export function lunarBirthdayLabel(b: LunarBirthday): string {
 
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
+/** 把任意时刻归一到「北京日历日」的本地零点 holder（与 lunar2solar 产出的 Date 同口径）：
+ *  非 CST 宿主直接用 new Date() 的本地日界当业务日，倒计时会差一天（007 检视记录的同型残留） */
+function bjCalToday(today: Date): Date {
+  const shifted = new Date(today.getTime() + 8 * 3600_000);
+  return new Date(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
+}
+
 /** 农历月日 → 某年公历日期；该年无此闰月/该月是小月没有这天 → 回落平月/廿九；仍失败返回 null */
 function lunarToSolarInYear(b: LunarBirthday, year: number, leap: boolean): Date | null {
   const r = solarLunar.lunar2solar(year, b.month, b.day, leap);
@@ -41,12 +48,13 @@ function lunarToSolarInYear(b: LunarBirthday, year: number, leap: boolean): Date
 
 /** 农历生日 → 下一次过生日对应的公历日期（含今天） */
 export function nextLunarBirthdaySolar(b: LunarBirthday, today = new Date()): Date | null {
+  const todayCal = bjCalToday(today);
   const candidates: Date[] = [];
-  for (const year of [today.getFullYear(), today.getFullYear() + 1]) {
+  for (const year of [todayCal.getFullYear(), todayCal.getFullYear() + 1]) {
     const d = b.leap ? (lunarToSolarInYear(b, year, true) ?? lunarToSolarInYear(b, year, false)) : lunarToSolarInYear(b, year, false);
     if (d) candidates.push(d);
   }
-  const t0 = dayStart(today);
+  const t0 = dayStart(todayCal);
   return candidates.filter((d) => dayStart(d) >= t0).sort((a, z) => a.getTime() - z.getTime())[0] ?? null;
 }
 

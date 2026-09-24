@@ -59,6 +59,7 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
               draft={ai.draft}
               onSave={ai.save}
               onRevert={ai.revertDefault}
+              revertArmed={ai.armKey?.startsWith("revert:") ?? false}
               saveBlocked={ai.userDataOverCap}
               saveBlockReason="个性化注入估算超 8000 字符上限，请下调条数或移除数据集"
             />
@@ -125,6 +126,7 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
               setDirty={ai.setDirty}
               onLoadSystem={ai.loadVersionSystem}
               onRollback={ai.rollback}
+              armedRollbackId={ai.armKey?.startsWith("rollback:") ? Number(ai.armKey.slice("rollback:".length)) : null}
             />
           </div>
         )}

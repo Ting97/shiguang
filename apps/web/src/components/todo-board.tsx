@@ -65,7 +65,7 @@ export default function TodoBoard() {
     }
   }, [activities, draft.activityId]);
 
-  const { adding, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask } = useTodoActions({
+  const { adding, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask, pendingCount } = useTodoActions({
     view,
     todos,
     load,
@@ -194,6 +194,7 @@ export default function TodoBoard() {
           patchTodo={patchTodo}
           decompose={decompose}
           removeTodo={removeTodo}
+          pendingCount={pendingCount}
           startEdit={edit.startEdit}
           openNote={note.openNote}
           onPickSpace={(t) => {

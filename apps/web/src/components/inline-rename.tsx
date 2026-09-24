@@ -63,7 +63,7 @@ export default function InlineRename({
 
   if (!editing) {
     return (
-      <span className={`group/rename inline-flex min-w-0 items-center gap-1 ${className}`}>
+      <span className={`group/rename inline-flex min-w-0 max-w-full items-center gap-1 ${className}`}>
         <span className="min-w-0 truncate">{value}</span>
         <button
           onClick={(e) => {
@@ -85,7 +85,7 @@ export default function InlineRename({
     <span
       ref={ref}
       onClick={(e) => e.stopPropagation()}
-      className={`inline-flex min-w-0 items-center gap-1 ${className}`}
+      className={`inline-flex min-w-0 max-w-full items-center gap-1 ${className}`}
     >
       <input
         ref={inputRef}

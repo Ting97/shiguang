@@ -56,6 +56,8 @@ export function detectFuture(text: string): FutureHint | null {
   if (/后天/.test(text)) return "dayAfter";
   if (/明天|明早|明晚/.test(text)) return "tomorrow";
   if (/下周|下礼拜|下星期/.test(text)) return "nextWeek";
+  // 月底/下个月/明儿等未来词（"月底交房租""下个月还贷"旧版全落过去分支，锚定成当天）
+  if (/月底|月末|下个月|下个月份|明儿/.test(text)) return "soon";
   if (/待会|等会|等一下|晚点|稍后/.test(text)) return "soon";
   // "一会儿"仅在未来语境算（"过一会儿再去"）；"刚做了一会儿拉伸"是过去
   if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
@@ -128,7 +130,10 @@ export function parseClockRange(
   const b = parseClock(parts[1], null);
   if (!a || !b) return null;
   let endHour = b.hour;
-  if (pmish && b.hour < 12 && b.hour + 12 > a.hour) endHour = b.hour + 12;
+  // 终点"12点"在下午/晚上语境指午夜（24:00）非正午——"晚上10点半到12点"= 22:30–24:00；
+  // 旧版漏判使 end<=start 被跨日 +24h 成次日正午，块长膨胀成 13.5 小时
+  if (pmish && b.hour === 12) endHour = 24;
+  else if (pmish && b.hour < 12 && b.hour + 12 > a.hour) endHour = b.hour + 12;
   return { start: a, end: { hour: endHour, minute: b.minute } };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Dismissable } from "@/components/dismissable";
@@ -35,6 +36,8 @@ export default function SpacesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false); // 新建/编辑保存中：防慢网络双击重复创建
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 删除空间两步确认（全站规范，替代原生 confirm）
+  const armDelete = useArmConfirm();
   const [showArchived, setShowArchived] = useState(false);
   // 加载失败态：给出重试入口，避免网络异常时永远停在"加载中"
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -122,7 +125,8 @@ export default function SpacesPage() {
 
   async function remove(s: Space) {
     const refN = s.reflection_count ?? 0;
-    if (!window.confirm(`删除空间「${s.name}」？\n含 ${refN} 篇感悟（将一并删除）；${s.todo_total ?? 0} 条关联 todo、${s.entry_count ?? 0} 条动态仅解除归属。`)) return;
+    void refN;
+    if (!armDelete.arm(s.id)) return;
     try {
       await api<any>(`/api/spaces/${s.id}`, "DELETE");
     } catch (e) {
@@ -278,8 +282,11 @@ export default function SpacesPage() {
                   <button onClick={() => setStatus(s, "active")} className="rounded-lg px-2 py-1 text-ink-soft hover:bg-soft hover:text-accent">
                     恢复
                   </button>
-                  <button onClick={() => remove(s)} className="rounded-lg px-2 py-1 text-ink-mute hover:bg-soft hover:text-danger">
-                    删除
+                  <button
+                    onClick={() => remove(s)}
+                    className={`rounded-lg px-2 py-1 ${armDelete.armedId === s.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+                  >
+                    {armDelete.armedId === s.id ? "确认删除?" : "删除"}
                   </button>
                 </li>
               ))}
@@ -400,11 +407,16 @@ export default function SpacesPage() {
                   <span className="min-w-0 flex-1">归档空间</span>
                 </button>
                 <button
-                  onClick={() => { const s = cardMenu; setCardMenu(null); void remove(s); }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
+                  onClick={() => {
+                    const s = cardMenu;
+                    if (!armDelete.arm(s.id)) return;
+                    setCardMenu(null);
+                    void remove(s);
+                  }}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10 ${armDelete.armedId === cardMenu.id ? "bg-rose-500/10 font-medium" : ""}`}
                 >
                   <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
-                  <span className="min-w-0 flex-1">删除空间</span>
+                  <span className="min-w-0 flex-1">{armDelete.armedId === cardMenu.id ? "确认删除？（3 秒内再点）" : "删除空间"}</span>
                 </button>
               </div>
             </Dismissable>,

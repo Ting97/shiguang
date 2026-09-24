@@ -25,8 +25,9 @@ export type CardMsg = { ok: boolean; text: string } | null;
 /** 卡内操作统一执行器：执行 fn → 成功/失败消息就地展示 → 刷新 */
 export type RunFn = (fn: () => Promise<string>) => Promise<void>;
 
-/** 带确认的删除：window.confirm 通过后走 run */
-export type DelFn = (message: string, fn: () => Promise<unknown>) => Promise<void> | undefined;
+/** 两步删除：首点 del(key) 进入待确认态（按钮变「确认删除？」，3 秒超时自动复位），
+ *  待确认态下再点同一 key 才真正执行（替代原生 window.confirm——阻塞式弹窗与全站两步确认不一致） */
+export type DelFn = (key: string, fn: () => Promise<unknown>) => void;
 
 /** 卡片头部意图标签（todo/日程/心情/动态） */
 export interface IntentTag {

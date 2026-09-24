@@ -350,7 +350,8 @@ export async function listTrades(
       `net_profit ${sign} coalesce((select percentile_cont(0.8) within group (order by abs(net_profit)) from trades where ${W()} and sign(net_profit) = ${sign === ">" ? 1 : -1}), 0)`,
     );
   }
-  const page = Math.max(1, Number(q.page ?? 1) || 1);
+  // 分页钳制：小数会让 offset 变非整数（PG "non-integer constant in OFFSET"）、巨数会让 bigint 溢出，均 500
+  const page = Math.min(Math.max(Math.trunc(Number(q.page ?? 1)) || 1, 1), 10000);
   const limit = 20;
   const total = Number(
     (await pool.query(`select count(*)::int as n from trades where ${W()}`, vals)).rows[0].n,

@@ -30,6 +30,10 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     if (!Number.isInteger(body.amountCents) || body.amountCents <= 0) {
       throw ApiError.badRequest("金额必须为正整数（单位分）");
     }
+    // amount_cents 为 int4 列：与 AI 契约同上限（¥100 万），巨款直落会 22003 → 500
+    if (body.amountCents > 100_000_000) {
+      throw ApiError.badRequest("单笔金额超出上限（¥100 万）");
+    }
     vals.push(body.amountCents);
     sets.push(`amount_cents = $${vals.length}`);
   }

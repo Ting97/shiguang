@@ -61,9 +61,15 @@ async function main() {
   // 空库 + --fresh：schema.sql 建基线 + 全量迁移真实执行（测试库/新环境初始化）
   if (done.size === 0 && files.length > 0 && freshApply) {
     const baseSql = readFileSync(join(here, "schema.sql"), "utf8");
-    await client.query("begin");
-    await client.query(baseSql);
-    await client.query("commit");
+    try {
+      await client.query("begin");
+      await client.query(baseSql);
+      await client.query("commit");
+    } catch (e) {
+      await client.query("rollback").catch(() => {});
+      console.error(`[migrate] ✗ schema.sql（基线 DDL）失败：${String(e).slice(0, 300)}`);
+      process.exit(1);
+    }
     console.log("[migrate] ✓ schema.sql（基线 DDL）");
     for (const f of files) {
       const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
@@ -121,7 +127,9 @@ async function main() {
     for (const f of pending) console.log(`  pending: ${f}`);
     // --status 同样做 checksum 比对：运维看"待执行 0"时也要能看到已上线文件被手改
     for (const [f, ck] of done) {
-      if (files.includes(f) && ck) {
+      if (!files.includes(f)) {
+        console.error(`[migrate] ⚠ 记录表存在但迁移文件缺失：${f}（切分支/误删？终态与记录不一致）`);
+      } else if (ck) {
         const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
         if (now !== ck) console.error(`[migrate] ⚠ 迁移文件已变更但曾应用：${f}`);
       }
@@ -129,9 +137,11 @@ async function main() {
     return;
   }
 
-  // checksum 防篡改：已应用文件内容变化即报错
+  // checksum 防篡改：已应用文件内容变化即报错；记录表孤儿（文件缺失）先告警
   for (const [f, ck] of done) {
-    if (files.includes(f) && ck) {
+    if (!files.includes(f)) {
+      console.error(`[migrate] ⚠ 记录表存在但迁移文件缺失：${f}（切分支/误删？终态与记录不一致）`);
+    } else if (ck) {
       const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
       if (now !== ck) {
         console.error(`[migrate] 迁移文件已变更但曾应用：${f} —— 禁止手改已上线迁移，请以新编号新增`);

@@ -36,6 +36,9 @@ export default function FinancePage() {
   const [confirmAll, setConfirmAll] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false); // 入账提交中：防双击双发 PATCH
   const [editing, setEditing] = useState<Tx | null>(null);
+  // 删除流水两步确认：待确认的流水 id + 超时复位定时器
+  const [armDel, setArmDel] = useState<string | null>(null);
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!msg) return;
@@ -102,7 +105,9 @@ export default function FinancePage() {
   }
 
   async function removeTx(t: Tx) {
-    if (!window.confirm(`删除这笔流水？\n${t.direction === "out" ? "支出" : "收入"} ¥${yuan(t.amount_cents)} · ${t.category}`)) return;
+    // 两步确认（全站规范）：首点进入待确认态（行内按钮变「确认删除?」），3 秒内再点执行
+    if (armDel !== t.id) { setArmDel(t.id); armTimerRef.current && clearTimeout(armTimerRef.current); armTimerRef.current = setTimeout(() => setArmDel(null), 3000); return; }
+    setArmDel(null);
     try {
       await api(`/api/transactions/${t.id}`, "DELETE");
       setMsg({ ok: true, text: "🗑 已删除流水" });
@@ -209,6 +214,7 @@ export default function FinancePage() {
           onConfirmAll={confirmAllTx}
           onEdit={setEditing}
           onRemove={removeTx}
+          delArmed={armDel}
         />
 
         {/* 已确认流水 */}
@@ -224,6 +230,7 @@ export default function FinancePage() {
             await load();
           }}
           onRemove={removeTx}
+          delArmed={armDel}
         />
 
         {/* 手动记账弹层 */}

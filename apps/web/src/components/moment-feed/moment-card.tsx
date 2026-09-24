@@ -46,7 +46,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           : { icon: "📝", label: "动态", tone: "slate" as const };
 
   // 卡内操作反馈 + 提交逻辑（识别/手动添加/删除），由 useCardActions 提供
-  const { cardMsg, setCardMsg, busyDomain, run, recognizeDomain, manualAdd, del } = useCardActions(m, onRefresh);
+  const { cardMsg, setCardMsg, busyDomain, run, recognizeDomain, manualAdd, del, delArmed } = useCardActions(m, onRefresh);
 
   // 延迟刷新定时器：卸载（删卡/切页）时清理，避免对已卸载卡片发起请求（失败会触发整页自愈刷新）
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -74,11 +74,16 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
       return "✏️ 已保存，AI 正在重新识别全部信息…";
     });
 
-  const confirmDelete = () =>
-    run(async () => {
+  // 删除请求进行中：防双击双发 DELETE（第二次会 404 并在卡内报错误横幅）
+  const [deleting, setDeleting] = useState(false);
+  const confirmDelete = () => {
+    if (deleting) return;
+    setDeleting(true);
+    return run(async () => {
       await api(`/api/feed/${m.id}`, "DELETE");
       return "🗑 已删除这条动态及其识别结果";
-    }).then(() => setConfirming(false));
+    }).then(() => setConfirming(false)).finally(() => setDeleting(false));
+  };
 
   return (
     <article className="glass glass-hover group relative mt-0 flex min-w-0 flex-1 gap-3 rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5">
@@ -93,7 +98,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           m={m}
           intent={intent}
           confirming={confirming}
-          onConfirmDelete={confirmDelete}
+          onConfirmDelete={confirmDelete} deleting={deleting}
           setConfirming={setConfirming}
           editRaw={editRaw}
           setEditRaw={setEditRaw}
@@ -196,7 +201,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
         <MoodBlock m={m} run={run} />
 
         {/* AI 识别产物 */}
-        <RecognitionSection m={m} activities={activities} run={run} del={del} />
+        <RecognitionSection m={m} activities={activities} run={run} del={del} delArmed={delArmed} />
 
         {/* 待确认的低置信识别 */}
         <PendingConfirms m={m} run={run} />
