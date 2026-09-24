@@ -29,14 +29,15 @@ const firstNum = (s) => {
   const m = String(s ?? "").match(/\d+/);
   return m ? Number(m[0]) : null;
 };
-/** 优先 balloon（先息后本到期），否则 clearDate；取第一个日期 → 月首日 */
+/** 优先 balloon（先息后本到期），否则 clearDate；取第一个「年+月」→ 月首日（仅年份区间如 2032/2033 取首个年份的 1 月） */
 function toDueDate(l) {
-  const raw = l.balloon || l.clearDate || "";
-  const m = String(raw).match(/(\d{4})[-/年]?(\d{1,2})?/);
+  const raw = String(l.balloon || l.clearDate || "");
+  const m = raw.match(/(\d{4})[-/年]\s*(\d{1,2})(?!\d)/) ?? raw.match(/(\d{4})(?!\d)/);
   if (!m) return null;
   const y = m[1];
-  const mo = m[2] ? String(Number(m[2])).padStart(2, "0") : "01";
-  return `${y}-${mo}-01`;
+  const mo = m[2] != null ? Number(m[2]) : 1;
+  if (mo < 1 || mo > 12) return null;
+  return `${y}-${String(mo).padStart(2, "0")}-01`;
 }
 function toType(l) {
   if (l.group === "family") return "family";
