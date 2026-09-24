@@ -104,10 +104,12 @@ test("timeline-fix：confirmPending 中途失败 rollback 保留旧块，成功�
       })],
     )
   ).rows[0].id as string;
+  // 007 起事务内 delete 前有 assertActivityExists 前置校验：脏 activityId 现在抛 400（不再走到 insert 的 FK 500），
+  // 但仍在事务内、delete 之前触发——下方回滚断言（旧块保留 / 登记 pending）守护的语义不变
   await assert.rejects(
     () => confirmPending(U1, entryId, "schedule"),
-    (e: any) => e?.status === 500,
-    "FK 失败应包装为 upstream 500",
+    (e: any) => e?.status === 400 && e?.message === "类别不存在",
+    "不存在的活动应前置 400 且事务回滚",
   );
   const kept = await pool.query(`select id from time_blocks where id = $1`, [oldBlock.id]);
   assert.equal(kept.rowCount, 1, "回滚后旧日程块必须还在（修复前 delete 会被自动提交误删）");
