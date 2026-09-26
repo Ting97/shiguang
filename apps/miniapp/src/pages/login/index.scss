@@ -1,0 +1,40 @@
+.login-pad {
+  padding: 48px 32px;
+}
+
+.login-hero {
+  text-align: center;
+  padding: 60px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-title {
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.mb {
+  margin-bottom: 20px;
+}
+
+.mt {
+  margin-top: 20px;
+}
+
+.switch {
+  margin-top: 28px;
+  text-align: center;
+}
+
+.link {
+  color: var(--accent);
+  font-size: 26px;
+}
+
+.foot {
+  margin-top: 48px;
+  text-align: center;
+}

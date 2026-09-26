@@ -1,0 +1,185 @@
+/** 收支复盘页私有样式：周导航 / 对比卡 / 日趋势双柱 / 分类占比 / AI 周报卡 */
+
+/* 小程序页面样式按页隔离，通用原子类不在 app.scss 里的（如 page-pad）需每页自带 */
+.page-pad {
+  padding: 24px;
+}
+
+/* —— 周切换导航 —— */
+.week-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  margin-bottom: 20px;
+}
+.week-title {
+  font-size: 32px;
+  font-weight: 700;
+}
+.nav-btn {
+  font-size: 44px;
+  color: var(--accent);
+  padding: 0 20px;
+}
+.today-btn {
+  font-size: 24px;
+  color: var(--ink-mute);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 4px 16px;
+}
+
+/* —— 周收支对比卡 —— */
+.sum-grid {
+  display: flex;
+}
+.sum-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.sum-num {
+  font-size: 34px;
+  font-weight: 700;
+}
+.mom {
+  font-size: 20px;
+}
+
+/* —— 周内日趋势：每日支出/收入两根细柱并排、底部对齐，高度∝金额 —— */
+.trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 128px;
+}
+.t-bar {
+  width: 14px;
+  border-radius: 6px 6px 0 0;
+}
+.t-bar.out {
+  background: rgba(251, 113, 133, 0.75);
+}
+.t-bar.in {
+  background: rgba(52, 211, 153, 0.75);
+}
+.trend-day {
+  font-size: 20px;
+}
+.legend {
+  margin-top: 12px;
+  text-align: center;
+}
+
+/* —— 分类 Top 占比条 —— */
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+}
+.cat-name {
+  width: 120px;
+  font-size: 24px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cat-bar {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--elevated);
+  overflow: hidden;
+}
+.cat-bar-in {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #818cf8);
+}
+.cat-amt {
+  width: 150px;
+  text-align: right;
+  font-size: 24px;
+  font-weight: 600;
+}
+.cat-pct {
+  width: 70px;
+  text-align: right;
+}
+
+/* —— AI 周报卡 —— */
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ai-head-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* 小尺寸按钮：Taro Button 自带边距/线，需要显式压掉 */
+.ai-btn {
+  font-size: 22px;
+  line-height: 1.8;
+  padding: 4px 24px;
+  margin: 0;
+  background: var(--accent);
+  color: #04121f;
+  border-radius: 14px;
+  border: none;
+}
+.ai-btn::after {
+  border: none;
+}
+.ai-err {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+.ai-busy {
+  display: block;
+  text-align: center;
+  padding: 16px 0;
+}
+.ai-body {
+  margin-top: 12px;
+}
+.ai-summary {
+  font-size: 28px;
+  line-height: 1.7;
+}
+.ai-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-sug {
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.ai-line {
+  font-size: 24px;
+  line-height: 1.6;
+}
+.mk {
+  margin-right: 10px;
+}

@@ -10,7 +10,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/.next/**", "**/out/**", "**/dist/**", "apps/mobile/**", "docs/**", ".zcode/**", "**/next-env.d.ts"] },
+  { ignores: ["**/node_modules/**", "**/.next/**", "**/out/**", "**/dist/**", "apps/mobile/**", "apps/miniapp/**", "docs/**", ".zcode/**", "**/next-env.d.ts"] },
   {
     // Node 环境的 .mjs 脚本（tools/e2e 脚本）需要 node/browser 全局
     files: ["**/*.mjs", "**/*.cjs"],

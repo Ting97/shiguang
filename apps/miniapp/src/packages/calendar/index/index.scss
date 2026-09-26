@@ -1,0 +1,107 @@
+/* 日历复盘页私有样式（公共令牌/原子类见 app.scss） */
+
+.date-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.date-arrow {
+  font-size: 44px;
+  color: var(--accent);
+  padding: 0 24px;
+}
+
+.date-title {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.h2 {
+  font-size: 30px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.grow {
+  flex: 1;
+  overflow: hidden;
+}
+
+.row-title {
+  display: block;
+  font-size: 28px;
+}
+
+.row-time {
+  font-size: 24px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* 类别色点：块行左侧，颜色来自 activities.color */
+.block-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.review-head .h2 {
+  margin-bottom: 0;
+}
+
+.review-btn {
+  font-size: 24px;
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+  border-radius: 12px;
+  padding: 8px 20px;
+}
+
+.review-btn.disabled {
+  opacity: 0.4;
+}
+
+.review-summary {
+  display: block;
+  font-size: 28px;
+  line-height: 1.6;
+  margin: 16px 0;
+}
+
+.review-line {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  font-size: 26px;
+  line-height: 1.5;
+}
+
+.review-dot {
+  flex-shrink: 0;
+  font-size: 20px;
+}
+
+.review-dot.ok {
+  color: var(--success);
+}
+
+.review-dot.tip {
+  font-size: 26px;
+}

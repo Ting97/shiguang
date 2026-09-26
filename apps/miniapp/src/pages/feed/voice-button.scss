@@ -1,0 +1,31 @@
+/* 语音按钮：长按录音；recording 态用背景脉冲代替转圈（wxss 支持 keyframes） */
+.voice-btn {
+  flex: 1;
+  background: var(--elevated);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink);
+}
+
+.voice-btn.disabled {
+  opacity: 0.4;
+}
+
+.voice-btn.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%,
+  100% {
+    background: var(--elevated);
+  }
+  50% {
+    background: rgba(56, 189, 248, 0.25);
+  }
+}

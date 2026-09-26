@@ -1,0 +1,131 @@
+/* 空间详情页私有样式 */
+
+.head-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.grow {
+  flex: 1;
+  overflow: hidden;
+}
+
+.head-icon {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  flex-shrink: 0;
+}
+
+.head-name {
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.head-desc {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 16px;
+}
+
+.progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 6px;
+}
+
+.h2 {
+  font-size: 30px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.moment {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.moment-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.moment-text {
+  font-size: 27px;
+  line-height: 1.5;
+}
+
+.ref {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ref-text {
+  display: block;
+  font-size: 27px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+/* ---- 底部输入区 ---- */
+.composer-space {
+  height: 130px;
+}
+
+.composer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 16px 24px calc(16px + env(safe-area-inset-bottom));
+  background: var(--glass-bg);
+  border-top: 1px solid var(--line-soft);
+}
+
+.composer-input {
+  flex: 1;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 20px;
+  color: var(--ink);
+  font-size: 27px;
+  height: 72px;
+  min-height: 72px;
+}
+
+.composer-btn {
+  width: 150px;
+  flex-shrink: 0;
+  padding: 16px 0;
+}

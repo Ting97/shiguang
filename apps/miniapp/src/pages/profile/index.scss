@@ -1,0 +1,23 @@
+.page-pad {
+  padding: 24px;
+}
+
+.mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.chip {
+  font-size: 22px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 6px 18px;
+}
+
+.danger {
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}

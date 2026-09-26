@@ -1,0 +1,121 @@
+/**
+ * 全局样式：令牌与 web 端 app/globals.css :root 同源（docs/15 §2.1）。
+ * 小程序深色为主（导航/tabBar 已配深色）；浅色用 prefers-color-scheme 覆盖。
+ * 单位：设计稿 750，写样式直接用 px（Taro 按 designWidth 转 rpx）。
+ */
+page {
+  /* 色板（=globals.css :root[data-theme=dark] 同源） */
+  --bg: #020617;
+  --bg-soft: #0f172a;
+  --surface: #0b1220;
+  --elevated: #1e293b;
+  --line: #1e293b;
+  --line-soft: #1e293b80;
+  --ink: #e2e8f0;
+  --ink-soft: #94a3b8;
+  --ink-mute: #64748b;
+  --ink-faint: #475569;
+  --accent: #38bdf8;
+  --success: #34d399;
+  --danger: #fb7185;
+  --warn: #fbbf24;
+  --glass-bg: rgba(15, 23, 42, 0.72);
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 28px;
+}
+
+@media (prefers-color-scheme: light) {
+  page {
+    --bg: #f8fafc;
+    --bg-soft: #f1f5f9;
+    --surface: #ffffff;
+    --elevated: #ffffff;
+    --line: #e2e8f0;
+    --line-soft: #e2e8f080;
+    --ink: #0f172a;
+    --ink-soft: #475569;
+    --ink-mute: #64748b;
+    --ink-faint: #94a3b8;
+    --accent: #0284c7;
+    --success: #059669;
+    --danger: #e11d48;
+    --warn: #d97706;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    background: var(--bg);
+    color: var(--ink);
+  }
+}
+
+/* ---- 通用原子（对齐 web 端范式） ---- */
+.card {
+  background: var(--glass-bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 24px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #04121f;
+  border-radius: 20px;
+  font-weight: 600;
+  text-align: center;
+  padding: 20px 0;
+  font-size: 28px;
+}
+.btn-primary.disabled {
+  opacity: 0.4;
+}
+
+.btn-ghost {
+  background: var(--elevated);
+  color: var(--ink);
+  border-radius: 20px;
+  text-align: center;
+  padding: 20px 0;
+  font-size: 28px;
+}
+
+.input {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 22px;
+  color: var(--ink);
+  font-size: 28px;
+}
+
+.h1 {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.dim {
+  color: var(--ink-mute);
+  font-size: 24px;
+}
+.money-out {
+  color: var(--danger);
+}
+.money-in {
+  color: var(--success);
+}
+
+.banner {
+  border-radius: 16px;
+  padding: 18px 22px;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+.banner-ok {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+.banner-err {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+}

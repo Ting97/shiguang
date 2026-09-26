@@ -1,0 +1,31 @@
+.bind-pad {
+  padding: 48px 32px;
+}
+
+.mb {
+  margin-bottom: 20px;
+}
+
+.mt {
+  margin-top: 20px;
+}
+
+.mt32 {
+  margin-top: 32px;
+}
+
+.code-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.grow {
+  flex: 1;
+}
+
+.code-btn {
+  width: 260px;
+  padding: 16px 0;
+  font-size: 24px;
+}

@@ -1,0 +1,227 @@
+/** 交易分包页私有样式：账号 chips / 汇总卡 / 双图表柱状 / 摘要与复盘卡 / 逐笔明细行 */
+
+/* 小程序页面样式按页隔离，通用原子类不在 app.scss 里的（如 page-pad）需每页自带 */
+.page-pad {
+  padding: 24px;
+}
+
+/* —— 账号 chips（横向换行；选中描边强调） —— */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.chip {
+  font-size: 24px;
+  color: var(--ink-mute);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 8px 26px;
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chip-on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* —— 汇总卡 —— */
+.sum-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sum-net {
+  display: block;
+  font-size: 56px;
+  font-weight: 700;
+  margin: 10px 0 20px;
+}
+.sum-grid {
+  display: flex;
+}
+.sum-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.sum-num {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+/* —— 卡头 —— */
+.sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+/* —— 每日盈亏柱状：每列上下两半，中线（两半交界）即 0 轴 ——
+   上半 bottom 对齐（正柱从 0 轴向上长），下半 top 对齐（负柱向下垂） */
+.bars {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.bar-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bar-half {
+  height: 110px;
+  display: flex;
+  justify-content: center;
+}
+.bar-half.up {
+  align-items: flex-end;
+}
+/* 0 轴：上半底边描线，视觉上把正负柱分开 */
+.bar-half.down {
+  align-items: flex-start;
+  border-top: 1px solid var(--line-soft);
+}
+.bar {
+  width: 70%;
+  max-width: 18px;
+  border-radius: 6px;
+}
+.bar.up {
+  background: var(--success);
+  opacity: 0.85;
+  border-radius: 6px 6px 0 0;
+}
+.bar.down {
+  background: var(--danger);
+  opacity: 0.85;
+  border-radius: 0 0 6px 6px;
+}
+.bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+/* —— 累计收益：底部对齐细柱，颜色按累计值正负 —— */
+.bars.baseline {
+  align-items: flex-end;
+  height: 120px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.curve-bar {
+  flex: 1;
+  min-width: 0;
+  margin: 0 2px;
+  border-radius: 4px 4px 0 0;
+  opacity: 0.85;
+}
+.curve-bar.up {
+  background: var(--success);
+}
+.curve-bar.down {
+  background: var(--danger);
+}
+
+/* —— 规则摘要 —— */
+.digest-line {
+  display: block;
+  font-size: 24px;
+  line-height: 1.7;
+}
+
+/* —— AI 复盘卡 —— */
+/* 文字按钮：不用 Taro Button（免自带边框/高度的坑） */
+.ai-btn {
+  font-size: 24px;
+  color: var(--accent);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 6px 24px;
+}
+.ai-btn.disabled {
+  opacity: 0.4;
+}
+.ai-busy {
+  display: block;
+  text-align: center;
+  padding: 16px 0;
+}
+/* 降级徽标：fallback=true 时提示走的是规则版摘要 */
+.badge-warn {
+  margin-top: 12px;
+  font-size: 22px;
+  color: var(--warn);
+  background: rgba(251, 191, 36, 0.12);
+  border-radius: 14px;
+  padding: 12px 20px;
+}
+.ai-body {
+  margin-top: 12px;
+}
+.ai-summary {
+  font-size: 28px;
+  line-height: 1.7;
+}
+.ai-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-sug {
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.ai-line {
+  font-size: 24px;
+  line-height: 1.6;
+}
+.mk {
+  margin-right: 10px;
+}
+
+/* —— 逐笔明细 —— */
+.trade-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.t-dir {
+  font-size: 26px;
+}
+.dir-buy {
+  color: var(--success);
+}
+.dir-sell {
+  color: var(--warn);
+}
+.t-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.t-sym {
+  font-size: 28px;
+}
+.t-pnl {
+  font-size: 28px;
+  font-weight: 700;
+}
+.more-tip {
+  display: block;
+  text-align: center;
+  padding-top: 16px;
+}

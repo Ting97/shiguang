@@ -1,0 +1,102 @@
+/* 联系人详情页私有样式 */
+
+.head-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.grow {
+  flex: 1;
+  overflow: hidden;
+}
+
+.avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--elevated);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  flex-shrink: 0;
+}
+
+.name-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.name {
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.imp-tag {
+  font-size: 20px;
+  color: var(--warn);
+  background: rgba(251, 191, 36, 0.12);
+  border-radius: 8px;
+  padding: 2px 10px;
+  flex-shrink: 0;
+}
+
+.fields {
+  margin-top: 20px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 8px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  font-size: 27px;
+}
+
+/* 备注类长文本单独一行展示，不与标签挤一行 */
+.field.col {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.notes {
+  line-height: 1.5;
+}
+
+.h2 {
+  font-size: 30px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.tl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tl-row:last-child {
+  border-bottom: none;
+}
+
+.tl-title {
+  display: block;
+  font-size: 27px;
+  line-height: 1.5;
+}
+
+.tl-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  line-height: 1.4;
+}

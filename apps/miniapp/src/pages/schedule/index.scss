@@ -1,0 +1,53 @@
+.page-pad {
+  padding: 24px;
+}
+
+.entries {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.entry {
+  flex: 1;
+  text-align: center;
+  background: var(--glass-bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  padding: 20px 0;
+  font-size: 26px;
+}
+
+.h2 {
+  font-size: 30px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.todo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.todo-check {
+  font-size: 32px;
+}
+
+.todo-title {
+  font-size: 28px;
+}
+
+.done {
+  text-decoration: line-through;
+  color: var(--ink-faint);
+}
+
+.grow {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

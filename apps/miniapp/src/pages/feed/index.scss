@@ -1,0 +1,111 @@
+/* feed 页面样式：发布区（composer/图片/语音）。动态卡样式在 moment-card.scss，语音按钮在 voice-button.scss */
+
+.page-pad {
+  padding: 24px;
+}
+
+.composer {
+  width: 100%;
+  min-height: 140px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 22px;
+  font-size: 28px;
+  box-sizing: border-box;
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.send-btn {
+  width: 180px;
+  padding: 14px 0;
+  font-size: 26px;
+}
+
+/* 工具行：图片按钮 + 语音按钮 */
+.tools-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.tool-btn {
+  flex-shrink: 0;
+  background: var(--elevated);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-size: 24px;
+  color: var(--ink);
+}
+
+.tool-btn.disabled {
+  opacity: 0.4;
+}
+
+/* 已选图片缩略条 */
+.pic-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pic-cell {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+}
+
+.pic-cell.error {
+  border-color: var(--danger);
+}
+
+.pic-img {
+  width: 100%;
+  height: 100%;
+}
+
+.pic-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0 0 12px;
+}
+
+.pic-mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 0;
+}
