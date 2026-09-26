@@ -57,3 +57,6 @@ coverage/
 __pycache__/
 apps/api/.uploads/
 shiguang-import.json
+
+# miniapp 构建缓存/产物
+apps/miniapp/.swc
