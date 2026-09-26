@@ -34,8 +34,12 @@ export function middleware(req: NextRequest) {
       return resp;
     }
     const bearer = extractBearerToken(req.headers.get("authorization"));
-    // CSRF（REQ-004 FR-C2.2）：Cookie 会话的写请求强制 Origin/Sec-Fetch-Site 同源；Bearer 豁免
-    if (!bearer && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    // CSRF（REQ-004 FR-C2.2）：Cookie 会话的写请求强制 Origin/Sec-Fetch-Site 同源；Bearer 豁免。
+    // 仅在请求确实携带 Cookie 时校验——CSRF 攻击面是被浏览器自动附带的 Cookie 凭据；
+    // 无 Cookie 无 Bearer 的写请求（小程序/原生端登录前，wx.request 不发 Origin）没有可伪造的
+    // 会话面，强制 Origin 反而挡死原生端（docs/15 修正：Expo 密码登录同受此隐性拦截）
+    const hasCookie = req.cookies.has("shiguang_session");
+    if (!bearer && hasCookie && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
       const verdict = verifyWriteOrigin(
         req.method,
         {

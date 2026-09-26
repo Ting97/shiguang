@@ -214,6 +214,17 @@ test("鉴权层：无凭证写操作全部 401", async (t) => {
   }
 });
 
+test("鉴权层：微信登录/绑定路由匿名可达（/api/auth* 豁免浅门卫，空体走 zod 400）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  // 匿名 POST 空体：不 401（auth 白名单）、不 500，zod 入参校验 400 收口
+  for (const path of ["/api/auth/wechat/login", "/api/auth/wechat/bind"]) {
+    const { status, json } = await call("POST", path, { body: {} });
+    assert.equal(status, 400, `${path} 空体应 400`);
+    assert.ok(json.error, `${path} 应返回 error 字段`);
+  }
+});
+
 /* ---------- 权限层：普通用户 → 403 ---------- */
 
 test("权限层：管理员路由普通用户 403", async (t) => {

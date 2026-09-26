@@ -37,3 +37,15 @@ export const setupSchema = z.object({
   password: z.string().optional(),
   setupToken: z.string().optional(),
 });
+
+export const wechatLoginSchema = z.object({
+  // wx.login 返回的 code（5 分钟有效、单次消费），微信侧实际更短，这里只拦畸形
+  code: z.string().min(1).max(512),
+});
+
+export const wechatBindSchema = z.object({
+  // 登录时签发的一次性绑定票据（64hex）
+  bindTicket: z.string().min(16).max(256),
+  phone: z.string().min(1),
+  smsCode: z.string().min(4).max(8),
+});

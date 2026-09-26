@@ -13,6 +13,7 @@ import { assembleUserPrompt, getPromptBundle, type PromptKey } from "../ai/promp
 import { deleteImageFile, sniffImageMime, IMAGE_MIME_EXT, newStorageKey, saveImageFile } from "@/server/timeline/storage";
 import { ApiError } from "../platform/http/errors";
 import { isUuid } from "../platform/http/validate";
+import { enforceUgcText } from "../platform/wechat";
 import { analyzeAndPersist, listContactNames } from "./analyze";
 import { entriesRepo } from "./repo";
 
@@ -46,6 +47,9 @@ async function assertActivityExists(client: import("pg").PoolClient, userId: str
 
 /** POST /api/parse：动态本体先落地秒回 + 配额 + 后台五域识别（fire-and-forget，成败都打 analyzed_at） */
 export async function ingest(userId: string, text: string) {
+  // UGC 内容安全门禁（微信 msgSecCheck，docs/15 审核硬门槛；降级放行）——
+  // 仅绑定了微信的用户且通道可用时真正检测，web/Expo 用户无 openid 天然跳过
+  await enforceUgcText(userId, text);
   const q = await checkAiQuota(userId);
   if (!q.allowed) {
     throw ApiError.quota(

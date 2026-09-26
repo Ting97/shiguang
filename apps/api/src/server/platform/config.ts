@@ -24,6 +24,12 @@ export interface SmsConfig {
   templateId: string;
 }
 
+/** 微信小程序通道（WX_MINI_APPID/SECRET 任缺视为通道未开通，业务侧降级；docs/15） */
+export interface WechatConfig {
+  appid: string;
+  secret: string;
+}
+
 export interface AppConfig {
   env: "development" | "production" | "test";
   isProd: boolean;
@@ -53,6 +59,8 @@ export interface AppConfig {
   readonly smtp: SmtpConfig | null;
   /** 腾讯云 SMS 通道，未配置 = null */
   readonly sms: SmsConfig | null;
+  /** 微信小程序通道，未配置 = null */
+  readonly wechat: WechatConfig | null;
 }
 
 class ConfigValidationError extends Error {
@@ -130,6 +138,10 @@ export function loadConfig(): AppConfig {
       return TENCENT_SMS_SECRET_ID && TENCENT_SMS_SECRET_KEY && TENCENT_SMS_SDK_APP_ID && TENCENT_SMS_SIGN && TENCENT_SMS_TEMPLATE_ID
         ? { secretId: TENCENT_SMS_SECRET_ID, secretKey: TENCENT_SMS_SECRET_KEY, sdkAppId: TENCENT_SMS_SDK_APP_ID, sign: TENCENT_SMS_SIGN, templateId: TENCENT_SMS_TEMPLATE_ID }
         : null;
+    },
+    get wechat(): WechatConfig | null {
+      const { WX_MINI_APPID, WX_MINI_SECRET } = process.env;
+      return WX_MINI_APPID && WX_MINI_SECRET ? { appid: WX_MINI_APPID, secret: WX_MINI_SECRET } : null;
     },
   };
   return cached;
