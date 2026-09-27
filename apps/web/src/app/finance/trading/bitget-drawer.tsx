@@ -92,8 +92,8 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
         <section className="mb-4 rounded-xl border border-line-soft bg-bg/40 p-3">
           <p className="mb-2 text-xs text-ink-soft">
             {status?.bound
-              ? `已绑定（${status.apiKeyMasked}）——可更新或解绑；建议 Bitget 后台创建仅「读取」权限的 API key`
-              : "第一步：粘贴 Bitget 只读 API 凭据（建议只勾「读取」权限），secret 加密落库、明文不再展示"}
+              ? `已绑定（${status.apiKeyMasked}）——每个拾光账号各自绑定自己的 Bitget，互不可见；可更新或解绑`
+              : "第一步：粘贴你自己 Bitget 账户的只读 API 凭据（建议仅勾「读取」权限）。凭据加密后只属于你，他人（含管理员）不可见"}
           </p>
           {!status?.bound && (
             <div className="space-y-2">
@@ -138,8 +138,8 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
               {busy ? "同步中…" : "同步入库"}
             </button>
           </div>
-          <p className="mt-2 text-[10px] text-ink-faint">
-            同步只读不交易；按平仓单 orderId 幂等去重，重复同步不会产生重复明细。
+          <p className="text-[10px] text-ink-faint">
+            手动拉取、只读不交易；按平仓单 orderId 幂等去重，重复同步不会产生重复明细。
           </p>
         </section>
 

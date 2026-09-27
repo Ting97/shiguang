@@ -77,7 +77,7 @@ export default function TradingPage() {
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
             拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">交易</span>
           </h1>
-          <p className="mt-2 text-xs text-ink-dim">MT5 报表导入 · 权益曲线 · 归类复盘 —— 盈亏看得清</p>
+          <p className="mt-2 text-xs text-ink-dim">MT5 报表 / Bitget CFD 同步 · 权益曲线 · 归类复盘 —— 盈亏看得清</p>
         </header>
 
         <FinanceTabs />
@@ -121,15 +121,14 @@ export default function TradingPage() {
                   ))}
                   {accounts.length === 0 && <span className="text-xs text-ink-faint">暂无账号</span>}
                 </div>
-                {isPc && (
-                  <button
-                    onClick={() => setBitgetOpen(true)}
-                    title="绑定只读 API 并同步 Bitget CFD 平仓"
-                    className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
-                  >
-                    ⚡ Bitget 同步
-                  </button>
-                )}
+                {/* Bitget 同步全端开放（移动 Web 也可绑自己的 key 手动拉取，docs/16）；MT5 报表导入仍仅 PC（FR-1.8） */}
+                <button
+                  onClick={() => setBitgetOpen(true)}
+                  title="绑定自己的 Bitget 只读 API，手动拉取 CFD 平仓数据"
+                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
+                >
+                  ⚡ Bitget 同步
+                </button>
                 {isPc && (
                   <button
                     onClick={() => setImporting(true)}
@@ -176,10 +175,7 @@ export default function TradingPage() {
 
             {accounts.length === 0 ? (
               <section className="glass rounded-2xl p-8 text-center text-sm text-ink-dim">
-                还没有交易账号 ——{" "}
-                {isPc
-                  ? "点「📥 导入报表」上传 MT5 ReportHistory（xlsx）或 CSV 开始"
-                  : "在 PC 端登录后导入 MT5 报表（本端只读）"}
+                还没有交易账号 —— 点「⚡ Bitget 同步」绑定自己的只读 API 手动拉取；MT5 用户在 PC 端「📥 导入报表」
               </section>
             ) : (
               activeId && (
