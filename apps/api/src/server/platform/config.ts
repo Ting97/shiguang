@@ -61,6 +61,8 @@ export interface AppConfig {
   readonly sms: SmsConfig | null;
   /** 微信小程序通道，未配置 = null */
   readonly wechat: WechatConfig | null;
+  /** 交易所凭据加密密钥（docs/16 Bitget CFD）；未配置 = 绑定端点 503 */
+  readonly exchangeEncKey: string | null;
 }
 
 class ConfigValidationError extends Error {
@@ -142,6 +144,10 @@ export function loadConfig(): AppConfig {
     get wechat(): WechatConfig | null {
       const { WX_MINI_APPID, WX_MINI_SECRET } = process.env;
       return WX_MINI_APPID && WX_MINI_SECRET ? { appid: WX_MINI_APPID, secret: WX_MINI_SECRET } : null;
+    },
+    /** 交易所凭据加密密钥（docs/16 Bitget CFD）；未配置 = 交易所绑定端点 503 */
+    get exchangeEncKey(): string | null {
+      return process.env.EXCHANGE_ENC_KEY || null;
     },
   };
   return cached;

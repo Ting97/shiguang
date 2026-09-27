@@ -143,7 +143,8 @@ const AUTHED_GETS: Array<[string, string]> = [
   ["trading/equity", "/api/trading/equity?accountId=x"],
   ["trading/trades", "/api/trading/trades?accountId=x"],
   ["trading/digest", "/api/trading/digest?accountId=x"],
-  ["trading/review", "/api/trading/review?accountId=x"],
+    ["trading/review", "/api/trading/review?accountId=x"],
+    ["trading/bitget/keys", "/api/trading/bitget/keys"],
 ];
 
 test("鉴权层：无凭证 GET 全部 401", async (t) => {
@@ -201,6 +202,9 @@ test("鉴权层：无凭证写操作全部 401", async (t) => {
     ["DELETE", "debts/[id]", "/api/debts/x"],
     ["POST", "debts/simulate", "/api/debts/simulate"],
     ["POST", "asr", "/api/asr"],
+    ["POST", "trading/bitget/sync", "/api/trading/bitget/sync"],
+    ["PUT", "trading/bitget/keys", "/api/trading/bitget/keys"],
+    ["DELETE", "trading/bitget/keys", "/api/trading/bitget/keys"],
     ["POST", "review/day", "/api/review/day"],
     ["POST", "finance/review/week", "/api/finance/review/week"],
     ["PATCH", "auth/profile", "/api/auth/profile"],

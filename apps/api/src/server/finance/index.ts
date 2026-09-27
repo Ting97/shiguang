@@ -5,3 +5,4 @@ export * from "./debt/debt-import";
 export * from "./debt/reserve";
 export * from "./trading/trades";
 export * from "./trading/trades-review";
+export * from "./trading/bitget";

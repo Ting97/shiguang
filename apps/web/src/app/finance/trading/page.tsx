@@ -9,6 +9,7 @@ import { api, ApiClientError } from "@/shared/api";
 import DailySection from "./daily-section";
 import DigestSection from "./digest-section";
 import EquitySection from "./equity-section";
+import BitgetDrawer from "./bitget-drawer";
 import TradingImportDrawer from "./import-drawer";
 import { bjDate, fmtUsd, pnlColor, type TradingAccount } from "./kit";
 import TradesSection from "./trades-section";
@@ -24,6 +25,7 @@ export default function TradingPage() {
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [bitgetOpen, setBitgetOpen] = useState(false);
   const [isPc, setIsPc] = useState(false);
   const [rev, setRev] = useState(0);
 
@@ -111,7 +113,7 @@ export default function TradingPage() {
                   {accounts.map((a) => (
                     <FilterChip
                       key={a.id}
-                      label={a.nickname ? `${a.login} · ${a.nickname}` : a.login}
+                      label={`${a.source === "bitget" ? "⚡" : ""}${a.nickname ? `${a.login} · ${a.nickname}` : a.login}`}
                       variant="filter"
                       active={a.id === activeId}
                       onClick={() => setActiveId(a.id)}
@@ -119,6 +121,15 @@ export default function TradingPage() {
                   ))}
                   {accounts.length === 0 && <span className="text-xs text-ink-faint">暂无账号</span>}
                 </div>
+                {isPc && (
+                  <button
+                    onClick={() => setBitgetOpen(true)}
+                    title="绑定只读 API 并同步 Bitget CFD 平仓"
+                    className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
+                  >
+                    ⚡ Bitget 同步
+                  </button>
+                )}
                 {isPc && (
                   <button
                     onClick={() => setImporting(true)}
@@ -192,6 +203,16 @@ export default function TradingPage() {
         <TradingImportDrawer
           onClose={() => setImporting(false)}
           onImported={async () => {
+            await load();
+            setRev((r) => r + 1);
+          }}
+        />
+      )}
+
+      {bitgetOpen && (
+        <BitgetDrawer
+          onClose={() => setBitgetOpen(false)}
+          onSynced={async () => {
             await load();
             setRev((r) => r + 1);
           }}

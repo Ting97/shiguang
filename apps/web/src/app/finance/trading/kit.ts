@@ -9,6 +9,7 @@ export interface TradingAccount {
   login: string;
   nickname: string | null;
   currency: string;
+  source?: "mt5" | "bitget"; // 041：账户来源（Bitget CFD 同步落 bitget）
   trades: number;
   lots: number;
   netProfit: number;

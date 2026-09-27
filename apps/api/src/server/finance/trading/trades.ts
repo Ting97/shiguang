@@ -28,7 +28,7 @@ export interface ImportBody {
   login: string;
   nickname?: string;
   fileName: string;
-  source: "mt5_xlsx" | "csv";
+  source: "mt5_xlsx" | "csv" | "bitget_api";
   rows: TradeRowInput[];
 }
 
@@ -36,8 +36,8 @@ function validateRows(rows: TradeRowInput[]) {
   if (!Array.isArray(rows) || rows.length === 0) throw ApiError.badRequest("rows 为空");
   if (rows.length > 50_000) throw ApiError.badRequest("单次导入上限 50000 笔");
   for (const [i, r] of rows.entries()) {
-    // ticket 落 bigint 列：超长数字串过 /^\d+$/ 但 ::bigint[] cast 溢出 → 500，先拦（18 位内远超 MT5 ticket 实际范围）
-    if (r.ticket == null || !/^\d{1,18}$/.test(String(r.ticket))) throw ApiError.badRequest(`第 ${i + 1} 行 ticket 非法`);
+    // ticket 落 text 列（041 前为 bigint）：MT5 纯数字、Bitget orderId 长数字串，统一 [A-Za-z0-9_-] ≤64
+    if (r.ticket == null || !/^[A-Za-z0-9_-]{1,64}$/.test(String(r.ticket))) throw ApiError.badRequest(`第 ${i + 1} 行 ticket 非法`);
     if (r.direction !== "buy" && r.direction !== "sell") throw ApiError.badRequest(`第 ${i + 1} 行方向需为 buy/sell`);
     if (!r.openTime || !r.closeTime || Number.isNaN(Date.parse(r.openTime)) || Number.isNaN(Date.parse(r.closeTime)))
       throw ApiError.badRequest(`第 ${i + 1} 行开/平仓时间非法`);
@@ -48,15 +48,15 @@ function validateRows(rows: TradeRowInput[]) {
   }
 }
 
-async function ensureAccount(userId: string, login: string, nickname?: string): Promise<string> {
+async function ensureAccount(userId: string, login: string, nickname?: string, source: "mt5" | "bitget" = "mt5"): Promise<string> {
   const hit = await pool.query(`select id from trade_accounts where user_id = $1 and login = $2`, [userId, login]);
   if (hit.rows[0]) {
     if (nickname) await pool.query(`update trade_accounts set nickname = $1 where id = $2`, [nickname, hit.rows[0].id]);
     return hit.rows[0].id;
   }
   const ins = await pool.query(
-    `insert into trade_accounts (user_id, login, nickname) values ($1,$2,$3) returning id`,
-    [userId, login, nickname ?? null],
+    `insert into trade_accounts (user_id, login, nickname, source) values ($1,$2,$3,$4) returning id`,
+    [userId, login, nickname ?? null, source],
   );
   return ins.rows[0].id;
 }
@@ -66,12 +66,12 @@ export async function importTrades(userId: string, body: ImportBody) {
   validateRows(body.rows);
   const login = String(body.login ?? "").trim();
   if (!login) throw ApiError.badRequest("login 必填");
-  if (!["mt5_xlsx", "csv"].includes(body.source)) throw ApiError.badRequest("source 需为 mt5_xlsx/csv");
+  if (!["mt5_xlsx", "csv", "bitget_api"].includes(body.source)) throw ApiError.badRequest("source 需为 mt5_xlsx/csv/bitget_api");
 
-  const accountId = await ensureAccount(userId, login, body.nickname);
+  const accountId = await ensureAccount(userId, login, body.nickname, body.source === "bitget_api" ? "bitget" : "mt5");
   const tickets = body.rows.map((r) => String(r.ticket));
   const existing = await pool.query(
-    `select ticket from trades where user_id = $1 and account_id = $2 and ticket = any($3::bigint[])`,
+    `select ticket from trades where user_id = $1 and account_id = $2 and ticket = any($3::text[])`,
     [userId, accountId, tickets],
   );
   const dupSet = new Set(existing.rows.map((r) => String(r.ticket)));
@@ -148,7 +148,7 @@ export async function importTrades(userId: string, body: ImportBody) {
 /** FR-1.3 账号列表 + 汇总 */
 export async function listAccounts(userId: string) {
   const { rows } = await pool.query(
-    `select a.id, a.login, a.nickname, a.currency,
+    `select a.id, a.login, a.nickname, a.currency, a.source,
             count(t.id)::int as trades,
             coalesce(sum(t.lots), 0) as lots,
             coalesce(sum(t.net_profit), 0) as net_profit,
@@ -166,6 +166,7 @@ export async function listAccounts(userId: string) {
       login: r.login,
       nickname: r.nickname,
       currency: r.currency,
+      source: r.source ?? "mt5",
       trades: Number(r.trades),
       lots: Number(r.lots),
       netProfit: Number(r.net_profit),
