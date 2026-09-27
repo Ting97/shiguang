@@ -142,3 +142,89 @@ async function cleanup() {
   await pool.query(`delete from trade_imports where user_id = $1`, [UA]);
   await pool.query(`delete from profiles where id = $1`, [UA]);
 }
+
+test("bitget：带单映射——费用恒等式/direction/ticket 前缀/未平仓跳过", async () => {
+  await ensureLoaded();
+  const { mapTrackPositions } = await import("../src/server/finance/trading/bitget");
+  const rows = mapTrackPositions([
+    {
+      positionId: "TP-9", symbol: "XAUUSD", holdSide: "short",
+      totalQuantity: "2.5", openAvgPrice: "2400", closeAvgPrice: "2380",
+      openFee: "-4", closeFee: "-6", swapFee: "-1.5", netProfit: "43.5",
+      profitShareAmount: "4.35", openTime: "1700000000000", closeTime: "1700086400000",
+    },
+    { positionId: "TP-10", symbol: "NAS100", holdSide: "long", openTime: "1700000000000" }, // 持仓中：无 closeTime
+  ]);
+  assert.equal(rows.length, 1, "未平仓位不进复盘");
+  const r = rows[0];
+  assert.equal(r.ticket, "T-TP-9");
+  assert.equal(r.direction, "sell", "holdSide short → sell");
+  assert.equal(r.lots, 2.5);
+  assert.equal(r.openPrice, 2400);
+  assert.equal(r.closePrice, 2380);
+  assert.equal(r.profit, 55, "netProfit - 三费：43.5-(-4)-(-6)-(-1.5)");
+  assert.equal(r.commission, -10);
+  assert.equal(r.swap, -1.5);
+  assert.ok(Math.abs(r.profit + r.commission + r.swap - 43.5) < 1e-9, "恒等式：三项之和 = netProfit");
+});
+
+test("bitget：scope=all 双账号落库 + 幂等；纯带单范围上游报错透传", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await cleanup();
+  process.env.EXCHANGE_ENC_KEY = "test-enc-key";
+  await pool.query(`insert into profiles (id, nickname) values ($1,'bitget测试') on conflict (id) do nothing`, [UA]);
+  const { saveBitgetKeys, syncBitget } = await import("../src/server/finance");
+  await saveBitgetKeys(UA, { apiKey: "k-2222", apiSecret: "s-2222", passphrase: "p-2222" });
+
+  const selfBody = JSON.stringify({
+    code: "00000",
+    data: [{ id: "R1", orderId: "SO-1", symbol: "XAUUSD", type: "position_close", amount: "100", ts: "1700000000000" }],
+  });
+  const orderBody = JSON.stringify({
+    code: "00000",
+    data: [{ orderId: "SO-1", symbol: "XAUUSD", side: "sell", status: "filled", avgFillPrice: "2050", quantity: "1", filledQuantity: "1", fillTS: "1700000000000", positionId: "SP1" }],
+  });
+  const trackBody = JSON.stringify({
+    code: "00000",
+    data: [{
+      positionId: "TP-1", symbol: "NAS100", holdSide: "long", totalQuantity: "1",
+      openAvgPrice: "18000", closeAvgPrice: "18100", openFee: "-2", closeFee: "-2", swapFee: "0",
+      netProfit: "96", profitShareAmount: "9.6", openTime: "1700000000000", closeTime: "1700086400000",
+    }],
+  });
+  const fetcher = (url: string) => {
+    const body = url.includes("financial-records") ? selfBody : url.includes("history-orders") ? orderBody : trackBody;
+    return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(body) });
+  };
+
+  const r1 = await syncBitget(UA, { from: "2026-01-01", to: "2026-01-31", login: "bgx", scope: "all", dryRun: false }, fetcher);
+  assert.equal(r1.rowsNew, 2, "本账户 1 + 带单 1");
+  const { rows: accs } = await pool.query(
+    `select login, nickname from trade_accounts where user_id = $1 order by login`,
+    [UA],
+  );
+  assert.deepEqual(accs.map((a: any) => a.login).sort(), ["bgx", "bgx-track"], "带单落独立账号");
+  const trackAcc = accs.find((a: any) => a.login === "bgx-track");
+  assert.match(String(trackAcc.nickname), /^带单/, "带单账号昵称带标识");
+  const { rows: tr } = await pool.query(
+    `select t.ticket, t.net_profit from trades t join trade_accounts a on a.id = t.account_id where a.login = 'bgx-track'`,
+  );
+  assert.equal(tr[0].ticket, "T-TP-1");
+  assert.equal(Number(tr[0].net_profit), 96, "带单净额 = netProfit");
+  assert.equal((r1 as any).trader.profitShareAmount, 9.6, "分润只进摘要");
+
+  const r2 = await syncBitget(UA, { from: "2026-01-01", to: "2026-01-31", login: "bgx", scope: "all", dryRun: true }, fetcher);
+  assert.equal(r2.rowsDup, 2, "二次同步全 dup");
+  assert.equal(r2.rowsNew, 0);
+
+  // 纯带单范围 + 上游报错（如非交易员）：异常透传（带 hint 的 ApiError）
+  const errFetcher = () =>
+    Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify({ code: "40001", msg: "not a trader" })) });
+  await assert.rejects(
+    () => syncBitget(UA, { from: "2026-01-01", to: "2026-01-31", login: "bgx", scope: "trader", dryRun: true }, errFetcher as never),
+    (e: any) => e?.status >= 400,
+    "纯带单范围上游报错应抛出",
+  );
+  await cleanup();
+});

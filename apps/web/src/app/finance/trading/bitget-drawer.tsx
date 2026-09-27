@@ -18,6 +18,9 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   const [login, setLogin] = useState("");
   const [from, setFrom] = useState(() => isoDaysAgo(30));
   const [to, setTo] = useState(() => isoDaysAgo(0));
+  // 数据范围（docs/16 场景 A/B）：本账户（自主+跟单镜像）默认开；带单仓位（交易员）按需勾
+  const [scopeSelf, setScopeSelf] = useState(true);
+  const [scopeTrader, setScopeTrader] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
@@ -60,12 +63,19 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   }
 
   async function sync(dryRun: boolean) {
-    if (busy) return;
+    if (busy || (!scopeSelf && !scopeTrader)) return;
     setBusy(true);
     setMsg(null);
     setSummary(null);
     try {
-      const j = await api<Record<string, unknown>>("/api/trading/bitget/sync", "POST", { from, to, login: login.trim() || undefined, dryRun });
+      const scope = scopeSelf && scopeTrader ? "all" : scopeTrader ? "trader" : "self";
+      const j = await api<Record<string, unknown>>("/api/trading/bitget/sync", "POST", {
+        from,
+        to,
+        login: login.trim() || undefined,
+        dryRun,
+        scope,
+      });
       setSummary(j);
       if (!dryRun) {
         setMsg({ ok: true, text: "✅ 同步完成" });
@@ -118,7 +128,17 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
 
         {/* 第二步：同步 */}
         <section className="rounded-xl border border-line-soft bg-bg/40 p-3">
-          <p className="mb-2 text-xs text-ink-soft">第二步：拉取资金流水（平仓盈亏/手续费/隔夜费）+ 历史订单，按平仓归组成交易名细</p>
+          <p className="mb-2 text-xs text-ink-soft">第二步：选择数据范围并手动拉取（只读）</p>
+          <div className="mb-2 space-y-1.5">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-soft">
+              <input type="checkbox" checked={scopeSelf} onChange={(e) => setScopeSelf(e.target.checked)} className="accent-sky-500" />
+              本账户 —— 自主交易 <span className="text-ink-faint">+</span> 跟单镜像平仓（跟别人的单也在这里）
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-soft">
+              <input type="checkbox" checked={scopeTrader} onChange={(e) => setScopeTrader(e.target.checked)} className="accent-amber-500" />
+              带单仓位 —— 我是交易员，拉别人跟我的单（落独立账号「带单·xx」，与本账户分开统计）
+            </label>
+          </div>
           <div className="mb-2 grid grid-cols-2 gap-2">
             <label className="text-[11px] text-ink-dim">
               开始（北京）
@@ -131,15 +151,16 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
           </div>
           <input className={`${input} mb-2`} placeholder="账号备注名（留空自动 bitget-xxxx）" value={login} onChange={(e) => setLogin(e.target.value)} />
           <div className="flex gap-2">
-            <button onClick={() => sync(true)} disabled={busy || !status?.bound} className="btn-ghost flex-1 rounded-lg py-1.5 text-xs disabled:opacity-40">
+            <button onClick={() => sync(true)} disabled={busy || !status?.bound || (!scopeSelf && !scopeTrader)} className="btn-ghost flex-1 rounded-lg py-1.5 text-xs disabled:opacity-40">
               预览对账
             </button>
-            <button onClick={() => sync(false)} disabled={busy || !status?.bound} className="btn-primary flex-1 rounded-lg py-1.5 text-xs disabled:opacity-40">
+            <button onClick={() => sync(false)} disabled={busy || !status?.bound || (!scopeSelf && !scopeTrader)} className="btn-primary flex-1 rounded-lg py-1.5 text-xs disabled:opacity-40">
               {busy ? "同步中…" : "同步入库"}
             </button>
           </div>
-          <p className="text-[10px] text-ink-faint">
-            手动拉取、只读不交易；按平仓单 orderId 幂等去重，重复同步不会产生重复明细。
+          <p className="mt-2 text-[10px] text-ink-faint">
+            手动拉取、只读不交易；按平仓单 orderId / 带单 positionId 幂等去重，重复同步不产生重复明细；
+            分润收入只进对账摘要，不算交易盈亏。
           </p>
         </section>
 
