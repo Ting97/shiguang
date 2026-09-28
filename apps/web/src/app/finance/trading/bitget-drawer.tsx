@@ -124,7 +124,7 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
         {/* 第二步：同步 */}
         <section className="rounded-xl border border-line-soft bg-bg/40 p-3">
           <p className="mb-2 text-xs text-ink-soft">
-            第二步：手动拉取（只读）。拉取合约成交明细（USDT 本位）——自主交易与跟单镜像都在其中；Bitget 仅提供近 90 天数据，更早的区间会自动截断
+            第二步：手动拉取（只读）。拉取 Bitget CFD 资金流水（XAUUSD 等差价合约平仓明细）；首次同步数据量大时约需数分钟，请耐心等待
           </p>
           <div className="mb-2 grid grid-cols-2 gap-2">
             <label className="text-[11px] text-ink-dim">
@@ -146,7 +146,7 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
             </button>
           </div>
           <p className="mt-2 text-[10px] text-ink-faint">
-            按平仓单 orderId 幂等去重，重复同步不产生重复明细；盈亏取成交明细 execPnl，手续费拆分进净额。
+            按平仓单 orderId 幂等去重，重复同步不产生重复明细；盈亏取流水净现金流，手续费/隔夜费透传拆分。
           </p>
         </section>
 
