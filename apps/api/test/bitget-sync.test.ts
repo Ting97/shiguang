@@ -87,34 +87,41 @@ test("bitget：fetchCfdRecords——{list,cursor} 嵌套翻页 + limit 50（stub
 const WIN_OPEN = 1_767_225_600_000; // 2026-01-01（窗口外旧数据）
 const WIN_TS = 1_790_000_000_000; // 2026-09-21 前后（同步窗口 2026-09-01~09-30 内）
 
-test("bitget：CFD 归组——平仓映射/direction 反转/fee·swap 拆分/出入金跳过", async () => {
+test("bitget：CFD 归组——开仓/平仓行区分/LIFO 配对开仓时间/费用归属/出入金跳过", async () => {
   await ensureLoaded();
   const { groupCfdRecords } = await import("../src/server/finance/trading/bitget");
   const g = groupCfdRecords([
-    // 一笔 XAUUSD 平多（平仓动作 sell）——生产真实形态
-    { id: "R1", ts: String(WIN_TS), symbol: "XAUUSD", side: "sell", qty: "0.08", swap: "0", fee: "0", cashFlow: "1.44", openPrice: "4160.99", closePrice: "4161.17", orderId: "22675709" },
-    // 带费用平仓：fee/swap 支出为负（生产实测形态），cashFlow 为已扣费净额，费用透传
-    { id: "R2", ts: String(WIN_TS + 1), symbol: "XAUUSD", side: "buy", qty: "1", swap: "-0.5", fee: "-2", cashFlow: "-40.14", openPrice: "4200", closePrice: "4160", orderId: "22676000" },
     // 出入金事件（symbol 空）与缺 orderId 的行：跳过计数
-    { id: "R3", ts: String(WIN_TS + 2), symbol: "", side: "", qty: "0", cashFlow: "-1749.08", orderId: "0" },
+    { id: "R0", ts: String(WIN_TS - 1), symbol: "", side: "", qty: "0", cashFlow: "-1749.08", orderId: "0" },
+    // 开仓行：closePrice=0 & cashFlow=0 & openPrice>0，fee=开仓手续费（不生成 trade，入栈待配对）
+    { id: "R1", ts: String(WIN_TS), symbol: "XAUUSD", side: "buy", qty: "0.08", swap: "0", fee: "-0.43", cashFlow: "0", openPrice: "4160.99", closePrice: "0", orderId: "22675681" },
+    // 对应平仓行（平仓动作 sell）：openTime 配对开仓行、开仓费归入 commission、行内自带开仓均价
+    { id: "R2", ts: String(WIN_TS + 60_000), symbol: "XAUUSD", side: "sell", qty: "0.08", swap: "0", fee: "-0.44", cashFlow: "1.44", openPrice: "4160.99", closePrice: "4161.17", orderId: "22675709" },
+    // 带隔夜费平仓（无配对开仓行）：profit=cashFlow-fee-swap、swap 透传
+    { id: "R3", ts: String(WIN_TS + 2), symbol: "XAUUSD", side: "buy", qty: "1", swap: "-0.5", fee: "-2", cashFlow: "-40.14", openPrice: "4200", closePrice: "4160", orderId: "22676000" },
+    // 缺 orderId 的带 symbol 行：跳过
     { id: "R4", ts: String(WIN_TS + 3), symbol: "XAUUSD", cashFlow: "1", orderId: "" },
   ]);
-  assert.equal(g.rows.length, 2);
+  assert.equal(g.rows.length, 2, "开仓行不生成 trade");
   assert.equal(g.skippedEvents, 2, "出入金/缺 orderId 事件不落数");
+  assert.equal(g.openRowsUnmatched, 0, "R1 被 R2 消费");
 
   const [a, b] = g.rows;
   assert.equal(a.ticket, "C22675709");
   assert.equal(a.direction, "buy", "平仓动作 sell → 持仓方向 buy");
   assert.equal(a.lots, 0.08);
-  assert.equal(a.openPrice, 4160.99);
+  assert.equal(a.openPrice, 4160.99, "行内自带开仓均价优先");
   assert.equal(a.closePrice, 4161.17);
-  assert.equal(a.profit, 1.44);
-  assert.equal(a.commission, 0);
+  assert.equal(a.openTime, new Date(WIN_TS).toISOString(), "开仓时间取配对开仓行 ts");
+  assert.equal(a.closeTime, new Date(WIN_TS + 60_000).toISOString());
+  assert.equal(a.profit, 1.88, "毛利 = cashFlow - fee平 - swap平（fee 为负，加回）");
+  assert.equal(a.commission, -0.87, "开仓费 -0.43 + 平仓费 -0.44");
   assert.equal(a.swap, 0);
-  assert.equal(a.openTime, a.closeTime, "CFD 流水无开仓时间，兜底=平仓时间");
+  assert.ok(Math.abs(a.profit + a.commission + a.swap - 1.01) < 1e-9, "净额 = cashFlow + 开仓费（该笔交易总资金影响）");
 
   assert.equal(b.ticket, "C22676000");
   assert.equal(b.direction, "sell", "平仓动作 buy → 持仓方向 sell");
+  assert.equal(b.openTime, b.closeTime, "无配对开仓行兜底=平仓时间");
   assert.equal(b.profit, -37.64, "毛利 = cashFlow - fee - swap（支出为负，加回费用）");
   assert.equal(b.commission, -2);
   assert.equal(b.swap, -0.5);
@@ -132,6 +139,7 @@ test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 d
   const ok = (data: unknown) => JSON.stringify({ code: "00000", data });
   const page1 = { list: [
     { id: "R0", ts: String(WIN_OPEN), symbol: "XAUUSD", side: "sell", qty: "1", cashFlow: "10", openPrice: "4000", closePrice: "4010", orderId: "OLD1" },
+    { id: "R5", ts: String(WIN_TS - 60_000), symbol: "XAUUSD", side: "buy", qty: "0.08", fee: "-0.43", cashFlow: "0", openPrice: "4160.99", closePrice: "0", orderId: "22675681" },
     { id: "R1", ts: String(WIN_TS), symbol: "XAUUSD", side: "sell", qty: "0.08", cashFlow: "1.44", openPrice: "4160.99", closePrice: "4161.17", orderId: "22675709" },
     { id: "R2", ts: String(WIN_TS + 1), symbol: "", cashFlow: "-1749.08", orderId: "0" },
   ], cursor: null };
@@ -141,14 +149,15 @@ test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 d
   };
   await saveBitgetKeys(UA, { apiKey: "k-2222", apiSecret: "s-2222", passphrase: "p-2222" }, fetcher);
   const status = await getBitgetKeysStatus(UA);
-  assert.ok(status.bound && status.apiKeyMasked.includes("***"), "状态只回掩码");
+  assert.ok(status.bound && status.keys[0].apiKeyMasked.includes("***"), "状态逐把回掩码");
 
-  const first = await syncBitget(UA, { from: "2026-09-01", to: "2026-09-30", login: "bitget-t", dryRun: false }, fetcher);
-  assert.equal(first.rowsNew, 1, "窗口外 OLD1 被过滤，仅 1 笔入库");
-  assert.equal((first as any).records.fetched, 3);
-  assert.equal((first as any).records.inWindow, 2);
+  const first = await syncBitget(UA, { from: "2026-09-01", to: "2026-09-30", keyLabel: "默认", login: "bitget-t", dryRun: false }, fetcher);
+  assert.equal(first.rowsNew, 1, "窗口外 OLD1 被过滤、开仓行不落库，仅 1 笔入库");
+  assert.equal((first as any).records.fetched, 4);
+  assert.equal((first as any).records.inWindow, 3);
   assert.equal((first as any).skippedEvents, 1);
-  const second = await syncBitget(UA, { from: "2026-09-01", to: "2026-09-30", login: "bitget-t", dryRun: true }, fetcher);
+  assert.equal((first as any).openRowsUnmatched, 0, "开仓行被平仓行消费");
+  const second = await syncBitget(UA, { from: "2026-09-01", to: "2026-09-30", keyLabel: "默认", login: "bitget-t", dryRun: true }, fetcher);
   assert.equal(second.rowsDup, 1, "二次 dryRun 全 dup（幂等）");
   assert.equal(second.rowsNew, 0);
   const { rows } = await pool.query(

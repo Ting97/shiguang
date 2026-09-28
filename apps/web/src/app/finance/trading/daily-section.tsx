@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Skeleton from "@/components/skeleton";
 import { TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
-import { addDays, bjToday, fmtUsd, pnlColor, type DailyDay } from "./kit";
+import { addDays, bjToday, fmtUsd, groupByWeek, pnlColor, type DailyDay, type WeekDay } from "./kit";
 
-/** 每日盈亏（FR-1.4）：近 30 个交易日柱状（正负着色）+ 日列表（笔数/手数/净盈亏/连赢连亏） */
+/** 每日/每周盈亏（FR-1.4）：近 30 个交易日（或全部周）柱状（正负着色）+ 列表（笔数/手数/净盈亏/连赢连亏） */
 export default function DailySection({ accountId }: { accountId: string }) {
   const [days, setDays] = useState<DailyDay[] | null>(null);
+  const [mode, setMode] = useState<"day" | "week">("day");
   // 加载失败态：错误显式呈现 + 重试，不再 setDays([]) 伪装成「暂无平仓记录」（与 equity-section 一致）
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [rev, setRev] = useState(0);
@@ -36,13 +37,29 @@ export default function DailySection({ accountId }: { accountId: string }) {
     setRev((r) => r + 1);
   }
 
-  const maxAbs = Math.max(1, ...(days ?? []).map((d) => Math.abs(d.net)));
+  const weeks: WeekDay[] = days ? groupByWeek(days) : [];
+  const view = mode === "week" ? weeks : (days ?? []);
+  const maxAbs = Math.max(1, ...view.map((d) => Math.abs(d.net)));
 
   return (
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
-        <TagChip icon="📅" label="每日盈亏 · 近 30 个交易日" tone="sky" />
+        <TagChip icon="📅" label={mode === "week" ? "每周盈亏 · 近 100 天" : "每日盈亏 · 近 30 个交易日"} tone="sky" />
         <span className="text-[10px] text-ink-faint">按北京时区切日</span>
+        <span className="ml-auto flex overflow-hidden rounded-lg border border-line-strong text-[10px]">
+          <button
+            onClick={() => setMode("day")}
+            className={`px-2 py-0.5 ${mode === "day" ? "bg-sky-500/15 font-medium text-sky-400" : "text-ink-dim"}`}
+          >
+            日
+          </button>
+          <button
+            onClick={() => setMode("week")}
+            className={`px-2 py-0.5 ${mode === "week" ? "bg-sky-500/15 font-medium text-sky-400" : "text-ink-dim"}`}
+          >
+            周
+          </button>
+        </span>
       </p>
       {!days ? (
         loadErr ? (
@@ -60,14 +77,18 @@ export default function DailySection({ accountId }: { accountId: string }) {
       ) : (
         <>
           <div className="flex items-end justify-between gap-1">
-            {days.map((d, i) => {
-              const isCur = i === days.length - 1;
+            {view.map((d, i) => {
+              const isCur = i === view.length - 1;
               const h = Math.max(4, (Math.abs(d.net) / maxAbs) * 64);
+              const label =
+                mode === "week"
+                  ? `${(d as WeekDay).weekStart.slice(5).replace("-", "/")}~${(d as WeekDay).weekEnd.slice(5).replace("-", "/")}`
+                  : (d as DailyDay).ymd;
               return (
-                <div key={d.ymd} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                <div key={mode === "week" ? (d as WeekDay).weekStart : (d as DailyDay).ymd} className="flex min-w-0 flex-1 flex-col items-center gap-1">
                   <div
-                    title={`${d.ymd}：${d.count} 笔 · ${d.lots.toFixed(2)} 手 · 净 ${fmtUsd(d.net)}${
-                      d.prevNet != null ? `（前一日 ${fmtUsd(d.prevNet)}）` : ""
+                    title={`${label}：${d.count} 笔 · ${d.lots.toFixed(2)} 手 · 净 ${fmtUsd(d.net)}${
+                      mode === "day" && (d as DailyDay).prevNet != null ? `（前一日 ${fmtUsd((d as DailyDay).prevNet!)}）` : ""
                     }`}
                     className={`w-full rounded-t transition-colors ${
                       d.net >= 0
@@ -78,7 +99,9 @@ export default function DailySection({ accountId }: { accountId: string }) {
                   />
                   {(i % 5 === 0 || isCur) && (
                     <span className={`text-[9px] tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
-                      {Number(d.ymd.slice(5, 7))}/{Number(d.ymd.slice(8))}
+                      {mode === "week"
+                        ? Number(label.slice(0, 2))
+                        : `${Number(label.slice(0, 2))}/${Number(label.slice(3, 5))}`}
                     </span>
                   )}
                 </div>
@@ -95,25 +118,51 @@ export default function DailySection({ accountId }: { accountId: string }) {
               <span className="w-20">日期</span>
               <span className="w-10 text-right">笔数</span>
               <span className="w-16 text-right">手数</span>
-              <span className="w-10 text-right">胜率</span>
-              <span className="w-16 text-right">连赢/亏</span>
+              {mode === "day" ? (
+                <>
+                  <span className="w-10 text-right">胜率</span>
+                  <span className="w-16 text-right">连赢/亏</span>
+                </>
+              ) : (
+                <span className="w-28 shrink-0 text-right">盈利天/交易天</span>
+              )}
               <span className="min-w-16 flex-1 text-right">净盈亏</span>
             </div>
             <ul className="max-h-64 space-y-0.5 overflow-y-auto">
-              {[...days].reverse().map((d) => (
-                <li key={d.ymd} className="flex items-center gap-2 rounded-lg px-1 py-1.5 text-xs hover:bg-wash/60">
-                  <span className="w-20 shrink-0 tabular-nums text-ink-soft">{d.ymd.slice(5).replace("-", "/")}</span>
-                  <span className="w-10 shrink-0 text-right tabular-nums text-ink-mute">{d.count}</span>
-                  <span className="w-16 shrink-0 text-right tabular-nums text-ink-mute">{d.lots.toFixed(2)}</span>
-                  <span className="w-10 shrink-0 text-right tabular-nums text-ink-dim">{d.winRate != null ? `${d.winRate}%` : "—"}</span>
-                  <span className="w-16 shrink-0 text-right">
-                    {d.streak > 0 && <span className="rounded bg-emerald-500/15 px-1 text-[10px] text-success">连赢{d.streak}</span>}
-                    {d.streak < 0 && <span className="rounded bg-rose-500/15 px-1 text-[10px] text-danger">连亏{-d.streak}</span>}
-                    {d.streak === 0 && <span className="text-ink-faint">—</span>}
-                  </span>
-                  <span className={`min-w-16 flex-1 text-right font-semibold tabular-nums ${pnlColor(d.net)}`}>{fmtUsd(d.net)}</span>
-                </li>
-              ))}
+              {[...view].reverse().map((d) =>
+                mode === "week" ? (
+                  <li key={(d as WeekDay).weekStart} className="flex items-center gap-2 rounded-lg px-1 py-1.5 text-xs hover:bg-wash/60">
+                    <span className="w-20 shrink-0 tabular-nums text-ink-soft">
+                      {(d as WeekDay).weekStart.slice(5).replace("-", "/")}~{(d as WeekDay).weekEnd.slice(8)}
+                    </span>
+                    <span className="w-10 shrink-0 text-right tabular-nums text-ink-mute">{d.count}</span>
+                    <span className="w-16 shrink-0 text-right tabular-nums text-ink-mute">{d.lots.toFixed(2)}</span>
+                    <span className="w-28 shrink-0 text-right tabular-nums text-ink-dim">
+                      {(d as WeekDay).upDays}/{(d as WeekDay).days}
+                    </span>
+                    <span className={`min-w-16 flex-1 text-right font-semibold tabular-nums ${pnlColor(d.net)}`}>{fmtUsd(d.net)}</span>
+                  </li>
+                ) : (
+                  <li key={(d as DailyDay).ymd} className="flex items-center gap-2 rounded-lg px-1 py-1.5 text-xs hover:bg-wash/60">
+                    <span className="w-20 shrink-0 tabular-nums text-ink-soft">{(d as DailyDay).ymd.slice(5).replace("-", "/")}</span>
+                    <span className="w-10 shrink-0 text-right tabular-nums text-ink-mute">{d.count}</span>
+                    <span className="w-16 shrink-0 text-right tabular-nums text-ink-mute">{d.lots.toFixed(2)}</span>
+                    <span className="w-10 shrink-0 text-right tabular-nums text-ink-dim">
+                      {(d as DailyDay).winRate != null ? `${(d as DailyDay).winRate}%` : "—"}
+                    </span>
+                    <span className="w-16 shrink-0 text-right">
+                      {(d as DailyDay).streak > 0 && (
+                        <span className="rounded bg-emerald-500/15 px-1 text-[10px] text-success">连赢{(d as DailyDay).streak}</span>
+                      )}
+                      {(d as DailyDay).streak < 0 && (
+                        <span className="rounded bg-rose-500/15 px-1 text-[10px] text-danger">连亏{-(d as DailyDay).streak}</span>
+                      )}
+                      {(d as DailyDay).streak === 0 && <span className="text-ink-faint">—</span>}
+                    </span>
+                    <span className={`min-w-16 flex-1 text-right font-semibold tabular-nums ${pnlColor(d.net)}`}>{fmtUsd(d.net)}</span>
+                  </li>
+                ),
+              )}
             </ul>
           </div>
         </>
