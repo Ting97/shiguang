@@ -63,6 +63,8 @@ export interface AppConfig {
   readonly wechat: WechatConfig | null;
   /** 交易所凭据加密密钥（docs/16 Bitget CFD）；未配置 = 绑定端点 503 */
   readonly exchangeEncKey: string | null;
+  /** Bitget 出站代理（如 http://127.0.0.1:7890）；null = 直连 */
+  readonly bitgetProxy: string | null;
 }
 
 class ConfigValidationError extends Error {
@@ -148,6 +150,10 @@ export function loadConfig(): AppConfig {
     /** 交易所凭据加密密钥（docs/16 Bitget CFD）；未配置 = 交易所绑定端点 503 */
     get exchangeEncKey(): string | null {
       return process.env.EXCHANGE_ENC_KEY || null;
+    },
+    /** Bitget 出站代理（国内服务器被墙，走本机 mihomo 等混合端口；null = 直连） */
+    get bitgetProxy(): string | null {
+      return process.env.BITGET_PROXY || null;
     },
   };
   return cached;

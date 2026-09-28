@@ -6,9 +6,21 @@
  * fetcher 可注入（测试 stub 上游，不真连）。
  */
 import { createHmac } from "node:crypto";
+import { ProxyAgent } from "undici";
 import { ApiError } from "@/server/platform/http/errors";
+import { loadConfig } from "@/server/platform/config";
 
 export const BITGET_BASE = "https://api.bitget.com";
+
+/** 出站代理（国内服务器直连 Bitget 被墙）：BITGET_PROXY 配置后所有 Bitget 请求走该代理。
+ * agent 按配置缓存（ProxyAgent 自带连接池）；未配置 = 直连（海外服务器/本地可直连场景） */
+let proxyAgent: ProxyAgent | undefined;
+function dispatcher(): ProxyAgent | undefined {
+  const proxy = loadConfig().bitgetProxy;
+  if (!proxy) return undefined;
+  if (!proxyAgent) proxyAgent = new ProxyAgent(proxy);
+  return proxyAgent;
+}
 
 export interface BitgetCred {
   apiKey: string;
@@ -52,7 +64,11 @@ export async function bitgetGet<T>(cred: BitgetCred, path: string, query: Record
   const headers = signRequest(cred, "GET", path, qs, "", ts);
   let res: Awaited<ReturnType<FetchLike>>;
   try {
-    res = await fetcher(`${BITGET_BASE}${path}${qs ? `?${qs}` : ""}`, { headers, signal: AbortSignal.timeout(15_000) });
+    res = await fetcher(`${BITGET_BASE}${path}${qs ? `?${qs}` : ""}`, {
+      headers,
+      signal: AbortSignal.timeout(15_000),
+      dispatcher: dispatcher(),
+    } as never);
   } catch {
     throw ApiError.upstream("Bitget 服务不可达，请稍后再试");
   }
