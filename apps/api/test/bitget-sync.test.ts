@@ -106,8 +106,9 @@ test("bitget：CFD 归组——开仓/平仓行区分/LIFO 配对开仓时间/�
   assert.equal(g.skippedEvents, 2, "出入金/缺 orderId 事件不落数");
   assert.equal(g.openRowsUnmatched, 0, "R1 被 R2 消费");
 
-  const [a, b] = g.rows;
-  assert.equal(a.ticket, "C22675709");
+  const a = g.rows.find((r) => r.ticket === "C22675709")!;
+  const b = g.rows.find((r) => r.ticket === "C22676000")!;
+  assert.ok(a && b);
   assert.equal(a.direction, "buy", "平仓动作 sell → 持仓方向 buy");
   assert.equal(a.lots, 0.08);
   assert.equal(a.openPrice, 4160.99, "行内自带开仓均价优先");
@@ -127,6 +128,16 @@ test("bitget：CFD 归组——开仓/平仓行区分/LIFO 配对开仓时间/�
   assert.equal(b.swap, -0.5);
   // 恒等式：net_profit 生成列 = profit + commission + swap = cashFlow
   assert.ok(Math.abs(b.profit + b.commission + b.swap - (-40.14)) < 1e-9);
+
+  // 倒序输入（上游翻页新→旧）同样正确配对：openTime 必须早于 closeTime
+  const g2 = groupCfdRecords([
+    { id: "X2", ts: String(WIN_TS + 60_000), symbol: "BTCUSD", side: "sell", qty: "1", cashFlow: "5", openPrice: "100", closePrice: "105", orderId: "9002" },
+    { id: "X1", ts: String(WIN_TS), symbol: "BTCUSD", side: "buy", qty: "1", fee: "-0.2", cashFlow: "0", openPrice: "100", closePrice: "0", orderId: "9001" },
+  ]);
+  assert.equal(g2.rows.length, 1);
+  assert.equal(g2.rows[0].openTime, new Date(WIN_TS).toISOString(), "倒序输入先正序化再配对");
+  assert.ok(g2.rows[0].openTime < g2.rows[0].closeTime, "持仓时长为正");
+  assert.equal(g2.rows[0].commission, -0.2, "开仓费归属");
 });
 
 test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 dup", async (t) => {

@@ -156,11 +156,13 @@ export function groupCfdRecords(records: CfdRecord[]): {
 } {
   const rows: TradeRowInput[] = [];
   let skippedEvents = 0;
-  // per-symbol 开仓行栈（LIFO：高频短线后开先平；配对只影响 openTime/开仓费归属，均为近似）
+  // per-symbol 开仓行栈（LIFO：高频短线后开先平；配对只影响 openTime/开仓费归属，均为近似）。
+  // ⚠ 上游翻页是新→旧返回，必须先按时间正序排（否则平仓行先到、配到更晚的开仓行，持仓时长为负）
+  const sorted = [...records].sort((a, b) => Number(a.ts) - Number(b.ts));
   const openStacks = new Map<string, { ts: number; fee: number; openPrice: number; side: string }[]>();
   let openRowsUnmatched = 0;
 
-  for (const r of records) {
+  for (const r of sorted) {
     const orderId = String(r.orderId ?? "");
     if (!r.symbol || !orderId || orderId === "0") {
       skippedEvents++;
