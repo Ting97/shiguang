@@ -26,6 +26,8 @@ export default function TradingPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [bitgetOpen, setBitgetOpen] = useState(false);
+  const [quickSyncing, setQuickSyncing] = useState(false);
+  const [quickMsg, setQuickMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPc, setIsPc] = useState(false);
   const [rev, setRev] = useState(0);
 
@@ -48,6 +50,41 @@ export default function TradingPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /** 一键同步：对每把已绑定的 Bitget 密钥各同步近 30 天（增量，整页早于窗口即停翻页），
+   * 各自落到以其备注名命名的交易账号；未绑定任何密钥时打开绑定抽屉引导 */
+  const quickSync = useCallback(async () => {
+    if (quickSyncing) return;
+    setQuickSyncing(true);
+    setQuickMsg(null);
+    try {
+      const st = await api<{ bound: boolean; keys?: { label: string }[] }>("/api/trading/bitget/keys");
+      const labels = st.keys?.map((k) => k.label) ?? [];
+      if (labels.length === 0) {
+        setQuickSyncing(false);
+        setBitgetOpen(true);
+        return;
+      }
+      const to = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+      const from = new Date(Date.now() + 8 * 3600_000 - 30 * 86_400_000).toISOString().slice(0, 10);
+      const parts: string[] = [];
+      for (const label of labels) {
+        const r = await api<{ rowsNew: number; rowsDup: number }>("/api/trading/bitget/sync", "POST", {
+          keyLabel: label,
+          from,
+          to,
+          dryRun: false,
+        });
+        parts.push(`「${label}」新增 ${r.rowsNew} · 重复 ${r.rowsDup}`);
+      }
+      setQuickMsg({ ok: true, text: `✅ 同步完成（${from} ~ ${to}）：${parts.join("；")}` });
+      await load();
+    } catch (e) {
+      setQuickMsg({ ok: false, text: e instanceof ApiClientError ? e.message : "同步失败，请稍后再试" });
+    } finally {
+      setQuickSyncing(false);
+    }
+  }, [quickSyncing, load]);
 
   // FR-1.8 导入入口仅 PC（精细指针 + ≥768px）；触屏/PWA 无任何写入口
   useEffect(() => {
@@ -121,13 +158,21 @@ export default function TradingPage() {
                   ))}
                   {accounts.length === 0 && <span className="text-xs text-ink-faint">暂无账号</span>}
                 </div>
-                {/* Bitget 同步全端开放（移动 Web 也可绑自己的 key 手动拉取，docs/16）；MT5 报表导入仍仅 PC（FR-1.8） */}
+                {/* 一键同步全端开放（移动 Web 也可用）；⚙ 打开绑定/自定义同步抽屉；MT5 报表导入仍仅 PC（FR-1.8） */}
+                <button
+                  onClick={quickSync}
+                  disabled={quickSyncing}
+                  title="对每把已绑定的 Bitget 密钥各同步近 30 天平仓数据"
+                  className="rounded-xl bg-amber-500/90 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-500 disabled:opacity-50"
+                >
+                  {quickSyncing ? "⏳ 同步中…" : "⚡ 一键同步"}
+                </button>
                 <button
                   onClick={() => setBitgetOpen(true)}
-                  title="绑定自己的 Bitget 只读 API，手动拉取 CFD 平仓数据"
-                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
+                  title="绑定 Bitget 只读 API / 自定义时间范围同步"
+                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
                 >
-                  ⚡ Bitget 同步
+                  ⚙
                 </button>
                 {isPc && (
                   <button
@@ -139,6 +184,12 @@ export default function TradingPage() {
                   </button>
                 )}
               </div>
+
+              {quickMsg && (
+                <p className={`mt-2 rounded-lg px-3 py-1.5 text-[11px] ${quickMsg.ok ? "bg-emerald-500/10 text-success" : "bg-rose-500/10 text-danger"}`}>
+                  {quickMsg.text}
+                </p>
+              )}
 
               {active && (
                 <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line-soft pt-3 text-center sm:grid-cols-5">

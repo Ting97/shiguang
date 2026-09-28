@@ -82,6 +82,19 @@ test("bitget：fetchCfdRecords——{list,cursor} 嵌套翻页 + limit 50（stub
   const empty = JSON.stringify({ code: "00000", data: { list: [], cursor: null } });
   await fetchCfdRecords(cred, { fetcher: (url) => { seen.push(url); return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(empty) }); } });
   assert.equal(seen.length, 1);
+  // minTs 提前终止：整页 ts 均早于下界即停（增量同步不必翻全量历史）
+  seen.length = 0;
+  const oldPage = JSON.stringify({ code: "00000", data: { list: [
+    { id: "1", ts: "1000" }, { id: "2", ts: "900" },
+  ], cursor: "c-old" } });
+  await fetchCfdRecords(cred, { fetcher: (url) => { seen.push(url); return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(oldPage) }); }, minTs: 5000 });
+  assert.equal(seen.length, 1, "整页早于 minTs 一页即停");
+  // 页尾（最旧一条）仍在窗口内：继续翻页（下一页可能有窗口内数据；须满页——短页=末页优先终止）
+  seen.length = 0;
+  const mixedList = Array.from({ length: 50 }, (_, i) => ({ id: String(i), ts: String(9000 - i) }));
+  const mixedPage = JSON.stringify({ code: "00000", data: { list: mixedList, cursor: "c-mixed" } });
+  await fetchCfdRecords(cred, { fetcher: (url) => { seen.push(url); return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(mixedPage) }); }, minTs: 50 });
+  assert.equal(seen.length, 2, "满页且页尾仍在窗口内则继续翻页（第二页游标无进展停）");
 });
 
 const WIN_OPEN = 1_767_225_600_000; // 2026-01-01（窗口外旧数据）

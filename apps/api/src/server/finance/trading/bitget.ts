@@ -242,7 +242,8 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   const cred = await loadCred(userId, keyLabel);
   const login = (body.login ?? "").trim() || keyLabel;
 
-  const all = await fetchCfdRecords<CfdRecord>(cred, { fetcher });
+  // minTs：流水倒序返回，整页早于窗口下界即停——近 30 天的增量同步几十页内结束
+  const all = await fetchCfdRecords<CfdRecord>(cred, { fetcher, minTs: fromTimeMs });
   const inWindow = all.filter((r) => {
     const t = Number(r.ts);
     return t >= fromTimeMs && t <= toTimeMs;

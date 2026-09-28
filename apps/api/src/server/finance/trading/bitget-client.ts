@@ -127,6 +127,8 @@ export async function pagedGetAll<T>(
  * - 响应 {list, cursor} 嵌套；请求游标参数为 cursor（idLessThan 实测被忽略）；
  *   limit 上限 50（>50 报 40020）；无 90 天限制（资金流水，可翻到账户开通起）
  * - 该接口限频紧：页间隔实测 <1s 会 429，取 1.2s
+ * - minTs（毫秒，可选）：流水按时间倒序返回，整页都早于 minTs 即停——
+ *   增量同步（from=近 N 天）不必翻全量历史，几十页内结束
  */
 const CFD_PAGE_LIMIT = 50;
 const CFD_PAGE_DELAY_MS = 1_200;
@@ -137,7 +139,7 @@ function sleep(ms: number): Promise<void> {
 
 export async function fetchCfdRecords<T>(
   cred: BitgetCred,
-  opts: { fetcher?: FetchLike; maxPages?: number } = {},
+  opts: { fetcher?: FetchLike; maxPages?: number; minTs?: number } = {},
 ): Promise<T[]> {
   const out: T[] = [];
   let cursor: string | undefined;
@@ -155,6 +157,9 @@ export async function fetchCfdRecords<T>(
     out.push(...list);
     const next = page?.cursor ?? undefined;
     if (list.length < CFD_PAGE_LIMIT || !next || next === cursor) break;
+    // 整页均已早于窗口下界：后续页更旧，提前终止（窗口精确过滤在 sync 侧做）
+    const lastTs = Number((list.at(-1) as { ts?: string | number } | undefined)?.ts ?? 0);
+    if (opts.minTs && lastTs > 0 && lastTs < opts.minTs) break;
     cursor = next;
   }
   return out;
