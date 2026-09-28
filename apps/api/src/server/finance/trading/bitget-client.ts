@@ -70,8 +70,7 @@ const BITGET_HINTS: Record<string, string> = {
   "40013": "提示：签名校验失败——Secret Key 或 Passphrase 可能复制不完整",
   "40012": "提示：key 或口令不正确——UTA 升级会失效旧 API key，请在 Bitget 重建一把只读 key 再绑定",
   "40084": "提示：账户是经典模式（Classic）——CFD 与 v3 接口仅对统一交易账户(UTA)开放，请先在 Bitget App「我的 → 统一交易账户」升级",
-  "40934": "提示：成交明细/历史委托仅支持查询近 90 天——更早的数据 Bitget 不提供 API 拉取",
-  "25200": "提示：查询时间窗非法——成交明细单次最多 30 天且必须在近 90 天内（已按此自动切窗）",
+  "429": "提示：Bitget 限频——CFD 流水查询每页间隔约 1.2 秒，数据量大时请稍后再试",
 };
 
 /** 单次 GET；查询串按字典序拼（与签名一致由调用方保证——本函数统一 qs() 生成） */
@@ -124,46 +123,41 @@ export async function pagedGetAll<T>(
   return out;
 }
 
-const DAY_MS = 86_400_000;
-
-/**
- * UTA 合约成交明细（/api/v3/trade/fills，2026-09 权威文档 + 生产实测）：
- * - category 必填（USDT-FUTURES 等），startTime/endTime 毫秒；官方硬限制：只支持近 90 天、单次 ≤30 天
- * - 响应 {list, cursor} 嵌套形态；cursor 透传翻页，limit 实测上限 100
- * 90 天早于窗口的部分自动 clamp（返回 effectiveFromMs 供调用方向用户说明截断）；
- * 窗口按 25 天切（30 天限制留余量），每窗独立 cursor 翻页。
+/** CFD 资金流水翻页（/api/v3/cfd/account/financial-records，生产实测）：
+ * - 响应 {list, cursor} 嵌套；请求游标参数为 cursor（idLessThan 实测被忽略）；
+ *   limit 上限 50（>50 报 40020）；无 90 天限制（资金流水，可翻到账户开通起）
+ * - 该接口限频紧：页间隔实测 <1s 会 429，取 1.2s
  */
-export async function fetchUtaFills<T>(
-  cred: BitgetCred,
-  fromMs: number,
-  toMs: number,
-  opts: { fetcher?: FetchLike; category?: string } = {},
-): Promise<{ fills: T[]; effectiveFromMs: number }> {
-  const category = opts.category ?? "USDT-FUTURES";
-  const now = Date.now();
-  const effectiveFromMs = Math.max(fromMs, now - 89 * DAY_MS); // 40934：startTime 不允许早于 90 天前，留 1 天余量
-  const end = Math.min(toMs, now);
-  if (effectiveFromMs > end) return { fills: [], effectiveFromMs };
+const CFD_PAGE_LIMIT = 50;
+const CFD_PAGE_DELAY_MS = 1_200;
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function fetchCfdRecords<T>(
+  cred: BitgetCred,
+  opts: { fetcher?: FetchLike; maxPages?: number } = {},
+): Promise<T[]> {
   const out: T[] = [];
-  for (let winStart = effectiveFromMs; winStart <= end; winStart += 25 * DAY_MS) {
-    const winEnd = Math.min(winStart + 25 * DAY_MS - 1, end);
-    let cursor: string | undefined;
-    for (let i = 0; i < 200; i++) {
-      const page = await bitgetGet<{ list?: T[] | null; cursor?: string | null }>(
-        cred,
-        "/api/v3/trade/fills",
-        { category, startTime: winStart, endTime: winEnd, limit: 100, cursor },
-        opts.fetcher,
-      );
-      const list = page?.list ?? [];
-      if (list.length === 0) break;
-      out.push(...list);
-      if (list.length < 100 || !page?.cursor || page.cursor === cursor) break;
-      cursor = page.cursor;
-    }
+  let cursor: string | undefined;
+  const maxPages = opts.maxPages ?? 600; // 50/页 × 600 = 3 万条封顶（高频账户流水可达数千页，游标无进展同样熔断）
+  for (let i = 0; i < maxPages; i++) {
+    if (i > 0) await sleep(CFD_PAGE_DELAY_MS);
+    const page = await bitgetGet<{ list?: T[] | null; cursor?: string | null }>(
+      cred,
+      "/api/v3/cfd/account/financial-records",
+      { limit: CFD_PAGE_LIMIT, cursor },
+      opts.fetcher,
+    );
+    const list = page?.list ?? [];
+    if (list.length === 0) break;
+    out.push(...list);
+    const next = page?.cursor ?? undefined;
+    if (list.length < CFD_PAGE_LIMIT || !next || next === cursor) break;
+    cursor = next;
   }
-  return { fills: out, effectiveFromMs };
+  return out;
 }
 
 function qsOf(query: Record<string, string | number | undefined>): string {
