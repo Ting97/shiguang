@@ -284,22 +284,22 @@ export function mapTrackPositions(list: BitgetTrackPosition[]): TradeRowInput[] 
     });
 }
 
-/** 带单历史分页拉取：游标用 positionId（接口无独立 id 字段，与流水分页不同） */
+/** 带单历史分页拉取：游标用 positionId（接口无独立 id 字段，与流水分页不同）；limit 同样上限 50 */
 async function fetchTrackHistory(cred: BitgetCred, fromTimeMs: number, toTimeMs: number, fetcher?: FetchLike): Promise<BitgetTrackPosition[]> {
   const out: BitgetTrackPosition[] = [];
   let cursor: string | undefined;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 200; i++) {
     const page = await bitgetGet<BitgetTrackPosition[]>(
       cred,
       "/api/v3/cfd/copy-trading/track-positions/history",
-      { fromTime: fromTimeMs, toTime: toTimeMs, idLessThan: cursor, limit: 200 },
+      { fromTime: fromTimeMs, toTime: toTimeMs, idLessThan: cursor, limit: 50 },
       fetcher,
     );
     const list = Array.isArray(page) ? page : [];
     if (list.length === 0) break;
     out.push(...list);
     const last = list.at(-1);
-    if (list.length < 200 || !last?.positionId) break;
+    if (list.length < 50 || !last?.positionId || last.positionId === cursor) break;
     cursor = last.positionId;
   }
   return out;
