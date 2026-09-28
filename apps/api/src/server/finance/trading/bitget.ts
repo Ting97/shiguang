@@ -220,91 +220,14 @@ export interface SyncBitgetBody {
   from: string; // YYYY-MM-DD（北京日历日）
   to: string;
   dryRun?: boolean;
-  /**
-   * 数据范围（docs/16 场景 A/B）：
-   * - self（默认）：本账户 CFD——自主交易 + 跟单镜像平仓都落在这（跟单者场景 B 无需单独拉取）
-   * - trader：带单仓位（交易员场景 A，/api/v3/cfd/copy-trading/track-positions/history）
-   * - all：两者都拉；带单落到独立账号（login-track）与本账户分开统计权益曲线
-   */
-  scope?: "self" | "trader" | "all";
 }
-
-/** CFD 带单历史仓位（docs/16 场景 A 契约；一条记录即一笔完整开平，含费用与分润） */
-export interface BitgetTrackPosition {
-  positionId: string;
-  symbol: string;
-  bizType?: string;
-  holdSide?: string; // long/short
-  totalQuantity?: string;
-  openAvgPrice?: string;
-  closeAvgPrice?: string;
-  openFee?: string;
-  closeFee?: string;
-  swapFee?: string;
-  realizedPnl?: string;
-  netProfit?: string;
-  profitShareAmount?: string;
-  openTime?: string;
-  closeTime?: string;
-}
-
-const num = (v: unknown): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const r2 = (n: number) => Number(n.toFixed(2));
 
 /**
- * 带单仓位 → trade 行（ticket = T-<positionId> 前缀防与 orderId 空间撞型）。
- * 费用恒等式：profit = netProfit - openFee - closeFee - swapFee，commission = openFee+closeFee，
- * swap = swapFee —— 三项与 profit 相加恒等于 netProfit（符号随上游口径，恒等式不受影响），
- * 生成列 net_profit 与 Bitget 净额一致。仅收已平仓位（closeTime 缺失 = 持仓中，复盘不收）。
+ * 手动同步（docs/16）：拉本 CFD 账户的资金流水（position_close/commission/swap 事件）
+ * + 成交历史（fill-history），按 orderId/positionId 归组成 trade 落库。
+ * 口径说明（官方 changelog 2026-09-18）：CFD 是单一账户流水——自主交易、跟单镜像、
+ * 带单仓位都走这一个通道，无独立带单端点（copy-trading 下的 CFD 端点已下线）。
  */
-export function mapTrackPositions(list: BitgetTrackPosition[]): TradeRowInput[] {
-  return list
-    .filter((p) => p.positionId && p.closeTime)
-    .map((p) => {
-      const openFee = num(p.openFee);
-      const closeFee = num(p.closeFee);
-      const swapFee = num(p.swapFee);
-      const net = num(p.netProfit ?? p.realizedPnl);
-      return {
-        ticket: `T-${p.positionId}`,
-        symbol: p.symbol || "UNKNOWN",
-        direction: p.holdSide === "short" ? ("sell" as const) : ("buy" as const),
-        openTime: new Date(Number(p.openTime ?? p.closeTime)).toISOString(),
-        closeTime: new Date(Number(p.closeTime)).toISOString(),
-        lots: num(p.totalQuantity) > 0 ? num(p.totalQuantity) : 1,
-        openPrice: num(p.openAvgPrice) || null,
-        closePrice: num(p.closeAvgPrice) || null,
-        profit: r2(net - openFee - closeFee - swapFee),
-        commission: r2(openFee + closeFee),
-        swap: r2(swapFee),
-      };
-    });
-}
-
-/** 带单历史分页拉取：游标用 positionId（接口无独立 id 字段，与流水分页不同）；limit 同样上限 50 */
-async function fetchTrackHistory(cred: BitgetCred, fromTimeMs: number, toTimeMs: number, fetcher?: FetchLike): Promise<BitgetTrackPosition[]> {
-  const out: BitgetTrackPosition[] = [];
-  let cursor: string | undefined;
-  for (let i = 0; i < 200; i++) {
-    const page = await bitgetGet<BitgetTrackPosition[]>(
-      cred,
-      "/api/v3/cfd/copy-trading/track-positions/history",
-      { fromTime: fromTimeMs, toTime: toTimeMs, idLessThan: cursor, limit: 50 },
-      fetcher,
-    );
-    const list = Array.isArray(page) ? page : [];
-    if (list.length === 0) break;
-    out.push(...list);
-    const last = list.at(-1);
-    if (list.length < 50 || !last?.positionId || last.positionId === cursor) break;
-    cursor = last.positionId;
-  }
-  return out;
-}
-
 export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?: FetchLike) {
   const from = String(body.from ?? "");
   const to = String(body.to ?? "");
@@ -312,85 +235,42 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
     throw ApiError.badRequest("from/to 需为 YYYY-MM-DD");
   }
   if (Date.parse(from) > Date.parse(to)) throw ApiError.badRequest("from 不能晚于 to");
-  const scope = body.scope === "trader" || body.scope === "all" ? body.scope : "self";
-  const wantSelf = scope !== "trader";
-  const wantTrader = scope !== "self";
   // 窗口按北京日历日展开为 UTC 毫秒（+08:00），与复盘模块日切口径一致
   const fromTimeMs = Date.parse(`${from}T00:00:00+08:00`);
   const toTimeMs = Date.parse(`${to}T23:59:59+08:00`);
   const cred = await loadCred(userId);
-  const baseLogin = (body.login ?? "").trim() || `bitget-${userId.slice(0, 8)}`;
 
-  const out: Record<string, unknown> = { scope };
-  let rowsNew = 0;
-  let rowsDup = 0;
+  const records = await pagedGetAll<BitgetRecord>(
+    cred,
+    "/api/v3/cfd/account/financial-records",
+    { fromTime: fromTimeMs, toTime: toTimeMs },
+    { fetcher, fromTimeMs },
+  );
+  // 成交历史：路径见官方 changelog 2026-09-23 的 16 接口清单；
+  // 「history-orders」端点并不存在（40404 实证排除），成交查询即 fill-history
+  const orders = await pagedGetAll<BitgetOrder>(
+    cred,
+    "/api/v3/cfd/trade/fill-history",
+    { fromTime: fromTimeMs, toTime: toTimeMs },
+    { fetcher, fromTimeMs },
+  );
 
-  // —— 场景 B：本账户（自主 + 跟单镜像平仓，同一通道无需区分）——
-  if (wantSelf) {
-    const records = await pagedGetAll<BitgetRecord>(
-      cred,
-      "/api/v3/cfd/account/financial-records",
-      { fromTime: fromTimeMs, toTime: toTimeMs },
-      { fetcher, fromTimeMs },
-    );
-    const orders = await pagedGetAll<BitgetOrder>(
-      cred,
-      "/api/v3/cfd/trade/history-orders",
-      { fromTime: fromTimeMs, toTime: toTimeMs },
-      { fetcher, fromTimeMs },
-    );
-    const grouped = groupBitgetTrades(records, orders);
-    const result = grouped.rows.length > 0
-      ? await importTrades(userId, {
-          login: baseLogin,
-          nickname: body.nickname,
-          source: "bitget_api",
-          fileName: `bitget ${from}~${to}`,
-          rows: grouped.rows,
-          dryRun: body.dryRun,
-        })
-      : { rowsNew: 0, rowsDup: 0 };
-    out.self = {
-      ...result,
-      events: { records: records.length, orders: orders.length },
-      unmatchedCommission: grouped.unmatchedCommission,
-      unmatchedSwap: grouped.unmatchedSwap,
-      skippedOthers: grouped.skippedOthers,
-      lotsFallback: grouped.lotsFallback,
-    };
-    rowsNew += result.rowsNew;
-    rowsDup += result.rowsDup;
-  }
-
-  // —— 场景 A：带单仓位（交易员）——
-  if (wantTrader) {
-    try {
-      const tracks = await fetchTrackHistory(cred, fromTimeMs, toTimeMs, fetcher);
-      const rows = mapTrackPositions(tracks);
-      const result = rows.length > 0
-        ? await importTrades(userId, {
-            login: `${baseLogin}-track`,
-            nickname: body.nickname ? `带单·${body.nickname}` : "带单·Bitget",
-            source: "bitget_api",
-            fileName: `bitget-track ${from}~${to}`,
-            rows,
-            dryRun: body.dryRun,
-          })
-        : { rowsNew: 0, rowsDup: 0 };
-      out.trader = {
-        ...result,
-        positions: tracks.length,
-        // 分润是交易员收入但不属交易盈亏：只进对账摘要，不落 trades（避免污染净额口径）
-        profitShareAmount: r2(tracks.reduce((s, p) => s + num(p.profitShareAmount), 0)),
-      };
-      rowsNew += result.rowsNew;
-      rowsDup += result.rowsDup;
-    } catch (e) {
-      // 双范围时带单失败不阻塞本账户（常见：该账号不是带单交易员）；纯带单范围则直接抛
-      if (!wantSelf) throw e;
-      out.trader = { ok: false, error: e instanceof Error ? e.message : String(e) };
-    }
-  }
-
-  return { ...out, rowsNew, rowsDup };
+  const grouped = groupBitgetTrades(records, orders);
+  const login = (body.login ?? "").trim() || `bitget-${userId.slice(0, 8)}`;
+  const result = await importTrades(userId, {
+    login,
+    nickname: body.nickname,
+    source: "bitget_api",
+    fileName: `bitget ${from}~${to}`,
+    rows: grouped.rows,
+    dryRun: body.dryRun,
+  });
+  return {
+    ...result,
+    events: { records: records.length, orders: orders.length },
+    unmatchedCommission: grouped.unmatchedCommission,
+    unmatchedSwap: grouped.unmatchedSwap,
+    skippedOthers: grouped.skippedOthers,
+    lotsFallback: grouped.lotsFallback,
+  };
 }
