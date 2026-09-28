@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3000",
     "build": "next build",
-    "start": "npx serve out"
+    "start": "npx serve out",
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "@shiguangri/shared": "*",
