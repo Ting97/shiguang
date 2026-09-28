@@ -6,9 +6,11 @@ import { TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
 import { addDays, bjToday, fmtUsd, groupByWeek, pnlColor, type DailyDay, type WeekDay } from "./kit";
 
+/** 净盈亏 → SVG Y 坐标：[-maxAbs, +maxAbs] 线性映射到 [100, 0]（零轴居中 50） */
+const netToY = (net: number, maxAbs: number) => 50 - (net / (maxAbs || 1)) * 48;
+
 /** 北京当月/上月 YYYY-MM-DD 边界（北京时区） */
-const bjMonthRange = (offset: number): [string, string] => {
-  const now = new Date(Date.now() + 8 * 3600_000);
+const bjMonthRange = (offset: number): [string, string] => {  const now = new Date(Date.now() + 8 * 3600_000);
   const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
   const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset + 1, 0));
   return [first.toISOString().slice(0, 10), last.toISOString().slice(0, 10)];
@@ -140,27 +142,60 @@ export default function DailySection({ accountId }: { accountId: string }) {
         <p className="py-4 text-center text-xs text-ink-faint">暂无平仓记录</p>
       ) : (
         <>
-          <div className="flex items-end justify-between gap-1">
+          {/* 折线图：净盈亏趋势（SVG 手绘零依赖；viewBox 宽=点数、preserveAspectRatio=none 拉伸，
+              vector-effect 保线宽；上方透明列承接 hover 提示） */}
+          <div className="relative">
+            <svg viewBox={`0 0 ${view.length} 100`} preserveAspectRatio="none" className="h-24 w-full" role="img" aria-label="盈亏折线图">
+              <defs>
+                <linearGradient id="pnlLineFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="rgb(56 189 248)" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="rgb(56 189 248)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {/* 零轴 */}
+              <line x1="0" y1="50" x2={view.length} y2="50" stroke="rgb(255 255 255 / 0.12)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+              <polygon
+                points={`0.5,50 ${view.map((d, i) => `${i + 0.5},${netToY(d.net, maxAbs)}`).join(" ")} ${view.length - 0.5},50`}
+                fill="url(#pnlLineFill)"
+              />
+              <polyline
+                points={view.map((d, i) => `${i + 0.5},${netToY(d.net, maxAbs)}`).join(" ")}
+                fill="none"
+                stroke="rgb(56 189 248)"
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            <div className="absolute inset-0 flex">
+              {view.map((d, i) => {
+                const isCur = i === view.length - 1;
+                const label =
+                  mode === "week"
+                    ? `${(d as WeekDay).weekStart.slice(5).replace("-", "/")}~${(d as WeekDay).weekEnd.slice(5).replace("-", "/")}`
+                    : (d as DailyDay).ymd;
+                return (
+                  <div
+                    key={mode === "week" ? (d as WeekDay).weekStart : (d as DailyDay).ymd}
+                    title={`${label}：${d.count} 笔 · ${d.lots.toFixed(2)} 手 · 净 ${fmtUsd(d.net)}${
+                      mode === "day" && (d as DailyDay).prevNet != null ? `（前一日 ${fmtUsd((d as DailyDay).prevNet!)}）` : ""
+                    }`}
+                    className={`min-w-0 flex-1 ${isCur ? "bg-sky-400/5 ring-1 ring-inset ring-sky-400/40" : "hover:bg-wash/40"}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex justify-between gap-1">
             {view.map((d, i) => {
               const isCur = i === view.length - 1;
-              const h = Math.max(4, (Math.abs(d.net) / maxAbs) * 64);
               const label =
                 mode === "week"
                   ? `${(d as WeekDay).weekStart.slice(5).replace("-", "/")}~${(d as WeekDay).weekEnd.slice(5).replace("-", "/")}`
                   : (d as DailyDay).ymd;
               return (
-                <div key={mode === "week" ? (d as WeekDay).weekStart : (d as DailyDay).ymd} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                  <div
-                    title={`${label}：${d.count} 笔 · ${d.lots.toFixed(2)} 手 · 净 ${fmtUsd(d.net)}${
-                      mode === "day" && (d as DailyDay).prevNet != null ? `（前一日 ${fmtUsd((d as DailyDay).prevNet!)}）` : ""
-                    }`}
-                    className={`w-full rounded-t transition-colors ${
-                      d.net >= 0
-                        ? "bg-gradient-to-t from-emerald-600/50 to-emerald-400/80"
-                        : "bg-gradient-to-t from-rose-600/50 to-rose-400/80"
-                    } ${isCur ? "ring-1 ring-sky-400/60" : ""}`}
-                    style={{ height: h }}
-                  />
+                <span key={`x-${mode === "week" ? (d as WeekDay).weekStart : (d as DailyDay).ymd}`} className="min-w-0 flex-1 text-center">
                   {(i % 5 === 0 || isCur) && (
                     <span className={`text-[9px] tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
                       {mode === "week"
@@ -168,12 +203,12 @@ export default function DailySection({ accountId }: { accountId: string }) {
                         : `${Number(label.slice(0, 2))}/${Number(label.slice(3, 5))}`}
                     </span>
                   )}
-                </div>
+                </span>
               );
             })}
           </div>
           <p className="mt-2 text-center text-[9px] text-ink-faint">
-            <span className="text-success">▮</span> 盈利日 <span className="text-danger">▮</span> 亏损日
+            <span className="text-sky-400">━</span> 净盈亏走势（虚线中轴为 0）· 悬停看每日明细
           </p>
 
           {/* 横向滚动防溢出：固定列宽合计超 375px 小屏（不重排列，溢出可左右滑） */}
