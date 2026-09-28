@@ -61,6 +61,7 @@ interface WxShell {
 const BITGET_HINTS: Record<string, string> = {
   "40037": "提示：该接口不认识这把 key——常见于账户为经典模式（未升级统一账户），或误填了 UID/模拟盘 key",
   "40013": "提示：签名校验失败——Secret Key 或 Passphrase 可能复制不完整",
+  "40012": "提示：key 或口令不正确——UTA 升级会失效旧 API key，请在 Bitget 重建一把只读 key 再绑定",
   "40084": "提示：账户是经典模式（Classic）——CFD 与 v3 接口仅对统一交易账户(UTA)开放，请先在 Bitget App「我的 → 统一交易账户」升级",
 };
 

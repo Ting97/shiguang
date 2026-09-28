@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sh = (cmd, opts = {}) =>
-  execSync(cmd, { cwd: ROOT, stdio: opts.quiet ? "pipe" : "inherit", shell: "bash" }).toString().trim();
+  (execSync(cmd, { cwd: ROOT, stdio: opts.quiet ? "pipe" : "inherit", shell: "bash" }) ?? "").toString().trim();
 
 const skipBuild = process.argv.includes("--skip-build");
 

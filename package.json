@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/api && tsc --noEmit -p packages/ai",
     "lint": "eslint . --quiet",
     "db:migrate": "tsx packages/db/runner.ts",
-    "db:migrate:status": "tsx packages/db/runner.ts --status"
+    "db:migrate:status": "tsx packages/db/runner.ts --status",
+    "deploy": "node scripts/deploy.mjs"
   },
   "engines": {
     "node": ">=20"
