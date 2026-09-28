@@ -57,6 +57,12 @@ interface WxShell {
   data?: unknown;
 }
 
+/** Bitget 常见错误码 → 用户可自查提示（拼在原文后；只收录已确证语义的码） */
+const BITGET_HINTS: Record<string, string> = {
+  "40037": "提示：API Key 不存在——确认粘贴的是 API Key 本身（不是 UID），且为实盘（非模拟盘）创建的 key",
+  "40013": "提示：签名校验失败——Secret Key 或 Passphrase 可能复制不完整",
+};
+
 /** 单次 GET；查询串按字典序拼（与签名一致由调用方保证——本函数统一 qs() 生成） */
 export async function bitgetGet<T>(cred: BitgetCred, path: string, query: Record<string, string | number | undefined>, fetcher: FetchLike = defaultFetch): Promise<T> {
   const qs = qsOf(query);
@@ -74,7 +80,9 @@ export async function bitgetGet<T>(cred: BitgetCred, path: string, query: Record
   }
   const shell = parseShell(await res.text());
   if (shell.code !== "00000") {
-    throw ApiError.upstream(`Bitget 接口错误（${shell.code ?? res.status}）：${shell.msg ?? "未知错误"}`);
+    const raw = `Bitget 接口错误（${shell.code ?? res.status}）：${shell.msg ?? "未知错误"}`;
+    const hint = shell.code ? BITGET_HINTS[String(shell.code)] : undefined;
+    throw ApiError.upstream(hint ? `${raw}。${hint}` : raw);
   }
   return shell.data as T;
 }

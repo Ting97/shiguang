@@ -99,7 +99,9 @@ test("bitget：同步 stub 上游——落库 + 二次幂等全 dup", async (t) 
   process.env.EXCHANGE_ENC_KEY = "test-enc-key";
   await pool.query(`insert into profiles (id, nickname) values ($1,'bitget测试') on conflict (id) do nothing`, [UA]);
   const { saveBitgetKeys, syncBitget, getBitgetKeysStatus } = await import("../src/server/finance");
-  await saveBitgetKeys(UA, { apiKey: "k-2222", apiSecret: "s-2222", passphrase: "p-2222" });
+  const infoOk = (url: string) =>
+    Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(url.includes("account/info") ? JSON.stringify({ code: "00000", data: {} }) : JSON.stringify({ code: "00000", data: [] })) });
+  await saveBitgetKeys(UA, { apiKey: "k-2222", apiSecret: "s-2222", passphrase: "p-2222" }, infoOk);
   const status = await getBitgetKeysStatus(UA);
   assert.ok(status.bound && status.apiKeyMasked.includes("***"), "状态只回掩码");
 
@@ -175,7 +177,10 @@ test("bitget：scope=all 双账号落库 + 幂等；纯带单范围上游报错�
   process.env.EXCHANGE_ENC_KEY = "test-enc-key";
   await pool.query(`insert into profiles (id, nickname) values ($1,'bitget测试') on conflict (id) do nothing`, [UA]);
   const { saveBitgetKeys, syncBitget } = await import("../src/server/finance");
-  await saveBitgetKeys(UA, { apiKey: "k-2222", apiSecret: "s-2222", passphrase: "p-2222" });
+  const infoBody = JSON.stringify({ code: "00000", data: { userId: "u-1", authorities: "read" } });
+  const infoFetcher = (url: string) =>
+    Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(url.includes("account/info") ? infoBody : JSON.stringify({ code: "00000", data: [] })) });
+  await saveBitgetKeys(UA, { apiKey: "k-2222", apiSecret: "s-2222", passphrase: "p-2222" }, infoFetcher);
 
   const selfBody = JSON.stringify({
     code: "00000",
@@ -226,5 +231,24 @@ test("bitget：scope=all 双账号落库 + 幂等；纯带单范围上游报错�
     (e: any) => e?.status >= 400,
     "纯带单范围上游报错应抛出",
   );
+  await cleanup();
+});
+
+test("bitget：绑定时即时校验——坏凭据报 Bitget 原因且不落库", async () => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await cleanup();
+  process.env.EXCHANGE_ENC_KEY = "test-enc-key";
+  await pool.query(`insert into profiles (id, nickname) values ($1,'bitget测试') on conflict (id) do nothing`, [UA]);
+  const { saveBitgetKeys, getBitgetKeysStatus } = await import("../src/server/finance");
+  const errBody = JSON.stringify({ code: "40037", msg: "Apikey 不存在" });
+  const errFetcher = () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(errBody) });
+  await assert.rejects(
+    () => saveBitgetKeys(UA, { apiKey: "bad", apiSecret: "bad", passphrase: "bad" }, errFetcher),
+    (e: any) => e?.status >= 400 && /40037/.test(e?.message) && /API Key 不存在/.test(e?.message),
+    "坏凭据应透出 Bitget 原因与提示",
+  );
+  const status = await getBitgetKeysStatus(UA);
+  assert.equal(status.bound, false, "校验失败的凭据不落库");
   await cleanup();
 });

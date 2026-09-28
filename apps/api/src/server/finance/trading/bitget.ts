@@ -37,10 +37,12 @@ function decryptSecret(blob: string): string {
   return Buffer.concat([decipher.update(buf.subarray(28)), decipher.final()]).toString("utf8");
 }
 
-/** 绑定/更新只读凭据（明文仅入参一次，不落日志） */
+/** 绑定/更新只读凭据（明文仅入参一次，不落日志）。
+ * 保存前先调 account-info 即时校验——key 不存在/签名/口令错误当场报 Bitget 原因，坏凭据不落库 */
 export async function saveBitgetKeys(
   userId: string,
   input: { apiKey?: string; apiSecret?: string; passphrase?: string },
+  fetcher?: FetchLike,
 ) {
   const apiKey = input.apiKey?.trim();
   const apiSecret = input.apiSecret?.trim();
@@ -49,6 +51,7 @@ export async function saveBitgetKeys(
   if (apiKey.length > 128 || apiSecret.length > 256 || passphrase.length > 128) {
     throw ApiError.badRequest("凭据长度非法");
   }
+  await bitgetGet({ apiKey, apiSecret, passphrase }, "/api/v3/account/info", {}, fetcher);
   await pool.query(
     `insert into user_exchange_keys (user_id, exchange, api_key, api_secret_enc, passphrase_enc, updated_at)
      values ($1,$2,$3,$4,$5, now())
