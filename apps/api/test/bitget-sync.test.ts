@@ -234,7 +234,7 @@ test("bitget：scope=all 双账号落库 + 幂等；纯带单范围上游报错�
   await cleanup();
 });
 
-test("bitget：绑定时即时校验——坏凭据报 Bitget 原因且不落库", async () => {
+test("bitget：绑定时即时校验——坏凭据报 Bitget 原因且不落库", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
   await cleanup();
@@ -245,7 +245,7 @@ test("bitget：绑定时即时校验——坏凭据报 Bitget 原因且不落库
   const errFetcher = () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(errBody) });
   await assert.rejects(
     () => saveBitgetKeys(UA, { apiKey: "bad", apiSecret: "bad", passphrase: "bad" }, errFetcher),
-    (e: any) => e?.status >= 400 && /40037/.test(e?.message) && /API Key 不存在/.test(e?.message),
+    (e: any) => e?.status >= 400 && /40037/.test(e?.message) && /经典模式/.test(e?.message),
     "坏凭据应透出 Bitget 原因与提示",
   );
   const status = await getBitgetKeysStatus(UA);

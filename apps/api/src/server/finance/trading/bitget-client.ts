@@ -59,8 +59,9 @@ interface WxShell {
 
 /** Bitget 常见错误码 → 用户可自查提示（拼在原文后；只收录已确证语义的码） */
 const BITGET_HINTS: Record<string, string> = {
-  "40037": "提示：API Key 不存在——确认粘贴的是 API Key 本身（不是 UID），且为实盘（非模拟盘）创建的 key",
+  "40037": "提示：该接口不认识这把 key——常见于账户为经典模式（未升级统一账户），或误填了 UID/模拟盘 key",
   "40013": "提示：签名校验失败——Secret Key 或 Passphrase 可能复制不完整",
+  "40084": "提示：账户是经典模式（Classic）——CFD 与 v3 接口仅对统一交易账户(UTA)开放，请先在 Bitget App「我的 → 统一交易账户」升级",
 };
 
 /** 单次 GET；查询串按字典序拼（与签名一致由调用方保证——本函数统一 qs() 生成） */
