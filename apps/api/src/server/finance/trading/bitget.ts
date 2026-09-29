@@ -219,28 +219,42 @@ export interface SyncBitgetBody {
   keyLabel?: string;
   login?: string;
   nickname?: string;
-  from: string; // YYYY-MM-DD（北京日历日）
-  to: string;
+  /** YYYY-MM-DD（北京日历日）；from 缺省 = 增量——从该账号最后一笔平仓的前一天拉起（无历史则近 30 天） */
+  from?: string;
+  to?: string;
   dryRun?: boolean;
 }
 
+const bjYmd = (d: Date) => new Date(d.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+
 /**
- * 手动同步：按 keyLabel 取对应密钥，拉全量 CFD 资金流水（无 90 天限制，游标翻页到尽头），
+ * 手动同步：按 keyLabel 取对应密钥，拉 CFD 资金流水（游标翻页，整页早于窗口即停），
  * 按北京日历日窗口过滤后归组成 trade 落库。不同密钥各自落独立交易账号（login 缺省=keyLabel），
- * 同一把 key 重复同步按平仓单 orderId 幂等去重。
+ * 同一把 key 重复同步按平仓单 orderId 幂等去重。from 缺省 = 增量同步（最后平仓日-1 天），
+ * 常规增量只需翻几页，避开限频与长等待。
  */
 export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?: FetchLike) {
-  const from = String(body.from ?? "");
-  const to = String(body.to ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    throw ApiError.badRequest("from/to 需为 YYYY-MM-DD");
+  const to = String(body.to ?? "") || bjYmd(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) throw ApiError.badRequest("to 需为 YYYY-MM-DD");
+  const keyLabel = (body.keyLabel ?? "").trim() || DEFAULT_KEY_LABEL;
+  const login = (body.login ?? "").trim() || keyLabel;
+
+  let from = String(body.from ?? "");
+  if (!from) {
+    // 增量默认：该账号最后一笔平仓日 -1 天（重叠窗口幂等去重兜底）；无历史则近 30 天
+    const { rows } = await pool.query(
+      `select max(close_time) as last from trades t join trade_accounts a on a.id = t.account_id
+       where t.user_id = $1 and a.login = $2`,
+      [userId, login],
+    );
+    const last = rows[0]?.last ? new Date(rows[0].last) : null;
+    from = last ? bjYmd(new Date(last.getTime() - 86_400_000)) : bjYmd(new Date(Date.now() - 30 * 86_400_000));
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw ApiError.badRequest("from 需为 YYYY-MM-DD");
   if (Date.parse(from) > Date.parse(to)) throw ApiError.badRequest("from 不能晚于 to");
   const fromTimeMs = Date.parse(`${from}T00:00:00+08:00`);
   const toTimeMs = Date.parse(`${to}T23:59:59+08:00`);
-  const keyLabel = (body.keyLabel ?? "").trim() || DEFAULT_KEY_LABEL;
   const cred = await loadCred(userId, keyLabel);
-  const login = (body.login ?? "").trim() || keyLabel;
 
   // minTs：流水倒序返回，整页早于窗口下界即停——近 30 天的增量同步几十页内结束
   const all = await fetchCfdRecords<CfdRecord>(cred, { fetcher, minTs: fromTimeMs });
@@ -263,6 +277,8 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   return {
     ...result,
     keyLabel,
+    fromUsed: from,
+    toUsed: to,
     records: { fetched: all.length, inWindow: inWindow.length },
     skippedEvents: grouped.skippedEvents,
     openRowsUnmatched: grouped.openRowsUnmatched,

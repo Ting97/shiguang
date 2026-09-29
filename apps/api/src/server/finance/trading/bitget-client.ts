@@ -73,28 +73,50 @@ const BITGET_HINTS: Record<string, string> = {
   "429": "提示：Bitget 限频——CFD 流水查询每页间隔约 1.2 秒，数据量大时请稍后再试",
 };
 
-/** 单次 GET；查询串按字典序拼（与签名一致由调用方保证——本函数统一 qs() 生成） */
-export async function bitgetGet<T>(cred: BitgetCred, path: string, query: Record<string, string | number | undefined>, fetcher: FetchLike = defaultFetch): Promise<T> {
+/** 可重试错误退避：429 限频 / 网络不可达（走代理偶发 RST、单次 15s 超时）。
+ * 退避 2s/5s/10s 三次重试；业务错误码（参数/鉴权类）不重试直接抛 */
+const RETRY_BACKOFF_MS = [2_000, 5_000, 10_000];
+
+/** 单次 GET（带限频/网络退避重试）；查询串按字典序拼（与签名一致由调用方保证——本函数统一 qs() 生成）。
+ * onThrottle：该页曾遇 429 重试成功后回调（翻页调用方据此放慢节奏） */
+export async function bitgetGet<T>(
+  cred: BitgetCred,
+  path: string,
+  query: Record<string, string | number | undefined>,
+  fetcher: FetchLike = defaultFetch,
+  onThrottle?: () => void,
+): Promise<T> {
   const qs = qsOf(query);
-  const ts = String(Date.now());
-  const headers = signRequest(cred, "GET", path, qs, "", ts);
-  let res: Awaited<ReturnType<FetchLike>>;
-  try {
-    res = await fetcher(`${BITGET_BASE}${path}${qs ? `?${qs}` : ""}`, {
-      headers,
-      signal: AbortSignal.timeout(15_000),
-      dispatcher: dispatcher(),
-    } as never);
-  } catch {
-    throw ApiError.upstream("Bitget 服务不可达，请稍后再试");
+  for (let attempt = 0; ; attempt++) {
+    const ts = String(Date.now()); // 每次重试重新签名（timestamp 参与签名）
+    const headers = signRequest(cred, "GET", path, qs, "", ts);
+    let res: Awaited<ReturnType<FetchLike>>;
+    try {
+      res = await fetcher(`${BITGET_BASE}${path}${qs ? `?${qs}` : ""}`, {
+        headers,
+        signal: AbortSignal.timeout(15_000),
+        dispatcher: dispatcher(),
+      } as never);
+    } catch {
+      if (attempt < RETRY_BACKOFF_MS.length) {
+        await sleep(RETRY_BACKOFF_MS[attempt]);
+        continue;
+      }
+      throw ApiError.upstream("Bitget 服务不可达（已重试 3 次），请稍后再试");
+    }
+    const shell = parseShell(await res.text());
+    if (shell.code === "429" && attempt < RETRY_BACKOFF_MS.length) {
+      await sleep(RETRY_BACKOFF_MS[attempt]);
+      onThrottle?.();
+      continue;
+    }
+    if (shell.code !== "00000") {
+      const raw = `Bitget 接口错误（${shell.code ?? res.status}）：${shell.msg ?? "未知错误"}`;
+      const hint = shell.code ? BITGET_HINTS[String(shell.code)] : undefined;
+      throw ApiError.upstream(hint ? `${raw}。${hint}` : raw);
+    }
+    return shell.data as T;
   }
-  const shell = parseShell(await res.text());
-  if (shell.code !== "00000") {
-    const raw = `Bitget 接口错误（${shell.code ?? res.status}）：${shell.msg ?? "未知错误"}`;
-    const hint = shell.code ? BITGET_HINTS[String(shell.code)] : undefined;
-    throw ApiError.upstream(hint ? `${raw}。${hint}` : raw);
-  }
-  return shell.data as T;
 }
 
 /** 分页拉全：idLessThan 游标 + limit，按返回列表最后一条 id 前翻，直到取空/越过 fromTime/页数上限。
@@ -143,14 +165,18 @@ export async function fetchCfdRecords<T>(
 ): Promise<T[]> {
   const out: T[] = [];
   let cursor: string | undefined;
+  let pageDelay = CFD_PAGE_DELAY_MS; // 自适应：429 后加 0.8s，封顶 3.2s（翻页遇限频整体放慢而非失败）
   const maxPages = opts.maxPages ?? 600; // 50/页 × 600 = 3 万条封顶（高频账户流水可达数千页，游标无进展同样熔断）
   for (let i = 0; i < maxPages; i++) {
-    if (i > 0) await sleep(CFD_PAGE_DELAY_MS);
+    if (i > 0) await sleep(pageDelay);
     const page = await bitgetGet<{ list?: T[] | null; cursor?: string | null }>(
       cred,
       "/api/v3/cfd/account/financial-records",
       { limit: CFD_PAGE_LIMIT, cursor },
       opts.fetcher,
+      () => {
+        pageDelay = Math.min(3_200, pageDelay + 800);
+      },
     );
     const list = page?.list ?? [];
     if (list.length === 0) break;

@@ -153,7 +153,7 @@ test("bitget：CFD 归组——开仓/平仓行区分/LIFO 配对开仓时间/�
   assert.equal(g2.rows[0].commission, -0.2, "开仓费归属");
 });
 
-test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 dup", async (t) => {
+test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 dup + 增量 from 缺省", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
   await cleanup();
@@ -193,7 +193,48 @@ test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 d
   assert.equal(Number(rows[0].profit), 1.44);
   assert.equal(Number(rows[0].net_profit), 1.44, "生成列净额=cashFlow（零费用）");
   assert.equal(rows[0].source, "bitget", "账户来源 bitget");
+
+  // 增量默认：from 缺省 = 该账号最后一笔平仓日 -1 天（WIN_TS），to 缺省 = 今天
+  const inc = await syncBitget(UA, { keyLabel: "默认", login: "bitget-t", dryRun: true }, fetcher);
+  const expectFrom = new Date(Math.floor(WIN_TS / 1000) * 1000 - 86_400_000 + 8 * 3600_000).toISOString().slice(0, 10);
+  assert.equal(inc.fromUsed, expectFrom, "from 缺省取最后平仓日前一日（北京日）");
+  assert.equal(inc.toUsed, new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10), "to 缺省今天");
+  assert.equal(inc.rowsDup, 1, "增量窗口重叠段幂等 dup");
   await cleanup();
+});
+
+test("bitget：429 退避重试成功不失败 + 持续限流重试耗尽才抛", async () => {
+  await ensureLoaded();
+  const { bitgetGet } = await import("../src/server/finance/trading/bitget-client");
+  const cred = { apiKey: "k", apiSecret: "s", passphrase: "p" };
+  // 前两次 429、第三次成功：bitgetGet 自行退避重试（不真实等待——退避 sleep 无法注入，
+  // 此处只验证多 attempt 后返回数据；为控时长把 backoff 缩到 1ms）
+  const origTimeout = setTimeout;
+  (globalThis as any).setTimeout = ((fn: () => void, ms?: number, ...a: unknown[]) =>
+    origTimeout(fn, Math.min(Number(ms ?? 0), 1), ...a)) as typeof setTimeout;
+  try {
+    let calls = 0;
+    const flaky = () => {
+      calls++;
+      const body = calls <= 2 ? JSON.stringify({ code: "429", msg: "Too Many Requests" }) : JSON.stringify({ code: "00000", data: { ok: 1 } });
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(body) });
+    };
+    let throttledCb = 0;
+    const r = await bitgetGet<{ ok: number }>(cred, "/api/v3/x", {}, flaky, () => { throttledCb++; });
+    assert.equal(r.ok, 1, "两次 429 后重试成功返回数据");
+    assert.equal(calls, 3);
+    assert.ok(throttledCb >= 1, "onThrottle 回调触发");
+    // 持续 429：4 次（1+3 重试）后抛出
+    let always = 0;
+    const always429 = () => {
+      always++;
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify({ code: "429", msg: "Too Many Requests" })) });
+    };
+    await assert.rejects(() => bitgetGet(cred, "/api/v3/x", {}, always429));
+    assert.equal(always, 4, "初次 + 3 次重试后放弃");
+  } finally {
+    (globalThis as any).setTimeout = origTimeout;
+  }
 });
 
 async function cleanup() {

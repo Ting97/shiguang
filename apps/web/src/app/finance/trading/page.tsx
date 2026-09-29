@@ -51,8 +51,8 @@ export default function TradingPage() {
     load();
   }, [load]);
 
-  /** 一键同步：对每把已绑定的 Bitget 密钥各同步近 30 天（增量，整页早于窗口即停翻页），
-   * 各自落到以其备注名命名的交易账号；未绑定任何密钥时打开绑定抽屉引导 */
+  /** 一键同步：对每把已绑定的 Bitget 密钥各做一次增量同步（from 缺省=最后平仓日-1 天，
+   * 服务端只翻几页即停，避开限频）；未绑定任何密钥时打开绑定抽屉引导 */
   const quickSync = useCallback(async () => {
     if (quickSyncing) return;
     setQuickSyncing(true);
@@ -65,19 +65,16 @@ export default function TradingPage() {
         setBitgetOpen(true);
         return;
       }
-      const to = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-      const from = new Date(Date.now() + 8 * 3600_000 - 30 * 86_400_000).toISOString().slice(0, 10);
       const parts: string[] = [];
       for (const label of labels) {
-        const r = await api<{ rowsNew: number; rowsDup: number }>("/api/trading/bitget/sync", "POST", {
-          keyLabel: label,
-          from,
-          to,
-          dryRun: false,
-        });
-        parts.push(`「${label}」新增 ${r.rowsNew} · 重复 ${r.rowsDup}`);
+        const r = await api<{ rowsNew: number; rowsDup: number; fromUsed: string; toUsed: string }>(
+          "/api/trading/bitget/sync",
+          "POST",
+          { keyLabel: label, dryRun: false },
+        );
+        parts.push(`「${label}」${r.fromUsed}~${r.toUsed} 新增 ${r.rowsNew} · 重复 ${r.rowsDup}`);
       }
-      setQuickMsg({ ok: true, text: `✅ 同步完成（${from} ~ ${to}）：${parts.join("；")}` });
+      setQuickMsg({ ok: true, text: `✅ 同步完成：${parts.join("；")}` });
       await load();
     } catch (e) {
       setQuickMsg({ ok: false, text: e instanceof ApiClientError ? e.message : "同步失败，请稍后再试" });
