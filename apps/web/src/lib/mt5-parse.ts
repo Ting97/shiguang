@@ -133,10 +133,17 @@ async function unzipEntries(buf: ArrayBuffer): Promise<ZipEntry[]> {
 async function xlsxToGrid(buf: ArrayBuffer): Promise<string[][]> {
   const entries = await unzipEntries(buf);
   const sharedEntry = entries.find((e) => e.name === "xl/sharedStrings.xml");
-  const shared = sharedEntry ? parseSharedStrings(TD.decode(sharedEntry.data)) : [];
+  const shared = sharedEntry ? parseSharedStrings(decodeXml(sharedEntry.data)) : [];
   const sheet = entries.find((e) => e.name === "xl/worksheets/sheet1.xml") ?? entries.find((e) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.name));
   if (!sheet) throw new Error("解析失败：xlsx 中未找到工作表（sheet1），请确认由 MT5 导出");
-  return sheetToGrid(TD.decode(sheet.data), shared);
+  return sheetToGrid(decodeXml(sheet.data), shared);
+}
+
+/** XML 解码：BOM 嗅探——MT5 部分服务器（如 Bitget-MT5）导出的内部 XML 为 UTF-16LE，按 UTF-8 解会全乱 */
+function decodeXml(data: Uint8Array): string {
+  if (data[0] === 0xff && data[1] === 0xfe) return new TextDecoder("utf-16le").decode(data);
+  if (data[0] === 0xfe && data[1] === 0xff) return new TextDecoder("utf-16be").decode(data);
+  return TD.decode(data);
 }
 
 /* ---------- 通道 B：CSV/TSV ---------- */
@@ -188,25 +195,34 @@ interface ColMap {
 function mapHeader(cells: string[]): ColMap | null {
   const lower = cells.map((c) => String(c ?? "").trim().toLowerCase());
   const idx = (pred: (h: string) => boolean) => lower.findIndex(pred);
-  const ticket = idx((h) => h.includes("ticket") || h.includes("订单"));
+  // ticket：英文 Ticket / 中文「订单」或「定单」；Bitget-MT5 中文报表的成单号列就叫「持仓」（表头行上下文）
+  const ticket = idx((h) => h.includes("ticket") || h.includes("订单") || h.includes("定单") || h === "持仓");
   if (ticket < 0) return null;
   const type = idx((h) => h.includes("type") || h.includes("类型"));
+  // 时间列：英文 Open/Close Time 显式匹配；中文报表两列同名「时间」，按出现顺序（第 1 个=开仓，第 2 个=平仓）
+  const openTime = idx((h) => h.includes("open time") || h.includes("开仓时间"));
   const closeTime = idx((h) => h.includes("close time") || h.includes("平仓时间"));
   if (type < 0 && closeTime < 0) return null;
-  // 开/平仓价：显式 Open/Close Price 优先；否则按 Price/价格 出现顺序推断（第 1 个=开仓价，第 2 个=平仓价）
-  const priceCols = lower.map((h, i) => (h.includes("price") || h.includes("价格") ? i : -1)).filter((i) => i >= 0);
-  let openPrice = idx((h) => (h.includes("price") || h.includes("价格")) && (h.includes("open") || h.includes("开仓")));
-  let closePrice = idx((h) => (h.includes("price") || h.includes("价格")) && (h.includes("close") || h.includes("平仓")));
+  const timeCols = lower.map((h, i) => (h === "时间" || h.includes("time") ? i : -1)).filter((i) => i >= 0);
+  const openTime2 = openTime >= 0 ? openTime : (timeCols[0] ?? -1);
+  const closeTime2 = closeTime >= 0 ? closeTime : (timeCols.find((i) => i !== openTime2) ?? -1);
+  if (openTime2 < 0 || closeTime2 < 0) return null;
+  // 开/平仓价：显式 Open/Close Price 优先；否则按 Price/价格/价位 出现顺序推断（第 1 个=开仓价，第 2 个=平仓价）
+  const priceCols = lower.map((h, i) => (h.includes("price") || h.includes("价格") || h.includes("价位") ? i : -1)).filter((i) => i >= 0);
+  let openPrice = idx((h) => (h.includes("price") || h.includes("价格") || h.includes("价位")) && (h.includes("open") || h.includes("开仓")));
+  let closePrice = idx((h) => (h.includes("price") || h.includes("价格") || h.includes("价位")) && (h.includes("close") || h.includes("平仓")));
   if (openPrice < 0) openPrice = priceCols.find((i) => i !== closePrice) ?? -1;
   if (closePrice < 0) closePrice = priceCols.findLast((i) => i !== openPrice) ?? -1;
   return {
     ticket, type,
-    lots: idx((h) => h.includes("volume") || h.includes("手数")),
-    item: idx((h) => h.includes("item") || h.includes("symbol")),
-    openTime: idx((h) => h.includes("open time") || h.includes("开仓时间")),
-    closeTime,
-    profit: idx((h) => h.includes("profit") || h.includes("盈亏")),
-    commission: idx((h) => h.includes("commission") || h.includes("佣金")),
+    // 交易量：中文报表列名「交易量」（部分报表为「手数」）
+    lots: idx((h) => h.includes("volume") || h.includes("手数") || h.includes("交易量")),
+    item: idx((h) => h.includes("item") || h.includes("symbol") || h.includes("品种")),
+    openTime: openTime2,
+    closeTime: closeTime2,
+    // 盈利：中文报表列名「盈利」（部分为「盈亏」）；手续费：部分报表不叫「佣金」
+    profit: idx((h) => h.includes("profit") || h.includes("盈亏") || h.includes("盈利")),
+    commission: idx((h) => h.includes("commission") || h.includes("佣金") || h.includes("手续费")),
     swap: idx((h) => h.includes("swap") || h.includes("库存费")),
     openPrice, closePrice,
   };
@@ -278,7 +294,7 @@ function extractLogin(fileName: string, grid: string[][]): string | null {
   for (const row of grid.slice(0, 40)) {
     const cells = row ?? [];
     for (let j = 0; j < cells.length; j++) {
-      if (!/login|账号|登录/i.test(cells[j] ?? "")) continue;
+      if (!/login|账号|账户|登录/i.test(cells[j] ?? "")) continue;
       const hit = /(\d{3,})/.exec(cells[j] ?? "")?.[1] ?? cells.slice(j + 1).find((v) => /^\d{3,}$/.test(v ?? ""));
       if (hit) return hit;
     }
