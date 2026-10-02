@@ -2,7 +2,7 @@
   "miniprogramRoot": "dist/",
   "projectname": "shiguang-miniapp",
   "description": "拾光 —— 个人经营系统：钱 · 时间 · 人",
-  "appid": "touristappid",
+  "appid": "wx395d4c0bb10d1223",
   "setting": {
     "urlCheck": false,
     "es6": false,
