@@ -1,205 +1,292 @@
+/**
+ * 空间详情（= web spaces/[id]/detail.tsx 移动端形态）：
+ * msg 横幅 → HeaderCard（可重命名/目标到期就地编辑/‹ 返回/⋯ 菜单）→ 分区 tab FilterChip
+ * （TODO·行动 / 感悟 / 动态）→ TodoSection / ReflectionTab / MomentsTab。
+ * 取数（= web use-space-data）：GET /api/spaces（头卡从列表按 id 找，:id 无 GET）+ todos all/done
+ * + feed?spaceId + activities 五路并行（allSettled，部分失败跳过）。
+ */
 import { useState } from "react";
-import { View, Text, Textarea, Button } from "@tarojs/components";
-import Taro, { usePullDownRefresh, useReachBottom } from "@tarojs/taro";
-import { loadSpaces, loadFeed, type FeedMoment } from "@/lib/api";
+import { View, Text, Button } from "@tarojs/components";
+import Taro, { usePullDownRefresh } from "@tarojs/taro";
+import PageShell from "@/components/page-shell";
+import { loadFeed, loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
-import { loadReflections, addReflection, type ReflectionItem } from "./api";
+import type { SpaceRow } from "../shared";
+import HeaderCard from "./header-card";
+import TodoSection from "./todo-section";
+import ReflectionTab from "./reflection-tab";
+import MomentsTab from "./moments-tab";
+import {
+  deleteTodo,
+  loadActivities,
+  loadTodoView,
+  patchTodo,
+  type Activity,
+  type TodoItem,
+} from "./api";
+import { deleteSpace, patchSpace } from "../list/api"; // 空间 CRUD 端点在列表页局部 api（同分包复用）
 import "./index.scss";
 
-const PAGE_SIZE = 20;
-
-/** date 列（started_at/target_date）JSON 序列化可能带时区漂移，+8h 归一后取日（对齐 calendar 页 bjDateKey） */
-function bjDate(v: unknown): string {
-  if (v == null) return "";
-  return new Date(new Date(String(v)).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
-}
-
-function bjDay(iso: string): string {
-  return new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(5, 10).replace("-", "/");
-}
+type SpaceTab = "todo" | "reflection" | "moments";
 
 export default function SpaceDetailPage() {
   const router = Taro.useRouter();
   const id = router.params.id ?? "";
 
-  const [space, setSpace] = useState<Record<string, any> | null>(null);
+  const [space, setSpace] = useState<SpaceRow | null>(null);
+  const [allSpaces, setAllSpaces] = useState<SpaceRow[]>([]);
   const [notFound, setNotFound] = useState(false);
-  const [moments, setMoments] = useState<FeedMoment[]>([]);
-  const [feedDone, setFeedDone] = useState(false);
-  const [reflections, setReflections] = useState<ReflectionItem[]>([]);
-  const [refTotal, setRefTotal] = useState(0);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [doneTodos, setDoneTodos] = useState<TodoItem[]>([]);
+  const [moments, setMoments] = useState<{ id: string; raw_text: string; created_at: string }[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [tab, setTab] = useState<SpaceTab>("todo");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [spaceMenu, setSpaceMenu] = useState(false);
+  const [armDelete, setArmDelete] = useState(false);
   const [inited, setInited] = useState(false);
 
-  async function refresh() {
+  async function load() {
+    setLoadErr(null);
     try {
-      // 详情头：/api/spaces/:id 无 GET，从列表里找（web use-space-data 同款做法）；找不到=已删除
-      const sj = await loadSpaces();
-      const hit = (sj.spaces ?? []).find((s: any) => s.id === id);
-      setSpace(hit ?? null);
-      setNotFound(!hit);
+      // 五路无依赖并行；todo/feed/activities 单路失败不拖垮头卡（web allSettled 同语义）
+      const [sj, tj, dj, fj, aj] = await Promise.allSettled([
+        loadSpaces(),
+        loadTodoView("all"),
+        loadTodoView("done"),
+        loadFeed(20, 0, "", id),
+        loadActivities(),
+      ]);
+      if (sj.status === "fulfilled") {
+        const spaces = (sj.value.spaces as SpaceRow[]) ?? [];
+        setAllSpaces(spaces);
+        const s = spaces.find((x) => x.id === id) ?? null;
+        setSpace(s);
+        setNotFound(!s);
+      }
+      if (tj.status === "fulfilled") setTodos((tj.value.todos ?? []).filter((t) => t.space_id === id));
+      if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos ?? []) as TodoItem[]).filter((t) => t.space_id === id));
+      if (fj.status === "fulfilled") setMoments((fj.value.moments ?? []) as typeof moments);
+      if (aj.status === "fulfilled") setActivities(aj.value.activities ?? []);
     } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
-    }
-    try {
-      const r = await loadReflections(id, PAGE_SIZE, 0);
-      setReflections(r.items ?? []);
-      setRefTotal(r.total ?? 0);
-    } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
-    }
-    try {
-      // 关联动态：复用 lib/api 现成 loadFeed 的 spaceId 过滤参数
-      const f = await loadFeed(PAGE_SIZE, 0, "", id);
-      setMoments(f.moments ?? []);
-      setFeedDone((f.moments ?? []).length < PAGE_SIZE);
-    } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
+      setLoadErr(e?.message ?? "加载失败");
     }
   }
 
   if (!inited && getSessionToken() && id) {
     setInited(true);
-    void refresh();
+    void load();
   }
 
   usePullDownRefresh(() => {
-    refresh().finally(() => Taro.stopPullDownRefresh());
+    load().finally(() => Taro.stopPullDownRefresh());
   });
 
-  // 动态触底翻页（感悟一次拉完，仅动态分页）
-  async function loadMoreFeed() {
-    if (!getSessionToken() || feedDone || !id) return;
+  async function saveRename(name: string): Promise<boolean> {
     try {
-      const f = await loadFeed(PAGE_SIZE, moments.length, "", id);
-      const more = f.moments ?? [];
-      setMoments((m) => [...m, ...more]);
-      setFeedDone(more.length < PAGE_SIZE);
-    } catch {
-      /* 静默：下次触底重试 */
-    }
-  }
-  useReachBottom(loadMoreFeed);
-
-  async function send() {
-    const content = draft.trim();
-    if (!content || sending) return;
-    setSending(true);
-    setMsg(null);
-    try {
-      await addReflection(id, content);
-      setDraft("");
-      // 201 后重拉列表（带最新 total），比本地 unshift 稳
-      const r = await loadReflections(id, PAGE_SIZE, 0);
-      setReflections(r.items ?? []);
-      setRefTotal(r.total ?? 0);
-      Taro.showToast({ title: "已记录感悟", icon: "success" });
+      await patchSpace(id, { name });
     } catch (e: any) {
-      setMsg(e?.message ?? "发布失败");
-    } finally {
-      setSending(false);
+      setMsg({ ok: false, text: e?.message ?? "重命名失败" });
+      return false;
     }
+    setSpace((s) => (s ? { ...s, name } : s));
+    setMsg({ ok: true, text: "已重命名" });
+    return true;
   }
 
-  // 无 id（异常入口）时 inited 永远不会置真，与查不到同等处理，避免停在"加载中"
+  async function saveTargetDate(v: string | null): Promise<boolean> {
+    try {
+      await patchSpace(id, { targetDate: v });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? "网络异常，请稍后重试" });
+      return false;
+    }
+    setSpace((s) => (s ? { ...s, target_date: v } : s));
+    setMsg({ ok: true, text: v ? `⏳ 目标到期时间已调整为 ${v}` : "目标到期时间已清除" });
+    return true;
+  }
+
+  async function setStatus(status: "active" | "archived") {
+    if (!space) return;
+    try {
+      await patchSpace(space.id, { status });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? "操作失败" });
+      return;
+    }
+    // web 归档/恢复后跳回列表（location.href="/spaces"）
+    Taro.redirectTo({ url: "/packages/space/list/index" });
+  }
+
+  async function removeSpace() {
+    if (!space) return;
+    // 两步确认在菜单里完成（armDelete 态），此处 web 原生 confirm 的说明并入 showModal
+    const res = await Taro.showModal({
+      title: "删除空间",
+      content: `删除空间「${space.name}」？\n含 ${space.reflection_count ?? 0} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`,
+      confirmColor: "#f43f5e",
+    });
+    if (!res.confirm) return;
+    try {
+      await deleteSpace(space.id);
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? "删除失败" });
+      return;
+    }
+    Taro.redirectTo({ url: "/packages/space/list/index" });
+  }
+
+  /** 行级空间关联（菜单「关联空间」→ 选择后 PATCH spaceId） */
+  async function pickSpace(todoId: string, target: string | null): Promise<boolean> {
+    try {
+      await patchTodo(todoId, { spaceId: target });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? "网络异常，请稍后重试" });
+      return false;
+    }
+    setMsg({ ok: true, text: target ? "🎯 已关联空间" : "已移除空间归属" });
+    await load();
+    return true;
+  }
+
+  /* ---- 加载中 / 失败 / 404 形态（= web detail 三分支） ---- */
   if (notFound || !id) {
     return (
-      <View className="page-pad">
-        <View className="card">
-          <Text className="dim">空间不存在或已删除</Text>
+      <PageShell active="spaces">
+        <View className="glass glass-p5 dt-notfound">
+          <Text className="dt-notfound-icon">🎯</Text>
+          <Text className="dt-notfound-text">空间不存在或已删除</Text>
+          <Button
+            className="btn-reset btn-primary dt-notfound-btn"
+            hoverClass="press"
+            onClick={() => Taro.redirectTo({ url: "/packages/space/list/index" })}
+          >
+            返回目标列表
+          </Button>
         </View>
-      </View>
+      </PageShell>
     );
   }
 
-  const pct = space?.todo_total ? Math.round(((space.todo_done ?? 0) / space.todo_total) * 100) : null;
-  // 与 DB 默认一致用 hex 兜底：色值要拼「+26」做透明底，var(--accent) 拼不出 alpha
-  const color = space?.color || "#38bdf8";
-
-  return (
-    <View className="page-pad">
-      {msg && <View className="banner banner-err">{msg}</View>}
-
-      {/* 详情头 */}
-      <View className="card">
-        <View className="head-row">
-          <View className="head-icon" style={{ backgroundColor: `${color}26` }}>
-            <Text>{space?.icon || "🎯"}</Text>
+  if (!space) {
+    return (
+      <PageShell active="spaces">
+        {loadErr ? (
+          <View className="dt-center">
+            <Text className="dt-load-err">加载失败：{loadErr}</Text>
+            <Button
+              className="btn-reset btn-primary dt-retry"
+              hoverClass="press"
+              onClick={() => {
+                setSpace(null);
+                void load();
+              }}
+            >
+              重试
+            </Button>
           </View>
-          <View className="grow">
-            <Text className="head-name">{space?.name ?? "加载中…"}</Text>
-            {!!space?.description && <Text className="dim head-desc">{space.description}</Text>}
-          </View>
-        </View>
-        <View className="head-meta">
-          {!!space?.started_at && <Text className="dim">{bjDate(space.started_at)} 开始</Text>}
-          {!!space?.target_date && <Text className="dim">目标 {bjDate(space.target_date)}</Text>}
-          <Text className="dim">
-            待办 {space?.todo_done ?? 0}/{space?.todo_total ?? 0} · 动态 {space?.entry_count ?? 0}
-          </Text>
-        </View>
-        {pct != null && (
-          <View className="progress-wrap">
-            <View className="progress-bar">
-              <View className="progress-fill" style={{ width: `${pct}%`, backgroundColor: color }} />
-            </View>
-            <Text className="dim">{pct}%</Text>
+        ) : (
+          <View className="dt-center">
+            <Text className="hint">加载中…</Text>
           </View>
         )}
+      </PageShell>
+    );
+  }
+
+  const tabs: { key: SpaceTab; label: string; count: number }[] = [
+    { key: "todo", label: "TODO·行动", count: todos.length },
+    { key: "reflection", label: "感悟", count: space.reflection_count ?? 0 },
+    { key: "moments", label: "动态", count: moments.length },
+  ];
+
+  return (
+    <PageShell active="spaces">
+      {msg && <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View>}
+
+      {/* 空间头部（可编辑/归档/删除/返回链） */}
+      <HeaderCard space={space} onRename={saveRename} onSaveTargetDate={saveTargetDate} onOpenMenu={() => setSpaceMenu(true)} />
+
+      {/* 分区 tab（= FilterChip 组，激活 sky→indigo 渐变） */}
+      <View className="dt-tabs">
+        {tabs.map((t) => (
+          <View key={t.key} className={`dt-tab ${tab === t.key ? "on" : ""}`} onClick={() => setTab(t.key)}>
+            <Text>{t.label}</Text>
+            <Text className="dt-tab-count">{t.count}</Text>
+          </View>
+        ))}
       </View>
+
+      {/* 关联 TODO·行动 */}
+      {tab === "todo" && (
+        <TodoSection
+          spaceId={id}
+          todos={todos}
+          doneTodos={doneTodos}
+          activities={activities}
+          allSpaces={allSpaces}
+          onChanged={() => void load()}
+          setMsg={setMsg}
+          onPickSpace={pickSpace}
+        />
+      )}
+
+      {/* 感悟 */}
+      {tab === "reflection" && <ReflectionTab spaceId={id} onChanged={() => void load()} setMsg={setMsg} rev={0} />}
 
       {/* 关联动态 */}
-      <View className="card">
-        <Text className="h2">空间动态（{moments.length}）</Text>
-        {moments.length === 0 && <Text className="dim">还没有该空间的动态</Text>}
-        {moments.map((m) => (
-          <View key={m.id} className="moment">
-            <View className="moment-head">
-              <Text className="dim">{bjDay(String(m.created_at))}</Text>
-              {!!m.mood && <Text className="dim">{String(m.mood)}</Text>}
+      {tab === "moments" && (
+        <MomentsTab spaceId={id} moments={moments} onChanged={() => void load()} setMsg={setMsg} />
+      )}
+
+      {/* 空间操作菜单（⋯ 收纳归档/删除；= web SpaceMenuModal 移动端形态） */}
+      {spaceMenu && <View className="overlay" onClick={() => { setSpaceMenu(false); setArmDelete(false); }} />}
+      {spaceMenu && (
+        <View className="sheet dt-menu safe-bottom">
+          <View className="dt-menu-handle" />
+          <Text className="dt-menu-title">{space.name}</Text>
+          {space.status === "archived" ? (
+            <View
+              className="dt-menu-item"
+              onClick={() => {
+                setSpaceMenu(false);
+                void setStatus("active");
+              }}
+            >
+              <Text className="dt-menu-icon">📤</Text>
+              <Text className="dt-menu-text">恢复空间</Text>
             </View>
-            <Text className="moment-text">{m.raw_text}</Text>
+          ) : (
+            <View
+              className="dt-menu-item warn"
+              onClick={() => {
+                setSpaceMenu(false);
+                void setStatus("archived");
+              }}
+            >
+              <Text className="dt-menu-icon">📦</Text>
+              <Text className="dt-menu-text">归档空间</Text>
+            </View>
+          )}
+          <View
+            className={`dt-menu-item danger ${armDelete ? "armed" : ""}`}
+            onClick={() => {
+              if (!armDelete) {
+                // 两步删除：首点武装，3 秒内再点执行
+                setArmDelete(true);
+                setTimeout(() => setArmDelete(false), 3000);
+                return;
+              }
+              setSpaceMenu(false);
+              void removeSpace();
+            }}
+          >
+            <Text className="dt-menu-icon">🗑</Text>
+            <Text className="dt-menu-text">{armDelete ? "确认删除？（3 秒内再点）" : "删除空间"}</Text>
           </View>
-        ))}
-        {!feedDone && moments.length > 0 && <Text className="dim">上拉加载更多…</Text>}
-      </View>
-
-      {/* 感悟列表 */}
-      <View className="card">
-        <Text className="h2">感悟（{refTotal}）</Text>
-        {reflections.length === 0 && <Text className="dim">还没有感悟 —— 下方写下第一条</Text>}
-        {reflections.map((r) => (
-          <View key={r.id} className="ref">
-            <Text className="ref-text">{r.preview}</Text>
-            <Text className="dim">
-              {bjDay(String(r.created_at))} · {r.chars} 字{r.edited ? " · 已编辑" : ""}
-            </Text>
-          </View>
-        ))}
-        {reflections.length < refTotal && <Text className="dim">仅显示最近 {PAGE_SIZE} 条</Text>}
-      </View>
-
-      {/* 底部输入区：fixed 悬挂，占位元素撑出高度避免列表尾被遮 */}
-      <View className="composer-space" />
-      <View className="composer">
-        <Textarea
-          className="composer-input"
-          value={draft}
-          maxlength={2000}
-          placeholder="记一条这个空间的感悟…"
-          placeholderClass="dim"
-          onInput={(e) => setDraft(e.detail.value)}
-        />
-        <Button
-          className={`btn-primary composer-btn ${!draft.trim() || sending ? "disabled" : ""}`}
-          disabled={!draft.trim() || sending}
-          onClick={send}
-        >
-          {sending ? "…" : "记录"}
-        </Button>
-      </View>
-    </View>
+        </View>
+      )}
+    </PageShell>
   );
 }

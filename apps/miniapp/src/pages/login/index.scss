@@ -1,40 +1,199 @@
-.login-pad {
-  padding: 48px 32px;
+/**
+ * 登录页私有样式（换算：web 1px = 本文件 2 单位）。
+ * 全局类由 app.scss 提供：app-bg/theme-light(页面自挂)、glass/glass-p5、btn-primary、
+ * input/input-placeholder、text-gradient、hint、press。本文件只写页面私有布局与
+ * web 同款组件的精确形态（pill 切换、验证码钮、眼睛图标、分隔线）。
+ */
+
+/* = web main.flex.min-h-screen.items-center.justify-center.px-5（NAVLESS 整页居中）。
+   极光底复用全局 .app-bg（浅色由根节点 .theme-light 切令牌）；居中用子项 margin:auto
+   而非 align-items:center：内容超高时 flex 居中会向上裁切，auto margin 空间不足时
+   自然回落为顶对齐，不丢内容。 */
+.login-screen {
+  display: flex;
+  padding: env(safe-area-inset-top) 40px env(safe-area-inset-bottom);
 }
 
-.login-hero {
+/* = web div.w-full.max-w-sm（384px；手机宽下等价满宽减页边距） */
+.login-col {
+  width: 100%;
+  max-width: 768px;
+  margin: auto; /* 双轴居中（= items-center + justify-center），超高不裁切 */
+}
+
+/* ---- hero（= web mb-6 text-center） ---- */
+.brand {
+  margin-bottom: 48px;
   text-align: center;
-  padding: 60px 0;
+}
+/* = web svg.h-20.w-20 drop-shadow：小程序不支持内联 svg，同图形 data-url 背景（grad id 已压缩） */
+.brand-logo {
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 16px; /* mx-auto mb-2 */
+  border-radius: 37px; /* viewBox rx=56/240 等比 */
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20240%20240'%3E%3Cdefs%3E%3CradialGradient%20id='a'%20cx='30%25'%20cy='18%25'%20r='120%25'%3E%3Cstop%20offset='0%25'%20stop-color='%231a2554'/%3E%3Cstop%20offset='45%25'%20stop-color='%230d1740'/%3E%3Cstop%20offset='100%25'%20stop-color='%2305081a'/%3E%3C/radialGradient%3E%3ClinearGradient%20id='b'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0%25'%20stop-color='%23fff7e0'/%3E%3Cstop%20offset='45%25'%20stop-color='%23f1c66b'/%3E%3Cstop%20offset='100%25'%20stop-color='%23e8a33d'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='c'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0%25'%20stop-color='%2338bdf8'/%3E%3Cstop%20offset='100%25'%20stop-color='%23f1c66b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='240'%20height='240'%20rx='56'%20fill='url(%23a)'/%3E%3Cpath%20d='M186%2044%20C%20150%2060,%20108%2084,%2096%20132'%20fill='none'%20stroke='url(%23b)'%20stroke-width='10'%20stroke-linecap='round'/%3E%3Ccircle%20cx='186'%20cy='44'%20r='9'%20fill='%23fff7e0'/%3E%3Ccircle%20cx='150'%20cy='72'%20r='3.2'%20fill='%23f1c66b'%20opacity='.9'/%3E%3Ccircle%20cx='122'%20cy='96'%20r='2.6'%20fill='%23f1c66b'%20opacity='.7'/%3E%3Cpath%20d='M56%20138%20A%2062%2062%200%200%200%20184%20138'%20fill='none'%20stroke='url(%23c)'%20stroke-width='10'%20stroke-linecap='round'/%3E%3Ccircle%20cx='120'%20cy='150'%20r='12'%20fill='%23f1c66b'/%3E%3Ccircle%20cx='120'%20cy='150'%20r='5'%20fill='%23fff7e0'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  box-shadow: 0 20px 60px rgba(241, 198, 107, 0.25); /* drop-shadow(0_10px_30px) */
+}
+/* = web h1.text-gradient.text-3xl.font-bold */
+.brand-title {
+  display: block;
+  font-size: 60px;
+  font-weight: 700;
+}
+.brand-sub {
+  display: block;
+  margin-top: 8px; /* mt-1 */
+}
+
+/* ---- 微信特有分隔线：微信一键登录与 web 表单之间 ---- */
+.alt-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 32px 0; /* mb-4 等价位 */
+}
+.alt-divider::before,
+.alt-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+.alt-divider-text {
+  flex-shrink: 0;
+  font-size: 22px; /* text-[11px] */
+  color: var(--ink-dim);
+}
+
+/* ---- 登录方式 pill 切换（= web rounded-full border-line-soft bg-bg/50 p-0.5 text-xs） ---- */
+.mode-switch {
+  display: flex;
+  margin-bottom: 32px; /* mb-4 */
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.5); /* bg-bg/50 */
+  padding: 4px; /* p-0.5 */
+  font-size: 24px; /* text-xs */
+}
+.theme-light .mode-switch {
+  background: rgba(241, 245, 249, 0.5);
+}
+/* = web flex-1 rounded-full px-3 py-1.5；激活 bg-gradient-to-r sky→indigo 白字 */
+.mode-pill {
+  flex: 1;
+  border-radius: 999px;
+  padding: 12px 24px;
+  text-align: center;
+  color: var(--ink-mute);
+}
+.mode-pill-active {
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  color: #fff;
+  font-weight: 500; /* font-medium */
+}
+
+/* ---- 输入组（= web space-y-3） ---- */
+.fields {
   display: flex;
   flex-direction: column;
+  gap: 24px;
+}
+
+/* 验证码行（= web flex gap-2；钮 bg-elevated/70 描边 accent 字） */
+.code-row {
+  display: flex;
   gap: 16px;
 }
-
-.login-title {
-  font-size: 64px;
-  font-weight: 700;
+.code-input {
+  flex: 1;
+  min-width: 0;
+}
+.code-btn {
+  flex-shrink: 0;
+  margin: 0; /* 清 Button 默认外边 */
+  border: 1px solid var(--line-soft);
+  border-radius: 24px; /* rounded-xl */
+  background: rgba(30, 41, 59, 0.7); /* bg-elevated/70 */
+  padding: 0 24px; /* px-3（高度随 flex stretch 对齐输入框） */
+  font-size: 24px; /* text-xs */
   color: var(--accent);
+  line-height: inherit;
+}
+.theme-light .code-btn {
+  background: rgba(241, 245, 249, 0.7);
+}
+.code-btn.disabled {
+  opacity: 0.4; /* disabled:opacity-40 */
 }
 
-.mb {
-  margin-bottom: 20px;
+/* 密码行（= web relative；input pr-11 给眼睛图标让位） */
+.pwd-wrap {
+  position: relative;
+}
+.pwd-wrap .pwd-input {
+  padding-right: 88px; /* pr-11 */
+}
+/* = web 绝对定位明文切换钮（lucide Eye/EyeOff 16px，stroke ink-mute 灰双主题可见） */
+.eye-btn {
+  position: absolute;
+  right: 32px; /* right-3 */
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  transform: translateY(-50%);
+  background-size: 100% 100%;
+}
+.eye-on {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%2394a3b8'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M2%2012s3-7%2010-7%2010%207%2010%207-3%207-10%207-10-7-10-7Z'/%3E%3Ccircle%20cx='12'%20cy='12'%20r='3'/%3E%3C/svg%3E");
+}
+.eye-off {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%2394a3b8'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M9.88%209.88a3%203%200%201%200%204.24%204.24'/%3E%3Cpath%20d='M10.73%205.08A10.43%2010.43%200%200%201%2012%205c7%200%2010%207%2010%207a13.16%2013.16%200%200%201-1.67%202.68'/%3E%3Cpath%20d='M6.61%206.61A13.526%2013.526%200%200%200%202%2012s3%207%2010%207a9.74%209.74%200%200%200%205.39-1.61'/%3E%3Cline%20x1='2'%20x2='22'%20y1='2'%20y2='22'/%3E%3C/svg%3E");
 }
 
-.mt {
-  margin-top: 20px;
+/* 提交钮（= web btn-primary w-full rounded-xl py-2.5 text-sm font-medium；尺寸补齐） */
+.submit-btn {
+  width: 100%;
+  margin: 0;
+  padding: 20px 0; /* py-2.5 */
+  font-size: 28px; /* text-sm */
+  line-height: inherit;
 }
 
-.switch {
-  margin-top: 28px;
+/* ---- 反馈文案（= web mt-3 text-xs text-success/danger 的纯色小字，非横幅） ---- */
+.msg {
+  display: block;
+  margin-top: 24px;
+  font-size: 24px;
+  line-height: 1.5;
+}
+.msg-ok {
+  color: var(--success);
+}
+.msg-err {
+  color: var(--danger);
+}
+.wx-hint {
+  display: block;
+  margin-top: 12px;
   text-align: center;
 }
 
-.link {
-  color: var(--accent);
-  font-size: 26px;
+/* ---- 卡内注册引导（= web mt-4 text-center text-[11px]；小程序改为网页版引导纯文案） ---- */
+.reg-hint {
+  display: block;
+  margin-top: 32px;
+  text-align: center;
+  font-size: 22px; /* text-[11px] */
+  color: var(--ink-dim);
 }
 
-.foot {
+/* ---- 页脚（= web mt-6 text-[10px] text-ink-faint） ---- */
+.foot-line {
+  display: block;
   margin-top: 48px;
   text-align: center;
+  font-size: 20px; /* text-[10px] */
+  color: var(--ink-faint);
 }

@@ -1,0 +1,130 @@
+/*
+ * 关联动态分区样式（= web moments-section.tsx + moment-link-modal.tsx；web 1px = 2 单位）。
+ */
+.mm-section {
+  margin-bottom: 32px;
+}
+.mm-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px; /* mb-3 */
+}
+.mm-chip {
+  padding: 4px 16px;
+  border-radius: 16px;
+  background: rgba(16, 185, 129, 0.15); /* bg-emerald-500/15 */
+  color: var(--success);
+  font-size: 22px;
+  font-weight: 500;
+}
+.mm-count {
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.mm-link-btn {
+  margin-left: auto;
+  padding: 8px 20px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  font-size: 22px;
+  color: var(--ink-mute);
+}
+.mm-empty {
+  display: block;
+  padding: 32px 0;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink-faint);
+}
+.mm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* space-y-2 */
+}
+.mm-item {
+  padding: 20px 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: 24px;
+  background: var(--wash); /* ≈ bg-bg/30 */
+}
+.mm-time {
+  font-size: 20px; /* text-[10px] */
+  color: var(--ink-faint);
+}
+.mm-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3; /* line-clamp-3 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 8px;
+  font-size: 24px; /* text-xs */
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* ---- 未归属动态池弹层 ---- */
+.mm-pool {
+  background: var(--elevated);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.mm-pool-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.mm-pool-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.mm-pool-count {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.mm-pool-search {
+  margin-bottom: 16px;
+  padding: 12px 20px;
+  font-size: 24px;
+}
+.mm-pool-list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.mm-pool-item {
+  padding: 16px 20px;
+  border-radius: 16px;
+}
+.mm-pool-time {
+  display: block;
+  font-size: 20px;
+  color: var(--ink-faint);
+}
+.mm-pool-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 4px;
+  font-size: 24px;
+  color: var(--ink);
+}
+.mm-pool-empty {
+  display: block;
+  padding: 48px 16px;
+  text-align: center;
+  font-size: 22px;
+  color: var(--ink-faint);
+}
+.mm-pool-more {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  font-size: 22px;
+  color: var(--ink-mute);
+}

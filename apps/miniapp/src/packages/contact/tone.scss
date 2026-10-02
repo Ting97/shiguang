@@ -1,0 +1,50 @@
+/*
+ * 人际分包共用语义色（= web tag-chip.tsx TONE_CHIP / TONE_BG；概念定色一色到底）。
+ * list/detail 两页共用：TagChip 用 .tone-*（底+字），头像圆底用 .tone-bg-*（只有底色）。
+ */
+
+/* TagChip 语义 tinted 底 + 同色系文字 */
+.tone-sky {
+  background: rgba(14, 165, 233, 0.15); /* bg-sky-500/15 */
+  color: var(--accent);
+}
+.tone-emerald {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+.tone-amber {
+  background: rgba(245, 158, 11, 0.2); /* bg-amber-500/20 */
+  color: var(--warn);
+}
+.tone-rose {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--danger);
+}
+.tone-violet {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--ai);
+}
+.tone-slate {
+  background: var(--elevated);
+  color: var(--ink-mute);
+}
+
+/* TONE_BG（头像/自定义容器 tinted 底，只有底色） */
+.tone-bg-sky {
+  background: rgba(14, 165, 233, 0.15);
+}
+.tone-bg-emerald {
+  background: rgba(16, 185, 129, 0.15);
+}
+.tone-bg-amber {
+  background: rgba(245, 158, 11, 0.2);
+}
+.tone-bg-rose {
+  background: rgba(244, 63, 94, 0.15);
+}
+.tone-bg-violet {
+  background: rgba(139, 92, 246, 0.15);
+}
+.tone-bg-slate {
+  background: var(--elevated);
+}

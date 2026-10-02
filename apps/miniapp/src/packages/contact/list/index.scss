@@ -1,79 +1,284 @@
-/* 人际列表页私有样式 */
+/*
+ * 人际列表页样式（= web contacts/page.tsx；web 1px = 2 单位）。
+ * 含：hero/视图 pill/分组 FilterChip/搜索+建档/联系人卡/图谱容器。语义 tone 见 ../tone.scss（@import 共用）。
+ */
+@import "../tone.scss";
 
-.search {
-  margin-bottom: 24px;
+/* ---- hero ---- */
+.ct-head {
+  text-align: center;
+  margin-bottom: 48px; /* mb-6 */
+}
+.ct-hero {
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.ct-hero-sub {
+  margin-left: 16px;
+  vertical-align: middle;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-dim);
+}
+.ct-head-sub {
+  margin-top: 16px;
+  line-height: 1.6;
+}
+.ct-view-switch {
+  margin-top: 32px; /* mt-4 */
+}
+.ct-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* gap-1.5 */
+  padding: 12px 28px; /* px-3.5 py-1.5 */
+  border-radius: 999px;
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
 }
 
-.row {
+/* ---- 工具行：分组筛选 + 搜索 + 建档 ---- */
+.ct-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px; /* mb-4 */
+}
+.ct-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px; /* gap-1.5 */
+}
+/* FilterChip variant=filter：rounded-full px-3 py-1 text-xs；激活渐变 */
+.flt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px; /* px-3 py-1 */
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.6); /* bg-surface/60 */
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
+  flex-shrink: 0;
+}
+.theme-light .flt-chip {
+  background: rgba(255, 255, 255, 0.6);
+}
+.flt-chip.on {
+  border-color: transparent;
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  font-weight: 500;
+  color: #fff;
+}
+.flt-chip-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.flt-chip-count {
+  min-width: 40px; /* min-w-5 */
+  padding: 0 12px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 22px; /* text-[11px] */
+  font-variant-numeric: tabular-nums;
+  background: var(--elevated);
+  color: var(--ink-dim);
+}
+.flt-chip.on .flt-chip-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.ct-tools {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line-soft);
+}
+.ct-search {
+  width: 288px; /* w-36 */
+  box-sizing: border-box;
+  padding: 12px 24px; /* px-3 py-1.5 */
+  border: 1px solid var(--line-soft);
+  border-radius: 16px; /* rounded-lg */
+  background: rgba(15, 23, 42, 0.6);
+  font-size: 24px; /* text-xs */
+  color: var(--ink);
+}
+.theme-light .ct-search {
+  background: rgba(255, 255, 255, 0.6);
+}
+.ct-new-btn {
+  display: inline-flex;
+  padding: 16px 32px; /* px-4 py-2 */
+  font-size: 28px; /* text-sm */
+  font-weight: 500;
+  border-radius: 24px;
+  white-space: nowrap;
+}
+.ct-retry {
+  margin-left: 16px;
+  text-decoration: underline;
 }
 
-.row:last-child {
-  border-bottom: none;
+/* ---- 加载/空态 ---- */
+.ct-center {
+  padding: 80px 0;
+  text-align: center;
+}
+.ct-load-err {
+  font-size: 28px;
+  color: var(--danger);
+}
+.ct-retry-btn {
+  display: inline-flex;
+  margin-top: 24px;
+  padding: 16px 40px;
+  font-size: 24px;
+  border-radius: 24px;
+}
+.ct-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.ct-skel-row {
+  height: 176px;
+  border-radius: 32px;
+}
+.ct-empty-line {
+  display: block;
 }
 
-.grow {
-  flex: 1;
-  overflow: hidden;
+/* ---- 联系人卡 ---- */
+.ct-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* gap-3 */
 }
-
-.avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: var(--elevated);
-  color: var(--accent);
+.ct-card-top {
+  display: flex;
+  align-items: center;
+  gap: 24px; /* gap-3 */
+}
+.ct-avatar {
+  flex-shrink: 0;
+  width: 88px; /* h-11 w-11 */
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 40px; /* text-xl */
+}
+.ct-card-mid {
+  flex: 1;
+  min-width: 0;
+}
+.ct-name-row {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* gap-2 */
+  min-width: 0;
+}
+.ct-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 28px; /* text-sm */
+  font-weight: 600;
+  color: var(--ink);
+}
+.ct-alias {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+.ct-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px; /* mt-0.5 */
+}
+.ct-bd {
+  font-size: 22px; /* text-[11px] */
+  color: var(--ai); /* text-ai */
+}
+.ct-times {
   flex-shrink: 0;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+.ct-last {
+  display: block;
+  margin-top: 20px; /* mt-2.5 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
+}
+.ct-gift {
+  display: block;
+  margin-top: 8px; /* mt-1 */
+  font-size: 22px; /* text-[11px] */
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
 }
 
-.name-line {
+/* ---- 图谱视图 ---- */
+.cg-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.cg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 32px; /* gap-x-4 */
+  row-gap: 12px;
+  margin-top: 24px; /* mt-3 */
+}
+.cg-legend-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  overflow: hidden;
+  font-size: 22px; /* text-[11px] */
+  color: var(--ink-mute);
 }
-
-.name {
-  font-size: 28px;
-  font-weight: 600;
-  flex-shrink: 0;
+.cg-legend-dot {
+  width: 20px; /* h-2.5 w-2.5 */
+  height: 20px;
+  border-radius: 999px;
 }
-
-.alias {
-  font-size: 24px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.cg-legend-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
 }
-
-/* 重要度徽标：仅 importance>=4 显示（4 重要 / 5 亲密），warn 色醒目但不刺眼 */
-.imp-tag {
-  flex-shrink: 0;
-  font-size: 20px;
-  color: var(--warn);
-  background: rgba(251, 191, 36, 0.12);
-  border-radius: 8px;
-  padding: 2px 10px;
-}
-
-.sub {
+.cg-hint {
   display: block;
-  margin-top: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 12px;
+  text-align: center;
+  font-size: 22px;
+  color: var(--ink-faint);
 }
 
-.arrow {
+/* ---- 页脚 ---- */
+.ct-foot {
+  margin-top: 80px; /* mt-10 */
+  text-align: center;
+}
+.ct-foot-text {
+  font-size: 20px; /* text-[10px] */
   color: var(--ink-faint);
-  font-size: 36px;
-  flex-shrink: 0;
 }

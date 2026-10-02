@@ -16,22 +16,12 @@ export default defineAppConfig({
     { root: "packages/calendar", pages: ["index"] },
   ],
   window: {
-    navigationBarBackgroundColor: "#0b1220",
+    // 顶栏（含导航/标题）全部自绘：对齐 web 移动端顶部胶囊导航（components/nav.tsx）
+    navigationStyle: "custom",
+    navigationBarBackgroundColor: "#020617",
     navigationBarTextStyle: "white",
     navigationBarTitleText: "拾光",
     backgroundColor: "#020617",
     backgroundTextStyle: "dark",
-  },
-  tabBar: {
-    color: "#64748b",
-    selectedColor: "#38bdf8",
-    backgroundColor: "#0b1220",
-    borderStyle: "black",
-    list: [
-      { pagePath: "pages/feed/index", text: "动态" },
-      { pagePath: "pages/schedule/index", text: "日程" },
-      { pagePath: "pages/finance/index", text: "财务" },
-      { pagePath: "pages/profile/index", text: "我的" },
-    ],
   },
 });

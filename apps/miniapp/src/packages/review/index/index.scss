@@ -1,185 +1,419 @@
-/** 收支复盘页私有样式：周导航 / 对比卡 / 日趋势双柱 / 分类占比 / AI 周报卡 */
+/**
+ * 收支复盘分包页私有样式 —— 换算规则：web 1px = 2 单位（designWidth 750）。
+ * 基准 = apps/web/src/app/finance/review/page.tsx。
+ * 主题色走令牌；tailwind 渐变/半透明色与 web 一致写死。
+ */
 
-/* 小程序页面样式按页隔离，通用原子类不在 app.scss 里的（如 page-pad）需每页自带 */
-.page-pad {
-  padding: 24px;
+/* ---------- hero / pill 导航 / 骨架 / 通用（与 pages/finance 同款，分包各自持有副本） ---------- */
+.fin-hero {
+  margin-bottom: 40px;
+  text-align: center;
 }
-
-/* —— 周切换导航 —— */
-.week-row {
+.fin-hero-line {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 32px;
-  margin-bottom: 20px;
 }
-.week-title {
-  font-size: 32px;
-  font-weight: 700;
+.fin-hero-sub {
+  margin-left: 16px;
+  font-size: 28px;
+  color: var(--ink-dim);
+}
+.fin-hero-tip {
+  display: block;
+  margin-top: 16px;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.fin-tabs {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 40px;
 }
 .nav-btn {
-  font-size: 44px;
-  color: var(--accent);
-  padding: 0 20px;
-}
-.today-btn {
-  font-size: 24px;
-  color: var(--ink-mute);
+  padding: 12px 24px;
+  font-size: 28px;
   border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  padding: 4px 16px;
+  border-radius: 16px;
+  background: var(--input-bg);
+  color: var(--ink);
 }
-
-/* —— 周收支对比卡 —— */
-.sum-grid {
-  display: flex;
+.nav-btn-disabled {
+  opacity: 0.3;
 }
-.sum-cell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
+.fin-skeleton {
+  padding: 16px 0;
 }
-.sum-num {
-  font-size: 34px;
-  font-weight: 700;
-}
-.mom {
-  font-size: 20px;
-}
-
-/* —— 周内日趋势：每日支出/收入两根细柱并排、底部对齐，高度∝金额 —— */
-.trend {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-.trend-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.trend-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
+.fin-skeleton-row {
   height: 128px;
+  border-radius: 32px;
+  margin-bottom: 24px;
 }
-.t-bar {
-  width: 14px;
-  border-radius: 6px 6px 0 0;
+.fin-skeleton-row:last-child {
+  margin-bottom: 0;
 }
-.t-bar.out {
-  background: rgba(251, 113, 133, 0.75);
-}
-.t-bar.in {
-  background: rgba(52, 211, 153, 0.75);
-}
-.trend-day {
+.fin-footer {
+  display: block;
+  margin-top: 80px;
+  text-align: center;
   font-size: 20px;
+  color: var(--ink-faint);
 }
-.legend {
-  margin-top: 12px;
+.chip {
+  font-weight: 500;
+  border-radius: 16px;
+}
+.chip-sky {
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--accent);
+}
+.chip-emerald {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+.chip-amber {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warn);
+}
+.chip-rose {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--danger);
+}
+.chip-violet {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--ai);
+}
+.chip-slate {
+  background: var(--elevated);
+  color: var(--ink-mute);
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.hint-faint {
+  color: var(--ink-faint);
+}
+
+/* ---------- 日/周工具条（= mb-4 flex flex-wrap justify-between gap-2） ---------- */
+.rev-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px; /* mb-4 */
+}
+.rev-datenav {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* gap-2 */
+  font-size: 24px; /* text-xs */
+}
+/* = min-w-36 text-center font-semibold */
+.rev-range {
+  min-width: 288px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* = px-2 py-1.5 text-[11px] text-ink-mute（「今」回当天） */
+.rev-today {
+  padding: 12px 16px;
+  font-size: 22px;
+  color: var(--ink-mute);
+}
+
+/* ---------- 卡片 ---------- */
+.rev-card {
+  margin-bottom: 32px;
+}
+.rev-card-head {
+  margin-bottom: 24px; /* mb-3 */
+}
+.loadfail {
+  padding: 80px 0;
   text-align: center;
 }
+.loadfail-text {
+  font-size: 24px;
+  color: var(--danger);
+}
+.loadfail-btn {
+  margin-top: 24px;
+  padding: 16px 40px;
+  font-size: 24px;
+  display: inline-block;
+}
 
-/* —— 分类 Top 占比条 —— */
-.cat-row {
+/* ---------- 统计卡三项（grid-cols-3） ---------- */
+.ov-grid3 {
+  display: flex;
+  gap: 24px;
+  text-align: center;
+}
+.ov-cell {
+  flex: 1;
+  min-width: 0;
+}
+.ov-label {
+  font-size: 22px;
+  color: var(--ink-dim);
+}
+.ov-num {
+  display: block;
+  margin-top: 8px;
+  font-size: 40px;
+  font-weight: 700;
+}
+.ov-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+/* ---------- 周内日趋势双柱（= flex items-end justify-between gap-2；柱 w-2.5 高 64px 满量） ---------- */
+.dtrend {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dtrend-col {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.dtrend-bars {
+  display: flex;
+  height: 128px; /* h-16 */
+  width: 100%;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px; /* gap-0.5 */
+}
+.dt-bar {
+  width: 20px; /* w-2.5 */
+  border-radius: 8px 8px 0 0;
+}
+/* = from-rose-600/50 to-rose-400/80 / emerald 同构（向上渐变） */
+.dt-bar-out {
+  background: linear-gradient(to top, rgba(225, 29, 72, 0.5), rgba(251, 113, 133, 0.8));
+}
+.dt-bar-in {
+  background: linear-gradient(to top, rgba(5, 150, 105, 0.5), rgba(52, 211, 153, 0.8));
+}
+.dtrend-day {
+  font-size: 18px; /* text-[9px] */
+}
+.dtrend-legend {
+  display: block;
+  margin-top: 16px;
+  text-align: center;
+  font-size: 18px;
+  color: var(--ink-faint);
+}
+
+/* ---------- 支出分类 ---------- */
+/* 占比横条（= flex h-2.5 rounded-full overflow-hidden） */
+.cat-bar {
+  display: flex;
+  height: 20px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.cat-bar-seg {
+  height: 100%;
+}
+/* 行条列表（= mt-3 space-y-1.5 flex items-center gap-2 text-xs） */
+.rev-cats {
+  margin-top: 24px;
+}
+.rev-cat-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 0;
-}
-.cat-name {
-  width: 120px;
+  gap: 16px;
+  margin-bottom: 12px;
   font-size: 24px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
-.cat-bar {
+.rev-cat-row:last-child {
+  margin-bottom: 0;
+}
+.rev-cat-name {
+  flex-shrink: 0;
+  width: 128px; /* w-16 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-mute);
+}
+.rev-cat-track {
   flex: 1;
-  height: 12px;
+  min-width: 0;
+  height: 12px; /* h-1.5 */
+  overflow: hidden;
   border-radius: 999px;
   background: var(--elevated);
-  overflow: hidden;
 }
-.cat-bar-in {
+/* = bg-gradient-to-r from-sky-500 to-indigo-400 */
+.rev-cat-bar {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), #818cf8);
+  background: linear-gradient(90deg, #0ea5e9, #818cf8);
 }
-.cat-amt {
-  width: 150px;
+.rev-cat-amt {
+  flex-shrink: 0;
+  width: 160px; /* w-20 */
   text-align: right;
-  font-size: 24px;
   font-weight: 600;
+  color: var(--ink);
 }
-.cat-pct {
-  width: 70px;
+.rev-cat-pct {
+  flex-shrink: 0;
+  width: 96px; /* w-12 */
   text-align: right;
 }
 
-/* —— AI 周报卡 —— */
+/* ---------- 账户分布 + Top 对方（手机单列；= grid gap-4 sm:grid-cols-2） ---------- */
+.rev-pair {
+  margin-bottom: 32px;
+}
+.rev-pair-card {
+  margin-bottom: 32px; /* gap-4 */
+}
+.rev-pair-card:last-child {
+  margin-bottom: 0;
+}
+/* = space-y-1.5 flex items-center gap-2 text-xs */
+.rev-line {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 24px;
+}
+.rev-line:last-child {
+  margin-bottom: 0;
+}
+.rev-line-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-mute);
+}
+
+/* ---------- AI 周报卡 ---------- */
 .ai-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 16px;
+  margin-bottom: 24px;
 }
-.ai-head-right {
+.ai-head-l {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
-/* 小尺寸按钮：Taro Button 自带边距/线，需要显式压掉 */
-.ai-btn {
+/* = rounded-lg border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px]（AI 生成钮） */
+.ai-gen-btn {
+  padding: 8px 24px;
   font-size: 22px;
-  line-height: 1.8;
-  padding: 4px 24px;
-  margin: 0;
-  background: var(--accent);
-  color: #04121f;
-  border-radius: 14px;
-  border: none;
+  font-weight: 500;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 16px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  line-height: 1.5;
 }
-.ai-btn::after {
-  border: none;
+.theme-light .ai-gen-btn {
+  color: #047857;
 }
-.ai-err {
-  margin-top: 12px;
-  margin-bottom: 0;
+.ai-gen-btn.disabled {
+  opacity: 0.4;
 }
-.ai-busy {
+.rev-ai-busy {
   display: block;
-  text-align: center;
   padding: 16px 0;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink-dim);
 }
-.ai-body {
-  margin-top: 12px;
-}
-.ai-summary {
-  font-size: 28px;
-  line-height: 1.7;
-}
-.ai-list {
-  margin-top: 16px;
+.rev-ai-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 24px; /* space-y-3 */
 }
-.ai-sug {
-  padding-top: 16px;
+.rev-ai-summary {
+  font-size: 28px; /* text-sm */
+  line-height: 1.625;
+  color: var(--ink);
+}
+.rev-ai-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* space-y-1 */
+}
+.rev-ai-line {
+  font-size: 24px; /* text-xs */
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+/* 建议区上分隔线 + 弱化（= border-t border-line-soft pt-2 text-ink-mute） */
+.rev-ai-sug {
   border-top: 1px solid var(--line-soft);
+  padding-top: 16px;
 }
-.ai-line {
+.rev-ai-line.dim-soft {
+  color: var(--ink-mute);
+}
+.rev-ai-mark {
+  color: var(--accent);
+  margin-right: 6px;
+}
+.rev-ai-empty {
+  display: block;
+  padding: 16px 0;
+  text-align: center;
   font-size: 24px;
-  line-height: 1.6;
+  color: var(--ink-faint);
 }
-.mk {
-  margin-right: 10px;
+
+/* ---------- 模块未开通（= module-locked.tsx） ---------- */
+.locked-card {
+  margin: 80px auto 0;
+  max-width: 560px;
+  padding: 64px;
+  text-align: center;
+}
+.locked-icon {
+  display: block;
+  font-size: 80px;
+}
+.locked-title {
+  display: block;
+  margin-top: 24px;
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.locked-desc {
+  display: block;
+  margin-top: 16px;
+  font-size: 24px;
+  line-height: 1.625;
+  color: var(--ink-dim);
+}
+.locked-back {
+  display: inline-block;
+  margin-top: 40px;
+  padding: 16px 32px;
+  font-size: 24px;
+  font-weight: 500;
 }

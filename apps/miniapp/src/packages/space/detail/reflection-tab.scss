@@ -1,0 +1,196 @@
+/*
+ * 感悟分区样式（= web space-reflections.tsx + reflection-editor.tsx；web 1px = 2 单位）。
+ */
+.rf-entry {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px; /* mb-3 */
+}
+.rf-entry-btn {
+  display: inline-flex;
+  padding: 16px 32px; /* py-2 px-4 */
+  font-size: 28px; /* text-sm */
+  font-weight: 500;
+  border-radius: 24px;
+}
+.rf-section {
+  margin-bottom: 32px;
+}
+
+/* 头部 */
+.rf-head {
+  margin-bottom: 24px; /* mb-3 */
+}
+.rf-title {
+  font-size: 28px; /* text-sm */
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.rf-count {
+  margin-left: 16px;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+
+/* 列表 */
+.rf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* space-y-3 */
+}
+.rf-item {
+  padding: 20px 24px; /* px-3 py-2.5 */
+  border: 1px solid var(--line-soft);
+  border-radius: 24px;
+  background: var(--wash); /* ≈ bg-bg/30 */
+}
+.rf-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rf-time {
+  font-size: 20px; /* text-[10px] */
+  color: var(--ink-faint);
+}
+.rf-item-ops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rf-op {
+  padding: 4px 12px;
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.rf-op.del.armed {
+  background: rgba(244, 63, 94, 0.15);
+  border-radius: 12px;
+  font-weight: 500;
+  color: var(--danger);
+  font-size: 20px;
+}
+.rf-body {
+  display: block;
+  margin-top: 8px; /* mt-1 */
+  font-size: 24px; /* text-xs */
+  line-height: 1.6;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.rf-body.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4; /* line-clamp-4 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rf-chars {
+  display: block;
+  margin-top: 8px;
+  text-align: right;
+  font-size: 20px;
+  color: var(--ink-faint);
+}
+.rf-empty {
+  display: block;
+  padding: 32px 0;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.rf-center {
+  padding: 32px 0;
+  text-align: center;
+}
+.rf-err {
+  font-size: 24px;
+  color: var(--danger);
+}
+.rf-retry {
+  margin-top: 16px;
+  padding: 12px 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.rf-more {
+  margin-top: 24px;
+  width: 100%;
+  padding: 16px 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 24px;
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.rf-more.disabled {
+  opacity: 0.5;
+}
+
+/* ---- 编辑器底部抽屉（= ReflectionEditor：rounded-t-2xl p-5，textarea min-h-40vh） ---- */
+.rf-editor {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh; /* max-h-[88dvh] */
+}
+.rf-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px; /* mb-2 */
+}
+.rf-editor-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rf-editor-close {
+  padding: 8px 16px;
+  font-size: 28px;
+  color: var(--ink-dim);
+}
+.rf-editor-input {
+  flex: 1;
+  min-height: 40vh; /* min-h-[40vh] */
+  width: 100%;
+  box-sizing: border-box;
+  padding: 20px 24px; /* px-3 py-2.5 */
+  border: 1px solid var(--line-soft);
+  border-radius: 24px;
+  background: var(--input-bg); /* bg-surface/60 */
+  font-size: 28px; /* text-sm */
+  line-height: 1.6;
+  color: var(--ink);
+}
+.rf-editor-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px; /* mt-2 */
+}
+.rf-editor-count {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.rf-editor-count.warn {
+  color: var(--warn);
+}
+.rf-editor-count.over {
+  color: var(--danger);
+}
+.rf-editor-btns {
+  display: flex;
+  gap: 16px;
+}
+.rf-editor-cancel {
+  padding: 16px 32px;
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.rf-editor-save {
+  padding: 16px 40px;
+  font-size: 24px;
+  border-radius: 24px;
+}

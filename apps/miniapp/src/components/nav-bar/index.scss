@@ -1,0 +1,72 @@
+/**
+ * 顶部胶囊导航样式 = web nav.tsx 移动端：
+ * sticky 顶栏 rounded-b-2xl + bg-surface/80 + border(无顶边) + p-1 pl-4。
+ * statusBar 高度与胶囊避让由 tsx 内联 px 注入（设备物理像素，不走 ×2 换算）。
+ */
+.nav-root {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(15, 23, 42, 0.8); /* bg-surface/80 */
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 0 0 32px 32px; /* rounded-b-2xl */
+  box-shadow: 0 16px 48px rgba(2, 6, 23, 0.5); /* shadow-lg shadow-scrim/50 */
+  backdrop-filter: blur(32px); /* 模拟 backdrop-blur-xl；不支持时由实底兜底 */
+}
+.theme-light .nav-root {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* gap-2=8px×2 */
+  padding: 8px 0 8px 32px; /* p-1 pl-4（右侧由内联避让胶囊） */
+  height: 112px; /* 含 p-1 上下 8px：内容 48px×2 */
+  box-sizing: border-box;
+}
+
+.nav-scroll {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+.nav-track {
+  display: inline-flex;
+  gap: 8px; /* gap-1 */
+}
+.nav-pill {
+  display: inline-block;
+  flex-shrink: 0;
+  white-space: nowrap;
+  text-align: center;
+  min-width: 112px; /* min-w-[3.5rem] */
+  box-sizing: border-box;
+  padding: 16px 24px; /* px-3 py-2 */
+  border-radius: 999px;
+  font-size: 26px; /* text-[13px] */
+  color: var(--ink-mute);
+}
+.nav-pill-active {
+  background: linear-gradient(to right, #0ea5e9, #6366f1);
+  color: #fff;
+  font-weight: 500;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.nav-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 30px;
+  color: var(--ink-mute);
+}

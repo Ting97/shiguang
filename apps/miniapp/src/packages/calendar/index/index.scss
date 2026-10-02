@@ -1,107 +1,88 @@
-/* 日历复盘页私有样式（公共令牌/原子类见 app.scss） */
+/* 完整复盘页私有样式（公共令牌/原子类见 app.scss；换算 web 1px = 2 单位） */
 
-.date-bar {
+.cr-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶行：返回 + 标题（详情页可见返回，README 铁律 5） */
+.cr-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 24px; /* mb-3 */
 }
-
-.date-arrow {
-  font-size: 44px;
-  color: var(--accent);
-  padding: 0 24px;
+.cr-back {
+  font-size: 28px; /* text-sm */
+  color: var(--ink-mute);
+  padding: 8px 0;
 }
-
-.date-title {
+.cr-title {
   font-size: 32px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cr-top-pad {
+  width: 100px; /* 与返回钮等宽，让标题居中 */
 }
 
-.h2 {
-  font-size: 30px;
-  font-weight: 700;
-  margin-bottom: 16px;
+/* 周期种类 pill（= web 日/周/月/年四视图 pill 组） */
+.cr-kinds {
+  display: flex;
+  align-self: center;
+  padding: 4px; /* p-0.5 */
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--input-bg); /* bg-bg/50 近似（--input-bg 为 surface/60 同族） */
+  margin-bottom: 24px;
+}
+.cr-kind {
+  padding: 8px 28px; /* px-3.5 py-1 */
+  border-radius: 999px;
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
+}
+.cr-kind.active {
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  color: #fff;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.25);
 }
 
-.row {
+/* 周期导航（= calendar-panel 工具条 ‹› + 今天） */
+.cr-nav {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 32px; /* mb-4 */
 }
-
-.grow {
-  flex: 1;
-  overflow: hidden;
-}
-
-.row-title {
-  display: block;
+.cr-arrow {
+  padding: 12px 24px;
   font-size: 28px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--input-bg);
+  color: var(--ink);
 }
-
-.row-time {
+.cr-period {
+  min-width: 352px;
+  text-align: center;
+  font-size: 32px;
+  font-weight: 600;
+}
+.cr-today {
+  padding: 12px 24px;
   font-size: 24px;
   color: var(--ink-soft);
-  white-space: nowrap;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--input-bg);
 }
-
-/* 类别色点：块行左侧，颜色来自 activities.color */
-.block-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.review-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.review-head .h2 {
-  margin-bottom: 0;
-}
-
-.review-btn {
-  font-size: 24px;
-  color: var(--accent);
-  background: rgba(56, 189, 248, 0.12);
-  border-radius: 12px;
-  padding: 8px 20px;
-}
-
-.review-btn.disabled {
-  opacity: 0.4;
-}
-
-.review-summary {
+.cr-loading {
   display: block;
-  font-size: 28px;
-  line-height: 1.6;
-  margin: 16px 0;
-}
-
-.review-line {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  margin-bottom: 12px;
-  font-size: 26px;
-  line-height: 1.5;
-}
-
-.review-dot {
-  flex-shrink: 0;
-  font-size: 20px;
-}
-
-.review-dot.ok {
-  color: var(--success);
-}
-
-.review-dot.tip {
-  font-size: 26px;
+  padding: 64px 0;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink-mute);
 }

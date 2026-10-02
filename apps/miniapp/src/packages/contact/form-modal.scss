@@ -1,0 +1,161 @@
+/*
+ * 联系人表单弹层样式（= web contact-form.tsx；web 1px = 2 单位）。
+ * 底部弹层 glass 形态：rounded-t-2xl p-5，max-h-88dvh 可滚动。
+ */
+.cf-sheet {
+  background: var(--glass-bg-mobile); /* web .glass 面板 */
+  border: 1px solid var(--glass-border);
+  max-height: 88vh; /* max-h-[88dvh] */
+  overflow-y: auto;
+}
+.cf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px; /* mb-3 */
+}
+.cf-title {
+  font-size: 28px; /* text-sm */
+  font-weight: 600;
+  color: var(--ink);
+}
+.cf-close {
+  padding: 8px 16px;
+  color: var(--ink-dim);
+}
+.cf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* space-y-2.5 */
+}
+.cf-row {
+  display: flex;
+  gap: 16px; /* gap-2 */
+}
+.cf-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 24px; /* py-1.5 px-3 */
+  font-size: 28px; /* text-sm */
+  border-color: var(--line-strong); /* web border-line-strong */
+  background: var(--surface);
+}
+.cf-input.pick {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.cf-anniv,
+.cf-bday {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cf-bday.lunar .cf-input {
+  padding: 12px 12px;
+  font-size: 26px;
+}
+.cf-anniv-clear {
+  flex-shrink: 0;
+  padding: 8px;
+  color: var(--ink-dim);
+}
+/* 阳历/农历切换（= inline-flex rounded-lg border p-0.5） */
+.cf-cal {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 4px;
+}
+.cf-cal-btn {
+  padding: 8px 20px; /* px-2.5 py-1 */
+  border-radius: 12px;
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
+}
+.cf-cal-btn.on {
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  font-weight: 500;
+  color: #fff;
+}
+.cf-leap {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  font-size: 22px;
+  color: var(--ink-mute);
+}
+.cf-leap.on {
+  border-color: transparent;
+  background: rgba(14, 165, 233, 0.2);
+  color: var(--accent);
+}
+.cf-hint {
+  margin-top: 8px; /* mt-1 */
+  font-size: 22px; /* text-[11px] */
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.cf-imp-label {
+  display: block;
+  margin-bottom: 8px; /* mb-1 */
+  font-size: 22px;
+  color: var(--ink-dim);
+}
+.cf-imp-row {
+  display: flex;
+  gap: 8px; /* gap-1 */
+}
+.cf-imp-btn {
+  flex: 1;
+  padding: 12px 0; /* py-1.5 */
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface);
+  text-align: center;
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
+}
+.cf-imp-btn.on {
+  border-color: transparent;
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  font-weight: 500;
+  color: #fff;
+}
+.cf-notes {
+  width: 100%;
+  min-height: 96px;
+  box-sizing: border-box;
+  padding: 12px 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface);
+  font-size: 28px;
+  color: var(--ink);
+}
+.cf-err {
+  font-size: 24px; /* text-xs */
+  color: var(--danger);
+}
+.cf-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 8px; /* pt-1 */
+}
+.cf-cancel {
+  padding: 12px 32px; /* px-4 py-1.5 */
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.cf-save {
+  padding: 12px 40px; /* px-5 py-1.5 */
+  font-size: 24px;
+  border-radius: 16px; /* rounded-lg */
+}

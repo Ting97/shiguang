@@ -1,190 +1,204 @@
-import { useState } from "react";
-import { View, Text } from "@tarojs/components";
+/**
+ * 日程内 AI 复盘 · 完整页（分包 packages/calendar，页面路由在 app.config.ts 冻结保留）：
+ * 从日程页日视图「当日结构」卡的「查看完整复盘」navigateTo 进入，带 kind=day|week|month|year & period。
+ * 小结的取数/生成逻辑在共享组件 pages/schedule/review-card.tsx（= web review-card 那套），
+ * 本页补齐：周期种类切换 + ‹›翻周期 + 有无记录判定（day/week 查块、month/year 查聚合）。
+ */
+import { useEffect, useState } from "react";
+import { Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
-import { loadBlocksRange, loadTodos, bjToday } from "@/lib/api";
+import PageShell from "@/components/page-shell";
 import { getSessionToken } from "@/lib/session";
-import { loadCachedDayReview, generateDayReview, type DayReview } from "./api";
+import ReviewCard from "@/pages/schedule/review-card";
+import { loadBlocksRange, loadStatsRange } from "./api";
+import { addDays, bjMondayOf, bjToday, startOfYear, weekName, zhDate } from "@/pages/schedule/date";
 import "./index.scss";
 
-/** ISO → 北京时区日历日键 YYYY-MM-DD（对齐 web lib/bj-time bjDateKey：UTC getter + 8h，本地 getter 海外设备会错 8h） */
-function bjDateKey(iso: string): string {
-  return new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+type Kind = "day" | "week" | "month" | "year";
+
+const KINDS: [Kind, string][] = [
+  ["day", "日"],
+  ["week", "周"],
+  ["month", "月"],
+  ["year", "年"],
+];
+
+/** 各周期的回退锚点（今天/本周/本月/今年，= 北京口径） */
+function defaultAnchor(): string {
+  return bjToday();
 }
 
-/** ISO → 北京 HH:MM（同上口径） */
-function bjHM(iso: string): string {
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+/** 锚定日 → 各周期的 period 键（week 归一到周一：后端缓存键 = 周一） */
+function periodOf(kind: Kind, anchor: string): string {
+  if (kind === "day") return anchor;
+  if (kind === "week") return bjMondayOf(anchor);
+  if (kind === "month") return anchor.slice(0, 7);
+  return anchor.slice(0, 4);
 }
 
-/** YYYY-MM-DD ±n 天（用 Date.UTC 组装，避免 Date.parse 裸串被宿主时区解释成前一天） */
-function shiftDate(date: string, days: number): string {
-  const [y, m, d] = date.split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d) + days * 86_400_000);
-  return t.toISOString().slice(0, 10);
-}
-
-/** YYYY-MM-DD → 「M月D日 周X」 */
-function dayLabel(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  const week = ["日", "一", "二", "三", "四", "五", "六"][new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-  return `${m}月${d}日 周${week}`;
-}
-
-export default function CalendarPage() {
-  // 初始日期取路由 ?date=（schedule 页入口带今天）；非法/缺省回退北京今天
+export default function CalendarReviewPage() {
   const router = Taro.useRouter();
-  const paramDate = router.params.date;
-  const initial = paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate) ? paramDate : bjToday();
+  const paramKind = router.params.kind;
+  const paramPeriod = router.params.period;
+  const validKind: Kind = paramKind === "week" || paramKind === "month" || paramKind === "year" ? paramKind : "day";
+  // 入参 period 合法才采纳（day/week 收日期、month 收 YYYY-MM、year 收 YYYY），否则回北京今天
+  const [anchor, setAnchor] = useState(() => {
+    if (!paramPeriod) return defaultAnchor();
+    if (validKind === "year") return /^\d{4}$/.test(paramPeriod) ? `${paramPeriod}-06-15` : defaultAnchor();
+    if (validKind === "month") return /^\d{4}-\d{2}$/.test(paramPeriod) ? `${paramPeriod}-15` : defaultAnchor();
+    return /^\d{4}-\d{2}-\d{2}$/.test(paramPeriod) ? paramPeriod : defaultAnchor();
+  });
+  const [kind, setKind] = useState<Kind>(validKind);
+  const [hasRecords, setHasRecords] = useState(false);
+  const [recLoading, setRecLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [reviewErr, setReviewErr] = useState<string | null>(null);
 
-  const [date, setDate] = useState(initial);
-  const [blocks, setBlocks] = useState<any[]>([]);
-  const [todos, setTodos] = useState<any[]>([]);
-  const [review, setReview] = useState<DayReview | null>(null);
-  const [reviewFail, setReviewFail] = useState<string | null>(null); // 生成失败的徽标文案（403 额度/502 上游）
-  const [reviewBusy, setReviewBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [inited, setInited] = useState(false);
+  const period = periodOf(kind, anchor);
 
-  async function refresh(d: string) {
-    try {
-      // 日程块：SQL 已按 start_at 排序并做过「与查询日有交集」过滤（跨天块会在覆盖的每一天重复出现）
-      const b = await loadBlocksRange(d, d);
-      setBlocks(b.blocks ?? []);
-    } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
-    }
-    try {
-      // 当日待办：view=all 只回未完成顶层 todo（done 视图无 due 语义），前端按北京日过滤；
-      // due_at 是 timestamptz 用 bjDateKey 归一日；today_tag_date 是 date 列（JSON 可能带时区漂移）同样 +8h 归一
-      const t = await loadTodos();
-      const all = t.todos ?? [];
-      setTodos(
-        all.filter(
-          (x: any) =>
-            (x.due_at && bjDateKey(String(x.due_at)) === d) ||
-            (x.today_tag_date && bjDateKey(String(x.today_tag_date)) === d),
-        ),
-      );
-    } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
-    }
-    // 日小结：先只读缓存（不耗 AI 次数）；无缓存不清空旧文案，避免切天闪空
-    try {
-      const r = await loadCachedDayReview(d);
-      setReview(r.review ?? null);
-      setReviewFail(null);
-    } catch {
-      /* 缓存读取失败静默：复盘卡是增强内容，不阻塞主列表 */
-    }
-  }
+  // 换周期清上一周期的生成错误横幅
+  useEffect(() => {
+    setReviewErr(null);
+  }, [kind, period]);
 
-  if (!inited && getSessionToken()) {
-    setInited(true);
-    void refresh(date);
-  }
+  // 周期副标题（= web 卡头 ml-2 日期段）
+  let subLabel = "";
+  if (kind === "day") subLabel = `${zhDate(anchor)} ${weekName(anchor)}`;
+  else if (kind === "week") {
+    const mon = bjMondayOf(anchor);
+    subLabel = `${mon} – ${addDays(mon, 6)}`;
+  } else if (kind === "month") subLabel = `${Number(anchor.slice(0, 4))}年${Number(anchor.slice(5, 7))}月`;
+  else subLabel = `${anchor.slice(0, 4)} 年`;
+
+  // 有无记录：day/week 用原始块，month/year 用聚合（与 web 各 review 卡的 hasRecords 同口径）
+  useEffect(() => {
+    let alive = true;
+    setRecLoading(true);
+    (async () => {
+      try {
+        if (kind === "day") {
+          const j = await loadBlocksRange(period, period);
+          if (alive) setHasRecords((j.blocks ?? []).length > 0);
+        } else if (kind === "week") {
+          const mon = bjMondayOf(anchor);
+          const j = await loadBlocksRange(mon, addDays(mon, 6));
+          if (alive) setHasRecords((j.blocks ?? []).length > 0);
+        } else if (kind === "month") {
+          const [y, m] = period.split("-").map(Number);
+          const j = await loadStatsRange(`${period}-01`, `${period}-${new Date(y, m, 0).getDate()}`.slice(0, 10));
+          if (alive) setHasRecords((j.days ?? []).length > 0);
+        } else {
+          const j = await loadStatsRange(startOfYear(period), `${period.slice(0, 4)}-12-31`);
+          if (alive) setHasRecords((j.days ?? []).length > 0);
+        }
+      } catch {
+        if (alive) setHasRecords(false);
+      } finally {
+        if (alive) setRecLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [kind, period]); // eslint-disable-line react-hooks/exhaustive-deps
 
   usePullDownRefresh(() => {
-    refresh(date).finally(() => Taro.stopPullDownRefresh());
+    setRefreshTick((n) => n + 1);
+    Taro.stopPullDownRefresh();
   });
 
-  function switchDay(days: number) {
-    const next = shiftDate(date, days);
-    setDate(next);
-    setMsg(null);
-    void refresh(next);
+  function shift(dir: 1 | -1) {
+    if (kind === "day") setAnchor(addDays(anchor, dir));
+    else if (kind === "week") setAnchor(addDays(anchor, dir * 7));
+    else if (kind === "month") {
+      // 钉回 15 号再翻月（29~31 日翻月会滚到下下月）
+      const d = `${anchor.slice(0, 8)}15`;
+      const [y, m] = d.split("-").map(Number);
+      const nd = new Date(y, m - 1 + dir, 1);
+      setAnchor(`${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, "0")}-15`);
+    } else setAnchor(`${Number(anchor.slice(0, 4)) + dir}-06-15`);
   }
 
-  async function genReview() {
-    if (reviewBusy) return;
-    setReviewBusy(true);
-    setReviewFail(null);
-    try {
-      // 已有小结时 refresh:true 强制重生成（对齐 web day-review-card 语义）
-      const j = await generateDayReview(date, review != null);
-      setReview(j.review);
-    } catch (e: any) {
-      // 403=额度用尽 / 502=AI 失败，服务端文案已是中文，直接做徽标
-      setReviewFail(e?.message ?? "AI 解读失败");
-    } finally {
-      setReviewBusy(false);
-    }
+  function back() {
+    // 详情页必须有可见返回（README 铁律）；栈空（分享直达）兜底回日程页
+    Taro.navigateBack({ fail: () => Taro.redirectTo({ url: "/pages/schedule/index" }) });
+  }
+
+  // 未登录不拉数据（请求层 401 会跳登录）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="schedule">
+        <View className="cr-wrap">
+          <View className="empty-state">
+            <Text>未登录，请先登录</Text>
+          </View>
+        </View>
+      </PageShell>
+    );
   }
 
   return (
-    <View className="page-pad">
-      {msg && <View className="banner banner-err">{msg}</View>}
-
-      {/* 日期切换条：‹ › 切天，超过北京今天的前后无限制（可看历史也可排未来） */}
-      <View className="card date-bar">
-        <Text className="date-arrow" onClick={() => switchDay(-1)}>
-          ‹
-        </Text>
-        <Text className="date-title">{dayLabel(date)}</Text>
-        <Text className="date-arrow" onClick={() => switchDay(1)}>
-          ›
-        </Text>
-      </View>
-
-      {/* 日程块 */}
-      <View className="card">
-        <Text className="h2">日程（{blocks.length}）</Text>
-        {blocks.length === 0 && <Text className="dim">这一天没有日程块</Text>}
-        {blocks.map((b) => (
-          <View key={b.id} className="row">
-            <View className="block-dot" style={{ backgroundColor: b.color || "var(--accent)" }} />
-            <View className="grow">
-              <Text className="row-title">{b.title}</Text>
-              <Text className="dim">{b.activity_name || "未分类"}</Text>
-            </View>
-            <Text className="row-time">
-              {bjHM(String(b.start_at))}–{bjHM(String(b.end_at))}
-            </Text>
+    <PageShell active="schedule">
+      <View className="cr-wrap">
+        {/* 顶行：返回 + 标题（= web 详情页同位置的返回链） */}
+        <View className="cr-top">
+          <View className="cr-back" onTap={back}>
+            ‹ 返回
           </View>
-        ))}
-      </View>
-
-      {/* 当日待办（未完成） */}
-      <View className="card">
-        <Text className="h2">待办（{todos.length}）</Text>
-        {todos.length === 0 && <Text className="dim">这一天没有待办</Text>}
-        {todos.map((t) => (
-          <View key={t.id} className="row">
-            <Text className="grow">{t.is_important ? "⭐ " : "☐ "}{t.title}</Text>
-            {t.due_at && <Text className="dim">{bjHM(String(t.due_at))}</Text>}
-          </View>
-        ))}
-      </View>
-
-      {/* AI 日复盘卡 */}
-      <View className="card">
-        <View className="review-head">
-          <Text className="h2">✨ AI 日小结</Text>
-          <Text className={`review-btn ${reviewBusy ? "disabled" : ""}`} onClick={genReview}>
-            {reviewBusy ? "解读中…" : review ? "重新生成" : "生成小结"}
-          </Text>
+          <Text className="cr-title">AI 复盘</Text>
+          <View className="cr-top-pad" />
         </View>
-        {reviewFail && <View className="banner banner-err">{reviewFail}</View>}
-        {!review && !reviewFail && !reviewBusy && <Text className="dim">让 AI 通读当天的时间/待办/收支，写一份小结</Text>}
-        {reviewBusy && <Text className="dim">正在通读当天记录…</Text>}
-        {review && !reviewBusy && (
-          <View>
-            <Text className="review-summary">{review.summary}</Text>
-            {(review.highlights ?? []).map((h, i) => (
-              <View key={`h${i}`} className="review-line">
-                <Text className="review-dot ok">●</Text>
-                <Text className="grow">{h}</Text>
-              </View>
-            ))}
-            {(review.suggestions ?? []).map((s, i) => (
-              <View key={`s${i}`} className="review-line">
-                <Text className="review-dot tip">💡</Text>
-                <Text className="grow">{s}</Text>
-              </View>
-            ))}
+
+        {/* 周期种类 pill（= web 视图切换 pill 组样式） */}
+        <View className="cr-kinds">
+          {KINDS.map(([k, label]) => (
+            <View
+              key={k}
+              className={`cr-kind ${kind === k ? "active" : ""}`}
+              onTap={() => setKind(k)}
+            >
+              {label}
+            </View>
+          ))}
+        </View>
+
+        {/* 周期导航：‹ › + 回到当前周期 */}
+        <View className="cr-nav">
+          <View className="cr-arrow" onTap={() => shift(-1)}>
+            ‹
+          </View>
+          <Text className="cr-period">{subLabel}</Text>
+          <View className="cr-arrow" onTap={() => shift(1)}>
+            ›
+          </View>
+          <View
+            className="cr-today"
+            onTap={() => setAnchor(defaultAnchor())}
+          >
+            现在
+          </View>
+        </View>
+
+        {/* AI 小结卡（周期种类为 day 时也用大卡形态：完整页的独立复盘视图） */}
+        {reviewErr && (
+          <View className="msg-banner msg-banner-err">
+            <Text>{reviewErr}</Text>
           </View>
         )}
+        {recLoading ? (
+          <Text className="cr-loading">加载中…</Text>
+        ) : (
+          <ReviewCard
+            key={`rc-${kind}-${period}-${refreshTick}`}
+            kind={kind}
+            period={period}
+            subLabel={subLabel}
+            hasRecords={hasRecords}
+            notify={setReviewErr}
+            variant="card"
+          />
+        )}
       </View>
-    </View>
+    </PageShell>
   );
 }

@@ -1,70 +1,111 @@
-import { useState } from "react";
-import { View, Text, Button } from "@tarojs/components";
+/**
+ * 日程页（= web app/schedule/page.tsx）：hero + 副导航三 tab（📅日历 / todo / 🏷️分类）。
+ * tab 用页面内 state 切换；首次激活才挂载（避免首屏三份请求），挂过后保留状态不重挂——
+ * 用 display 控制显隐而非条件卸载（= web hidden class 的 keep-alive 语义）。
+ * ?tab=todo|categories、?date=YYYY-MM-DD 直达子页（= web URL 参数，动态流冲突提示跳转用）。
+ */
+import { useEffect, useState } from "react";
+import { Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
-import { loadTodos, toggleTodo, bjToday } from "@/lib/api";
+import PageShell from "@/components/page-shell";
 import { getSessionToken } from "@/lib/session";
+import CalendarPanel from "./calendar-panel";
+import TodoBoard from "./todo-board";
+import ActivityPanel from "./activity-panel";
 import "./index.scss";
 
+type Tab = "calendar" | "todo" | "categories";
+const TABS: [Tab, string][] = [
+  ["calendar", "📅 日历"],
+  ["todo", "todo"],
+  ["categories", "🏷️ 分类"],
+];
+
 export default function Schedule() {
-  const [todos, setTodos] = useState<any[]>([]);
-  const [inited, setInited] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const router = Taro.useRouter();
+  const [tab, setTab] = useState<Tab>(() => (router.params.tab === "todo" || router.params.tab === "categories" ? router.params.tab : "calendar"));
+  // 首次激活才挂载；挂过后 display 切换保状态（日历锚点/TODO 视图不被切换重置）
+  const [mounted, setMounted] = useState<Record<Tab, boolean>>({ calendar: true, todo: false, categories: false });
+  // ?date=YYYY-MM-DD 直达某天；非法值回落今天（由 CalendarPanel 一次性采纳）
+  const [initialDate, setInitialDate] = useState<string | undefined>(() =>
+    router.params.date && /^\d{4}-\d{2}-\d{2}$/.test(router.params.date) ? router.params.date : undefined,
+  );
+  // 下拉刷新广播：三个面板常驻挂载，各自按 tick 重拉当前视图
+  const [refreshTick, setRefreshTick] = useState(0);
 
-  async function refresh() {
-    try {
-      const j = await loadTodos();
-      setTodos(j.todos ?? []);
-    } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
-    }
-  }
-
-  if (!inited && getSessionToken()) {
-    setInited(true);
-    void refresh();
-  }
+  useEffect(() => {
+    setMounted((m) => (m[tab] ? m : { ...m, [tab]: true }));
+  }, [tab]);
 
   usePullDownRefresh(() => {
-    refresh().finally(() => Taro.stopPullDownRefresh());
+    setRefreshTick((n) => n + 1);
+    Taro.stopPullDownRefresh();
   });
 
-  async function toggle(t: any) {
-    try {
-      await toggleTodo(t.id, !t.done);
-      await refresh();
-    } catch (e: any) {
-      setMsg(e?.message ?? "操作失败");
-    }
-  }
-
-  const today = bjToday();
-  const open = todos.filter((t) => !t.done);
-
-  function go(url: string) {
-    Taro.navigateTo({ url });
+  // 未登录不拉数据（面板内部请求会 401 跳登录，这里直接不渲染避免首屏报错）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="schedule">
+        <View className="hero-wrap">
+          <View className="hero-line">
+            <Text className="hero text-gradient">
+              拾光
+              <Text className="hero-badge">日程</Text>
+            </Text>
+          </View>
+          <Text className="hero-sub">时间去了哪、todo 推进如何 —— 日历 · 看板 · 分类</Text>
+          <View className="empty-state">
+            <Text>未登录，请先登录</Text>
+          </View>
+        </View>
+      </PageShell>
+    );
   }
 
   return (
-    <View className="page-pad">
-      {msg && <View className="banner banner-err">{msg}</View>}
-
-      <View className="entries">
-        <Text className="entry" onClick={() => go(`/packages/calendar/index?date=${today}`)}>📅 日历复盘</Text>
-        <Text className="entry" onClick={() => go("/packages/space/list/index")}>🎯 目标空间</Text>
-        <Text className="entry" onClick={() => go("/packages/contact/list/index")}>🧑 人际</Text>
+    <PageShell active="schedule">
+      {/* 模块抬头：与动态/财务统一的居中 hero；子页切换居中悬挂在副标题下（= web SubNav） */}
+      <View className="hero-wrap">
+        <View className="hero-line">
+          <Text className="hero text-gradient">
+            拾光
+            <Text className="hero-badge">日程</Text>
+          </Text>
+        </View>
+        <Text className="hero-sub">时间去了哪、todo 推进如何 —— 日历 · 看板 · 分类</Text>
+        {/* = web SubNav：pill-nav 容器 + pill（激活渐变底）；todo tab 用 CSS 圆环替代 TodoLogo SVG */}
+        <View className="pill-nav sched-nav">
+          {TABS.map(([v, label]) => (
+            <View
+              key={v}
+              className={`pill sched-pill ${tab === v ? "pill-active" : ""}`}
+              hoverClass="press"
+              hoverStayTime={80}
+              onTap={() => setTab(v)}
+            >
+              {v === "todo" && <View className={`todo-logo ${tab === v ? "on" : ""}`} />}
+              <Text>{label}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
-      <View className="card">
-        <Text className="h2">待办（未完成 {open.length}）</Text>
-        {todos.length === 0 && <Text className="dim">暂无待办 —— 在动态里说一句即可创建</Text>}
-        {todos.slice(0, 30).map((t) => (
-          <View key={t.id} className="todo-row" onClick={() => toggle(t)}>
-            <Text className="todo-check">{t.done ? "☑" : "☐"}</Text>
-            <Text className={`todo-title grow ${t.done ? "done" : ""}`}>{t.title}</Text>
-            {t.due_at && <Text className="dim">{String(t.due_at).slice(5, 10).replace("-", "/")}</Text>}
-          </View>
-        ))}
-      </View>
-    </View>
+      {/* keep-alive 三面板：挂载过就保留，display 控制显隐 */}
+      {mounted.calendar && (
+        <View style={{ display: tab === "calendar" ? "" : "none" }}>
+          <CalendarPanel initialAnchor={initialDate} refreshTick={refreshTick} />
+        </View>
+      )}
+      {mounted.todo && (
+        <View style={{ display: tab === "todo" ? "" : "none" }}>
+          <TodoBoard refreshTick={refreshTick} />
+        </View>
+      )}
+      {mounted.categories && (
+        <View style={{ display: tab === "categories" ? "" : "none" }}>
+          <ActivityPanel refreshTick={refreshTick} />
+        </View>
+      )}
+    </PageShell>
   );
 }

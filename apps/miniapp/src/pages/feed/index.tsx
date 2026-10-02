@@ -1,280 +1,380 @@
 /**
- * 动态 feed 页（完整版）：发布区（文字 + 图片 + 语音）+ 动态流（MomentCard 完整识别产物）。
- * 发布顺序对齐 web publish-sheet 真实契约：先 POST /api/parse 文字落库秒回拿 entryId，
- * 再并行上传图片到 POST /api/entries/:id/images（该端点要求 entry 已存在，不能先传图）；
- * 单张失败自动重试一次，仍失败标红留缩略图供手动补传。
+ * 动态 feed 页（= web app/page.tsx 移动端形态，区块组件逐一同构）：
+ * hero 渐变标题「拾光」→ RemindersBanner 提醒横幅 → 消息/加载失败横幅 → ActionsToday 今日行动清单
+ * → FeedSection 动态流（计数 + 搜索 + 空间过滤 chips + 按天分组时间线 + MomentCard）
+ * → TodaySchedule 今日日程 → footer；右下悬浮发布钮（点按打字 / 长按说话）+ 发布底部抽屉。
+ *
+ * 发布链路保留旧版契约：POST /api/parse 文字落库秒回拿 entryId → 图片并行上传
+ * POST /api/entries/:id/images（publish-sheet 内置单张失败重试一次）；识别数秒完成，
+ * 发布后安排 6s/16s 两轮延迟刷新把 AI 产物带上墙（经 loadRef 总是以最新筛选参数取数）。
  */
-import { useRef, useState } from "react";
-import { View, Text, Textarea, Button, Image } from "@tarojs/components";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, Input, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh, useReachBottom, useShareAppMessage } from "@tarojs/taro";
-import { loadFeed, parseText, type FeedMoment } from "@/lib/api";
+import PageShell from "@/components/page-shell";
+import { parseText } from "@/lib/api";
+import { request } from "@/lib/request";
 import { getSessionToken } from "@/lib/session";
-import { uploadEntryImage } from "./api";
+import { loadActiveSpaces, loadFeedPage, loadToday, type Activity, type FeedMomentFull, type SpaceRow, type TodayBlock } from "./api";
+import { FilterChip } from "./chip";
 import MomentCard from "./moment-card";
-import VoiceButton from "./voice-button";
+import ActionsToday from "./actions-today";
+import TodaySchedule from "./today-schedule";
+import RemindersBanner from "./reminders-banner";
+import CaptureButton from "./voice-button";
+import PublishSheet from "./publish-sheet";
+import { pickReminders, zhRecordTime, type ReminderContact, type ReminderItem, type ReminderTodo } from "./kit";
 import "./index.scss";
+import "./moment-card.scss";
+import "./voice-button.scss";
 
-const PAGE_SIZE = 20;
-const MAX_PICS = 9; // 服务端硬上限：单条动态最多 9 张（apps/api addEntryImages）
+/** 动态流每页条数，「加载更多」按页扩 limit（= web FEED_PAGE_SIZE） */
+const PAGE_SIZE = 10;
 
-/** 已选图片：path 是本地临时文件；status 驱动缩略图状态（ready 可删 / uploading 遮罩 / error 可重试） */
-interface Pic {
-  path: string;
-  status: "ready" | "uploading" | "error";
-}
+type Msg = { ok: boolean; text: string } | null;
 
 export default function Feed() {
-  const [moments, setMoments] = useState<FeedMoment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [pics, setPics] = useState<Pic[]>([]);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // 最近一次发布成功的 entryId：图片失败后的「↻ 补传」要靠它（文字已发布、entry 已存在）
-  const lastEntryIdRef = useRef<string | null>(null);
+  /* ---------- 页面消息横幅 ---------- */
+  const [msg, setMsg] = useState<Msg>(null);
+  // 成功提示短展示；失败/警示保留更久（= web page.tsx msg 自动消失）
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
+    return () => clearTimeout(t);
+  }, [msg]);
 
-  async function refresh() {
-    setLoading(true);
-    try {
-      const j = await loadFeed(PAGE_SIZE, 0);
-      setMoments(j.moments ?? []);
-      setDone((j.moments ?? []).length < PAGE_SIZE);
-    } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "加载失败" });
-    } finally {
-      setLoading(false);
-    }
-  }
+  /* ---------- 首页取数（= web use-home-data.ts 的页面局部移植） ---------- */
+  const [moments, setMoments] = useState<FeedMomentFull[]>([]);
+  const [feedTotal, setFeedTotal] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [query, setQuery] = useState(""); // 生效中的搜索词（输入防抖后）
+  const [loadingMore, setLoadingMore] = useState(false);
+  // 「加载更多」页数不参与渲染，走 ref：feedLimit 若为 state 会在 loadMore 时再触发一次 effect 造成重复请求
+  const feedLimitRef = useRef(PAGE_SIZE);
+  // 取数竞态守卫：仅「最新一次 load」的响应可落地（连续快切空间/搜索场景旧响应会覆盖新视图）
+  const seqRef = useRef(0);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  // 空间切换条：all=全部 / none=未归属 / <id>=某空间
+  const [spaceFilter, setSpaceFilter] = useState("all");
+  const [spaces, setSpaces] = useState<SpaceRow[]>([]);
+  const [blocks, setBlocks] = useState<TodayBlock[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [todayKcal, setTodayKcal] = useState(0);
+  const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
 
-  // 首次进入加载（token 就绪后）
-  const [inited, setInited] = useState(false);
-  if (!inited && getSessionToken()) {
-    setInited(true);
-    void refresh();
-  }
+  const load = useCallback(
+    async (opts?: { limit?: number; query?: string; spaceId?: string }): Promise<boolean> => {
+      // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
+      const seq = ++seqRef.current;
+      const lim = opts?.limit ?? feedLimitRef.current;
+      const q = opts?.query !== undefined ? opts.query : query;
+      const sp = opts?.spaceId ?? spaceFilter;
+      setLoadErr(null);
+      try {
+        const [today, feed, reminders] = await Promise.all([
+          loadToday(),
+          loadFeedPage(lim, q, sp),
+          // 提醒横幅：接口失败不打扰主流程（= web api("/api/reminders").catch(() => null)）
+          loadRemindersSafe(),
+        ]);
+        if (seq !== seqRef.current) return false;
+        setBlocks(today.blocks ?? []);
+        setActivities(today.activities ?? []);
+        setTodayKcal(today.todayKcal ?? 0);
+        setMoments(feed.moments ?? []);
+        setFeedTotal(feed.total ?? 0);
+        setReminderItems(reminders ? pickReminders(reminders.contacts ?? [], reminders.todos ?? []) : []);
+        return true;
+      } catch (e: any) {
+        if (seq !== seqRef.current) return false;
+        // 失败不停在静默空态：置 loadErr（页面展示错误 + 重试按钮）
+        setLoadErr(e?.message ?? String(e));
+        return false;
+      } finally {
+        if (seq === seqRef.current) setLoadingMore(false);
+      }
+    },
+    [query, spaceFilter],
+  );
 
-  // 分享卡片（docs/15 小程序独有增量）：带来源标记，好友点开落登录页
-  useShareAppMessage(() => ({ title: "拾光 —— 钱 · 时间 · 人，一句话记录生活", path: "/pages/login/index" }));
+  const loadVoid = useCallback(async () => {
+    await load();
+  }, [load]);
 
+  // 最新 load 的 ref：发布后的延迟刷新定时器只负责触发，总是以最新筛选/搜索参数取数
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
+
+  // 搜索词输入防抖：停顿 400ms 才真正检索（= web；query 变化由上面的取数 effect 接力）
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）
+  useEffect(() => {
+    loadActiveSpaces()
+      .then((j) => setSpaces((j.spaces ?? []).filter((s) => s.status === "active")))
+      .catch(() => setSpaces([]));
+  }, []);
+
+  // 首次加载 + query/spaceFilter 变化 → 自动拉取一次（= web useEffect(() => { load() }, [load])）；
+  // 未登录（无 token）时跳过，由 request 层 401 统一跳登录
+  useEffect(() => {
+    if (!getSessionToken()) return;
+    feedLimitRef.current = PAGE_SIZE;
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, spaceFilter]);
+
+  /** 「加载更多」：显式再拉一页；try/finally 保证失败时加载态必复位 */
   async function loadMore() {
-    if (loading || done || !getSessionToken()) return;
-    setLoading(true);
+    if (loadingMore) return;
+    setLoadingMore(true);
+    feedLimitRef.current += PAGE_SIZE;
     try {
-      const j = await loadFeed(PAGE_SIZE, moments.length);
-      const more = j.moments ?? [];
-      setMoments((m) => [...m, ...more]);
-      setDone(more.length < PAGE_SIZE);
-    } catch {
-      /* 加载更多失败静默，下次触底重试 */
+      const ok = await load();
+      if (!ok) setMsg({ ok: false, text: "加载更多失败，请稍后重试" });
     } finally {
-      setLoading(false);
+      setLoadingMore(false);
     }
   }
-  useReachBottom(loadMore);
-
-  usePullDownRefresh(() => {
-    refresh().finally(() => Taro.stopPullDownRefresh());
+  useReachBottom(() => {
+    if (feedTotal > moments.length) void loadMore();
   });
 
-  /* ---------- 发布：图片 ---------- */
+  usePullDownRefresh(() => {
+    feedLimitRef.current = PAGE_SIZE;
+    load().finally(() => Taro.stopPullDownRefresh());
+  });
 
-  async function addPics() {
-    if (sending) return;
-    const left = MAX_PICS - pics.length;
-    if (left <= 0) {
-      setMsg({ ok: false, text: "最多 9 张" });
-      return;
-    }
+  /** 发布时清空搜索再刷新：只置状态，由 effect 自动拉取（= web resetSearch，避免同参数连发两批） */
+  async function resetSearch() {
+    setSearchInput("");
+    setQuery("");
+  }
+
+  function changeSpace(id: string) {
+    setSpaceFilter(id);
+  }
+
+  // 卸载时清掉发布后的延迟刷新定时器（避免对已卸载页面 setState）
+  const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      refreshTimers.current.forEach(clearTimeout);
+      refreshTimers.current = [];
+    },
+    [],
+  );
+
+  /* ---------- 发布（= web page.tsx publish：文字秒存上墙，识别后台进行） ---------- */
+  const [busy, setBusy] = useState(false);
+  // 移动端发布：sheetOpen 控制底部输入面板；voiceDraft 是长按语音转写出的待预览文字
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState("");
+
+  async function publish(raw: string): Promise<string | null> {
+    const t = raw.trim();
+    if (!t || busy) return null;
+    setBusy(true);
     try {
-      // count 按「9 - 已选数」收口：服务端按单条累计张数校验，超了直接 400
-      const res = await Taro.chooseMedia({
-        count: left,
-        mediaType: ["image"],
-        sizeType: ["compressed"], // 微信侧先压一轮，缓解服务端单张 5MB 校验
-        sourceType: ["album", "camera"],
-      });
-      const all = res.tempFiles ?? [];
-      // 超 5MB 的图服务端必拒（单张上限），本地先拦掉省一次必败上传
-      const sized = all.filter((f) => (f.size ?? 0) <= 5 * 1024 * 1024);
-      const paths = sized.map((f) => f.tempFilePath).slice(0, left);
-      if (all.length > sized.length) setMsg({ ok: false, text: "单张图片不能超过 5MB，已忽略超大图片" });
-      if (paths.length) setPics((prev) => [...prev, ...paths.map((p) => ({ path: p, status: "ready" as const }))]);
+      const j = await parseText(t);
+      // 防御非约定响应（结构变更）：给出可读原因，而不是 TypeError
+      if (!j?.entry) throw new Error("服务异常，请稍后重试");
+      setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
+      // 新动态要立即可见：搜索过滤中则清空搜索再刷新
+      if (query || searchInput) await resetSearch();
+      else await load();
+      // 识别通常数秒完成：两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数）
+      refreshTimers.current.forEach(clearTimeout);
+      refreshTimers.current = [
+        setTimeout(() => void loadRef.current(), 6000),
+        setTimeout(() => void loadRef.current(), 16000),
+      ];
+      return j.entry.id as string;
     } catch (e: any) {
-      // 用户在选图面板点取消也走 reject：静默，只有真失败才报
-      if (!String(e?.errMsg ?? "").includes("cancel")) setMsg({ ok: false, text: e?.errMsg ?? "选图失败" });
-    }
-  }
-
-  function removePic(i: number) {
-    if (sending) return; // 上传中删图会和上传结果回写打架
-    setPics((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  /** 并行上传 + 失败自动重试一次；返回最终仍失败的本地路径 */
-  async function uploadWithRetry(entryId: string, paths: string[]): Promise<string[]> {
-    const attempt = (list: string[]) => Promise.allSettled(list.map((p) => uploadEntryImage(entryId, p)));
-    const results = await attempt(paths);
-    const failedOnce = paths.filter((_, i) => results[i].status === "rejected");
-    if (!failedOnce.length) return [];
-    // 瞬时网络抖动居多：自动重试一次，仍失败才留给用户手动重试
-    const retry = await attempt(failedOnce);
-    return failedOnce.filter((_, i) => retry[i].status === "rejected");
-  }
-
-  /** 把失败图回写成 error 态（保留缩略图供 ↻ 补传） */
-  function keepFailed(all: Pic[], failed: string[]) {
-    const s = new Set(failed);
-    setPics(all.filter((p) => s.has(p.path)).map((p) => ({ path: p.path, status: "error" as const })));
-  }
-
-  /* ---------- 发布 ---------- */
-
-  /** 语音转写结果填入发布框：追加不覆盖（保住手输内容）、不自动发布（转写可能有误，用户确认后手动发） */
-  function fillVoiceText(text: string) {
-    setDraft((prev) => (prev.trim() ? `${prev.trimEnd()} ${text}` : text));
-  }
-
-  async function send() {
-    const text = draft.trim();
-    if (!text || sending) return; // 服务端 text 必填：纯图片发不了（对齐 web，发布键同样依赖非空文字）
-    setSending(true);
-    setMsg(null);
-    try {
-      // 顺序契约：文字先落库秒回（图片端点要求 entry 已存在），再传图
-      const j = await parseText(text);
-      const entryId = j.entry.id;
-      lastEntryIdRef.current = entryId;
-      setDraft("");
-
-      const toSend = pics.filter((p) => p.status !== "error");
-      if (toSend.length) {
-        setPics((prev) => prev.map((p) => ({ ...p, status: "uploading" as const })));
-        const failed = await uploadWithRetry(entryId, toSend.map((p) => p.path));
-        if (failed.length) {
-          keepFailed(toSend, failed);
-          setMsg({ ok: false, text: `动态已发布，但 ${failed.length} 张图片上传失败，点缩略图「↻」补传` });
-        } else {
-          setPics([]);
-          setMsg({ ok: true, text: "✅ 已发布，AI 识别中…" });
-        }
-      } else {
-        setMsg({ ok: true, text: "✅ 已发布，AI 识别中…" });
-      }
-      // 对齐 web/Expo：识别落库有延迟，6s 先刷一次、16s 补一次
-      setTimeout(() => void refresh(), 6000);
-      setTimeout(() => void refresh(), 16000);
-    } catch (e: any) {
-      // 文字没发出去：draft 保留可直接重试（已选图片态不动）
-      setMsg({ ok: false, text: e?.message ?? "发布失败" });
+      setMsg({ ok: false, text: `记录失败：${e?.message ?? e}` });
+      return null;
     } finally {
-      setSending(false);
+      setBusy(false);
     }
   }
 
-  /** 图片发布失败后的手动补传（沿用 lastEntryIdRef，只传 error 态的图） */
-  async function retryPics() {
-    const entryId = lastEntryIdRef.current;
-    const errs = pics.filter((p) => p.status === "error");
-    if (!entryId || !errs.length || sending) return;
-    setSending(true);
-    try {
-      setPics((prev) => prev.map((p) => ({ ...p, status: "uploading" as const })));
-      const failed = await uploadWithRetry(entryId, errs.map((p) => p.path));
-      if (failed.length) {
-        keepFailed(errs, failed);
-        setMsg({ ok: false, text: `仍有 ${failed.length} 张上传失败，请稍后再试` });
-      } else {
-        setPics([]);
-        setMsg({ ok: true, text: "✅ 图片已补传完成" });
-      }
-    } catch (e: any) {
-      keepFailed(errs, errs.map((p) => p.path));
-      setMsg({ ok: false, text: e?.message ?? "重试失败" });
-    } finally {
-      setSending(false);
+  // 分享卡片（小程序独有增量）：带来源标记，好友点开落登录页
+  useShareAppMessage(() => ({ title: "拾光 —— 钱 · 时间 · 人，一句话记录生活", path: "/pages/login/index" }));
+
+  /* ---------- 动态流按天分组（= web MomentFeed groups useMemo） ---------- */
+  const groups = (() => {
+    const map = new Map<string, FeedMomentFull[]>();
+    for (const m of moments) {
+      const key = zhRecordTime(m.created_at).day;
+      const list = map.get(key);
+      if (list) list.push(m);
+      else map.set(key, [m]);
     }
-  }
+    return [...map.entries()];
+  })();
+
+  const moreCount = Math.max(0, feedTotal - moments.length);
 
   return (
-    <View className="page-pad">
-      {msg && <View className={`banner ${msg.ok ? "banner-ok" : "banner-err"}`}>{msg.text}</View>}
-
-      {/* 发布区：文字 + 图片 + 语音（转写只填框，不自动发布） */}
-      <View className="card">
-        <Textarea
-          className="composer"
-          value={draft}
-          maxlength={2000}
-          placeholder="记录此刻：花钱、待办、日程、心情…（如「打车花了30」）"
-          placeholderClass="dim"
-          onInput={(e) => setDraft(e.detail.value)}
-        />
-
-        {/* 已选图片缩略条：可删 / 上传中遮罩 / 失败 ↻ 补传 */}
-        {pics.length > 0 && (
-          <View className="pic-strip">
-            {pics.map((p, i) => (
-              <View key={`${p.path}-${i}`} className={`pic-cell ${p.status === "error" ? "error" : ""}`}>
-                <Image className="pic-img" src={p.path} mode="aspectFill" />
-                {p.status === "ready" && (
-                  <View className="pic-del" onClick={() => removePic(i)}>
-                    <Text>✕</Text>
-                  </View>
-                )}
-                {p.status === "uploading" && (
-                  <View className="pic-mask">
-                    <Text>上传中…</Text>
-                  </View>
-                )}
-                {p.status === "error" && (
-                  <View className="pic-mask" onClick={retryPics}>
-                    <Text>↻ 重试</Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View className="tools-row">
-          <View className={`tool-btn ${pics.length >= MAX_PICS ? "disabled" : ""}`} onClick={addPics}>
-            <Text>🖼 图片{pics.length > 0 ? ` ${pics.length}/${MAX_PICS}` : ""}</Text>
-          </View>
-          <VoiceButton onText={fillVoiceText} onError={(t) => setMsg({ ok: false, text: t })} disabled={sending} />
-        </View>
-
-        <View className="composer-row">
-          <Text className="dim">{draft.length}/2000</Text>
-          <Button
-            className={`btn-primary send-btn ${!draft.trim() || sending ? "disabled" : ""}`}
-            disabled={!draft.trim() || sending}
-            onClick={send}
-          >
-            {sending ? "发布中…" : "发布"}
-          </Button>
-        </View>
+    <PageShell active="feed">
+      {/* = web header：hero 渐变标题 + 副标题（渐变类挂在 Text 上：weapp 里 background-clip:text 只作用于自身文本盒） */}
+      <View className="feed-head">
+        <Text className="hero text-gradient feed-hero">
+          {"拾光"}
+          <Text className="feed-hero-sub">动态</Text>
+        </Text>
+        <Text className="feed-subtitle">随口一句 → AI 自动识别：此刻心情 · 过往日程 · 未来 todo</Text>
       </View>
 
-      {/* 动态流 */}
-      {moments.length === 0 && !loading && (
-        <View className="empty">
-          <Text className="dim">{getSessionToken() ? "还没有动态 —— 上面记一条试试" : "未登录，请先登录"}</Text>
+      {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
+      <RemindersBanner items={reminderItems} notify={setMsg} load={loadVoid} />
+
+      {/* 消息横幅（发布/加入今日/语音提示等，= web msg-banner） */}
+      {msg ? <View className={`msg-banner feed-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View> : null}
+
+      {/* 取数失败态：给出重试入口，避免失败后整页静默空态（= web loadErr 卡） */}
+      {loadErr ? (
+        <View className="glass glass-p4 feed-retry">
+          <Text className="feed-retry-text">加载失败：{loadErr}</Text>
+          <View className="btn-primary feed-retry-btn" hoverClass="press" hoverStayTime={80} onTap={() => void load()}>
+            <Text className="feed-retry-btn-text">重试</Text>
+          </View>
         </View>
-      )}
-      {moments.map((m) => (
-        <MomentCard key={m.id} m={m} onDeleted={(id) => setMoments((list) => list.filter((x) => x.id !== id))} />
-      ))}
-      {loading && (
-        <View className="empty">
-          <Text className="dim">加载中…</Text>
+      ) : null}
+
+      {/* 今日行动清单：只展示行动级条目，完整管理在「日程 · todo」 */}
+      <ActionsToday notify={setMsg} />
+
+      {/* = web FeedSection：计数 + 搜索框 + 空间过滤 chips + MomentFeed */}
+      <View className="fs">
+        <View className="fs-head">
+          <Text className="fs-title">
+            🌱 我的动态{" "}
+            <Text className="fs-count">
+              {query
+                ? `找到 ${feedTotal} 条`
+                : feedTotal > 0
+                  ? `共 ${feedTotal} 条${feedTotal > moments.length ? ` · 已显示 ${moments.length} 条` : " · 点内容可修正识别"}`
+                  : ""}
+            </Text>
+          </Text>
+          <View className="fs-search">
+            <Input
+              className="fs-search-input"
+              value={searchInput}
+              placeholder="🔍 搜索：原文/日程/todo/金额/联系人"
+              placeholderClass="input-placeholder"
+              confirmType="search"
+              onInput={(e) => setSearchInput(e.detail.value)}
+            />
+            {searchInput ? (
+              <Text className="fs-search-clear" onClick={() => setSearchInput("")}>
+                ✕
+              </Text>
+            ) : null}
+          </View>
         </View>
-      )}
-      {done && moments.length > 0 && (
-        <View className="empty">
-          <Text className="dim">—— 到底了 ——</Text>
-        </View>
-      )}
-    </View>
+
+        {/* 空间切换条：全部 / 未归属 / 各 active 空间（有归属数据才显示），横滑 */}
+        {spaces.length > 0 || moments.some((m) => m.space) ? (
+          <ScrollView className="fs-chips" scrollX enhanced showScrollbar={false}>
+            <View className="fs-chips-track">
+              <FilterChip label="全部" active={spaceFilter === "all"} onTap={() => changeSpace("all")} />
+              <FilterChip label="未归属" active={spaceFilter === "none"} onTap={() => changeSpace("none")} />
+              {spaces.map((s) => (
+                <FilterChip key={s.id} label={s.name} icon={s.icon} active={spaceFilter === s.id} onTap={() => changeSpace(s.id)} />
+              ))}
+            </View>
+          </ScrollView>
+        ) : null}
+
+        {/* = web MomentFeed：按天分组（今天/昨天/历史），组内时间线节点 + 记录时刻贴合卡片 */}
+        {moments.length === 0 ? (
+          <View className="empty-state">
+            <Text>
+              {query ? `没有找到包含「${query}」的动态 —— 换个关键词，或点 ✕ 清除搜索` : "还没有动态 —— 随口说一句今天的事、心情或明天的计划试试"}
+            </Text>
+          </View>
+        ) : (
+          <View className="mf">
+            {groups.map(([day, items]) => (
+              <View key={day} className="mf-day">
+                {/* 吸顶日期头（= web sticky top-14 渐变底；个别基础库不支持 sticky 时静默退化static） */}
+                <Text className="mf-day-head">— {day} —</Text>
+                <View className="mf-items">
+                  {items.map((m, idx) => {
+                    const t = zhRecordTime(m.created_at);
+                    const isLast = idx === items.length - 1;
+                    return (
+                      <View key={m.id} className="mf-item">
+                        {/* 连接线：从本节点延伸到下一个节点（末条不画，避免悬空） */}
+                        {!isLast ? <View className="mf-line" /> : null}
+                        <View className="mf-dot" />
+                        {/* 记录时刻：移动端窄屏置于卡片上方（= web sm:hidden 时刻行） */}
+                        <Text className="mf-clock">{t.clock}</Text>
+                        <View className="mf-card">
+                          <MomentCard m={m} activities={activities} onRefresh={loadVoid} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+
+            {/* 分页：触底自动加载（useReachBottom）+ 手动按钮兜底（= web 加载更多按钮） */}
+            {moreCount > 0 ? (
+              <View className={`mf-more${loadingMore ? " disabled" : ""}`} hoverClass="press" hoverStayTime={80} onClick={() => void loadMore()}>
+                <Text>{loadingMore ? "加载中…" : `加载更多（还有 ${moreCount} 条）`}</Text>
+              </View>
+            ) : (
+              moments.length >= PAGE_SIZE ? <Text className="mf-end">— 已经到底啦 —</Text> : null
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* 今日日程：时间轴 / 列表 双视图 */}
+      <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} notify={setMsg} load={loadVoid} />
+
+      {/* = web footer */}
+      <Text className="feed-footer">拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang</Text>
+
+      {/* 移动端发布入口：底部悬浮圆圈（点按打字 / 长按说话，转写后回填面板预览） */}
+      <CaptureButton
+        onTap={() => {
+          setVoiceDraft("");
+          setSheetOpen(true);
+        }}
+        onVoiceText={(t) => {
+          setVoiceDraft(t);
+          setSheetOpen(true);
+        }}
+        onError={(m) => setMsg({ ok: false, text: m })}
+        onHint={(m) => setMsg({ ok: true, text: m })}
+      />
+      <PublishSheet
+        open={sheetOpen}
+        initialText={voiceDraft}
+        busy={busy}
+        onPublish={publish}
+        onClose={() => setSheetOpen(false)}
+        notify={setMsg}
+      />
+    </PageShell>
   );
+}
+
+/** GET /api/reminders 的安全封装：失败返回 null（横幅静默消失，不打扰主流程） */
+async function loadRemindersSafe(): Promise<{ contacts: ReminderContact[]; todos: ReminderTodo[] } | null> {
+  try {
+    return await request<{ contacts: ReminderContact[]; todos: ReminderTodo[] }>("/api/reminders");
+  } catch {
+    return null;
+  }
 }

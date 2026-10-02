@@ -1,237 +1,734 @@
 /**
- * 动态卡（完整版）：原文 + 心情 + 图片 + AI 识别产物（收支/待办/日程/人情）+ 待确认区 + 长按删除。
+ * 单条动态卡（= web components/moment-feed/moment-card.tsx 及其子组件的页面局部实现）：
+ * 结构层级逐一对应 web——
+ *   article.glass(头像位 + 右列) → CardHeader(意图 chip + 空间徽标 + 语音/离线 chip + 两步删除)
+ *   → RawTextSection(原文，点按弹「识别与补充」菜单；长文折叠) → ImageGrid(九宫格，点击全屏预览)
+ *   → 识别中/超时降级 → 日程冲突降级条 → MoodBlock(可改可删) → RecognitionSection(日程/todo/金额/人物/饮食，
+ *   行内两步删除 + 行内编辑) → PendingConfirms(低置信待确认) → 交互提示 → 卡内操作反馈。
  *
- * 字段契约核对自 apps/api/src/server/timeline/service.ts 的 listFeed SQL（feed 接口真实返回，camelCase）：
- * - transactions[].amountCents —— 不是 amount_cents（旧版卡片按 amount_cents 取值恒为 NaN）
- * - todos[].status === "done" 表示完成（无 done 布尔字段）
- * - blocks[].startAt/endAt/activityName
- * - 人情（interactions）聚合成 people[]：{interactionId, name, summary}——「类型」信息在 summary
- * - images[] 是 {storageKey} 对象数组，URL 走 fileUrl()
- * - recognitions：{ [domain]: {status, confidence, ...} }——待确认数据确实随 feed 下发，
- *   status === "pending" 即待确认域（对齐 web pending-confirms.tsx），无需再发请求拉取
+ * 字段契约核对自 apps/api listFeed SQL：transactions[].amountCents(camelCase)、todos[].status==="done"、
+ * people[] 聚合自 interactions、images[] 是 {storageKey}、recognitions[domain].status==="pending" 即待确认。
  */
-import { useState } from "react";
-import { View, Text, Image } from "@tarojs/components";
+import { useEffect, useRef, useState } from "react";
+import { View, Text, Image, Textarea, Input, Picker } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { deleteEntry, previewImage, yuan, type FeedMoment } from "@/lib/api";
+import { deleteEntry } from "@/lib/api";
 import {
   confirmEntry,
+  deleteBlock,
+  deleteDiet,
+  deleteInteraction,
+  deleteTodo,
+  deleteTransaction,
+  dismissConflict,
   fileUrl,
+  patchBlock,
+  patchFeedEntry,
+  patchTodo,
+  patchTransaction,
+  recognizeEntryDomain,
+  manualAddEntry,
+  type Activity,
   type FeedBlock,
-  type FeedImageObj,
-  type FeedPerson,
+  type FeedMomentFull,
   type FeedTodo,
   type FeedTx,
-  type RecognitionInfo,
 } from "./api";
+import { TagChip } from "./chip";
+import EntryMenu from "./entry-menu";
+import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import "./moment-card.scss";
 
-/* ---- 北京时间工具（对齐 web lib/bj-time / moment-feed kit：UTC getter + 8h，海外设备日界不错 8 小时） ---- */
-const pad = (n: number) => String(n).padStart(2, "0");
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
+type CardMsg = { ok: boolean; text: string } | null;
 
-function bjClock(iso: string): string {
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
-  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+/** 行内小操作按钮（= web row-action.tsx）：删除两步确认（armed 时按钮变「确认删除?」，3 秒超时复位） */
+function RowAction(props: { onEdit?: () => void; onDelete?: () => void; armed: boolean }) {
+  const { onEdit, onDelete, armed } = props;
+  return (
+    <View className="row-actions">
+      {onEdit ? (
+        <Text className="row-action-btn row-action-edit" onClick={onEdit}>
+          ✏️
+        </Text>
+      ) : null}
+      {onDelete ? (
+        <Text className={`row-action-btn${armed ? " row-action-armed" : ""}`} onClick={onDelete}>
+          {armed ? "确认删除?" : "🗑"}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
-/** 跨天时间块的日期前缀：非今天 →「9月17日 」（凌晨记录的「昨天下午」不被误读为今天，web dayPrefix 同口径） */
-function dayPrefix(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "";
-  const d = new Date(t + 8 * 3600_000);
-  return bjDayIdx(Date.now()) - bjDayIdx(t) === 0 ? "" : `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 `;
-}
-
-/** 待办时间标签：起止同日 →「9:10–9:30」区间；否则退回单时刻（web todoTimeLabel 简版） */
-function todoTimeLabel(startAt?: string | null, dueAt?: string | null): string | null {
-  if (!dueAt) return null;
-  if (startAt) {
-    const a = Date.parse(startAt);
-    const b = Date.parse(dueAt);
-    if (Number.isFinite(a) && Number.isFinite(b) && a !== b && bjDayIdx(a) === bjDayIdx(b)) {
-      return `${bjClock(startAt)}–${bjClock(dueAt)}`;
-    }
-  }
-  return `${dayPrefix(dueAt)}${bjClock(dueAt)}`;
-}
-
-/** 识别域中文名（对齐 web moment-feed/kit.ts DOMAIN_LABELS） */
-const DOMAIN_LABELS: Record<string, string> = {
-  schedule: "日程",
-  todo: "todo",
-  finance: "收支",
-  mood: "心情",
-  diet: "饮食",
-  people: "关系",
-};
-
-export default function MomentCard({ m, onDeleted }: { m: FeedMoment; onDeleted: (id: string) => void }) {
-  // 已确认/忽略的 pending 域：本地摘除即可（确认只改登记簿与 is_draft，不影响卡片其余展示，不必整页刷新）
-  const [settled, setSettled] = useState<string[]>([]);
-  const [busyDomain, setBusyDomain] = useState<string | null>(null);
+export default function MomentCard({
+  m,
+  activities,
+  onRefresh,
+}: {
+  m: FeedMomentFull;
+  activities: Activity[];
+  /** 卡内任何提交成功后整页刷新（= web onRefresh） */
+  onRefresh: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  // 原文行内编辑：null=非编辑态；字符串=textarea 当前内容（= web editRaw）
+  const [editRaw, setEditRaw] = useState<string | null>(null);
+  // 「识别与补充」底部菜单（= web EntryMenu 移动端形态）
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 长文折叠（= web textExpanded，>150 字默认收起 6 行）
+  const [textExpanded, setTextExpanded] = useState(false);
+  // 心情选择器开关（= web moodPicker）
+  const [moodPicker, setMoodPicker] = useState(false);
+  const [cardMsg, setCardMsg] = useState<CardMsg>(null);
   const [deleting, setDeleting] = useState(false);
-  const [cardMsg, setCardMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const imgs = (m.images ?? []) as FeedImageObj[];
-  const txs = (m.transactions ?? []) as FeedTx[];
-  const todos = (m.todos ?? []) as FeedTodo[];
-  const blocks = (m.blocks ?? []) as FeedBlock[];
-  const people = (m.people ?? []) as FeedPerson[];
+  const blocks = m.blocks ?? [];
+  const todos = m.todos ?? [];
+  const txs = m.transactions ?? [];
+  const people = m.people ?? [];
+  const images = m.images ?? [];
+  const recs = m.recognitions ?? {};
 
-  const recs = (m.recognitions ?? {}) as Record<string, RecognitionInfo>;
-  const pendings = Object.entries(recs).filter(([domain, v]) => v?.status === "pending" && !settled.includes(domain));
+  /** 头部意图标签：todo > 日程 > 心情 > 动态（= web intent 推导） */
+  const intent = todos.length > 0
+    ? { icon: "📋", label: "todo", tone: "sky" as const }
+    : blocks.length > 0
+      ? { icon: "🕒", label: "日程", tone: "sky" as const }
+      : m.mood
+        ? { icon: "✨", label: "心情", tone: "violet" as const }
+        : { icon: "📝", label: "动态", tone: "slate" as const };
 
-  const d = new Date(new Date(m.created_at).getTime() + 8 * 3600_000);
-  const day = `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  const isLongText = (m.raw_text ?? "").length > 150;
 
-  /** 确认入账 / 忽略：POST /api/entries/:id/confirm {domain, ignore}（真实契约是 POST，见 ./api.ts 注释） */
-  async function settle(domain: string, ignore: boolean) {
-    if (busyDomain) return; // 防双击双发（第二次会因登记簿状态已变而报错）
-    setBusyDomain(domain);
-    setCardMsg(null);
+  /* ---- 卡内操作统一执行器（= web use-card-actions） ---- */
+
+  const run = async (fn: () => Promise<string>) => {
     try {
-      await confirmEntry(m.id, domain, ignore);
-      setSettled((prev) => [...prev, domain]);
-      setCardMsg({ ok: true, text: ignore ? "已忽略" : "✅ 已确认入账" });
+      setCardMsg({ ok: true, text: await fn() });
+      onRefresh();
     } catch (e: any) {
       setCardMsg({ ok: false, text: e?.message ?? "操作失败" });
-    } finally {
-      setBusyDomain(null);
     }
-  }
+  };
 
-  /** 长按卡片 → 行内操作。编辑面板本期简化为「仅删除」（web 端的编辑/重识别走 PC） */
-  function onCardLongPress() {
+  // 延迟刷新定时器：卸载时清理（= web refreshTimers；识别在后台进行，延迟两轮把新产物带上墙）
+  const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      refreshTimers.current.forEach(clearTimeout);
+      refreshTimers.current = [];
+    },
+    [],
+  );
+  const scheduleDelayedRefresh = () => {
+    refreshTimers.current.forEach(clearTimeout);
+    refreshTimers.current = [setTimeout(onRefresh, 6000), setTimeout(onRefresh, 14000)];
+  };
+
+  // 两步删除的待确认 key（3 秒超时自动复位）
+  const [delArmed, setDelArmed] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (armTimer.current) clearTimeout(armTimer.current);
+    },
+    [],
+  );
+  const del = (key: string, fn: () => Promise<unknown>) => {
+    if (delArmed === key) {
+      setDelArmed(null);
+      void run(async () => {
+        await fn();
+        return "🗑 已删除";
+      });
+      return;
+    }
+    setDelArmed(key);
+    if (armTimer.current) clearTimeout(armTimer.current);
+    armTimer.current = setTimeout(() => setDelArmed(null), 3000);
+  };
+
+  /** 菜单里点某域：AI 识别该域（busyDomain 由 EntryMenu 自管） */
+  const recognizeDomain = (domain: string) =>
+    run(async () => {
+      const j = await recognizeEntryDomain(m.id, domain);
+      return j.message ?? "已重新识别";
+    });
+
+  /** 菜单里手动添加某域产物；返回 false=失败（已就地提示，菜单保表单） */
+  const manualAdd = async (domain: string, payload: Record<string, unknown>) => {
+    try {
+      const j = await manualAddEntry(m.id, domain, payload);
+      setCardMsg({ ok: true, text: j.message ?? "已添加" });
+      onRefresh();
+      return true;
+    } catch (e: any) {
+      setCardMsg({ ok: false, text: e?.message ?? "添加失败" });
+      return false;
+    }
+  };
+
+  /** 归属 / 移除空间（= web EntryMenu onSetSpace） */
+  const setSpace = (spaceId: string | null) =>
+    run(async () => {
+      await patchFeedEntry(m.id, { spaceId });
+      return spaceId ? "🎯 已归属空间" : "已移除空间归属";
+    });
+
+  /** 保存原文：后端清旧产物全域重识别（秒回），延迟刷新呈现新识别结果（= web saveRaw） */
+  const saveRaw = () =>
+    run(async () => {
+      const text = (editRaw ?? "").trim();
+      if (!text) throw new Error("内容不能为空");
+      await patchFeedEntry(m.id, { raw_text: text });
+      setEditRaw(null);
+      scheduleDelayedRefresh();
+      return "✏️ 已保存，AI 正在重新识别全部信息…";
+    });
+
+  /** 整条删除（防双击双发 DELETE，第二次会 404）；成功后由 run 里的 onRefresh 重载列表摘除本卡 */
+  const confirmDelete = () => {
     if (deleting) return;
-    Taro.showActionSheet({ itemList: ["删除这条动态"] })
-      .then(() => {
-        // 两步确认：actionSheet 选删除 → modal 再拦一道（删除会连识别产物一起清，不可恢复）
-        Taro.showModal({
-          title: "删除动态",
-          content: "将删除原文及其全部识别产物（流水 / todo / 日程等），不可恢复",
-          confirmText: "删除",
-          confirmColor: "#fb7185",
-        }).then((r) => {
-          if (r.confirm) void doDelete();
-        });
+    setDeleting(true);
+    void run(async () => {
+      await deleteEntry(m.id);
+      return "🗑 已删除这条动态及其识别结果";
+    })
+      .then(() => setConfirming(false))
+      .finally(() => setDeleting(false));
+  };
+
+  /** 「⋯」操作入口：小程序无 hover 态、也不能用 portal 浮层，等价交互用原生 ActionSheet 承载
+   *  （web 桌面是锚定浮层；移动端 web 该钮隐藏，这里保留是因为小程序版需要编辑/删除入口） */
+  const openActions = () => {
+    Taro.showActionSheet({ itemList: ["✏️ 编辑原文", "🗑 删除这条动态"] })
+      .then((r) => {
+        if (r.tapIndex === 0) {
+          setEditRaw(m.raw_text);
+          setMenuOpen(false);
+        } else if (r.tapIndex === 1) {
+          setConfirming(true);
+        }
       })
       .catch(() => {
-        /* 用户取消 actionSheet 走 reject：静默 */
+        /* 用户取消 actionSheet：静默 */
       });
-  }
+  };
 
-  async function doDelete() {
-    if (deleting) return; // 防双击双发 DELETE（第二次会 404）
-    setDeleting(true);
-    setCardMsg(null);
-    try {
-      await deleteEntry(m.id);
-      onDeleted(m.id);
-    } catch (e: any) {
-      setCardMsg({ ok: false, text: e?.message ?? "删除失败" });
-    } finally {
-      setDeleting(false);
-    }
-  }
+  /** 日程冲突降级条：识别时发现时间重叠未登记时间轴；「去调整」跳日程页（web 跳 /schedule?date=） */
+  const scheduleRec = recs.schedule;
+  const showConflict =
+    !!m.analyzed_at &&
+    scheduleRec?.status === "none" &&
+    !scheduleRec.reasonDismissed &&
+    (!!scheduleRec.reason?.includes("已有日程") || !!scheduleRec.reason?.includes("时间冲突"));
 
-  const imgUrlList = imgs.map((g) => fileUrl(g.storageKey));
+  /* ---- 识别产物行内编辑态 ---- */
+  const [editBlock, setEditBlock] = useState<{ id: string; title: string; start: string; end: string; activityId: string } | null>(null);
+  const [editTodo, setEditTodo] = useState<{ id: string; title: string; startDate: string; startTime: string; dueDate: string; dueTime: string; activityId: string } | null>(null);
+  const [editTx, setEditTx] = useState<{ id: string; direction: string; amount: string; category: string; counterparty: string } | null>(null);
+
+  /** 北京墙上串 "YYYY-MM-DDTHH:mm" → 日期/时间两段（微信 Picker 无 datetime-local，拆两个 Picker 承载） */
+  const splitBjInput = (v: string) => ({ date: v.slice(0, 10), time: v.slice(11, 16) });
 
   return (
-    <View className="card moment" onLongPress={onCardLongPress}>
-      <View className="moment-head">
-        <Text className="dim">{day}</Text>
-        {m.mood && <Text className="mood">{String(m.mood)}</Text>}
+    // = web article.glass.flex.gap-3.rounded-2xl.p-4
+    <View className="mc glass glass-p4">
+      {/* 头像位：心情 emoji（无心情时用意图图标），bg-elevated 圆底 */}
+      <View className="mc-avatar">
+        <Text>{m.mood ? moodEmoji(m.mood) : intent.icon}</Text>
       </View>
 
-      <Text className="moment-text">{m.raw_text}</Text>
-
-      {/* 图片：storageKey 拼门禁 URL（见 fileUrl 注释的 cookie 坑）；点击全屏预览 */}
-      {imgUrlList.length > 0 && (
-        <View className="grid">
-          {imgUrlList.map((src, i) => (
-            <Image key={imgs[i]?.id ?? i} className="grid-img" src={src} mode="aspectFill" onClick={() => previewImage(imgUrlList, src)} />
-          ))}
-        </View>
-      )}
-
-      {/* 后台识别中 / 识别超时：动态已上墙、产物随后出现（web moment-card 同款降级提示） */}
-      {!m.analyzed_at && (
-        <Text className="recog-state">
-          {String(m.recognize_state ?? "") === "timeout" ? "🤖 AI 当时未返回识别结果" : "🤖 AI 识别中：日程 / 待办 / 收支 / 心情…"}
-        </Text>
-      )}
-
-      {/* 收支 chips：方向着色（amountCents 是 camelCase，别改回 amount_cents） */}
-      {txs.length > 0 && (
-        <View className="chips">
-          {txs.map((t, i) => (
-            <Text key={t.id ?? i} className={`chip ${t.direction === "out" ? "money-out" : "money-in"}`}>
-              {t.direction === "out" ? "-" : "+"}¥{yuan(t.amountCents)} · {t.category}
-              {t.counterparty ? ` · ${t.counterparty}` : ""}
-            </Text>
-          ))}
-        </View>
-      )}
-
-      {/* 待办 chips：状态是 status==="done"（feed 无 done 布尔） */}
-      {todos.length > 0 && (
-        <View className="chips">
-          {todos.map((t, i) => {
-            const tl = todoTimeLabel(t.startAt, t.dueAt);
-            return (
-              <Text key={t.id ?? i} className="chip dim">
-                {t.status === "done" ? "☑" : "☐"} {t.title}
-                {tl ? ` · ${tl}` : ""}
+      <View className="mc-main">
+        {/* = web CardHeader：意图标签 + 空间徽标 + 语音/离线标记 + 两步删除 */}
+        <View className="mc-head">
+          <TagChip icon={intent.icon} label={intent.label} tone={intent.tone} size="sm" maxWidth />
+          {m.space ? (
+            <View
+              className="mc-space-badge"
+              style={{ backgroundColor: `${m.space.color}26` /* web 同款 color+26 十六进制透明度 */ }}
+              onClick={() => Taro.redirectTo({ url: "/packages/space/detail/index?id=" + m.space!.id })}
+            >
+              <Text className="mc-space-icon">{m.space.icon}</Text>
+              <Text className="mc-space-name">{m.space.name}</Text>
+            </View>
+          ) : null}
+          {m.source === "voice" ? <TagChip icon="🎙" label="语音" tone="slate" size="sm" /> : null}
+          {Object.values(recs).some((v) => v?.engine === "rules") ? (
+            <TagChip icon="⚠" label="离线识别" tone="amber" size="sm" />
+          ) : null}
+          <View className="mc-head-spacer" />
+          {confirming ? (
+            <View className="mc-confirm-del">
+              <Text className="mc-confirm-del-btn" onClick={confirmDelete}>
+                {deleting ? "删除中…" : "确认删除"}
               </Text>
-            );
-          })}
+              <Text className="mc-confirm-del-cancel" onClick={() => setConfirming(false)}>
+                取消
+              </Text>
+            </View>
+          ) : (
+            editRaw === null && (
+              <Text className="mc-more" onClick={openActions}>
+                ⋯
+              </Text>
+            )
+          )}
         </View>
-      )}
 
-      {/* 日程块 chips：title + 北京时间 HH:MM（跨天带日期前缀） */}
-      {blocks.length > 0 && (
-        <View className="chips">
-          {blocks.map((b, i) => (
-            <Text key={b.id ?? i} className="chip">
-              ⏰ {b.title}
-              {b.startAt ? ` · ${dayPrefix(b.startAt)}${bjClock(b.startAt)}${b.endAt ? `–${bjClock(b.endAt)}` : ""}` : ""}
-            </Text>
+        {/* = web RawTextSection：编辑态 textarea；否则点原文弹「识别与补充」菜单 */}
+        {editRaw !== null ? (
+          <View className="mc-raw-edit">
+            <Textarea
+              className="mc-raw-textarea"
+              value={editRaw}
+              maxlength={2000}
+              autoHeight
+              onInput={(e) => setEditRaw(e.detail.value)}
+            />
+            <View className="mc-raw-edit-row">
+              <Text className="mc-raw-save" onClick={saveRaw}>
+                保存并重新识别
+              </Text>
+              <Text className="mc-raw-cancel" onClick={() => setEditRaw(null)}>
+                取消
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text
+            className={`mc-raw${isLongText && !textExpanded ? " mc-raw-clamp" : ""}`}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            {m.raw_text}
+          </Text>
+        )}
+        {editRaw === null && isLongText ? (
+          <Text className="mc-raw-toggle" onClick={() => setTextExpanded((v) => !v)}>
+            {textExpanded ? "收起" : `展开全文（${m.raw_text.length} 字）`}
+          </Text>
+        ) : null}
+
+        {/* = web ImageGrid：1 张大图 / 2-3 张横排 / 4-9 张三列；点击全屏预览（微信原生 previewImage） */}
+        {images.length > 0 && editRaw === null ? (
+          <View className={`mc-grid mc-grid-${images.length === 1 ? "one" : images.length <= 3 ? "few" : "many"}`}>
+            {images.map((img, i) => (
+              <View
+                key={img.id ?? i}
+                className="mc-grid-cell"
+                onClick={() => Taro.previewImage({ urls: images.map((g) => fileUrl(g.storageKey)), current: fileUrl(images[i].storageKey) })}
+              >
+                <Image className="mc-grid-img" src={fileUrl(img.storageKey)} mode="aspectFill" lazyLoad />
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {/* 后台识别中 / 识别超时：动态已上墙，产物随后出现；超 10 分钟显示失败态不再转圈 */}
+        {!m.analyzed_at &&
+          (m.recognize_state === "timeout" ? (
+            <View className="mc-recog-state">
+              <TagChip icon="🤖" label="识别未完成" tone="slate" size="sm" />
+              <Text className="mc-recog-state-text">AI 当时未返回结果 · 点击原文可重新识别</Text>
+            </View>
+          ) : (
+            <View className="mc-recog-state mc-recog-state-live">
+              <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" />
+              <Text className="mc-recog-state-text">正在提取 日程 / 关系 / todo / 收支 / 心情 / 饮食…</Text>
+            </View>
           ))}
-        </View>
-      )}
 
-      {/* 人情 chips：对方 + 类型/摘要（feed 把 interactions 聚合成 people，见 ./api.ts 类型注释） */}
-      {people.length > 0 && (
-        <View className="chips">
-          {people.map((p, i) => (
-            <Text key={p.interactionId ?? i} className="chip">
-              👥 {p.name}
-              {p.summary ? ` · ${p.summary}` : ""}
+        {/* 日程冲突降级条（= web amber 警示条）：去调整 + 就地关闭 */}
+        {showConflict ? (
+          <View className="mc-conflict">
+            <Text className="mc-conflict-text">⚠️ 未生成日程：{scheduleRec?.reason}</Text>
+            <Text
+              className="mc-conflict-go"
+              onClick={() => Taro.redirectTo({ url: `/pages/schedule/index?date=${bjDateKey(m.created_at)}` })}
+            >
+              去调整 →
             </Text>
-          ))}
-        </View>
-      )}
+            <Text className="mc-conflict-x" onClick={() => run(async () => { await dismissConflict(m.id); return "已关闭，不再提示"; })}>
+              ✕
+            </Text>
+          </View>
+        ) : null}
 
-      {/* 待确认区：低置信 pending 识别逐域「确认入账 / 忽略」 */}
-      {pendings.map(([domain, info]) => (
-        <View key={domain} className="pending-row">
-          <Text className="pending-text">
-            🤔 识别到{DOMAIN_LABELS[domain] ?? domain}（置信度 {Math.round(Number(info?.confidence ?? 0) * 100)}%），确认吗？
-          </Text>
-          <Text className="pending-btn" onClick={() => void settle(domain, false)}>
-            {busyDomain === domain ? "…" : "确认"}
-          </Text>
-          <Text className="pending-btn-ghost" onClick={() => void settle(domain, true)}>
-            忽略
-          </Text>
-        </View>
-      ))}
+        {/* = web MoodBlock：可改可删（无心情且未打开选择器时整体不渲染） */}
+        {m.mood || moodPicker ? (
+          <View className="mc-mood-wrap">
+            {moodPicker ? (
+              <View className="mc-mood-picker">
+                {COMMON_MOODS.map((w) => (
+                  <Text
+                    key={w}
+                    className={`mc-mood-pill${m.mood === w ? " mc-mood-pill-on" : ""}`}
+                    onClick={() =>
+                      run(async () => {
+                        await patchFeedEntry(m.id, { mood: w });
+                        return `${moodEmoji(w)} 心情已改为「${w}」`;
+                      }).then(() => setMoodPicker(false))
+                    }
+                  >
+                    {moodEmoji(w)} {w}
+                  </Text>
+                ))}
+                <Text
+                  className="mc-mood-pill mc-mood-clear"
+                  onClick={() =>
+                    run(async () => {
+                      await patchFeedEntry(m.id, { mood: null });
+                      return "已清除心情";
+                    }).then(() => setMoodPicker(false))
+                  }
+                >
+                  清除
+                </Text>
+                <Text className="mc-mood-cancel" onClick={() => setMoodPicker(false)}>
+                  取消
+                </Text>
+              </View>
+            ) : (
+              <View className="mc-mood-line" style={{ color: moodToneColor(m.mood_score) }}>
+                <Text>
+                  {moodEmoji(m.mood)} 此刻心情：{m.mood}
+                </Text>
+                <Text className="mc-mood-edit" onClick={() => setMoodPicker(true)}>
+                  改
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : null}
 
-      {/* 卡内操作反馈：确认/删除的结果就地展示（错也在这里，不用滚到页顶看 banner） */}
-      {cardMsg && <View className={`card-msg ${cardMsg.ok ? "card-msg-ok" : "card-msg-err"}`}>{cardMsg.text}</View>}
+        {/* = web RecognitionSection：有任一产物才渲染 */}
+        {blocks.length > 0 || todos.length > 0 || txs.length > 0 || people.length > 0 || m.diet ? (
+          <View className="mc-recog">
+            {/* ---- 日程块（= web BlockRows） ---- */}
+            {blocks.map((b: FeedBlock) =>
+              editBlock?.id === b.id ? (
+                <View key={b.id} className="mc-edit-box">
+                  <Input className="mc-edit-input" value={editBlock.title} placeholder="标题" onInput={(e) => setEditBlock({ ...editBlock, title: e.detail.value })} />
+                  <View className="mc-edit-row">
+                    <Picker mode="time" value={editBlock.start} onChange={(e) => setEditBlock({ ...editBlock, start: e.detail.value })}>
+                      <View className="mc-edit-pick">{editBlock.start || "开始"}</View>
+                    </Picker>
+                    <Text className="mc-edit-sep">至</Text>
+                    <Picker mode="time" value={editBlock.end} onChange={(e) => setEditBlock({ ...editBlock, end: e.detail.value })}>
+                      <View className="mc-edit-pick">{editBlock.end || "结束"}</View>
+                    </Picker>
+                    <Picker
+                      mode="selector"
+                      range={activities.map((a) => `${a.icon} ${a.name}`)}
+                      value={Math.max(0, activities.findIndex((a) => a.id === editBlock.activityId))}
+                      onChange={(e) => setEditBlock({ ...editBlock, activityId: activities[Number(e.detail.value)]?.id ?? "" })}
+                    >
+                      <View className="mc-edit-pick">
+                        {activities.find((a) => a.id === editBlock.activityId)?.name ?? "类别"}
+                      </View>
+                    </Picker>
+                  </View>
+                  <View className="mc-edit-actions">
+                    <Text className="mc-edit-cancel" onClick={() => setEditBlock(null)}>
+                      取消
+                    </Text>
+                    <Text
+                      className="mc-edit-save"
+                      onClick={() =>
+                        run(async () => {
+                          if (editBlock.end <= editBlock.start) throw new Error("结束时间必须晚于开始时间");
+                          // startAt 兜底当前时刻：极端脏数据缺起始时间时 combineHM 需要一个合法日期基点
+                          await patchBlock(b.id, {
+                            title: editBlock.title.trim() || b.title,
+                            startAt: combineHM(b.startAt ?? new Date().toISOString(), editBlock.start),
+                            endAt: combineHM(b.endAt ?? b.startAt ?? new Date().toISOString(), editBlock.end),
+                            activityId: editBlock.activityId,
+                          });
+                          setEditBlock(null);
+                          return "💾 日程已更新";
+                        })
+                      }
+                    >
+                      保存
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View key={b.id} className="mc-row">
+                  <View className="mc-dot" style={{ backgroundColor: b.color ?? "var(--ink-mute)" }} />
+                  <Text className="mc-row-main">
+                    {b.icon} {b.activityName} · {b.title}
+                  </Text>
+                  <Text className="mc-row-time">
+                    {b.startAt ? `${dayPrefix(String(b.startAt))}${bjClock(String(b.startAt))}–${bjClock(String(b.endAt ?? b.startAt))} · ${b.durationMin ?? ""} 分钟` : ""}
+                  </Text>
+                  <RowAction
+                    armed={delArmed === `block:${b.id}`}
+                    onEdit={() =>
+                      setEditBlock({
+                        id: b.id,
+                        title: b.title,
+                        start: b.startAt ? bjClock(String(b.startAt)) : "",
+                        end: b.endAt ? bjClock(String(b.endAt)) : "",
+                        activityId: activities.some((a) => a.id === b.activityId) ? String(b.activityId) : activities[0]?.id ?? "",
+                      })
+                    }
+                    onDelete={() => del(`block:${b.id}`, () => deleteBlock(b.id))}
+                  />
+                </View>
+              ),
+            )}
 
-      <Text className="moment-hint">长按卡片可删除</Text>
+            {/* ---- todo（= web TodoRows） ---- */}
+            {todos.map((td: FeedTodo) =>
+              editTodo?.id === td.id ? (
+                <View key={td.id} className="mc-edit-box">
+                  <Input className="mc-edit-input" value={editTodo.title} placeholder="标题" onInput={(e) => setEditTodo({ ...editTodo, title: e.detail.value })} />
+                  <View className="mc-edit-row">
+                    <Picker mode="date" value={editTodo.startDate ?? ""} onChange={(e) => setEditTodo({ ...editTodo, startDate: e.detail.value })}>
+                      <View className="mc-edit-pick">{editTodo.startDate || "开始日期"}</View>
+                    </Picker>
+                    <Picker mode="time" value={editTodo.startTime} onChange={(e) => setEditTodo({ ...editTodo, startTime: e.detail.value })}>
+                      <View className="mc-edit-pick">{editTodo.startTime || "时间"}</View>
+                    </Picker>
+                  </View>
+                  <View className="mc-edit-row">
+                    <Picker mode="date" value={editTodo.dueDate ?? ""} onChange={(e) => setEditTodo({ ...editTodo, dueDate: e.detail.value })}>
+                      <View className="mc-edit-pick">{editTodo.dueDate || "到期日期"}</View>
+                    </Picker>
+                    <Picker mode="time" value={editTodo.dueTime} onChange={(e) => setEditTodo({ ...editTodo, dueTime: e.detail.value })}>
+                      <View className="mc-edit-pick">{editTodo.dueTime || "时间"}</View>
+                    </Picker>
+                    <Picker
+                      mode="selector"
+                      range={activities.map((a) => `${a.icon} ${a.name}`)}
+                      value={Math.max(0, activities.findIndex((a) => a.id === editTodo.activityId))}
+                      onChange={(e) => setEditTodo({ ...editTodo, activityId: activities[Number(e.detail.value)]?.id ?? "" })}
+                    >
+                      <View className="mc-edit-pick">
+                        {activities.find((a) => a.id === editTodo.activityId)?.name ?? "类别"}
+                      </View>
+                    </Picker>
+                  </View>
+                  <View className="mc-edit-actions">
+                    <Text className="mc-edit-cancel" onClick={() => setEditTodo(null)}>
+                      取消
+                    </Text>
+                    <Text
+                      className="mc-edit-save"
+                      onClick={() =>
+                        run(async () => {
+                          if (!editTodo.title.trim()) throw new Error("标题不能为空");
+                          await patchTodo(td.id, {
+                            title: editTodo.title.trim(),
+                            startAt: bjInputToIso(`${editTodo.startDate}T${editTodo.startTime}`),
+                            dueAt: bjInputToIso(`${editTodo.dueDate}T${editTodo.dueTime}`),
+                            activityId: editTodo.activityId,
+                          });
+                          setEditTodo(null);
+                          return "💾 todo 已更新";
+                        })
+                      }
+                    >
+                      保存
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View key={td.id} className="mc-row">
+                  <TagChip icon="📋" label="todo" tone="sky" size="sm" />
+                  <Text className="mc-row-main">{td.title}</Text>
+                  <Text className="mc-row-time">{todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}</Text>
+                  {td.status === "done" ? <Text className="mc-row-done">已完成</Text> : null}
+                  <RowAction
+                    armed={delArmed === `todo:${td.id}`}
+                    onEdit={() => {
+                      // ISO → 北京墙上串再拆日期/时间两段（微信 Picker 无 datetime-local，用 date+time 双 Picker 承载）
+                      const s = splitBjInput(isoToBjInput(td.startAt));
+                      const d = splitBjInput(isoToBjInput(td.dueAt));
+                      setEditTodo({
+                        id: td.id,
+                        title: td.title,
+                        startDate: s.date,
+                        startTime: s.time,
+                        dueDate: d.date,
+                        dueTime: d.time,
+                        activityId: activities.some((a) => a.id === td.activityId) ? String(td.activityId) : activities[0]?.id ?? "",
+                      });
+                    }}
+                    onDelete={() => del(`todo:${td.id}`, () => deleteTodo(td.id))}
+                  />
+                </View>
+              ),
+            )}
+
+            {/* ---- 金额流水（= web TxRows；amountCents 可能是 string，比较前 Number()） ---- */}
+            {txs.map((x: FeedTx) =>
+              editTx?.id === x.id ? (
+                <View key={x.id} className="mc-edit-box">
+                  <View className="mc-edit-row">
+                    <Picker
+                      mode="selector"
+                      range={["支出", "收入"]}
+                      value={editTx.direction === "in" ? 1 : 0}
+                      onChange={(e) => setEditTx({ ...editTx, direction: Number(e.detail.value) === 1 ? "in" : "out" })}
+                    >
+                      <View className="mc-edit-pick">{editTx.direction === "in" ? "收入" : "支出"}</View>
+                    </Picker>
+                    <Picker
+                      mode="selector"
+                      range={TX_CATEGORIES}
+                      value={Math.max(0, TX_CATEGORIES.indexOf(editTx.category))}
+                      onChange={(e) => setEditTx({ ...editTx, category: TX_CATEGORIES[Number(e.detail.value)] })}
+                    >
+                      <View className="mc-edit-pick">{editTx.category || "类别"}</View>
+                    </Picker>
+                  </View>
+                  <View className="mc-edit-row">
+                    <Input className="mc-edit-input mc-edit-amount" type="digit" value={editTx.amount} placeholder="金额(元)" onInput={(e) => setEditTx({ ...editTx, amount: e.detail.value })} />
+                    <Input className="mc-edit-input" value={editTx.counterparty} placeholder="对方(可空)" onInput={(e) => setEditTx({ ...editTx, counterparty: e.detail.value })} />
+                  </View>
+                  <View className="mc-edit-actions">
+                    <Text className="mc-edit-cancel" onClick={() => setEditTx(null)}>
+                      取消
+                    </Text>
+                    <Text
+                      className="mc-edit-save"
+                      onClick={() =>
+                        run(async () => {
+                          const cents = Math.round(parseFloat(editTx.amount) * 100);
+                          if (!Number.isFinite(cents) || cents <= 0) throw new Error("金额必须大于 0");
+                          await patchTransaction(x.id, {
+                            direction: editTx.direction,
+                            amountCents: cents,
+                            category: editTx.category,
+                            counterparty: editTx.counterparty,
+                          });
+                          setEditTx(null);
+                          return "💾 金额已更新";
+                        })
+                      }
+                    >
+                      保存
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View key={x.id} className="mc-row">
+                  <TagChip
+                    icon="💰"
+                    label={`${x.direction === "out" ? "支出" : "收入"} ${yuanCents(x.amountCents)}`}
+                    tone={x.direction === "out" ? "rose" : "emerald"}
+                    size="sm"
+                  />
+                  <Text className="mc-row-main">
+                    {x.category}
+                    {x.counterparty ? ` · 对方：${x.counterparty}` : ""}
+                  </Text>
+                  <RowAction
+                    armed={delArmed === `tx:${x.id}`}
+                    onEdit={() =>
+                      setEditTx({
+                        id: x.id,
+                        direction: x.direction,
+                        amount: String(Number(x.amountCents) / 100),
+                        category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
+                        counterparty: x.counterparty ?? "",
+                      })
+                    }
+                    onDelete={() => del(`tx:${x.id}`, () => deleteTransaction(x.id))}
+                  />
+                </View>
+              ),
+            )}
+
+            {/* ---- 人物（= web people 行：👥 chip + 两步删除） ---- */}
+            {people.length > 0 ? (
+              <View className="mc-row">
+                <TagChip icon="👥" label={people.map((p) => p.name).join("、")} tone="sky" size="sm" maxWidth />
+                <RowAction
+                  armed={delArmed === `people:${m.id}`}
+                  onDelete={() =>
+                    del(`people:${m.id}`, () =>
+                      Promise.all(people.map((p) => deleteInteraction(p.interactionId))).then(() => undefined),
+                    )
+                  }
+                />
+              </View>
+            ) : null}
+
+            {/* ---- 饮食（= web diet 行：餐次 · 菜品 + kcal + 两步删除） ---- */}
+            {m.diet ? (
+              <View className="mc-row">
+                <TagChip icon="🍽" label="饮食" tone="amber" size="sm" />
+                <Text className="mc-row-main">
+                  {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
+                  {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}
+                  {m.diet.totalKcal != null ? ` · ≈${m.diet.totalKcal} kcal` : ""}
+                </Text>
+                <RowAction armed={delArmed === `diet:${m.id}`} onDelete={() => del(`diet:${m.id}`, () => deleteDiet(m.id))} />
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* = web PendingConfirms：低置信待确认域逐条「确认 / 忽略」 */}
+        {(Object.entries(recs) as [string, { status?: string; confidence?: number }][]).filter(([, v]) => v?.status === "pending").length > 0 ? (
+          <View className="mc-pendings">
+            {(Object.entries(recs) as [string, { status?: string; confidence?: number }][])
+              .filter(([, v]) => v?.status === "pending")
+              .map(([domain, v]) => (
+                <View key={domain} className="mc-pending">
+                  <Text className="mc-pending-text">
+                    🤔 识别到{DOMAIN_LABELS[domain] ?? domain}（置信度 {Math.round(Number(v?.confidence ?? 0) * 100)}%），确认吗？
+                  </Text>
+                  <Text
+                    className="mc-pending-ok"
+                    onClick={() =>
+                      run(async () => {
+                        await confirmEntry(m.id, domain);
+                        return "✅ 已确认入账";
+                      })
+                    }
+                  >
+                    确认
+                  </Text>
+                  <Text
+                    className="mc-pending-ignore"
+                    onClick={() =>
+                      run(async () => {
+                        await confirmEntry(m.id, domain, true);
+                        return "已忽略";
+                      })
+                    }
+                  >
+                    忽略
+                  </Text>
+                </View>
+              ))}
+          </View>
+        ) : null}
+
+        {/* 交互提示（= web 底部 border-t 提示行） */}
+        {!menuOpen ? (
+          <Text className="mc-hint">点击动态内容 → 打开识别菜单（AI 识别 / 手动补充六类信息）</Text>
+        ) : null}
+
+        {/* 卡内操作反馈：识别/手动添加/编辑/删除的结果就地展示（= web cardMsg） */}
+        {cardMsg ? <View className={`msg-banner mc-card-msg ${cardMsg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{cardMsg.text}</View> : null}
+      </View>
+
+      {/* = web EntryMenu（识别与补充）：移动端为底部弹层 */}
+      {menuOpen ? (
+        <EntryMenu
+          m={m}
+          activities={activities}
+          onAI={recognizeDomain}
+          onManual={manualAdd}
+          onSetSpace={setSpace}
+          onClose={() => setMenuOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }

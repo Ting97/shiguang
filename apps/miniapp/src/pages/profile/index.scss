@@ -1,23 +1,369 @@
-.page-pad {
-  padding: 24px;
+/**
+ * 「我的」页私有样式（换算：web 1px = 2 单位）。
+ * 全局类由 app.scss 提供：glass/glass-p4/glass-p5、btn-primary、btn-sky-tinted、
+ * input/input-placeholder、chip、text-gradient、hint、press。本文件写页面私有布局：
+ * 渐变大标题、头像行、徽标、模块 chips、分区标题、登出钮、TagChip 形态、用量条、导出钮。
+ */
+
+/* ---- 页头（= web h1.text-gradient.text-center.text-3xl.font-bold + mb-1 / p mb-5 text-xs） ---- */
+.page-title {
+  display: block;
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 60px; /* text-3xl */
+  font-weight: 700;
+}
+/* = web h1 内 span.text-sm.font-normal.text-ink-dim（内联随标题居中） */
+.page-title-sub {
+  margin-left: 16px;
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+.page-sub {
+  display: block;
+  margin-bottom: 40px; /* mb-5 */
 }
 
+/* ---- 反馈小字（= web 纯色 text-xs，非横幅） ---- */
+.msg {
+  display: block;
+  margin-top: 24px; /* mt-3（改密/导出） */
+  font-size: 24px;
+  line-height: 1.5;
+}
+.msg-tight {
+  margin-top: 16px; /* mt-2（昵称保存） */
+}
+.msg-ok {
+  color: var(--success);
+}
+.msg-err {
+  color: var(--danger);
+}
+
+/* ---- 加载/失败态（= web py-10 text-center） ---- */
+.state-center {
+  padding: 80px 0;
+  text-align: center;
+  font-size: 24px;
+}
+.state-err {
+  display: block;
+  font-size: 24px; /* text-xs */
+  color: var(--danger);
+}
+/* = web btn-primary rounded-lg px-4 py-1.5 text-[11px] */
+.btn-retry {
+  margin-top: 16px;
+  padding: 12px 32px;
+  font-size: 22px;
+  border-radius: 16px; /* rounded-lg */
+  line-height: inherit;
+}
+
+/* ---- 分区通用 ---- */
+.sec {
+  margin-bottom: 40px; /* mb-5 */
+}
+.sec-title {
+  display: block;
+  margin-bottom: 24px; /* mb-3 */
+  font-size: 28px; /* text-sm */
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.sec-title-tight {
+  margin-bottom: 16px; /* mb-2（会话安全区） */
+}
+.sec-desc {
+  display: block;
+  margin-bottom: 24px;
+  font-size: 22px; /* text-[11px]，比 hint(24) 再小一号（= web 会话安全说明） */
+  line-height: 1.6;
+}
+/* 带TagChip头的分区（套餐/导出）：chip 自带尺寸，标题行不留 mb（= web h2 无 mb） */
+.sec-head {
+  display: flex;
+}
+
+/* ---- 账号资料 ---- */
+.me-head {
+  display: flex;
+  align-items: center;
+  gap: 32px; /* gap-4 */
+  margin-bottom: 32px; /* mb-4 */
+}
+/* = web h-14 w-14 渐变圆头像 + shadow-sky-500/30 */
+.avatar {
+  flex-shrink: 0;
+  width: 112px;
+  height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1); /* from-sky-500 to-indigo-500 */
+  box-shadow: 0 20px 30px rgba(14, 165, 233, 0.3);
+  font-size: 40px; /* text-xl */
+  font-weight: 700;
+  color: #fff;
+}
+.me-info {
+  min-width: 0;
+}
+.me-name {
+  display: block;
+  font-size: 28px; /* text-sm */
+  font-weight: 500;
+}
+.me-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px; /* gap-2 */
+  margin-top: 4px; /* mt-0.5 */
+  font-size: 24px; /* text-xs */
+  color: var(--ink-dim);
+}
+/* = web rounded px-1.5 py-0.5 text-[10px] 徽标三态 */
+.badge {
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 20px;
+}
+.badge-ok {
+  background: rgba(16, 185, 129, 0.1); /* bg-emerald-500/10 */
+  color: var(--success);
+}
+.badge-no {
+  background: var(--elevated);
+  color: var(--ink-mute);
+}
+.badge-admin {
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.2), rgba(99, 102, 241, 0.2));
+  color: var(--accent);
+}
+.me-joined {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px; /* text-[10px] */
+  color: var(--ink-faint);
+}
+
+/* 微信特有：模块权限 chips（分包开通状态） */
 .mods {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin-top: 16px;
+}
+.mod-chip {
+  border: 1px solid var(--line-soft);
+  background: var(--wash);
+  color: var(--ink-soft);
+}
+
+/* 昵称行（= web label mb-1 + flex gap-2：input flex-1 + 保存钮 px-5） */
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 24px; /* text-xs */
+  color: var(--ink-mute);
+}
+.nick-row {
+  display: flex;
+  gap: 16px;
+}
+.nick-input {
+  flex: 1;
+  min-width: 0;
+}
+.save-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 40px; /* px-5（高度随 flex stretch 对齐输入框） */
+  font-size: 28px; /* text-sm */
+  line-height: inherit;
+}
+
+/* ---- 修改密码 ---- */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* space-y-3 */
+}
+.submit-btn {
+  width: 100%;
+  margin: 0;
+  padding: 20px 0; /* py-2.5 */
+  font-size: 28px; /* text-sm */
+  line-height: inherit;
+}
+
+/* ---- 会话安全：全端登出（= web border-rose-500/40 bg-rose-500/10 text-danger） ---- */
+.btn-logout {
+  width: 100%;
+  margin: 0;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  border-radius: 24px; /* rounded-xl */
+  background: rgba(244, 63, 94, 0.1);
+  padding: 20px 0; /* py-2.5 */
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--danger);
+  text-align: center;
+  line-height: inherit;
+}
+.btn-logout-armed {
+  border-color: #f43f5e; /* border-rose-500 */
+  background: rgba(244, 63, 94, 0.2);
+}
+/* 微信特有：仅本机退出（ghost 底弱化，与全端登出的 rose 形成层级） */
+.btn-local-out {
+  width: 100%;
+  margin: 16px 0 0;
+  border: 1px solid var(--ghost-border);
+  border-radius: 24px;
+  background: var(--ghost-bg);
+  padding: 20px 0;
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-align: center;
+  line-height: inherit;
+}
+
+/* ---- TagChip 形态（= web tag-chip.tsx md：rounded-lg px-2 py-0.5 text-[11px] font-medium） ---- */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  border-radius: 16px; /* rounded-lg */
+  padding: 4px 16px;
+  font-size: 22px; /* text-[11px] */
+  font-weight: 500;
+}
+.tag-icon {
+  flex-shrink: 0;
+  font-size: 24px; /* text-[12px] */
+  line-height: 1;
+}
+.tag-violet {
+  background: rgba(139, 92, 246, 0.15); /* bg-violet-500/15 */
+  color: var(--ai);
+}
+.tag-slate {
+  background: var(--elevated); /* bg-elevated */
+  color: var(--ink-mute);
+}
+
+/* ---- 套餐与 AI 用量 ---- */
+.plan-line {
+  display: block;
+  margin-top: 8px; /* mt-1 */
+  font-size: 24px; /* text-xs */
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+.plan-strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+.plan-pro {
+  font-weight: 600;
+  color: #fbbf24; /* text-amber-400（双主题皆可读的语义金） */
+}
+.usage {
+  margin-top: 20px; /* mt-2.5 */
+}
+.usage-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+/* = web h-1.5 rounded-full bg-elevated + sky/rose 填充 */
+.bar {
+  height: 12px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--elevated);
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #0ea5e9; /* bg-sky-500 */
+}
+.bar-over {
+  background: #f43f5e; /* bg-rose-500（超限红） */
+}
+.models {
   margin-top: 20px;
 }
-
-.chip {
+/* = web flex items-center gap-2 text-[11px] tabular-nums text-ink-mute */
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px; /* space-y-0.5 */
   font-size: 22px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  padding: 6px 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mute);
+}
+.model-name {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.model-stat {
+  min-width: 0;
+  margin-left: auto;
+  text-align: right;
+}
+.plan-note {
+  display: block;
+  margin-top: 16px; /* mt-2 */
+  font-size: 22px; /* text-[11px] */
+  line-height: 1.6;
+  color: var(--ink-faint);
 }
 
-.danger {
-  color: var(--danger);
-  border: 1px solid var(--danger);
+/* ---- 导出（= web 两个描边小钮；动作见 tsx：转发文件 = 小程序壳的下载等效） ---- */
+.export-desc {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.export-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px; /* mt-3 */
+}
+.exp-btn {
+  margin: 0;
+  border-radius: 24px; /* rounded-xl */
+  padding: 16px 24px; /* px-4 py-2 */
+  font-size: 24px; /* text-xs */
+  line-height: 1.4;
+}
+.exp-btn.disabled {
+  opacity: 0.45;
+}
+/* = web border-line-soft bg-surface/60 text-ink-soft（Markdown 钮的弱化形态） */
+.exp-neutral {
+  border: 1px solid var(--line-soft);
+  background: var(--input-bg);
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+/* ---- 微信特有：关于卡 ---- */
+.about {
+  text-align: center;
+}
+.about .hint {
+  display: block;
 }

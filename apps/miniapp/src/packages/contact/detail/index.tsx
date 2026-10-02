@@ -1,23 +1,36 @@
-import { useState } from "react";
-import { View, Text } from "@tarojs/components";
+/**
+ * 联系人档案（= web contacts/[id]/detail.tsx 移动端形态）：
+ * 「‹ 返回人际」文字链 → glass 头卡（emoji 圆头像 + 名称/别名/分组 TagChip/重要度渐变徽标 +
+ * 生日/纪念日/往来次数/收送金额 TagChip + ✏️编辑/🗑两步删除）→ 亲密度渐变进度条（sky→pink）+ notes
+ * → AI 交往画像卡（btn-purple-tinted 提炼；💚喜欢/⚠️忌讳/📌记住 彩色小徽）
+ * → 一起经历过的事时间线（🤝 等类型圆点 + 连接线 + 摘要/金额）→ 关联人情账
+ * → 编辑弹层（form-modal）/ 补一笔往来弹层（interaction-modal）。
+ */
+import { useEffect, useState } from "react";
+import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
+import PageShell from "@/components/page-shell";
 import { loadContactDetail, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
-import { birthdayBadge, GROUP_EMOJI, IMPORTANCE_LABEL, TYPE_EMOJI } from "../shared";
+import ContactFormModal from "../form-modal";
+import InteractionModal from "./interaction-modal";
+import { deleteContact, generateAiProfile, type AiProfile } from "./api";
+import type { ContactRow } from "../shared";
+import {
+  GROUP_EMOJI,
+  GROUP_TONE,
+  TYPE_EMOJI,
+  birthdayInfoOf,
+  bjMDHM,
+  displaySummary,
+  importanceLabel,
+  toneClass,
+  useArmConfirm,
+  zhDay,
+} from "../shared";
 import "./index.scss";
 
-/**
- * 详情契约（grep apps/api/src/server/people/service.ts contactDetail + repo.ts 查证）：
- * GET /api/contacts/:id → {
- *   contact:  {id,name,alias,group_tag,birthday,birthday_cal,lunar_month,lunar_day,lunar_leap,
- *              anniversary,intimacy,importance,notes,created_at,ai_profile,ai_profile_at},
- *   timeline: [{id,type,summary,occurred_at,created_at,entry_text,tx_amount_cents,tx_direction,tx_category}]
- *             （往来时间线：left join 来源动态原文与关联流水，倒序 ≤100 条）,
- *   money:    [{id,direction,amount_cents,category,note,occurred_at}]（人情往来流水，≤50 条）
- * }
- * /api/contacts/:id/interactions 独立端点虽存在，但只回往来行本身；timeline 已含动态原文与金额，直接用。
- * 404（联系人不存在/已删除）走 catch 的 e.message 展示。
- */
+/** 时间线行（= web TimelineItem） */
 interface TimelineRow {
   id: string;
   type?: string;
@@ -29,147 +42,366 @@ interface TimelineRow {
   tx_direction?: string | null;
   tx_category?: string | null;
 }
-
-/** timestamptz → 北京 M/D（occurred_at 可能被置 null，回退 created_at 再回退空串） */
-function bjDay(iso?: string | null): string {
-  if (!iso) return "";
-  return new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(5, 10).replace("-", "/");
+/** 人情账行（= web MoneyItem） */
+interface MoneyRow {
+  id: string;
+  direction: "out" | "in";
+  amount_cents: number | string;
+  category: string;
+  note?: string | null;
+  occurred_at: string;
 }
 
 export default function ContactDetailPage() {
   const router = Taro.useRouter();
   const id = router.params.id ?? "";
 
-  const [contact, setContact] = useState<Record<string, any> | null>(null);
+  const [contact, setContact] = useState<ContactRow | null>(null);
   const [timeline, setTimeline] = useState<TimelineRow[]>([]);
-  const [money, setMoney] = useState<any[]>([]);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [money, setMoney] = useState<MoneyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [rev, setRev] = useState(0); // 重试信号：bump 触发重载
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
+  const armDelete = useArmConfirm();
   const [inited, setInited] = useState(false);
 
-  async function refresh() {
-    if (!id) return;
-    try {
-      const j = await loadContactDetail(id);
-      setContact(j.contact ?? null);
-      setTimeline(j.timeline ?? []);
-      setMoney(j.money ?? []);
-      setMsg(null);
-    } catch (e: any) {
-      setMsg(e?.message ?? "加载失败");
-    }
+  async function load() {
+    const j = await loadContactDetail(id);
+    setContact((j.contact as ContactRow) ?? null);
+    setTimeline((j.timeline as TimelineRow[]) ?? []);
+    setMoney((j.money as MoneyRow[]) ?? []);
   }
 
-  if (!inited && getSessionToken() && id) {
+  useEffect(() => {
+    if (!inited || !id) return;
+    let stale = false;
+    setLoading(true);
+    setLoadErr(null);
+    load()
+      .catch((e: any) => {
+        if (stale) return;
+        // 404 才是「不存在」；其余失败置错误态（信息可见 + 重试），不伪装成 404
+        if (e?.status === 404) setContact(null);
+        else setLoadErr(e?.message ?? String(e));
+      })
+      .finally(() => {
+        if (!stale) setLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inited, id, rev]);
+
+  if (!inited && getSessionToken()) {
     setInited(true);
-    void refresh();
   }
 
   usePullDownRefresh(() => {
-    refresh().finally(() => Taro.stopPullDownRefresh());
+    load()
+      .catch((e: any) => setLoadErr(e?.message ?? String(e)))
+      .finally(() => Taro.stopPullDownRefresh());
   });
 
+  /** msg 自动消退（= web 3.5s / 8s） */
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
+    return () => clearTimeout(t);
+  }, [msg]);
+
+  async function runProfile() {
+    if (profiling) return;
+    setProfiling(true);
+    try {
+      const j = await generateAiProfile(id);
+      setContact((c) => (c ? { ...c, ai_profile: j.profile as AiProfile, ai_profile_at: new Date().toISOString() } : c));
+      setMsg({ ok: true, text: "✨ 交往画像已更新" });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? String(e) });
+    } finally {
+      setProfiling(false);
+    }
+  }
+
+  async function removeContact() {
+    if (!contact || !armDelete.arm(contact.id)) return;
+    try {
+      await deleteContact(contact.id);
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? String(e) });
+      return;
+    }
+    Taro.redirectTo({ url: "/packages/contact/list/index" });
+  }
+
+  /* ---- 加载 / 失败 / 404 形态（= web detail 三分支） ---- */
+  if (!inited || loading) {
+    return (
+      <PageShell active="contacts">
+        <View className="cd-skel">
+          {[0, 1, 2].map((i) => (
+            <View key={i} className="skeleton cd-skel-row" />
+          ))}
+        </View>
+      </PageShell>
+    );
+  }
+  if (loadErr) {
+    return (
+      <PageShell active="contacts">
+        <View className="cd-center">
+          <Text className="cd-load-err">加载失败：{loadErr}</Text>
+          <Button className="btn-reset btn-primary cd-retry" hoverClass="press" onClick={() => setRev((r) => r + 1)}>
+            重试
+          </Button>
+        </View>
+      </PageShell>
+    );
+  }
   if (!contact) {
     return (
-      <View className="page-pad">
-        {/* 无 id（异常入口）直接当加载失败，避免停在"加载中…" */}
-        {!id && <View className="banner banner-err">缺少联系人 id</View>}
-        {id && msg && <View className="banner banner-err">{msg}</View>}
-        {id && !msg && <View className="card"><Text className="dim">加载中…</Text></View>}
-      </View>
+      <PageShell active="contacts">
+        <Text className="cd-notfound">联系人不存在</Text>
+      </PageShell>
     );
   }
 
-  // 人情净额口径 = 列表页 gift_net_cents 的 SQL：out（送出）为负、其余为正（amount_cents 是 bigint 可能串化，先 Number）
-  const netCents = money.reduce((acc, m) => acc + (m.direction === "out" ? -Number(m.amount_cents) : Number(m.amount_cents)), 0);
-  const imp = contact.importance != null ? IMPORTANCE_LABEL[Number(contact.importance)] ?? "普通" : null;
-  const bd = birthdayBadge(contact);
-  const intimacy = contact.intimacy != null && Number(contact.intimacy) > 0 ? Number(contact.intimacy) : null;
+  const bd = birthdayInfoOf(contact);
+  const giftIn = money.filter((m) => m.direction === "in").reduce((s, m) => s + Number(m.amount_cents), 0);
+  const giftOut = money.filter((m) => m.direction === "out").reduce((s, m) => s + Number(m.amount_cents), 0);
+  const tone = GROUP_TONE[contact.group_tag ?? ""] ?? "sky";
+  const profile = contact.ai_profile ?? null;
 
   return (
-    <View className="page-pad">
-      {msg && <View className="banner banner-err">{msg}</View>}
+    <PageShell active="contacts">
+      {/* 返回链（web 同位置 ← 返回人际）；无上级栈（直达落地）时兜底回列表 */}
+      <Text
+        className="cd-back"
+        onClick={() =>
+          Taro.navigateBack().catch(() => Taro.redirectTo({ url: "/packages/contact/list/index" }))
+        }
+      >
+        ‹ 返回人际
+      </Text>
 
-      {/* 档案头 */}
-      <View className="card">
-        <View className="head-row">
-          <View className="avatar">
-            <Text>{String(contact.name ?? "?").slice(0, 1)}</Text>
+      {/* 档案头卡 */}
+      <View className="glass glass-p5 cd-card">
+        <View className="cd-top">
+          <View className={`cd-avatar tone-bg-${tone}`}>
+            <Text>{GROUP_EMOJI[contact.group_tag ?? ""] ?? "👤"}</Text>
           </View>
-          <View className="grow">
-            <View className="name-line">
-              <Text className="name">{contact.name}</Text>
-              {imp && Number(contact.importance) >= 4 && <Text className="imp-tag">{imp}⭐</Text>}
+          <View className="cd-mid">
+            <View className="cd-name-row">
+              <Text className="cd-name">{contact.name}</Text>
+              {!!contact.alias && <Text className="cd-alias">（{contact.alias}）</Text>}
             </View>
-            {!!contact.alias && contact.alias !== contact.name && <Text className="dim">备注名 {contact.alias}</Text>}
+            <View className="cd-chips">
+              <Text className={`chip cd-chip ${toneClass(tone)}`}>{contact.group_tag ?? "其他"}</Text>
+              {/* 重要度渐变徽标（sky→indigo 20%） */}
+              <Text className="cd-imp">{importanceLabel(Number(contact.importance ?? 3))}</Text>
+            </View>
+            <View className="cd-facts">
+              {bd && (
+                <>
+                  <Text className={`chip cd-chip tone-rose`}>🎂 生日 {bd.date}</Text>
+                  {bd.countdown != null && (
+                    <Text className="cd-bd-count">
+                      · {bd.countdown === 0 ? "今天生日" : bd.countdown === 1 ? "明天生日" : `${bd.countdown} 天后生日`}
+                    </Text>
+                  )}
+                </>
+              )}
+              {!!contact.anniversary && (
+                <Text className="chip cd-chip tone-rose">
+                  💞 纪念日 {Number(String(contact.anniversary).slice(5, 7))}月{Number(String(contact.anniversary).slice(8, 10))}日
+                </Text>
+              )}
+              <Text className="chip cd-chip tone-sky">📅 {timeline.length} 次往来</Text>
+              {money.length > 0 && (
+                <Text className="chip cd-chip tone-rose">💰 收 ¥{yuan(giftIn)} / 送 ¥{yuan(giftOut)}</Text>
+              )}
+            </View>
           </View>
-        </View>
-
-        <View className="fields">
-          <View className="field">
-            <Text className="dim">分组</Text>
-            <Text>{GROUP_EMOJI[contact.group_tag ?? ""] ?? "👤"} {contact.group_tag ?? "其他"}</Text>
-          </View>
-          <View className="field">
-            <Text className="dim">重要度</Text>
-            <Text>{imp ?? "-"}{contact.importance != null ? `（${contact.importance}/5）` : ""}</Text>
-          </View>
-          {intimacy != null && (
-            <View className="field">
-              <Text className="dim">亲密度</Text>
-              <Text>{intimacy}/100</Text>
-            </View>
-          )}
-          {(bd || contact.birthday) && (
-            <View className="field">
-              <Text className="dim">生日</Text>
-              <Text>{contact.birthday && contact.birthday_cal !== "lunar" ? contact.birthday : ""}{bd ? ` ${bd}` : ""}</Text>
-            </View>
-          )}
-          {contact.anniversary && (
-            <View className="field">
-              <Text className="dim">纪念日</Text>
-              <Text>{contact.anniversary}</Text>
-            </View>
-          )}
-          {!!contact.notes && (
-            <View className="field col">
-              <Text className="dim">档案备注</Text>
-              <Text className="notes">{contact.notes}</Text>
-            </View>
-          )}
-          <View className="field">
-            <Text className="dim">人情往来净额</Text>
-            {/* 正=收多（绿），负=送多（红）；0 或无人情账显示中性 */}
-            <Text className={netCents > 0 ? "money-in" : netCents < 0 ? "money-out" : ""}>
-              {money.length === 0 ? "暂无" : `${netCents > 0 ? "+" : netCents < 0 ? "-" : ""}¥${yuan(Math.abs(netCents))}`}
+          <View className="cd-ops">
+            <Text className="cd-op" onClick={() => setEditing(true)}>✏️</Text>
+            <Text
+              className={`cd-op del ${armDelete.armedId ? "armed" : ""}`}
+              onClick={() => void removeContact()}
+            >
+              {armDelete.armedId ? "确认删除?" : "🗑"}
             </Text>
           </View>
         </View>
+        {/* 亲密度（渐变进度条 from-sky-500 to-pink-400） */}
+        <View className="cd-intimacy">
+          <View className="cd-intimacy-label">
+            <Text>亲密度</Text>
+            <Text>{Number(contact.intimacy ?? 0)}/100</Text>
+          </View>
+          <View className="cd-intimacy-bar">
+            <View className="cd-intimacy-fill" style={{ width: `${Number(contact.intimacy ?? 0)}%` }} />
+          </View>
+        </View>
+        {!!contact.notes && <Text className="cd-notes">{contact.notes}</Text>}
       </View>
 
-      {/* 互动记录（往来时间线） */}
-      <View className="card">
-        <Text className="h2">互动记录（{timeline.length}）</Text>
-        {timeline.length === 0 && <Text className="dim">还没有往来记录 —— 记动态时提及 TA 即可自动关联</Text>}
-        {timeline.map((t) => (
-          <View key={t.id} className="tl-row">
-            <View className="grow">
-              <Text className="tl-title">
-                {TYPE_EMOJI[t.type ?? ""] ?? "•"} {t.type ?? "其他"}
-                {t.summary ? ` · ${t.summary}` : ""}
-              </Text>
-              {/* 来源动态原文（识别关联的上下文）与关联流水金额 */}
-              {!!t.entry_text && <Text className="dim tl-sub">{t.entry_text}</Text>}
-              {t.tx_amount_cents != null && (
-                <Text className={`tl-sub ${t.tx_direction === "out" ? "money-out" : "money-in"}`}>
-                  {t.tx_direction === "out" ? "-" : "+"}¥{yuan(t.tx_amount_cents)} · {t.tx_category ?? ""}
-                </Text>
-              )}
-            </View>
-            <Text className="dim">{bjDay(t.occurred_at ?? t.created_at)}</Text>
+      {/* AI 交往画像卡 */}
+      <View className="glass glass-p5 cd-card">
+        <View className="cd-sec-head">
+          <Text className="cd-sec-title">
+            ✨ AI 交往画像
+            {!!contact.ai_profile_at && <Text className="cd-sec-sub"> 提炼于 {bjMDHM(contact.ai_profile_at)}</Text>}
+          </Text>
+          <Button
+            className={`btn-reset btn-purple-tinted cd-profile-btn ${profiling ? "disabled" : ""}`}
+            hoverClass="press"
+            disabled={profiling}
+            onClick={() => void runProfile()}
+          >
+            {profiling ? "提炼中…" : profile ? "重新提炼" : "提炼交往画像"}
+          </Button>
+        </View>
+        {profiling && (
+          <Text className="cd-profiling">正在通读往来记录，总结喜好 / 忌讳 / 值得记住的事…</Text>
+        )}
+        {!profiling && !profile && (
+          <Text className="cd-profile-empty">
+            让 AI 通读与 TA 的往来记录和人情账，提炼交往风格、喜好与忌讳 —— 见面前扫一眼。
+          </Text>
+        )}
+        {!profiling && profile && (
+          <View className="cd-profile">
+            <Text className="cd-profile-summary">{profile.summary}</Text>
+            {!!profile.likes?.length && (
+              <View className="cd-profile-row">
+                <Text className="cd-profile-label ok">💚 喜欢</Text>
+                {profile.likes.map((x) => (
+                  <Text key={x} className="chip cd-mini ok">{x}</Text>
+                ))}
+              </View>
+            )}
+            {!!profile.dislikes?.length && (
+              <View className="cd-profile-row">
+                <Text className="cd-profile-label bad">⚠️ 忌讳</Text>
+                {profile.dislikes.map((x) => (
+                  <Text key={x} className="chip cd-mini bad">{x}</Text>
+                ))}
+              </View>
+            )}
+            {!!profile.facts?.length && (
+              <View className="cd-profile-row">
+                <Text className="cd-profile-label acc">📌 记住</Text>
+                {profile.facts.map((x) => (
+                  <Text key={x} className="chip cd-mini acc">{x}</Text>
+                ))}
+              </View>
+            )}
           </View>
-        ))}
+        )}
       </View>
-    </View>
+
+      {msg && <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View>}
+
+      {/* 一起经历过的事（往来时间线） */}
+      <View className="glass glass-p5 cd-card">
+        <View className="cd-sec-head">
+          <Text className="cd-sec-title">
+            🕐 一起经历过的事
+            <Text className="cd-sec-sub"> 来自动态识别 + 手动补记</Text>
+          </Text>
+          <Button className="btn-reset btn-sky-tinted cd-add-btn" hoverClass="press" onClick={() => setAdding(true)}>
+            ＋ 补一笔往来
+          </Button>
+        </View>
+        {timeline.length === 0 ? (
+          <Text className="cd-tl-empty">
+            还没有往来记录 —— 动态里提到「{contact.name}」会自动记入，或点右上角补一笔
+          </Text>
+        ) : (
+          <View className="cd-timeline">
+            {timeline.map((t, idx) => {
+              const when = t.occurred_at ?? t.created_at ?? "";
+              return (
+                <View key={t.id} className="cd-tl-row">
+                  {idx < timeline.length - 1 && <View className="cd-tl-line" />}
+                  <View className="cd-tl-dot">
+                    <Text>{TYPE_EMOJI[t.type ?? ""] ?? "•"}</Text>
+                  </View>
+                  <View className="cd-tl-body">
+                    <View className="cd-tl-meta">
+                      <Text className="cd-tl-type">{t.type}</Text>
+                      {!!when && <Text className="cd-tl-when">{zhDay(when)}</Text>}
+                      {t.tx_amount_cents != null && (
+                        <Text className={t.tx_direction === "out" ? "money-out" : "money-in"}>
+                          {t.tx_direction === "out" ? "送出" : "收到"} ¥{yuan(t.tx_amount_cents ?? 0)}
+                        </Text>
+                      )}
+                    </View>
+                    {!!t.summary && <Text className="cd-tl-summary">{displaySummary(t.summary)}</Text>}
+                    {!!t.entry_text && t.entry_text !== t.summary && (
+                      <Text className="cd-tl-entry">「{t.entry_text}」</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* 关联人情账 */}
+      {money.length > 0 && (
+        <View className="glass glass-p5 cd-card">
+          <View className="cd-money-head">
+            <Text className="chip cd-chip tone-rose">💰 关联人情账</Text>
+            <Text className="cd-money-sub">流水中「对方」为 TA 的人情往来 · 净额 ¥{yuan(giftIn - giftOut)}</Text>
+          </View>
+          <View className="cd-money-list">
+            {money.map((m) => (
+              <View key={m.id} className="cd-money-row">
+                <Text className={`cd-money-dir ${m.direction === "out" ? "out" : "in"}`}>
+                  {m.direction === "out" ? "送" : "收"}
+                </Text>
+                <Text className="cd-money-note">{m.note || m.category}</Text>
+                <Text className="cd-money-when">{zhDay(m.occurred_at)}</Text>
+                <Text className={`cd-money-amt ${m.direction === "out" ? "money-out" : "money-in"}`}>
+                  {m.direction === "out" ? "-" : "+"}¥{yuan(m.amount_cents)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* 编辑弹层 / 补一笔往来弹层 */}
+      {editing && (
+        <ContactFormModal
+          initial={contact}
+          onClose={() => setEditing(false)}
+          onSaved={(text) => {
+            setEditing(false);
+            setMsg({ ok: true, text });
+            void load().catch((e: any) => setLoadErr(e?.message ?? String(e)));
+          }}
+        />
+      )}
+      {adding && (
+        <InteractionModal
+          contactId={id}
+          contactName={contact.name}
+          onClose={() => setAdding(false)}
+          onSaved={(text) => {
+            setAdding(false);
+            setMsg({ ok: true, text });
+            void load().catch((e: any) => setLoadErr(e?.message ?? String(e)));
+          }}
+        />
+      )}
+    </PageShell>
   );
 }

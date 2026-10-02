@@ -1,0 +1,74 @@
+/*
+ * 补一笔往来弹层样式（= web interaction-form-modal.tsx；web 1px = 2 单位）。
+ */
+.it-sheet {
+  background: var(--glass-bg-mobile);
+  border: 1px solid var(--glass-border);
+}
+.it-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px; /* mb-3 */
+}
+.it-title {
+  font-size: 28px; /* text-sm */
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.it-close {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  color: var(--ink-dim);
+}
+.it-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* space-y-2.5 */
+}
+.it-row {
+  display: flex;
+  gap: 16px;
+}
+.it-pick {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface);
+  font-size: 26px; /* text-sm */
+  color: var(--ink);
+}
+.it-pick.flex1 {
+  flex: 1;
+  min-width: 0;
+}
+.it-summary {
+  padding: 12px 24px;
+  border-color: var(--line-strong);
+  background: var(--surface);
+  font-size: 28px;
+}
+.it-err {
+  font-size: 24px;
+  color: var(--danger);
+}
+.it-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 8px;
+}
+.it-cancel {
+  padding: 12px 32px;
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.it-save {
+  padding: 12px 40px;
+  font-size: 24px;
+  border-radius: 16px;
+}

@@ -1,37 +1,74 @@
-import { useRef, useState } from "react";
+/**
+ * 绑定页（微信壳特有页，web 无对应页；NAVLESS 不用 PageShell）：
+ * 微信一键登录未绑定时携 bindTicket 落到本页，短信验证码绑定已有账号 → POST
+ * /api/auth/wechat/bind {bindTicket, phone, smsCode} 换正式会话。
+ * 结构/样式沿用 web 登录页表单卡语言（= web app/login/page.tsx 的卡内形态）：
+ * 顶部「‹ 返回」+ 居中 glass 卡（渐变标题 + 说明 + 手机号 + 验证码+60s 倒计时 + 渐变提交钮）。
+ * 入口用 navigateTo（登录页在栈内，「‹ 返回」= Taro.navigateBack）；绑定成功 reLaunch 清栈进首页。
+ */
+import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 import { sendSmsCode, wechatBind } from "@/lib/api";
 import { setSessionToken } from "@/lib/session";
+import { syncNativeBackground, useTheme } from "@/lib/theme";
 import "./index.scss";
 
 export default function Bind() {
+  const { theme } = useTheme(); // NAVLESS 页自己挂主题（= PageShell 职责）
   const router = useRouter();
   const ticket = useRef(router.params.ticket ?? "");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  // 验证码请求飞行中锁：与 countdown 分开（countdown 成功后才启动），飞行中也禁用按钮防连发
+  const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // 卸载时清理倒计时 interval，避免离开页面后空跑最长 60s（= web login 同款清理）
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (countdown <= 0 && timer.current) {
+      clearInterval(timer.current);
+      timer.current = null;
+    }
+  }, [countdown]);
+
+  // NAVLESS 页没有 PageShell，原生页面底色同步自己做
+  useEffect(() => {
+    syncNativeBackground(theme);
+  }, [theme]);
+
+  function goBack() {
+    // 直开本页（无登录页在栈内）时退无可退，兜底回登录页
+    if (Taro.getCurrentPages().length > 1) Taro.navigateBack();
+    else Taro.reLaunch({ url: "/pages/login/index" });
+  }
 
   async function sendCode() {
-    if (countdown > 0 || busy) return;
-    if (!/^1[3-9]\d{9}$/.test(phone.trim())) {
+    if (sending || countdown > 0) return; // 飞行中/倒计时内忽略再次点击
+    const p = phone.trim();
+    if (!/^1[3-9]\d{9}$/.test(p)) {
       setMsg({ ok: false, text: "请填写正确的手机号" });
       return;
     }
+    setSending(true);
     try {
-      await sendSmsCode(phone.trim(), "bind");
-      setMsg({ ok: true, text: "验证码已发送" });
+      await sendSmsCode(p, "bind"); // 绑定专用 purpose（未配置通道 503 直接报错展示）
+      setMsg({ ok: true, text: "验证码已发送，5 分钟内有效" });
       setCountdown(60);
-      const timer = setInterval(() => {
-        setCountdown((c) => {
-          if (c <= 1) clearInterval(timer);
-          return c - 1;
-        });
-      }, 1000);
-    } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "发送失败" });
+      timer.current = setInterval(() => setCountdown((c) => c - 1), 1000);
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSending(false);
     }
   }
 
@@ -45,10 +82,10 @@ export default function Bind() {
     setMsg(null);
     try {
       const j = await wechatBind(ticket.current, phone.trim(), code.trim());
-      setSessionToken(j.token);
+      setSessionToken(j.token); // request 层已自动入库，此处显式保持旧数据流
       Taro.reLaunch({ url: "/pages/feed/index" });
-    } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "绑定失败" });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -57,23 +94,63 @@ export default function Bind() {
   const ready = /^1[3-9]\d{9}$/.test(phone.trim()) && code.trim().length >= 4;
 
   return (
-    <View className="bind-pad">
-      <View className="card">
-        <Text className="h1">绑定手机号</Text>
-        <Text className="dim">微信首次登录需绑定已有账号（注册请用网页版）</Text>
-        <View className="mt32" />
-        <Input className="input mb" type="number" maxlength={11} placeholder="手机号" value={phone} onInput={(e) => setPhone(e.detail.value)} />
-        <View className="code-row">
-          <Input className="input grow" type="number" maxlength={6} placeholder="短信验证码" value={code} onInput={(e) => setCode(e.detail.value)} />
-          <Button className={`btn-ghost code-btn ${countdown > 0 ? "disabled" : ""}`} disabled={countdown > 0} onClick={sendCode}>
-            {countdown > 0 ? `${countdown}s` : "发送验证码"}
-          </Button>
+    <View className={`app-bg bind-screen${theme === "light" ? " theme-light" : ""}`}>
+      {/* 顶部返回行（= web 同位置返回链；NAVLESS 自绘导航所以手工排） */}
+      <View className="bind-top safe-top">
+        <View className="back-btn" hoverClass="press" hoverStayTime={80} onTap={goBack}>
+          <Text>‹ 返回</Text>
         </View>
-        {msg && <View className={`banner mt ${msg.ok ? "banner-ok" : "banner-err"}`}>{msg.text}</View>}
-        <View className="mt32" />
-        <Button className={`btn-primary ${!ready || busy ? "disabled" : ""}`} disabled={!ready || busy} onClick={doBind}>
-          {busy ? "绑定中…" : "绑定并登录"}
-        </Button>
+      </View>
+
+      {/* 居中卡（= web login 表单卡 max-w-sm 形态） */}
+      <View className="bind-center">
+        <View className="glass glass-p5 bind-card">
+          <Text className="bind-title text-gradient">绑定手机号</Text>
+          <Text className="hint bind-desc">微信首次登录需绑定已有账号（注册请用网页版）</Text>
+
+          <View className="fields">
+            <Input
+              className="input"
+              type="number"
+              maxlength={11}
+              value={phone}
+              placeholder="手机号"
+              placeholderClass="input-placeholder"
+              onInput={(e) => setPhone(e.detail.value)}
+            />
+
+            <View className="code-row">
+              <Input
+                className="input code-input"
+                type="number"
+                maxlength={6}
+                value={code}
+                placeholder="6 位短信验证码"
+                placeholderClass="input-placeholder"
+                onInput={(e) => setCode(e.detail.value)}
+              />
+              <Button
+                className={`code-btn${countdown > 0 || sending ? " disabled" : ""}`}
+                hoverClass="press"
+                disabled={countdown > 0 || sending}
+                onTap={sendCode}
+              >
+                {sending ? "发送中…" : countdown > 0 ? `${countdown}s` : "发送验证码"}
+              </Button>
+            </View>
+
+            <Button
+              className={`btn-primary submit-btn${!ready || busy ? " disabled" : ""}`}
+              hoverClass="press"
+              disabled={!ready || busy}
+              onTap={doBind}
+            >
+              {busy ? "绑定中…" : "绑定并登录"}
+            </Button>
+          </View>
+
+          {msg && <Text className={`msg ${msg.ok ? "msg-ok" : "msg-err"}`}>{msg.text}</Text>}
+        </View>
       </View>
     </View>
   );

@@ -1,124 +1,458 @@
-/* 动态卡私有样式（.card 原子类来自 app.scss；金额方向色复用全局 money-out / money-in） */
+/**
+ * 动态卡私有样式（= web moment-card.tsx + 子组件的 tailwind 值 ×2）。
+ * 玻璃卡底/圆角用全局 .glass/.glass-p4；chip 底色由 chip.tsx 内联 style 给（web TONE_* 同源）。
+ */
 
-.moment-head {
+/* = article.glass.flex.gap-3.rounded-2xl.p-4 */
+.mc {
   display: flex;
-  justify-content: space-between;
+  gap: 24px; /* gap-3 */
+  min-width: 0;
+}
+.mc-main {
+  min-width: 0;
+  flex: 1;
+}
+
+/* 头像位：h-10 w-10 rounded-full border-line bg-elevated/80 text-xl */
+.mc-avatar {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  display: flex;
   align-items: center;
-  margin-bottom: 12px;
-}
-
-.mood {
-  font-size: 24px;
-  color: var(--warn);
-}
-
-.moment-text {
-  font-size: 30px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-/* 图片九宫格 */
-.grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.grid-img {
-  width: 210px;
-  height: 210px;
-  border-radius: 12px;
-  background: var(--elevated);
-}
-
-/* 识别产物 chips */
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.chip {
-  font-size: 22px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line-soft);
+  justify-content: center;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 18px;
+  background: var(--elevated);
+  font-size: 40px;
 }
 
-/* 识别中 / 超时降级提示 */
-.recog-state {
+/* ---- 头部：flex items-center gap-2 text-xs text-ink-dim ---- */
+.mc-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.mc-head-spacer {
+  flex: 1;
+}
+/* 空间徽标：rounded-lg px-1.5 py-0.5 text-[10px] font-medium（底/字色 = space.color 内联） */
+.mc-space-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 16px; /* rounded-lg 8px */
+  padding: 4px 12px;
+  overflow: hidden;
+}
+.mc-space-icon {
+  flex-shrink: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+.mc-space-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 500;
+}
+/* ⋯ 操作入口（小程序无 hover，常显） */
+.mc-more {
+  flex-shrink: 0;
+  padding: 0 12px;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink-dim);
+}
+/* 两步删除确认（= web 确认删除/取消） */
+.mc-confirm-del {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.mc-confirm-del-btn {
+  border-radius: 8px;
+  padding: 4px 16px;
+  background: rgba(225, 29, 72, 0.8); /* bg-rose-600/80 */
+  color: #fff;
+  font-size: 20px;
+}
+.mc-confirm-del-cancel {
+  padding: 0 8px;
+  font-size: 20px;
+  color: var(--ink-mute);
+}
+
+/* ---- 原文：mt-1.5 text-[15px] leading-relaxed ---- */
+.mc-raw {
   display: block;
   margin-top: 12px;
-  font-size: 22px;
-  color: var(--ink-faint);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 30px;
+  line-height: 1.625;
+  color: var(--ink);
+}
+/* 长文折叠 = line-clamp-6 */
+.mc-raw-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+.mc-raw-toggle {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--accent);
+}
+/* 编辑态 textarea + 保存行 */
+.mc-raw-edit {
+  margin-top: 12px;
+}
+.mc-raw-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 16px 20px;
+  font-size: 30px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.mc-raw-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+.mc-raw-save {
+  border-radius: 12px;
+  padding: 8px 24px;
+  background: #0284c7; /* bg-sky-600 */
+  color: #fff;
+  font-size: 24px;
+  font-weight: 500;
+}
+.mc-raw-cancel {
+  padding: 0 8px;
+  font-size: 24px;
+  color: var(--ink-mute);
 }
 
-/* 待确认行：虚线 warn 框（对齐 web pending-confirms 的琥珀降级视觉） */
-.pending-row {
+/* ---- 九宫格（= web ImageGrid 三形态） ---- */
+.mc-grid {
+  margin-top: 16px;
+}
+/* 1 张：aspect-[4/3] w-2/3 max-w-72（按 750 稿内容宽约 606 算，高取宽 ×3/4） */
+.mc-grid-one .mc-grid-cell {
+  width: 66.7%;
+  height: 300px;
+}
+/* 2-3 张：横排 w-1/3 */
+.mc-grid-few {
+  display: flex;
+  gap: 12px;
+}
+.mc-grid-few .mc-grid-cell {
+  width: 33.33%;
+  height: 190px;
+}
+/* 4-9 张：三列网格 grid-cols-3 gap-1.5（flex 折行实现，兼容旧基础库无 grid） */
+.mc-grid-many {
   display: flex;
   flex-wrap: wrap;
+  gap: 12px;
+}
+.mc-grid-many .mc-grid-cell {
+  width: calc((100% - 48px) / 3);
+  height: 190px;
+}
+.mc-grid-cell {
+  overflow: hidden;
+  border-radius: 24px; /* rounded-xl */
+  background: var(--elevated);
+}
+.mc-grid-img {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- 识别中 / 超时：mt-1.5 flex items-center gap-1.5 text-xs ---- */
+.mc-recog-state {
+  display: flex;
   align-items: center;
   gap: 12px;
   margin-top: 12px;
-  border: 1px dashed rgba(251, 191, 36, 0.45);
-  background: rgba(251, 191, 36, 0.06);
-  border-radius: 12px;
-  padding: 10px 16px;
+  min-width: 0;
+}
+.mc-recog-state-live {
+  color: var(--accent);
+  opacity: 0.8;
+}
+.mc-recog-state-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 24px;
+}
+
+/* ---- 日程冲突降级条：amber 警示（= web border-amber-500/30 bg-amber-500/5） ---- */
+.mc-conflict {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.05);
+  border-radius: 16px;
+  padding: 12px 20px;
   font-size: 22px;
   color: var(--warn);
 }
-
-.pending-text {
+.mc-conflict-text {
   flex: 1;
   min-width: 0;
 }
-
-.pending-btn {
+.mc-conflict-go {
   flex-shrink: 0;
-  background: var(--accent);
-  color: #04121f;
-  font-size: 20px;
-  font-weight: 600;
-  padding: 6px 22px;
+  white-space: nowrap;
+  font-weight: 500;
+  text-decoration: underline;
+}
+.mc-conflict-x {
+  flex-shrink: 0;
+  padding: 0 4px;
+  opacity: 0.6;
+}
+
+/* ---- 心情（= web MoodBlock） ---- */
+.mc-mood-wrap {
+  margin-top: 8px;
+  font-size: 24px;
+}
+.mc-mood-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mc-mood-edit {
+  font-size: 22px;
+  color: var(--ink-dim);
+}
+.mc-mood-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--elevated);
+  border-radius: 16px;
+  padding: 16px;
+}
+.mc-mood-pill {
+  border-radius: 999px;
+  padding: 4px 16px;
+  font-size: 22px;
+  background: var(--soft);
+  color: var(--ink-soft);
+}
+.mc-mood-pill-on {
+  background: #0284c7; /* bg-sky-600 */
+  color: #fff;
+}
+.mc-mood-clear {
+  color: var(--danger);
+}
+.mc-mood-cancel {
+  margin-left: auto;
+  padding: 0 8px;
+  font-size: 22px;
+  color: var(--ink-dim);
+}
+
+/* ---- 识别产物容器：mt-2.5 rounded-lg border-line-soft bg-bg/50 px-3 py-2 ---- */
+.mc-recog {
+  margin-top: 20px;
+  border: 1px solid var(--line-soft);
+  background: var(--input-focus-bg); /* ≈ bg-bg/50 的令牌近似（页面已有半透明 bg 令牌） */
+  border-radius: 16px;
+  padding: 16px 24px;
+  font-size: 24px;
+  color: var(--ink-soft);
+}
+/* 单行：flex items-center gap-x-2（时间线小圆点/标签 + 主文本 + 时间 + 行操作） */
+.mc-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 4px 0;
+}
+.mc-dot {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
 }
-
-.pending-btn-ghost {
+.mc-row-main {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-row-time {
   flex-shrink: 0;
-  font-size: 20px;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-mute);
-  padding: 6px 10px;
 }
-
-/* 卡内操作反馈横幅（配比同 app.scss 的 banner-ok/err，避免卡片里再套 banner 类打架） */
-.card-msg {
-  margin-top: 12px;
-  border-radius: 12px;
-  padding: 12px 16px;
-  font-size: 22px;
-}
-
-.card-msg-ok {
-  background: rgba(52, 211, 153, 0.12);
+.mc-row-done {
+  flex-shrink: 0;
   color: var(--success);
 }
-
-.card-msg-err {
-  background: rgba(251, 113, 133, 0.12);
+/* 行内操作（= web RowAction；小程序无 hover 常显） */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.row-action-btn {
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 22px;
+  color: var(--ink-dim);
+}
+.row-action-edit {
+  color: var(--accent);
+}
+.row-action-armed {
+  background: rgba(244, 63, 94, 0.15);
+  font-weight: 500;
   color: var(--danger);
 }
 
-/* 底部操作提示：长按删除不可见，不加提示没人知道 */
-.moment-hint {
+/* ---- 行内编辑盒子：rounded-lg border-sky-500/40 bg-elevated/60 p-2 ---- */
+.mc-edit-box {
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  background: var(--elevated);
+  border-radius: 16px;
+  padding: 16px;
+  margin: 8px 0;
+}
+.mc-edit-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+.mc-edit-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 24px;
+  color: var(--ink);
+}
+.mc-edit-amount {
+  width: 200px;
+}
+.mc-edit-pick {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.mc-edit-sep {
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.mc-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+.mc-edit-cancel {
+  padding: 8px 16px;
+  font-size: 22px;
+  color: var(--ink-mute);
+}
+.mc-edit-save {
+  border-radius: 12px;
+  padding: 8px 24px;
+  background: #0284c7;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+/* ---- 待确认（= web PendingConfirms：amber 虚线框） ---- */
+.mc-pendings {
+  margin-top: 16px;
+}
+.mc-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.05);
+  border-radius: 16px;
+  padding: 12px 24px;
+  margin-bottom: 8px;
+  font-size: 22px;
+  color: var(--warn);
+}
+.mc-pending-text {
+  flex: 1;
+  min-width: 0;
+}
+.mc-pending-ok {
+  flex-shrink: 0;
+  border-radius: 8px;
+  padding: 4px 16px;
+  background: #0284c7;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 500;
+}
+.mc-pending-ignore {
+  flex-shrink: 0;
+  padding: 4px 16px;
+  font-size: 20px;
+  color: var(--ink-mute);
+}
+
+/* ---- 底部提示 + 卡内反馈 ---- */
+.mc-hint {
   display: block;
-  margin-top: 14px;
-  padding-top: 12px;
+  margin-top: 16px;
   border-top: 1px solid var(--line-soft);
+  padding-top: 16px;
   font-size: 20px;
   color: var(--ink-faint);
+}
+.mc-card-msg {
+  margin-top: 16px;
+  margin-bottom: 0; /* 卡内横幅不吃全局 msg-banner 的 mb-24px */
 }
