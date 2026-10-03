@@ -289,7 +289,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     await client.query("begin");
     // for update 串行化同一动态的并发识别（发布后台识别 vs 巡检补跑），防止清旧插新交错出重复产物
     const { rows: current } = await client.query(
-      `select raw_text, analyzed_at from entries where id = $1 and user_id = $2 for update`,
+      `select raw_text, analyzed_at, created_at from entries where id = $1 and user_id = $2 for update`,
       [entryId, userId],
     );
     if (current[0]?.raw_text !== rawText) {
@@ -339,7 +339,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
         await recordRecognition(client, userId, entryId, "schedule", "none", { reason: overlapError(conflict, { title: r.title, start: r.time.start, end: r.time.end }) }, r.scheduleConfidence, r.engine);
         await recordRecognition(client, userId, entryId, "finance", r.finance.hasAmount ? (r.financeConfidence >= CONFIDENCE_THRESHOLD ? "applied" : "pending") : "none", r.finance, r.financeConfidence, r.engine);
         if (r.finance.hasAmount && r.financeConfidence >= CONFIDENCE_THRESHOLD) {
-          await insertTransaction(client, userId, entryId, r, rawText);
+          await insertTransaction(client, userId, entryId, r, rawText, current[0]?.created_at);
         }
         await persistPeople(client, userId, entryId, r);
       } else {
@@ -390,7 +390,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     // ---- 财务域（冲突路径已落过则跳过）----
     if (!conflictTitle) {
       if (r.finance.hasAmount && r.financeConfidence >= CONFIDENCE_THRESHOLD) {
-        await insertTransaction(client, userId, entryId, r, rawText);
+        await insertTransaction(client, userId, entryId, r, rawText, current[0]?.created_at);
         await recordRecognition(client, userId, entryId, "finance", "applied", r.finance, r.financeConfidence, r.engine);
       } else if (r.finance.hasAmount) {
         pendingDomains.push("finance");
@@ -447,6 +447,24 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   }
 }
 
+/** 话术带日期的花销 → 对应日期流水（REQ-009 FR-E6）：
+ * occurredDate（北京 YYYY-MM-DD）+ 动态创建时刻的北京钟点；缺省/非法/未来日期返回 null（沿用原口径）。
+ * 未来日期视为模型漂移；久远过去不设限（用户补记是合法意图）。 */
+export function resolveFinanceOccurredAt(
+  occurredDate: string | null | undefined,
+  entryCreatedAt: Date | string | null | undefined,
+): string | null {
+  if (!occurredDate || !/^\d{4}-\d{2}-\d{2}$/.test(occurredDate)) return null;
+  const created = new Date(entryCreatedAt ?? Date.now());
+  if (Number.isNaN(created.getTime())) return null;
+  const bjToday = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+  if (occurredDate > bjToday) return null;
+  const bj = new Date(created.getTime() + 8 * 3600_000);
+  const hhmmss = `${String(bj.getUTCHours()).padStart(2, "0")}:${String(bj.getUTCMinutes()).padStart(2, "0")}:${String(bj.getUTCSeconds()).padStart(2, "0")}`;
+  const combined = new Date(`${occurredDate}T${hhmmss}+08:00`);
+  return Number.isNaN(combined.getTime()) ? null : combined.toISOString();
+}
+
 /** 财务流水落库（主路径与冲突降级路径共用，保证只插一条） */
 async function insertTransaction(
   client: import("pg").PoolClient,
@@ -454,6 +472,7 @@ async function insertTransaction(
   entryId: string,
   r: import("@shiguangri/ai").ParseResult,
   rawText: string,
+  entryCreatedAt?: Date | string | null,
 ) {
   await client.query(
     `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at)
@@ -465,7 +484,7 @@ async function insertTransaction(
       r.finance.category ?? "其他",
       r.finance.counterparty ?? null,
       rawText,
-      r.time.end,
+      resolveFinanceOccurredAt(r.finance.occurredDate, entryCreatedAt) ?? r.time.end,
     ],
   );
 }

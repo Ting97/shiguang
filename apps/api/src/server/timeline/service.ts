@@ -14,7 +14,7 @@ import { deleteImageFile, sniffImageMime, IMAGE_MIME_EXT, newStorageKey, saveIma
 import { ApiError } from "../platform/http/errors";
 import { isUuid } from "../platform/http/validate";
 import { enforceUgcText } from "../platform/wechat";
-import { analyzeAndPersist, listContactNames } from "./analyze";
+import { analyzeAndPersist, listContactNames, resolveFinanceOccurredAt } from "./analyze";
 import { entriesRepo } from "./repo";
 
 /** 标准 uuid 形状（宽松的 36 位会放行无连字符串，PG ::uuid cast 直接 500） */
@@ -147,7 +147,10 @@ export async function confirmPending(
       case "finance": {
         if (result.amountCents != null) {
           // 快照防御：脏 occurredAt 落 ::timestamptz 会 500，与 schedule/todo 分支同口径 400
-          const occurredAt = result.occurredAt ?? new Date().toISOString();
+          // 话术带日期的花销 → 记对应日期（REQ-009 FR-E6）；无则沿用快照/当前口径
+          const occurredAt =
+            resolveFinanceOccurredAt((result as { occurredDate?: string | null }).occurredDate, entry.created_at) ??
+            (result.occurredAt ?? new Date().toISOString());
           if (Number.isNaN(new Date(occurredAt).getTime())) {
             throw ApiError.badRequest("识别快照时间无效，请重新识别");
           }
@@ -578,7 +581,7 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
   }
 
   const entry = (
-    await pool.query(`select id, raw_text from entries where id = $1 and user_id = $2`, [entryId, userId])
+    await pool.query(`select id, raw_text, created_at from entries where id = $1 and user_id = $2`, [entryId, userId])
   ).rows[0];
   if (!entry) throw ApiError.notFound("动态不存在");
 
@@ -723,7 +726,7 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
               r.finance.category ?? "其他",
               r.finance.counterparty ?? null,
               entry.raw_text,
-              r.time.end,
+              resolveFinanceOccurredAt(r.finance.occurredDate, entry.created_at) ?? r.time.end,
             ],
           );
           applied = true;

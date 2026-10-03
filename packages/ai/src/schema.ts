@@ -55,6 +55,8 @@ export const FinanceDraft = z.object({
   amountCents: z.number().int().nullish(),
   category: z.string().nullish(),
   counterparty: z.string().nullish(),
+  /** 话术带日期的花销 → 发生日（北京 YYYY-MM-DD）；null=按当天记（REQ-009 FR-E6） */
+  occurredDate: z.string().nullish(),
 });
 
 /** 人际域联动草稿 */
@@ -214,6 +216,8 @@ export const FinanceDraftV2 = z
     amountCents: z.coerce.number().int().max(100_000_000).nullish(),
     category: z.string().nullish(),
     counterparty: z.string().nullish(),
+    /** 话术带日期的花销 → 发生日 YYYY-MM-DD；畸形值静默置 null（可选字段不打回重问） */
+    occurredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().catch(null),
     confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
@@ -351,6 +355,7 @@ export const LlmExtraction = z.object({
       amountCents: z.coerce.number().int().nullish(),
       category: z.string().nullish(),
       counterparty: z.string().nullish(),
+      occurredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().catch(null),
       confidence: conf(0.9),
     })
     .nullish()

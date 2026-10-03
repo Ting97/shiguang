@@ -84,7 +84,19 @@ function makeTitle(text: string): string {
   return (cleaned || text).slice(0, 20);
 }
 
-function ruleExtract(text: string, contactNames?: string[]): LlmExtractionT {
+/** 话术日期词 → 花销发生日（规则兜底只认 昨天/前天/大前天；更复杂日期词交给 LLM，REQ-009 FR-E6） */
+function ruleFinanceOccurredDate(text: string, now: Date): string | null {
+  const offsets: Array<[RegExp, number]> = [[/大前天/, -3], [/前天/, -2], [/昨天|昨晚/, -1]];
+  for (const [re, off] of offsets) {
+    if (re.test(text)) {
+      const bj = new Date(now.getTime() + 8 * 3600_000 + off * 86_400_000);
+      return bj.toISOString().slice(0, 10);
+    }
+  }
+  return null;
+}
+
+function ruleExtract(text: string, contactNames?: string[], now: Date = new Date()): LlmExtractionT {
   let activity: LlmExtractionT["schedule"]["activity"] = "other";
   for (const [re, act] of RULE_KEYWORDS) {
     if (re.test(text)) { activity = act; break; }
@@ -123,6 +135,7 @@ function ruleExtract(text: string, contactNames?: string[]): LlmExtractionT {
             : /超市|买菜|购物/.test(text)
               ? "购物"
               : "餐饮",
+          occurredDate: ruleFinanceOccurredDate(text, now),
           counterparty: people[0]?.name,
           confidence: 0.8,
         }
@@ -450,7 +463,7 @@ function rulesPipeline(
   opts: ParseOptions,
   fallbackReason: string,
 ): ParseResultT {
-  const ext = ruleExtract(text, opts.contactNames);
+  const ext = ruleExtract(text, opts.contactNames, now);
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
   const durationFromText = parseDuration(text);
   const durationMin = ext.schedule.durationMin ?? durationFromText ?? defaults[ext.schedule.activity];
@@ -503,6 +516,7 @@ function rulesPipeline(
       amountCents: ext.finance.amountCents != null ? Math.abs(ext.finance.amountCents) : null,
       category: ext.finance.category ?? null,
       counterparty: ext.finance.counterparty ?? null,
+      occurredDate: ext.finance.occurredDate ?? null,
     },
     people,
     ambiguity: ext.ambiguity ?? null,

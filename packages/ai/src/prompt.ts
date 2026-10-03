@@ -14,6 +14,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
 - 以「当前时间」为基准推算今天/昨天/明天的具体日期；一律输出 "YYYY-MM-DDTHH:MM" 完整本地时刻串（用实际日期拼，禁止"今天07:30"这类非日期串）。
 - schedule.applicable=true → **start/end 必填且 end 晚于 start**：显式起止（"7点半到8点半"）按话术；大概时段给合理起止（"下午开了三小时会"→14:00–17:00）；刚做完/正做着→end=当前时间、start=end 减时长；跨天（"晚上10.30到6.30睡觉"）end=次日；补记（"昨天下午…"）填昨天。
 - todo.applicable=true → **due 必填**："明天下午三点看牙"→<明天日期>T15:00；"待会儿倒垃圾"→当前+1小时；"下周三开会"→下周三合理钟点。
+- **finance 交易日期**：话术给花销/收入带了日期（"昨天买X花了50""前天吃饭100""上周五随了600"）→ finance.occurredDate 填该日（YYYY-MM-DD，按当前时间推算实际日期）；未提日期 → null（按当天记）。**禁止未来日期**。
 - **未提日期一律今天**：哪怕结束钟点还没到也不许挪明天（用户常提前几分钟打卡，17:22 说"下午2点到6点"=今天 14:00–18:00）。
 - **时态定日期**：过去式（"开了/完成了/刚…"）且钟点已过→今天；未来词→未来日期；凌晨0-5点补记白天→昨天。
 - **量词不是钟点**："一点点薯条""两杯咖啡"里的"一点/两杯"绝对不是 01:00/02:00。
@@ -37,7 +38,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
   "reasoning": { "schedule": "一句话判断", "todo": "…", "finance": "…", "mood": "…", "diet": "…" },
   "schedule": { "applicable": bool, "activity": "sleep|work|study|fitness|social|fun|chores|commute|other", "title": "≤8字或空", "start": "YYYY-MM-DDTHH:MM"或null, "end": "同左", "durationMin": 正整数或null(话术明确才给), "periodHint": "now|morning|noon|afternoon|evening|night|lateNight或null", "confidence": 0~1 },
   "todo": { "applicable": bool, "due": "YYYY-MM-DDTHH:MM"或null, "confidence": 0~1 },
-  "finance": { "hasAmount": bool, "direction": "out|in或null", "amountCents": 正数或null, "category": "餐饮/交通/人情往来/学习/购物/娱乐/其他或null", "counterparty": "或null", "confidence": 0~1 },
+  "finance": { "hasAmount": bool, "direction": "out|in或null", "amountCents": 正数或null, "category": "餐饮/交通/人情往来/学习/购物/娱乐/其他或null", "counterparty": "或null", "occurredDate": "YYYY-MM-DD"或null(话术带日期才给), "confidence": 0~1 },
   "mood": { "label": "情绪词或null", "score": -100~100或null, "confidence": 0~1 },
   "diet": { "applicable": bool, "meal": "早餐|午餐|晚餐|加餐|夜宵|未知", "items": [ { "name": "食物", "amount": "分量或null", "kcal": 整数或null } ], "totalKcal": 合计或null, "confidence": 0~1 },
   "people": [ { "name": "人名", "event": "吃饭/送礼/通话/帮忙…或null" } ],
