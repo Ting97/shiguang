@@ -168,12 +168,8 @@ export function fmtUsd(n: number): string {
 /** 盈亏着色：正 success / 负 danger / 零 dim */
 export const pnlTone = (n: number) => (n > 0 ? "money-in" : n < 0 ? "money-out" : "dim");
 
-export function bjTodayStr(): string {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
-export function addDays(ymd: string, n: number): string {
-  return new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-}
+/** 北京今天 YYYY-MM-DD / UTC 口径日推进（REQ-009 9-C 单源：= shared bjToday/bjAddDays 的页面旧名） */
+export { bjToday as bjTodayStr, bjAddDays as addDays } from "@shiguangri/shared";
 /** ISO → 北京日期 YYYY/M/D */
 export function bjDate(iso: string | null): string {
   if (!iso) return "—";

@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { bjToday, fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import { ApiError } from "@/lib/request";
@@ -129,7 +130,6 @@ export default function ReviewPage() {
   // 统计失败态：重试横幅；周报错误单独放 AI 卡内做徽标（统计挂了不应连带隐藏）
   const [statsErr, setStatsErr] = useState<string | null>(null);
   const [genBusy, setGenBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [inited, setInited] = useState(false);
   // 取数序号：快速翻周/切日视图时旧响应可能后到，仅最新一次请求的响应可落地（对齐 web 复盘页 seq 范式）
   const statsSeq = useRef(0);
@@ -163,7 +163,6 @@ export default function ReviewPage() {
     const from = mondayOf(a);
     if (refresh) {
       setGenBusy(true);
-      setMsg(null);
       try {
         const j = await genWeekReview(from, true);
         if (seq !== reviewSeq.current) return;
@@ -171,7 +170,7 @@ export default function ReviewPage() {
         setMeta({ cached: !!j.cached, generatedAt: j.generatedAt, range: j.range });
       } catch (e) {
         if (seq !== reviewSeq.current) return;
-        setMsg(e instanceof Error ? e.message : String(e));
+        showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
       } finally {
         setGenBusy(false);
       }
@@ -295,7 +294,6 @@ export default function ReviewPage() {
         </View>
       </View>
 
-      {msg ? <View className="msg-banner msg-banner-err">{msg}</View> : null}
 
       {!stats ? (
         statsErr ? (

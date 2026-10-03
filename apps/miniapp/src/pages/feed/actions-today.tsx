@@ -8,10 +8,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Input, Picker } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import { showToast } from "@/components/toast";
 import { createTodo, deleteTodo, loadTodayActions, patchTodo, type TodayActionRow } from "./api";
 import { bjInputToIso, dueTag, isoToBjInput } from "./kit";
-
-type Notify = (m: { ok: boolean; text: string } | null) => void;
 
 /** 到期/截止 → 北京墙上串两段（微信 Picker 无 datetime-local，date+time 双 Picker 承载） */
 function splitDue(iso: string | null): { date: string; time: string } {
@@ -19,7 +18,7 @@ function splitDue(iso: string | null): { date: string; time: string } {
   return { date: v.slice(0, 10), time: v.slice(11, 16) || "09:00" };
 }
 
-export default function ActionsToday({ notify }: { notify: Notify }) {
+export default function ActionsToday() {
   const [actions, setActions] = useState<TodayActionRow[] | null>(null);
   // 打卡进行中的行动 id：接到对应行按钮 disabled，防连点重复打卡
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -51,7 +50,7 @@ export default function ActionsToday({ notify }: { notify: Notify }) {
       setActions(j.actions ?? []);
     } catch (e: any) {
       setActions([]);
-      notify({ ok: false, text: `行动清单加载失败：${e?.message ?? e}` });
+      showToast({ type: "err", text: `行动清单加载失败：${e?.message ?? e}` });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -68,10 +67,10 @@ export default function ActionsToday({ notify }: { notify: Notify }) {
     try {
       await createTodo({ title: t, kind: "action", today: true });
       setNewTitle("");
-      notify({ ok: true, text: `⚡ 已添加行动「${t}」` });
+      showToast({ type: "ok", text: `⚡ 已添加行动「${t}」` });
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "添加失败" });
+      showToast({ type: "err", text: e?.message ?? "添加失败" });
     } finally {
       setAdding(false);
     }
@@ -84,11 +83,11 @@ export default function ActionsToday({ notify }: { notify: Notify }) {
     try {
       await patchTodo(a.id, done ? { undone: true } : { done: true });
       if (a.repeat_daily && !done) {
-        notify({ ok: true, text: `🎉 完成「${a.title}」，已坚持 ×${(a.repeat_done_count ?? 0) + 1}` });
+        showToast({ type: "ok", text: `🎉 完成「${a.title}」，已坚持 ×${(a.repeat_done_count ?? 0) + 1}` });
       }
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "操作失败" });
+      showToast({ type: "err", text: e?.message ?? "操作失败" });
     } finally {
       setBusyId(null);
     }
@@ -105,10 +104,10 @@ export default function ActionsToday({ notify }: { notify: Notify }) {
     setArmedId(null);
     try {
       await deleteTodo(a.id);
-      notify({ ok: true, text: "🗑 行动已删除" });
+      showToast({ type: "ok", text: "🗑 行动已删除" });
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "删除失败" });
+      showToast({ type: "err", text: e?.message ?? "删除失败" });
     }
   }
 
@@ -132,7 +131,7 @@ export default function ActionsToday({ notify }: { notify: Notify }) {
       setEditingId(null);
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "保存失败" });
+      showToast({ type: "err", text: e?.message ?? "保存失败" });
     } finally {
       setEditSaving(false);
     }

@@ -14,6 +14,7 @@ import {
   type ReflectionItem,
 } from "./api";
 import { useArmConfirm } from "../shared";
+import { showToast } from "@/components/toast";
 import "./reflection-tab.scss";
 
 const PAGE_SIZE = 20;
@@ -24,11 +25,10 @@ const charsOf = (s: string) => Array.from(s).length;
 export default function ReflectionTab(opts: {
   spaceId: string;
   onChanged: () => void;
-  setMsg: (m: { ok: boolean; text: string } | null) => void;
   /** 外部刷新信号（FR-4.1：保存/删除后 bump，列表立即重拉） */
   rev: number;
 }) {
-  const { spaceId, onChanged, setMsg, rev } = opts;
+  const { spaceId, onChanged, rev } = opts;
   const [items, setItems] = useState<ReflectionItem[] | null>(null);
   const [total, setTotal] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, string>>({});
@@ -49,9 +49,7 @@ export default function ReflectionTab(opts: {
         setTotal(j.total ?? 0);
         setItems((prev) => (offset === 0 ? j.items ?? [] : [...(prev ?? []), ...(j.items ?? [])]));
       } catch (e: any) {
-        const text = `感悟加载失败：${e?.message ?? e}`;
-        setLoadErr(text);
-        setMsg({ ok: false, text });
+        setLoadErr(`感悟加载失败：${e?.message ?? e}`);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,7 +77,7 @@ export default function ReflectionTab(opts: {
       const j = await getReflection(spaceId, it.id);
       setExpanded((s) => ({ ...s, [it.id]: j.reflection.content }));
     } catch (e: any) {
-      setMsg({ ok: false, text: `全文加载失败：${e?.message ?? e}` });
+      showToast({ type: "err", text: `全文加载失败：${e?.message ?? e}` });
     }
   }
 
@@ -88,10 +86,10 @@ export default function ReflectionTab(opts: {
     try {
       await deleteReflection(spaceId, it.id);
     } catch {
-      setMsg({ ok: false, text: "删除失败" });
+      showToast({ type: "err", text: "删除失败" });
       return;
     }
-    setMsg({ ok: true, text: "🗑 感悟已删除" });
+    showToast({ type: "ok", text: "🗑 感悟已删除" });
     onChanged();
     await load(0);
   }
@@ -104,7 +102,7 @@ export default function ReflectionTab(opts: {
       setValue(j.reflection.content);
       setEditorOpen(true);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "全文加载失败" });
+      showToast({ type: "err", text: e?.message ?? "全文加载失败" });
     }
   }
 
@@ -116,7 +114,7 @@ export default function ReflectionTab(opts: {
 
   function cancelEditor() {
     // N3.5：有改动时轻提示「已取消，未保存」
-    if (editing && value !== editing.initial) setMsg({ ok: true, text: "已取消，未保存" });
+    if (editing && value !== editing.initial) showToast({ type: "info", text: "已取消，未保存" });
     setEditorOpen(false);
   }
 
@@ -127,12 +125,12 @@ export default function ReflectionTab(opts: {
     try {
       if (editing.id) await patchReflection(spaceId, editing.id, content);
       else await addReflection(spaceId, content);
-      setMsg({ ok: true, text: editing.id ? "✏️ 感悟已更新" : "📝 感悟已保存" });
+      showToast({ type: "ok", text: editing.id ? "✏️ 感悟已更新" : "📝 感悟已保存" });
       setEditorOpen(false);
       onChanged();
       await load(0);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "保存失败" });
+      showToast({ type: "err", text: e?.message ?? "保存失败" });
     } finally {
       setBusy(false);
     }

@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import { showToast, ToastHost } from "@/components/toast";
 import { wechatLogin } from "@/lib/api";
 import { getSessionToken, setSessionToken } from "@/lib/session";
 import { syncNativeBackground, useTheme } from "@/lib/theme";
@@ -29,7 +30,6 @@ export default function Login() {
   // 验证码请求飞行中锁：与 countdown 分开（countdown 成功后才启动），飞行中也要禁用按钮防连发
   const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [wxErr, setWxErr] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -67,16 +67,17 @@ export default function Login() {
     if (sending) return; // 请求飞行中忽略再次点击，防重复发送
     const email = account.includes("@");
     if (email ? !EMAIL_RE.test(account) : !PHONE_RE.test(account)) {
-      setMsg({ ok: false, text: email ? "请先填写正确的邮箱地址" : "请先填写正确的手机号" });
+      // = web login 同款：校验与操作反馈统一 toast（REQ-009 9-C，下同）
+      showToast({ type: "err", text: email ? "请先填写正确的邮箱地址" : "请先填写正确的手机号" });
       return;
     }
     setSending(true);
     try {
       await sendLoginCode(account);
-      setMsg({ ok: true, text: "验证码已发送，5 分钟内有效" });
+      showToast({ type: "ok", text: "验证码已发送，5 分钟内有效" });
       startCountdown();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setSending(false);
     }
@@ -85,7 +86,6 @@ export default function Login() {
   async function submit() {
     if (busy) return;
     setBusy(true);
-    setMsg(null);
     try {
       if (mode === "password") {
         await loginWithPassword(account.trim(), password);
@@ -95,7 +95,7 @@ export default function Login() {
       // request 层已自动入库 token；进首页用 reLaunch 清栈（= web location.href = "/"）
       Taro.reLaunch({ url: "/pages/feed/index" });
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -236,8 +236,6 @@ export default function Login() {
             </Button>
           </View>
 
-          {msg && <Text className={`msg ${msg.ok ? "msg-ok" : "msg-err"}`}>{msg.text}</Text>}
-
           {/* = web「没有账号？凭邀请码注册」一行；小程序不开放注册，改为网页版引导 */}
           <Text className="reg-hint">没有账号？注册需邀请码，请使用网页版</Text>
         </View>
@@ -245,6 +243,8 @@ export default function Login() {
         {/* 页脚 = web mt-6 text-[10px] text-ink-faint */}
         <Text className="foot-line">个人经营系统 · 钱 · 时间 · 人</Text>
       </View>
+      {/* NAVLESS 页无 PageShell：全局 toast 宿主自挂（REQ-009 9-C） */}
+      <ToastHost />
     </View>
   );
 }

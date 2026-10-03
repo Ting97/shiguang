@@ -28,10 +28,6 @@
   color: var(--ink-dim);
 }
 
-/* 消息横幅：全局 msg-banner + 页面级 mb-5 */
-.feed-banner {
-  margin-bottom: 40px;
-}
 
 /* 取数失败卡（= web glass rounded-2xl p-6 text-center） */
 .feed-retry {

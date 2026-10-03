@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Image, Textarea, Input, Picker } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { deleteEntry } from "@/lib/api";
+import { showToast } from "@/components/toast";
 import {
   confirmEntry,
   deleteBlock,
@@ -38,8 +39,6 @@ import { TagChip } from "./chip";
 import EntryMenu from "./entry-menu";
 import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import "./moment-card.scss";
-
-type CardMsg = { ok: boolean; text: string } | null;
 
 /** 行内小操作按钮（= web row-action.tsx）：删除两步确认（armed 时按钮变「确认删除?」，3 秒超时复位） */
 function RowAction(props: { onEdit?: () => void; onDelete?: () => void; armed: boolean }) {
@@ -79,7 +78,6 @@ export default function MomentCard({
   const [textExpanded, setTextExpanded] = useState(false);
   // 心情选择器开关（= web moodPicker）
   const [moodPicker, setMoodPicker] = useState(false);
-  const [cardMsg, setCardMsg] = useState<CardMsg>(null);
   const [deleting, setDeleting] = useState(false);
 
   const blocks = m.blocks ?? [];
@@ -102,12 +100,13 @@ export default function MomentCard({
 
   /* ---- 卡内操作统一执行器（= web use-card-actions） ---- */
 
+  // 操作反馈统一走全局 toast（= web use-card-actions：卡片可能滚出视口，就地横幅反而看不见）
   const run = async (fn: () => Promise<string>) => {
     try {
-      setCardMsg({ ok: true, text: await fn() });
+      showToast({ type: "ok", text: await fn() });
       onRefresh();
     } catch (e: any) {
-      setCardMsg({ ok: false, text: e?.message ?? "操作失败" });
+      showToast({ type: "err", text: e?.message ?? "操作失败" });
     }
   };
 
@@ -159,11 +158,11 @@ export default function MomentCard({
   const manualAdd = async (domain: string, payload: Record<string, unknown>) => {
     try {
       const j = await manualAddEntry(m.id, domain, payload);
-      setCardMsg({ ok: true, text: j.message ?? "已添加" });
+      showToast({ type: "ok", text: j.message ?? "已添加" });
       onRefresh();
       return true;
     } catch (e: any) {
-      setCardMsg({ ok: false, text: e?.message ?? "添加失败" });
+      showToast({ type: "err", text: e?.message ?? "添加失败" });
       return false;
     }
   };
@@ -714,8 +713,7 @@ export default function MomentCard({
           <Text className="mc-hint">点击动态内容 → 打开识别菜单（AI 识别 / 手动补充六类信息）</Text>
         ) : null}
 
-        {/* 卡内操作反馈：识别/手动添加/编辑/删除的结果就地展示（= web cardMsg） */}
-        {cardMsg ? <View className={`msg-banner mc-card-msg ${cardMsg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{cardMsg.text}</View> : null}
+        {/* 卡内操作反馈已统一到全局 toast（= web use-card-actions 注释：卡片滚出视口就地横幅看不见） */}
       </View>
 
       {/* = web EntryMenu（识别与补充）：移动端为底部弹层 */}

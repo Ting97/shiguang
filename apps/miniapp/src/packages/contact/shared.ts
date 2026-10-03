@@ -1,9 +1,25 @@
 /**
  * 人际分包 list/detail 两页共用的常量与小工具。
- * 口径逐条对齐 packages/shared/src/social.ts + web lib/group-tone.ts + lib/bj-time
- * （小程序端不直接引 shared 包——monorepo 构建链路差异，字面量与其逐字对齐，改动需同步）。
+ * REQ-009 9-C 单源化：与 @shiguangri/shared/social 同语义的常量/纯函数改为从 shared 引入并
+ * re-export（原「逐字对齐的手工拷贝」全数下线）；页面仍从 "../shared" 引入、不散改。
+ * 仅保留本包刻意简化的部分：农历标签不做 solarlunar 换算（避免历法表进小程序包）、
+ * TYPE_EMOJI 用宽 Record<string,string>（调用方以任意 string 索引）、useArmConfirm 等页面工具。
  */
 import { useRef, useState } from "react";
+
+export {
+  CONTACT_GROUPS,
+  IMPORTANCE_TIERS,
+  importanceLabel,
+  GROUP_EMOJI,
+  GROUP_COLOR,
+  INTERACTION_TYPES,
+  displaySummary,
+  birthdayCountdown,
+} from "@shiguangri/shared";
+export type { ContactGroup, InteractionType } from "@shiguangri/shared";
+// 本文件内 birthdayInfoOf 还要直接调用（re-export 的绑定不在本模块作用域）
+import { birthdayCountdown, bjDayIdx } from "@shiguangri/shared";
 
 /** GET /api/contacts 行结构（= web contacts/page.tsx 本地 Contact 接口） */
 export interface ContactRow {
@@ -29,30 +45,6 @@ export interface ContactRow {
   gift_net_cents?: number | string | null;
 }
 
-export const CONTACT_GROUPS = ["家人", "朋友", "同事", "同学", "客户", "其他"] as const;
-export type ContactGroup = (typeof CONTACT_GROUPS)[number];
-
-/** 重要程度五档（level 越大越重要，图谱中离中心越近） */
-export const IMPORTANCE_TIERS = [
-  { level: 5, label: "亲密" },
-  { level: 4, label: "重要" },
-  { level: 3, label: "普通" },
-  { level: 2, label: "一般" },
-  { level: 1, label: "简单" },
-] as const;
-
-export const importanceLabel = (level: number): string =>
-  IMPORTANCE_TIERS.find((t) => t.level === level)?.label ?? "普通";
-
-export const GROUP_EMOJI: Record<string, string> = {
-  家人: "❤️",
-  朋友: "🤝",
-  同事: "💼",
-  同学: "🎓",
-  客户: "📇",
-  其他: "👤",
-};
-
 /** 分组 → 语义 tone（= web GROUP_TONE；页面 scss 的 .tone-* 与之对应） */
 export type Tone = "sky" | "emerald" | "amber" | "rose" | "violet" | "slate";
 export const GROUP_TONE: Record<string, Tone> = {
@@ -67,19 +59,6 @@ export const GROUP_TONE: Record<string, Tone> = {
 /** tone → 页面 scss 类名（.tone-* 在各页 scss 定义：语义 tinted 底 + 同色字） */
 export const toneClass = (tone: Tone) => `tone-${tone}`;
 
-/** 分组色（人际图谱节点/连线；= shared GROUP_COLOR 高饱和暗底色） */
-export const GROUP_COLOR: Record<string, string> = {
-  家人: "#f43f5e",
-  朋友: "#f59e0b",
-  同事: "#0ea5e9",
-  同学: "#10b981",
-  客户: "#8b5cf6",
-  其他: "#64748b",
-};
-
-export const INTERACTION_TYPES = ["见面", "通话", "送礼", "收礼", "请客", "帮忙", "其他"] as const;
-export type InteractionType = (typeof INTERACTION_TYPES)[number];
-
 export const TYPE_EMOJI: Record<string, string> = {
   见面: "🤝",
   通话: "📞",
@@ -89,17 +68,6 @@ export const TYPE_EMOJI: Record<string, string> = {
   帮忙: "🛠",
   其他: "•",
 };
-
-/** 往来摘要展示：折叠入库的「吃饭：吃饭」型重复拼接（= web displaySummary） */
-export function displaySummary(summary: string | null | undefined): string {
-  const s = (summary ?? "").trim();
-  const i = s.indexOf("：");
-  if (i > 0 && s.slice(i + 1) === s.slice(0, i)) return s.slice(0, i);
-  return s;
-}
-
-/** 北京日历日序号（UTC+8 推算，禁本地 getter） */
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 
 /** 相对时间：刚刚/N分钟前/N小时前/昨天/M月D日（= web contacts/page.tsx relTime） */
 export function relTime(iso: string): string {
@@ -130,28 +98,6 @@ export function bjMDHM(iso: string): string {
   const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
-}
-
-/**
- * 阳历生日倒计时天数：0=今天；无效返回 null（= web birthdayCountdown，含 2/29 用「3 月 0 日」惯用法；
- * 今天按北京日历日取，非 CST 设备不错报一天）。
- */
-export function birthdayCountdown(birthday: string | null | undefined): number | null {
-  if (!birthday) return null;
-  const m = String(birthday).match(/(\d{4})?-?(\d{2})-(\d{2})/);
-  if (!m) return null;
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const dateOf = (y: number): number =>
-    month === 2 && day === 29
-      ? Date.UTC(y, 2, 0) // 3 月 0 日 = 2 月最后一天（平年 2/28、闰年 2/29）
-      : Date.UTC(y, month - 1, day);
-  const shifted = new Date(Date.now() + 8 * 3600_000);
-  const todayIdx = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
-  const thisYear = dateOf(shifted.getUTCFullYear());
-  const target = thisYear >= todayIdx ? thisYear : dateOf(shifted.getUTCFullYear() + 1);
-  return Math.round((target - todayIdx) / 86_400_000);
 }
 
 export interface BirthdayInfo {

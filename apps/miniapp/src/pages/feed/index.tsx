@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Input, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh, useReachBottom, useShareAppMessage } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { parseText } from "@/lib/api";
 import { request } from "@/lib/request";
 import { getSessionToken } from "@/lib/session";
@@ -31,18 +32,7 @@ import "./voice-button.scss";
 /** 动态流每页条数，「加载更多」按页扩 limit（= web FEED_PAGE_SIZE） */
 const PAGE_SIZE = 10;
 
-type Msg = { ok: boolean; text: string } | null;
-
 export default function Feed() {
-  /* ---------- 页面消息横幅 ---------- */
-  const [msg, setMsg] = useState<Msg>(null);
-  // 成功提示短展示；失败/警示保留更久（= web page.tsx msg 自动消失）
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
-
   /* ---------- 首页取数（= web use-home-data.ts 的页面局部移植） ---------- */
   const [moments, setMoments] = useState<FeedMomentFull[]>([]);
   const [feedTotal, setFeedTotal] = useState(0);
@@ -136,7 +126,7 @@ export default function Feed() {
     feedLimitRef.current += PAGE_SIZE;
     try {
       const ok = await load();
-      if (!ok) setMsg({ ok: false, text: "加载更多失败，请稍后重试" });
+      if (!ok) showToast({ type: "err", text: "加载更多失败，请稍后重试" });
     } finally {
       setLoadingMore(false);
     }
@@ -184,7 +174,7 @@ export default function Feed() {
       const j = await parseText(t);
       // 防御非约定响应（结构变更）：给出可读原因，而不是 TypeError
       if (!j?.entry) throw new Error("服务异常，请稍后重试");
-      setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
+      showToast({ type: "ok", text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
       // 新动态要立即可见：搜索过滤中则清空搜索再刷新
       if (query || searchInput) await resetSearch();
       else await load();
@@ -196,7 +186,7 @@ export default function Feed() {
       ];
       return j.entry.id as string;
     } catch (e: any) {
-      setMsg({ ok: false, text: `记录失败：${e?.message ?? e}` });
+      showToast({ type: "err", text: `记录失败：${e?.message ?? e}` });
       return null;
     } finally {
       setBusy(false);
@@ -232,10 +222,7 @@ export default function Feed() {
       </View>
 
       {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
-      <RemindersBanner items={reminderItems} notify={setMsg} load={loadVoid} />
-
-      {/* 消息横幅（发布/加入今日/语音提示等，= web msg-banner） */}
-      {msg ? <View className={`msg-banner feed-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View> : null}
+      <RemindersBanner items={reminderItems} load={loadVoid} />
 
       {/* 取数失败态：给出重试入口，避免失败后整页静默空态（= web loadErr 卡） */}
       {loadErr ? (
@@ -248,7 +235,7 @@ export default function Feed() {
       ) : null}
 
       {/* 今日行动清单：只展示行动级条目，完整管理在「日程 · todo」 */}
-      <ActionsToday notify={setMsg} />
+      <ActionsToday />
 
       {/* = web FeedSection：计数 + 搜索框 + 空间过滤 chips + MomentFeed */}
       <View className="fs">
@@ -340,12 +327,12 @@ export default function Feed() {
       </View>
 
       {/* 今日日程：时间轴 / 列表 双视图 */}
-      <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} notify={setMsg} load={loadVoid} />
+      <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
 
       {/* = web footer */}
       <Text className="feed-footer">拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang</Text>
 
-      {/* 移动端发布入口：底部悬浮圆圈（点按打字 / 长按说话，转写后回填面板预览） */}
+      {/* 移动端发布入口：底部悬浮圆圈（点按打字 / 长按说话，转写后回填面板预览；反馈统一 toast） */}
       <CaptureButton
         onTap={() => {
           setVoiceDraft("");
@@ -355,8 +342,6 @@ export default function Feed() {
           setVoiceDraft(t);
           setSheetOpen(true);
         }}
-        onError={(m) => setMsg({ ok: false, text: m })}
-        onHint={(m) => setMsg({ ok: true, text: m })}
       />
       <PublishSheet
         open={sheetOpen}
@@ -364,7 +349,6 @@ export default function Feed() {
         busy={busy}
         onPublish={publish}
         onClose={() => setSheetOpen(false)}
-        notify={setMsg}
       />
     </PageShell>
   );

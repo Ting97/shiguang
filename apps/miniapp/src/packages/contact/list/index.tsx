@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { loadContacts, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import ContactFormModal from "../form-modal";
@@ -30,7 +31,6 @@ export default function ContactListPage() {
   const [groups, setGroups] = useState<Set<string>>(new Set()); // 多选；空集=全部分组
   const [q, setQ] = useState("");
   const [view, setView] = useState<"list" | "graph">("list");
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<ContactRow | "new" | null>(null);
   const [inited, setInited] = useState(false);
@@ -53,13 +53,6 @@ export default function ContactListPage() {
   usePullDownRefresh(() => {
     load().finally(() => Taro.stopPullDownRefresh());
   });
-
-  /** msg 自动消退（= web 3.5s 成功 / 8s 失败） */
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   /** 分组 chips（全部 + 有联系人的分组，带计数） */
   const groupChips = useMemo(() => {
@@ -151,8 +144,6 @@ export default function ContactListPage() {
           </Button>
         </View>
       </View>
-
-      {msg && <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View>}
 
       {/* 已有数据时的刷新失败提示（首失败走下方整页错误态） */}
       {contacts !== null && loadErr && (
@@ -247,7 +238,7 @@ export default function ContactListPage() {
           onClose={() => setEditing(null)}
           onSaved={(text) => {
             setEditing(null);
-            setMsg({ ok: true, text });
+            showToast({ type: "ok", text });
             void load();
           }}
         />

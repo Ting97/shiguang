@@ -29,10 +29,8 @@ export function bjDate(v: unknown): string {
   return new Date(new Date(String(v)).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** 北京今天 YYYY-MM-DD（= web bjToday） */
-export function bjToday(): string {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
+/** 北京今天 YYYY-MM-DD（REQ-009 9-C 单源：= shared/date bjToday，原手工拷贝已收敛） */
+export { bjToday } from "@shiguangri/shared";
 
 /** ISO → 北京 M/D HH:mm（动态时间戳，= web moments-section bjStamp） */
 export function bjStamp(iso: string): string {

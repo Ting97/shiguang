@@ -1,0 +1,87 @@
+/**
+ * 全局 Toast 样式（= web msg-banner 语义色的底部浮出形态；单位换算 web 1px = 本稿 2 单位）。
+ * 底/边框沿用 web 的主题无关半透明色（emerald/rose/sky 的 /10 /30），文字用令牌色深浅自适配。
+ */
+.gtoast-host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* 悬浮发布钮（bottom 64px+safe）上方浮出，多页通用 */
+  bottom: calc(200px + env(safe-area-inset-bottom));
+  z-index: 100; /* > overlay(55)/sheet(60+)，弹层打开时 toast 仍可见 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0 32px; /* = web px-4 */
+  /* 容器不拦点击（命中测试穿透到下层页面），只有 toast 本体可点 */
+  pointer-events: none;
+}
+
+.gtoast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  max-width: 896px; /* = web max-w-md（28rem→448px）×2；page-body(max-w-2xl=1344) 内不溢出 */
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  padding: 16px 24px; /* = web msg-banner px-3 py-2 */
+  font-size: 24px;
+  line-height: 1.5;
+  box-shadow: 0 8px 32px rgba(2, 6, 23, 0.35);
+}
+
+.gtoast-icon {
+  flex-shrink: 0;
+  font-size: 24px;
+  line-height: 1.5;
+}
+
+.gtoast-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.gtoast-ok {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+}
+
+.gtoast-err {
+  border-color: rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--danger);
+}
+
+.gtoast-info {
+  border-color: rgba(14, 165, 233, 0.3);
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--accent);
+}
+
+/* 底部浮出 / 收起（= web fade-up 的镜像方向） */
+.gtoast-enter {
+  animation: gtoast-in 0.2s ease-out;
+}
+
+.gtoast-leave {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+}
+
+@keyframes gtoast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

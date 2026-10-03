@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Input, Button, Picker } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { confirmTx, bjMonth, fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import {
@@ -579,7 +580,6 @@ export default function Finance() {
   const [txs, setTxs] = useState<FinTx[]>([]);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [modules, setModules] = useState<string[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [managingAccount, setManagingAccount] = useState(false);
@@ -590,12 +590,6 @@ export default function Finance() {
   const [armDel, setArmDel] = useState<string | null>(null);
   const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inited, setInited] = useState(false);
-
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
   const loadSeq = useRef(0);
@@ -635,10 +629,10 @@ export default function Finance() {
     setConfirmBusy(true); // 提交期间锁按钮：防双击双发 PATCH 重复确认
     try {
       await confirmTx(t.id);
-      setMsg({ ok: true, text: `✅ 已确认：${t.direction === "out" ? "支出" : "收入"} ¥${yuan(t.amount_cents)}` });
+      showToast({ type: "ok", text: `✅ 已确认：${t.direction === "out" ? "支出" : "收入"} ¥${yuan(t.amount_cents)}` });
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setConfirmBusy(false);
     }
@@ -650,10 +644,10 @@ export default function Finance() {
     setConfirmBusy(true);
     try {
       await Promise.all(drafts.map((t) => confirmTx(t.id)));
-      setMsg({ ok: true, text: `✅ 已全部确认（${drafts.length} 笔）` });
+      showToast({ type: "ok", text: `✅ 已全部确认（${drafts.length} 笔）` });
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
       await load();
     } finally {
       setConfirmBusy(false);
@@ -671,10 +665,10 @@ export default function Finance() {
     setArmDel(null);
     try {
       await removeTx(t.id);
-      setMsg({ ok: true, text: "🗑 已删除流水" });
+      showToast({ type: "ok", text: "🗑 已删除流水" });
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -726,7 +720,7 @@ export default function Finance() {
           <View
             className="btn-sky-tinted fin-btn-import"
             hoverClass="press"
-            onTap={() => setMsg({ ok: false, text: "CSV 导入请使用 web 端" })}
+            onTap={() => showToast({ type: "info", text: "CSV 导入请使用 web 端" })}
           >
             📥 导入账单
           </View>
@@ -735,8 +729,6 @@ export default function Finance() {
           </Button>
         </View>
       </View>
-
-      {msg ? <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View> : null}
 
       {/* 已有数据时的刷新失败提示（首次加载失败走下方整页错误态） */}
       {ov && loadErr ? (
@@ -808,7 +800,7 @@ export default function Finance() {
                   onCancel={() => setEditingBudget(false)}
                   onSaved={async () => {
                     setEditingBudget(false);
-                    setMsg({ ok: true, text: "💾 月度上限已保存" });
+                    showToast({ type: "ok", text: "💾 月度上限已保存" });
                     await load();
                   }}
                 />
@@ -968,11 +960,11 @@ export default function Finance() {
                 await createTx(payload);
               } catch (e) {
                 // 失败提示且不关表单（无 catch 会静默 + 清空表单）
-                setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
                 return;
               }
               setAdding(false);
-              setMsg({ ok: true, text: "✅ 已记一笔" });
+              showToast({ type: "ok", text: "✅ 已记一笔" });
               await load();
             }}
           />
@@ -993,10 +985,10 @@ export default function Finance() {
               try {
                 await patchTx(editing.id, payload);
                 setEditing(null);
-                setMsg({ ok: true, text: "💾 流水已更新" });
+                showToast({ type: "ok", text: "💾 流水已更新" });
                 await load();
               } catch (e) {
-                setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
               }
             }}
           />

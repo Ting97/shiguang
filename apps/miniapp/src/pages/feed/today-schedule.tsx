@@ -8,10 +8,9 @@
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Input, Picker } from "@tarojs/components";
 import { createBlock as apiCreateBlock, deleteBlock as apiDeleteBlock, patchBlock as apiPatchBlock, type Activity, type TodayBlock } from "./api";
+import { showToast } from "@/components/toast";
 import { TagChip } from "./chip";
 import { bjClock, bjToday, combineHM, zhDuration } from "./kit";
-
-type Notify = (m: { ok: boolean; text: string } | null) => void;
 
 /** web 0.75px/分钟 → 750 稿 1.5 单位/分钟；一天高 2160，容器高 960（= web 1080px/480px） */
 const UNIT_PER_MIN = 1.5;
@@ -37,13 +36,11 @@ export default function TodaySchedule({
   blocks,
   activities,
   todayKcal,
-  notify,
   load,
 }: {
   blocks: TodayBlock[];
   activities: Activity[];
   todayKcal: number;
-  notify: Notify;
   load: () => Promise<void>;
 }) {
   const [view, setView] = useState<"timeline" | "list">("timeline");
@@ -124,10 +121,10 @@ export default function TodaySchedule({
         activityId: draft.activityId,
       });
       setDraft(null);
-      notify({ ok: true, text: `✍️ 已补录：${draft.title.trim()}` });
+      showToast({ type: "ok", text: `✍️ 已补录：${draft.title.trim()}` });
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "补录失败" });
+      showToast({ type: "err", text: e?.message ?? "补录失败" });
     } finally {
       setSaving(false);
     }
@@ -136,7 +133,7 @@ export default function TodaySchedule({
   async function saveEdit() {
     if (!editing || saving) return;
     if (editing.end <= editing.start) {
-      notify({ ok: false, text: "结束时间必须晚于开始时间" });
+      showToast({ type: "err", text: "结束时间必须晚于开始时间" });
       return;
     }
     const b = blocks.find((x) => x.id === editing.id);
@@ -150,10 +147,10 @@ export default function TodaySchedule({
         activityId: editing.activityId,
       });
       setEditing(null);
-      notify({ ok: true, text: "💾 日程已更新" });
+      showToast({ type: "ok", text: "💾 日程已更新" });
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "保存失败" });
+      showToast({ type: "err", text: e?.message ?? "保存失败" });
     } finally {
       setSaving(false);
     }
@@ -168,10 +165,10 @@ export default function TodaySchedule({
     setArmedId(null);
     try {
       await apiDeleteBlock(b.id);
-      notify({ ok: true, text: `🗑 已删除「${b.title}」` });
+      showToast({ type: "ok", text: `🗑 已删除「${b.title}」` });
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: e?.message ?? "删除失败" });
+      showToast({ type: "err", text: e?.message ?? "删除失败" });
     }
   }
 

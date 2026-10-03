@@ -24,9 +24,13 @@ export default defineConfig<"webpack5">(async (merge: Merge) => {
     },
     mini: {
       // monorepo：packages/shared 以 TS 源码直接发布（exports → ./src/*.ts），
-      // 默认 babel 编译排除 node_modules，这里显式纳入（Taro 官方 compile.include 方案）
+      // 默认 babel 编译排除 node_modules，这里显式纳入（Taro 官方 compile.include 方案）。
+      // 用谓词而非路径字面量：Windows 下 workspace 是 junction（webpack 解析 symlink 后的真实路径
+      // 与 path.resolve 的大小写/分隔符可能不一致，字面量不命中会报 "no loaders" 解析错误）。
       compile: {
-        include: [path.resolve(__dirname, "..", "..", "packages", "shared", "src")],
+        include: [
+          (filename: string) => filename.replace(/\\/g, "/").includes("/packages/shared/src/"),
+        ],
       },
       optimizeMainPackage: { enable: true },
     },

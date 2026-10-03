@@ -26,8 +26,7 @@ import {
   type TodoView,
 } from "./api";
 import { ApiError } from "@/lib/request";
-
-type Msg = { ok: boolean; text: string } | null;
+import { showToast } from "@/components/toast";
 
 /** 智能列表定义（= web kit.VIEWS） */
 const VIEWS: [TodoView, string][] = [
@@ -62,7 +61,6 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
   const [activities, setActivities] = useState<Activity[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<Msg>(null);
 
   const [draft, setDraft] = useState<Draft>({ title: "", important: false, today: false, dueDate: "", dueTime: "", activityId: "", spaceId: "" });
   const [draftOpen, setDraftOpen] = useState(false);
@@ -77,13 +75,6 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
   const [adding, setAdding] = useState(false);
   const [addingSub, setAddingSub] = useState(false);
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
-
-  // msg 定时自动消失（成功 3s / 失败 6s，= web useTodoData）
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3000 : 6000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   // 分类/空间一次拉取（失败置空，不阻塞列表）
   useEffect(() => {
@@ -107,7 +98,7 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
       setCounts(j.counts ?? { today: 0, important: 0, all: 0, done: 0 });
     } catch (e: any) {
       if (seq !== seqRef.current) return;
-      setMsg({ ok: false, text: `加载失败：${e?.message ?? e}` });
+      showToast({ type: "err", text: `加载失败：${e?.message ?? e}` });
     } finally {
       if (seq === seqRef.current) setLoading(false);
     }
@@ -145,10 +136,10 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
       });
       setDraft((d) => ({ ...d, title: "", important: false, today: false, dueDate: "", dueTime: "", spaceId: "", activityId: d.activityId }));
       setDraftOpen(false);
-      setMsg({ ok: true, text: `📌 已添加「${j.todo.title}」` });
+      showToast({ type: "ok", text: `📌 已添加「${j.todo.title}」` });
       await load(view);
     } catch (e: any) {
-      setMsg({ ok: false, text: `添加失败：${e?.message ?? e}` });
+      showToast({ type: "err", text: `添加失败：${e?.message ?? e}` });
     } finally {
       setAdding(false);
     }
@@ -159,14 +150,14 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
       await apiPatchTodo(id, body);
     } catch (e: any) {
       // 网络断开等异常收口为提示，不外抛
-      setMsg({ ok: false, text: e instanceof ApiError ? e.message : "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e instanceof ApiError ? e.message : "网络异常，请稍后重试" });
       return false;
     }
-    if (okText) setMsg({ ok: true, text: okText });
+    if (okText) showToast({ type: "ok", text: okText });
     try {
       await load(view);
     } catch {
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      showToast({ type: "err", text: "网络异常，请稍后重试" });
     }
     return true;
   }
@@ -191,17 +182,17 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
       try {
         j = await decomposeTodo(t.id, mode);
       } catch (e: any) {
-        setMsg({
-          ok: false,
+        showToast({
+          type: "err",
           text: e instanceof ApiError ? (e.message === "操作失败" ? "AI 拆解失败" : e.message) : "网络异常，请稍后重试",
         });
         return;
       }
-      setMsg({ ok: true, text: `✨ AI 拆出 ${(j.actions ?? []).length} 个行动${isAction ? "，已插入原行动之后" : ""}` });
+      showToast({ type: "ok", text: `✨ AI 拆出 ${(j.actions ?? []).length} 个行动${isAction ? "，已插入原行动之后" : ""}` });
       try {
         await load(view);
       } catch {
-        setMsg({ ok: false, text: "网络异常，请稍后重试" });
+        showToast({ type: "err", text: "网络异常，请稍后重试" });
       }
     } finally {
       setDecomposingId(null);
@@ -221,17 +212,17 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
     try {
       await deleteTodo(t.id);
     } catch (e: any) {
-      setMsg({
-        ok: false,
+      showToast({
+        type: "err",
         text: e instanceof ApiError ? (e.message === "操作失败" ? "删除失败" : e.message) : "网络异常，请稍后重试",
       });
       return;
     }
-    setMsg({ ok: true, text: `🗑 已删除「${t.title}」` });
+    showToast({ type: "ok", text: `🗑 已删除「${t.title}」` });
     try {
       await load(view);
     } catch {
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      showToast({ type: "err", text: "网络异常，请稍后重试" });
     }
   }
 
@@ -242,8 +233,8 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
     try {
       await createTodo({ title, parentId });
     } catch (e: any) {
-      setMsg({
-        ok: false,
+      showToast({
+        type: "err",
         text: e instanceof ApiError ? (e.message === "操作失败" ? "添加失败" : e.message) : "网络异常，请稍后重试",
       });
       setAddingSub(false); // 失败也要复位，否则输入行永久锁死
@@ -253,7 +244,7 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
     try {
       await load(view);
     } catch {
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      showToast({ type: "err", text: "网络异常，请稍后重试" });
     } finally {
       setAddingSub(false);
     }
@@ -273,11 +264,6 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
 
   return (
     <View>
-      {msg && (
-        <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>
-          <Text>{msg.text}</Text>
-        </View>
-      )}
 
       {/* 移动端：横滑 chips（= web lg:hidden 的 ViewBar，右缘渐隐由 scss mask 实现） */}
       <ScrollView className="todo-chips" scrollX enhanced showScrollbar={false}>
@@ -416,7 +402,6 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
                   onToggleExpand={toggleExpand}
                   onOpenMenu={(todo, isChild, parentTitle) => setMenuRow({ todo, isChild, parentTitle })}
                   patch={patchTodo}
-                  setMsg={setMsg}
                 />
               ))}
               {view === "done" && <Text className="todo-done-foot">最多显示最近 200 条已完成的顶层 todo</Text>}

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import { showToast } from "@/components/toast";
 import { patchTodo } from "./api";
 import { TagChip } from "./chip";
 import { bjToday, type ReminderItem } from "./kit";
@@ -23,11 +24,9 @@ function dismissedToday(): boolean {
 
 export default function RemindersBanner({
   items,
-  notify,
   load,
 }: {
   items: ReminderItem[];
-  notify: (m: { ok: boolean; text: string } | null) => void;
   /** 加入今日成功后刷新整页（= web load） */
   load: () => Promise<void>;
 }) {
@@ -43,10 +42,10 @@ export default function RemindersBanner({
     setMarked((s) => new Set(s).add(it.todoId!));
     try {
       await patchTodo(it.todoId!, { today: true });
-      notify({ ok: true, text: "☀️ 已加入今日 todo" });
+      showToast({ type: "ok", text: "☀️ 已加入今日 todo" });
       await load();
     } catch (e: any) {
-      notify({ ok: false, text: `加入今日失败（${it.label.slice(0, 20)}…）${e?.message ? `：${e.message}` : ""}` });
+      showToast({ type: "err", text: `加入今日失败（${it.label.slice(0, 20)}…）${e?.message ? `：${e.message}` : ""}` });
     }
   }
 

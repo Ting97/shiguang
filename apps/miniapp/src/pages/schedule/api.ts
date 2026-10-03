@@ -9,56 +9,17 @@
  */
 import { request } from "@/lib/request";
 
-/* ---------- 类型（= web lib/types，shared/types 同源） ---------- */
+/* ---------- 类型（REQ-009 9-C 单源化：Activity/Block/TodoRow 与 shared/types 完全同构，改 re-export；
+ * DayStat 是统计接口聚合形、TodoItem/Space/TodoView/TodoCounts 为本页消费形态，仍留此处） ---------- */
 
-export interface Activity {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  default_min?: number;
-  is_preset?: boolean;
-}
-
-export interface Block {
-  id: string;
-  title: string;
-  start_at: string;
-  end_at: string;
-  duration_min: number;
-  activity_id: string;
-  activity_name: string;
-  icon: string;
-  color: string;
-  source: string;
-}
+import type { Activity, Block, TodoRow } from "@shiguangri/shared";
+export type { Activity, Block, TodoRow };
 
 /** 单日聚合（统计接口，月/年视图） */
 export interface DayStat {
   date: string; // YYYY-MM-DD
   totalMin: number;
   byActivity: Record<string, number>;
-}
-
-/** todo 行（接口原始结构，未组装子级） */
-export interface TodoRow {
-  id: string;
-  parent_todo_id: string | null;
-  title: string;
-  activity_id: string | null;
-  activity_name: string | null;
-  icon: string | null;
-  color: string | null;
-  due_at: string | null;
-  status: string;
-  is_important: boolean;
-  today_tag_date: string | null;
-  note: string | null;
-  kind: "todo" | "action";
-  space_id: string | null;
-  repeat_daily: boolean;
-  repeat_done_count: number;
-  [k: string]: unknown;
 }
 
 /** todo 树节点：行 + 一层行动 */

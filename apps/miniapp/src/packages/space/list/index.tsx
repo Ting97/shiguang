@@ -9,6 +9,7 @@ import { useState } from "react";
 import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import type { SpaceRow } from "../shared";
@@ -34,7 +35,6 @@ const EMPTY: Draft = { name: "", description: "", icon: "🎯", color: "#38bdf8"
 export default function SpaceListPage() {
   const [spaces, setSpaces] = useState<SpaceRow[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<Draft | null>(null); // null=关闭；editingId null=新建
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false); // 保存中防双击重复创建
@@ -100,14 +100,14 @@ export default function SpaceListPage() {
     try {
       await (editingId ? patchSpace(editingId, body) : createSpace(body));
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e?.message ?? "网络异常，请稍后重试" });
       return;
     } finally {
       setSaving(false);
     }
     const name = editing.name;
     setEditing(null);
-    setMsg({ ok: true, text: editingId ? "空间已更新" : `空间「${name}」已创建 🎯` });
+    showToast({ type: "ok", text: editingId ? "空间已更新" : `空间「${name}」已创建 🎯` });
     await load();
   }
 
@@ -116,10 +116,10 @@ export default function SpaceListPage() {
       await patchSpace(s.id, { status });
     } catch (e: any) {
       // 失败报错并中止，不提示成功（web 同注释：吞错会无条件弹「已归档」）
-      setMsg({ ok: false, text: e?.message ?? "操作失败" });
+      showToast({ type: "err", text: e?.message ?? "操作失败" });
       return;
     }
-    setMsg({ ok: true, text: status === "archived" ? `「${s.name}」已归档` : `「${s.name}」已恢复` });
+    showToast({ type: "ok", text: status === "archived" ? `「${s.name}」已归档` : `「${s.name}」已恢复` });
     await load();
   }
 
@@ -128,27 +128,27 @@ export default function SpaceListPage() {
     try {
       await deleteSpace(s.id);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "删除失败" });
+      showToast({ type: "err", text: e?.message ?? "删除失败" });
       return;
     }
-    setMsg({ ok: true, text: `「${s.name}」已删除` });
+    showToast({ type: "ok", text: `「${s.name}」已删除` });
     await load();
   }
 
   async function saveRename(s: SpaceRow) {
     const name = renameDraft.trim();
     if (!name) {
-      setMsg({ ok: false, text: "名称不能为空" });
+      showToast({ type: "err", text: "名称不能为空" });
       return;
     }
     try {
       await patchSpace(s.id, { name });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "重命名失败" });
+      showToast({ type: "err", text: e?.message ?? "重命名失败" });
       return;
     }
     setRenamingId(null);
-    setMsg({ ok: true, text: "已重命名" });
+    showToast({ type: "ok", text: "已重命名" });
     await load();
   }
 
@@ -161,8 +161,6 @@ export default function SpaceListPage() {
 
   return (
     <PageShell active="spaces">
-      {msg && <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View>}
-
       {/* = web header.mb-5.text-center：居中 hero + 副标题 + 新建按钮 */}
       <View className="sp-head">
         <View className="hero text-gradient sp-hero">

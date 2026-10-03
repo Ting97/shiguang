@@ -10,18 +10,11 @@ import { yuan } from "@/lib/api";
 
 /* ---------- 类型（= web debt/kit.ts） ---------- */
 
-export type DebtType = "credit_card" | "mortgage" | "car_loan" | "consumer_loan" | "bnpl" | "family";
-
-/** 负债类型元数据：与 packages/shared/finance DEBT_TYPE_META 同源（小程序不引 shared，就地映射） */
-export const DEBT_TYPES: DebtType[] = ["credit_card", "mortgage", "car_loan", "consumer_loan", "bnpl", "family"];
-export const DEBT_TYPE_META: Record<DebtType, { label: string; icon: string }> = {
-  credit_card: { label: "信用卡", icon: "💳" },
-  mortgage: { label: "房贷", icon: "🏠" },
-  car_loan: { label: "车贷", icon: "🚗" },
-  consumer_loan: { label: "消费贷", icon: "💰" },
-  bnpl: { label: "花呗白条", icon: "🛒" },
-  family: { label: "亲友借款", icon: "🤝" },
-};
+// REQ-009 9-C 单源化：负债类型枚举与展示元数据改从 @shiguangri/shared/finance 引入（原为同源手工拷贝）
+import { DEBT_TYPES as SHARED_DEBT_TYPES, DEBT_TYPE_META as SHARED_DEBT_TYPE_META, type DebtType } from "@shiguangri/shared";
+export const DEBT_TYPES: readonly DebtType[] = SHARED_DEBT_TYPES;
+export const DEBT_TYPE_META: Record<DebtType, { label: string; icon: string }> = SHARED_DEBT_TYPE_META;
+export type { DebtType };
 
 /** 金额字段可能是 string（pg bigint/numeric 出参），比较前 Number() */
 export interface Debt {
@@ -171,14 +164,10 @@ export const fmt = (cents: number | string) => {
   return n < 0 ? `-¥${yuan(-n)}` : `¥${yuan(n)}`;
 };
 
-/** 北京今天 YYYY-MM-DD（UTC+8 推算，防每月 1 日 0-8 点落到上个月） */
-export function bjToday(): string {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
-/** 北京月 YYYY-MM */
-export function bjMonthStr(): string {
-  return bjToday().slice(0, 7);
-}
+/** 北京今天 YYYY-MM-DD / 北京月 YYYY-MM（REQ-009 9-C 单源：shared/date；UTC+8 推算防每月 1 日 0-8 点落上个月） */
+export { bjToday } from "@shiguangri/shared";
+import { bjToday as bjTodayShared } from "@shiguangri/shared";
+export const bjMonthStr = (): string => bjTodayShared().slice(0, 7);
 /** 月份 ±n（UTC 构造防时区偏移） */
 export function shiftYm(ym: string, delta: number): string {
   const [y, m] = ym.split("-").map(Number);

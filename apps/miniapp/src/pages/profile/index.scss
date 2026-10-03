@@ -25,23 +25,6 @@
   margin-bottom: 40px; /* mb-5 */
 }
 
-/* ---- 反馈小字（= web 纯色 text-xs，非横幅） ---- */
-.msg {
-  display: block;
-  margin-top: 24px; /* mt-3（改密/导出） */
-  font-size: 24px;
-  line-height: 1.5;
-}
-.msg-tight {
-  margin-top: 16px; /* mt-2（昵称保存） */
-}
-.msg-ok {
-  color: var(--success);
-}
-.msg-err {
-  color: var(--danger);
-}
-
 /* ---- 加载/失败态（= web py-10 text-center） ---- */
 .state-center {
   padding: 80px 0;

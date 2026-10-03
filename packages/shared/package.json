@@ -4,6 +4,7 @@
   "private": true,
   "description": "三端共享：类型/日期农历/纯业务规则/Bearer API client/CORS 策略",
   "exports": {
+    ".": "./src/index.ts",
     "./bearer": "./src/bearer.ts",
     "./cors": "./src/cors.ts",
     "./client-api": "./src/client-api.ts",

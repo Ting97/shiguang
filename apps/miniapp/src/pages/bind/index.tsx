@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
+import { showToast, ToastHost } from "@/components/toast";
 import { sendSmsCode, wechatBind } from "@/lib/api";
 import { setSessionToken } from "@/lib/session";
 import { syncNativeBackground, useTheme } from "@/lib/theme";
@@ -24,7 +25,6 @@ export default function Bind() {
   const [countdown, setCountdown] = useState(0);
   // 验证码请求飞行中锁：与 countdown 分开（countdown 成功后才启动），飞行中也禁用按钮防连发
   const [sending, setSending] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -56,17 +56,17 @@ export default function Bind() {
     if (sending || countdown > 0) return; // 飞行中/倒计时内忽略再次点击
     const p = phone.trim();
     if (!/^1[3-9]\d{9}$/.test(p)) {
-      setMsg({ ok: false, text: "请填写正确的手机号" });
+      showToast({ type: "err", text: "请填写正确的手机号" });
       return;
     }
     setSending(true);
     try {
       await sendSmsCode(p, "bind"); // 绑定专用 purpose（未配置通道 503 直接报错展示）
-      setMsg({ ok: true, text: "验证码已发送，5 分钟内有效" });
+      showToast({ type: "ok", text: "验证码已发送，5 分钟内有效" });
       setCountdown(60);
       timer.current = setInterval(() => setCountdown((c) => c - 1), 1000);
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setSending(false);
     }
@@ -75,17 +75,16 @@ export default function Bind() {
   async function doBind() {
     if (busy) return;
     if (!ticket.current) {
-      setMsg({ ok: false, text: "绑定凭证缺失，请返回重新微信登录" });
+      showToast({ type: "err", text: "绑定凭证缺失，请返回重新微信登录" });
       return;
     }
     setBusy(true);
-    setMsg(null);
     try {
       const j = await wechatBind(ticket.current, phone.trim(), code.trim());
       setSessionToken(j.token); // request 层已自动入库，此处显式保持旧数据流
       Taro.reLaunch({ url: "/pages/feed/index" });
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -148,10 +147,10 @@ export default function Bind() {
               {busy ? "绑定中…" : "绑定并登录"}
             </Button>
           </View>
-
-          {msg && <Text className={`msg ${msg.ok ? "msg-ok" : "msg-err"}`}>{msg.text}</Text>}
         </View>
       </View>
+      {/* NAVLESS 页无 PageShell：全局 toast 宿主自挂（REQ-009 9-C） */}
+      <ToastHost />
     </View>
   );
 }

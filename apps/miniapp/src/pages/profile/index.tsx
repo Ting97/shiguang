@@ -14,6 +14,7 @@ import { useCallback, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { logout } from "@/lib/api";
 import { API_BASE } from "@/lib/request";
 import { clearSessionToken, getSessionToken, toLogin } from "@/lib/session";
@@ -45,9 +46,6 @@ export default function Profile() {
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
-  const [msgNick, setMsgNick] = useState<{ ok: boolean; text: string } | null>(null);
-  const [msgPwd, setMsgPwd] = useState<{ ok: boolean; text: string } | null>(null);
-  const [msgExport, setMsgExport] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState<"json" | "md" | null>(null);
   // 全端登出两步确认：首点进入待确认态，3 秒内再点执行（= web useArmConfirm("logout-all")）
@@ -81,14 +79,13 @@ export default function Profile() {
 
   async function saveNickname() {
     if (busy) return;
-    setMsgNick(null);
     setBusy(true);
     try {
       const j = await updateProfile({ nickname });
-      setMsgNick({ ok: true, text: "✅ 昵称已更新" });
+      showToast({ type: "ok", text: "✅ 昵称已更新" });
       setSavedNick(j.nickname ?? nickname.trim());
     } catch (e) {
-      setMsgNick({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -96,9 +93,8 @@ export default function Profile() {
 
   async function savePassword() {
     if (busy) return;
-    setMsgPwd(null);
     if (newPwd !== confirmPwd) {
-      setMsgPwd({ ok: false, text: "两次输入的新密码不一致" });
+      showToast({ type: "err", text: "两次输入的新密码不一致" });
       return;
     }
     setBusy(true);
@@ -107,12 +103,12 @@ export default function Profile() {
         currentPassword: currentPwd || undefined, // 从未设过密码可留空（服务端同口径）
         newPassword: newPwd,
       });
-      setMsgPwd({ ok: true, text: "✅ 密码已更新，下次登录请使用新密码" });
+      showToast({ type: "ok", text: "✅ 密码已更新，下次登录请使用新密码" });
       setCurrentPwd("");
       setNewPwd("");
       setConfirmPwd("");
     } catch (e) {
-      setMsgPwd({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -148,7 +144,6 @@ export default function Profile() {
   async function exportData(format: "json" | "md") {
     if (exporting) return;
     setExporting(format);
-    setMsgExport(null);
     try {
       const token = getSessionToken();
       const res = await Taro.downloadFile({
@@ -161,13 +156,13 @@ export default function Profile() {
           filePath: res.tempFilePath,
           fileName: format === "json" ? "shiguang-backup.json" : "shiguang-moments.md",
         });
-        setMsgExport({ ok: true, text: "✅ 已拉起转发，发送给「文件传输助手」即可保存" });
+        showToast({ type: "ok", text: "✅ 已拉起转发，发送给「文件传输助手」即可保存" });
       } catch (e) {
         // 用户在转发面板取消也走 reject：静默，不算失败
         if (!String((e as { errMsg?: string })?.errMsg ?? "").includes("cancel")) throw e;
       }
     } catch (e) {
-      setMsgExport({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setExporting(null);
     }
@@ -250,7 +245,6 @@ export default function Profile() {
                 保存
               </Button>
             </View>
-            {msgNick && <Text className={`msg msg-tight ${msgNick.ok ? "msg-ok" : "msg-err"}`}>{msgNick.text}</Text>}
           </View>
 
           {/* ---- 修改密码 = web section.glass ---- */}
@@ -290,7 +284,6 @@ export default function Profile() {
                 更新密码
               </Button>
             </View>
-            {msgPwd && <Text className={`msg ${msgPwd.ok ? "msg-ok" : "msg-err"}`}>{msgPwd.text}</Text>}
           </View>
 
           {/* ---- 会话安全 = web section.glass（4-B FR-C1.3 全端登出） ---- */}
@@ -404,9 +397,6 @@ export default function Profile() {
                 {exporting === "md" ? "导出中…" : "动态日记 (Markdown)"}
               </Button>
             </View>
-            {msgExport && (
-              <Text className={`msg ${msgExport.ok ? "msg-ok" : "msg-err"}`}>{msgExport.text}</Text>
-            )}
           </View>
 
           {/* 微信特有：关于卡（沿旧版内容：端标识 + 同源说明） */}

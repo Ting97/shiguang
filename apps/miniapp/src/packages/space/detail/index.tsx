@@ -9,6 +9,7 @@ import { useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { loadFeed, loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import type { SpaceRow } from "../shared";
@@ -42,7 +43,6 @@ export default function SpaceDetailPage() {
   const [moments, setMoments] = useState<{ id: string; raw_text: string; created_at: string }[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [tab, setTab] = useState<SpaceTab>("todo");
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [spaceMenu, setSpaceMenu] = useState(false);
   const [armDelete, setArmDelete] = useState(false);
   const [inited, setInited] = useState(false);
@@ -87,11 +87,11 @@ export default function SpaceDetailPage() {
     try {
       await patchSpace(id, { name });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "重命名失败" });
+      showToast({ type: "err", text: e?.message ?? "重命名失败" });
       return false;
     }
     setSpace((s) => (s ? { ...s, name } : s));
-    setMsg({ ok: true, text: "已重命名" });
+    showToast({ type: "ok", text: "已重命名" });
     return true;
   }
 
@@ -99,11 +99,11 @@ export default function SpaceDetailPage() {
     try {
       await patchSpace(id, { targetDate: v });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e?.message ?? "网络异常，请稍后重试" });
       return false;
     }
     setSpace((s) => (s ? { ...s, target_date: v } : s));
-    setMsg({ ok: true, text: v ? `⏳ 目标到期时间已调整为 ${v}` : "目标到期时间已清除" });
+    showToast({ type: "ok", text: v ? `⏳ 目标到期时间已调整为 ${v}` : "目标到期时间已清除" });
     return true;
   }
 
@@ -112,7 +112,7 @@ export default function SpaceDetailPage() {
     try {
       await patchSpace(space.id, { status });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "操作失败" });
+      showToast({ type: "err", text: e?.message ?? "操作失败" });
       return;
     }
     // web 归档/恢复后跳回列表（location.href="/spaces"）
@@ -131,7 +131,7 @@ export default function SpaceDetailPage() {
     try {
       await deleteSpace(space.id);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "删除失败" });
+      showToast({ type: "err", text: e?.message ?? "删除失败" });
       return;
     }
     Taro.redirectTo({ url: "/packages/space/list/index" });
@@ -142,10 +142,10 @@ export default function SpaceDetailPage() {
     try {
       await patchTodo(todoId, { spaceId: target });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e?.message ?? "网络异常，请稍后重试" });
       return false;
     }
-    setMsg({ ok: true, text: target ? "🎯 已关联空间" : "已移除空间归属" });
+    showToast({ type: "ok", text: target ? "🎯 已关联空间" : "已移除空间归属" });
     await load();
     return true;
   }
@@ -203,8 +203,6 @@ export default function SpaceDetailPage() {
 
   return (
     <PageShell active="spaces">
-      {msg && <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View>}
-
       {/* 空间头部（可编辑/归档/删除/返回链） */}
       <HeaderCard space={space} onRename={saveRename} onSaveTargetDate={saveTargetDate} onOpenMenu={() => setSpaceMenu(true)} />
 
@@ -227,17 +225,16 @@ export default function SpaceDetailPage() {
           activities={activities}
           allSpaces={allSpaces}
           onChanged={() => void load()}
-          setMsg={setMsg}
           onPickSpace={pickSpace}
         />
       )}
 
       {/* 感悟 */}
-      {tab === "reflection" && <ReflectionTab spaceId={id} onChanged={() => void load()} setMsg={setMsg} rev={0} />}
+      {tab === "reflection" && <ReflectionTab spaceId={id} onChanged={() => void load()} rev={0} />}
 
       {/* 关联动态 */}
       {tab === "moments" && (
-        <MomentsTab spaceId={id} moments={moments} onChanged={() => void load()} setMsg={setMsg} />
+        <MomentsTab spaceId={id} moments={moments} onChanged={() => void load()} />
       )}
 
       {/* 空间操作菜单（⋯ 收纳归档/删除；= web SpaceMenuModal 移动端形态） */}

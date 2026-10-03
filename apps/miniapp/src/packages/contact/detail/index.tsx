@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { loadContactDetail, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import ContactFormModal from "../form-modal";
@@ -62,7 +63,6 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [rev, setRev] = useState(0); // 重试信号：bump 触发重载
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
@@ -107,22 +107,15 @@ export default function ContactDetailPage() {
       .finally(() => Taro.stopPullDownRefresh());
   });
 
-  /** msg 自动消退（= web 3.5s / 8s） */
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
-
   async function runProfile() {
     if (profiling) return;
     setProfiling(true);
     try {
       const j = await generateAiProfile(id);
       setContact((c) => (c ? { ...c, ai_profile: j.profile as AiProfile, ai_profile_at: new Date().toISOString() } : c));
-      setMsg({ ok: true, text: "✨ 交往画像已更新" });
+      showToast({ type: "ok", text: "✨ 交往画像已更新" });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? String(e) });
+      showToast({ type: "err", text: e?.message ?? String(e) });
     } finally {
       setProfiling(false);
     }
@@ -133,7 +126,7 @@ export default function ContactDetailPage() {
     try {
       await deleteContact(contact.id);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? String(e) });
+      showToast({ type: "err", text: e?.message ?? String(e) });
       return;
     }
     Taro.redirectTo({ url: "/packages/contact/list/index" });
@@ -305,8 +298,6 @@ export default function ContactDetailPage() {
         )}
       </View>
 
-      {msg && <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View>}
-
       {/* 一起经历过的事（往来时间线） */}
       <View className="glass glass-p5 cd-card">
         <View className="cd-sec-head">
@@ -385,7 +376,7 @@ export default function ContactDetailPage() {
           onClose={() => setEditing(false)}
           onSaved={(text) => {
             setEditing(false);
-            setMsg({ ok: true, text });
+            showToast({ type: "ok", text });
             void load().catch((e: any) => setLoadErr(e?.message ?? String(e)));
           }}
         />
@@ -397,7 +388,7 @@ export default function ContactDetailPage() {
           onClose={() => setAdding(false)}
           onSaved={(text) => {
             setAdding(false);
-            setMsg({ ok: true, text });
+            showToast({ type: "ok", text });
             void load().catch((e: any) => setLoadErr(e?.message ?? String(e)));
           }}
         />

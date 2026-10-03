@@ -8,8 +8,7 @@ import { useEffect, useState } from "react";
 import { Input, Picker, Text, Textarea, View } from "@tarojs/components";
 import type { Activity, Space, TodoItem, TodoRow } from "./api";
 import { childProgress, dueTag, joinDue, splitDue, TodoCircle } from "./todo-bits";
-
-type Msg = { ok: boolean; text: string } | null;
+import { showToast } from "@/components/toast";
 
 export interface SubCtl {
   parentId: string | null;
@@ -32,7 +31,6 @@ export default function TodoCard({
   onToggleExpand,
   onOpenMenu,
   patch,
-  setMsg,
 }: {
   t: TodoItem;
   activities: Activity[];
@@ -48,7 +46,6 @@ export default function TodoCard({
   onToggleExpand: (id: string) => void;
   onOpenMenu: (todo: TodoRow, isChild: boolean, parentTitle?: string) => void;
   patch: (id: string, body: Record<string, unknown>, okText?: string) => Promise<boolean>;
-  setMsg: (m: Msg) => void;
 }) {
   // 已完成的任务不再展示过期/到期标签（截止时间对已完成的任务没有意义）
   const tag = t.status === "done" ? null : dueTag(t.due_at);
@@ -79,7 +76,7 @@ export default function TodoCard({
   async function saveEdit() {
     if (!edit || edit.saving) return;
     if (!edit.title.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
+      showToast({ type: "err", text: "标题不能为空" });
       return;
     }
     setEdit({ ...edit, saving: true });
@@ -110,7 +107,7 @@ export default function TodoCard({
   async function saveNote() {
     if (!note || note.saving) return;
     if (!note.title.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
+      showToast({ type: "err", text: "标题不能为空" });
       return;
     }
     setNote({ ...note, saving: true });
@@ -312,7 +309,7 @@ export default function TodoCard({
                     onConfirm={() => sub.add(t.id)}
                     onBlur={() => {
                       // 键盘收起即"点空白"：有未提交内容提示（web blur 同款）；输入行保留由 ✕ 显式关闭
-                      if (sub.title.trim()) setMsg({ ok: true, text: "已取消，未保存" });
+                      if (sub.title.trim()) showToast({ type: "info", text: "已取消，未保存" });
                     }}
                   />
                   <View className="child-add-close" onTap={() => sub.close()}>

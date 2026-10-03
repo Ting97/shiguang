@@ -226,21 +226,21 @@ export function loadMonthReview(month: string) {
 
 /* ---------- 工具 ---------- */
 
-/** 北京时区 YYYY-MM-DD（对齐 web lib/bj-time 口径：UTC getter + 8h） */
-export function bjToday(): string {
-  const d = new Date(Date.now() + 8 * 3600_000);
-  return d.toISOString().slice(0, 10);
-}
+// REQ-009 9-C 单源化：北京时区今日与分→元格式化改从 @shiguangri/shared 引入（config compile.include 已纳入编译）
+import { bjToday, yuan as yuanFromShared } from "@shiguangri/shared";
+
+/** 北京时区 YYYY-MM-DD（= web lib/bj-time 口径，shared/date 单源） */
+export { bjToday };
 
 export function bjMonth(): string {
   return bjToday().slice(0, 7);
 }
 
-/** 分 → 元字符串（整数分运算防浮点误差，对齐 shared/finance.yuan） */
+/** 分 → 元字符串（shared/finance 单源：整元不带小数、非整两位，整数分运算防浮点误差；与 web 展示一致）。
+ * 金额字段可能是 string（pg bigint 出参），先 Number 归一，无效值回 "0"（沿用旧守卫）。 */
 export function yuan(cents: number | string): string {
   const n = Number(cents);
-  if (!Number.isFinite(n)) return "0";
-  return (n / 100).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Number.isFinite(n) ? yuanFromShared(n) : "0";
 }
 
 export function previewImage(urls: string[], current?: string) {

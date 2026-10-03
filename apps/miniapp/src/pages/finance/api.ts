@@ -102,55 +102,18 @@ export function deleteAccount(id: string) {
   return request(`/api/accounts/${id}`, { method: "DELETE" });
 }
 
-/* ---------- 展示纯函数（= packages/shared/finance，小程序不引 shared 就地实现） ---------- */
+/* ---------- 展示纯函数（REQ-009 9-C 单源化：原为 packages/shared/finance 的手工拷贝 + web lib/bj-time 墙上时间，现全部改 re-export） ---------- */
 
-/** 流水分类（与动态识别分类词一致；「还款」由负债管理/账单导入产生） */
-export const TX_CATEGORIES = ["餐饮", "交通", "人情往来", "学习", "购物", "娱乐", "医疗", "居住", "还款", "其他"];
-
-/** 分类配色（报表条/图例共用；= shared/finance TX_COLORS） */
-export const TX_COLORS: Record<string, string> = {
-  餐饮: "#f97316",
-  交通: "#78716c",
-  人情往来: "#ec4899",
-  学习: "#10b981",
-  购物: "#8b5cf6",
-  娱乐: "#eab308",
-  医疗: "#14b8a6",
-  居住: "#0ea5e9",
-  还款: "#6366f1",
-  其他: "#64748b",
-};
-
-/** 分类占比（支出降序，pct 一位小数；总额≤0 返回空） */
-export function categoryBreakdown(byCategory: Record<string, number>): { category: string; cents: number; pct: number }[] {
-  const total = Object.values(byCategory).reduce((s, v) => s + v, 0);
-  if (total <= 0) return [];
-  return Object.entries(byCategory)
-    .filter(([, cents]) => cents > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([category, cents]) => ({ category, cents, pct: Math.round((cents / total) * 1000) / 10 }));
-}
-
-/** 储蓄率：(收入-支出)/收入×100，无收入返回 null */
-export function savingsRate(incomeCents: number, expenseCents: number): number | null {
-  if (incomeCents <= 0) return null;
-  return Math.round(((incomeCents - expenseCents) / incomeCents) * 1000) / 10;
-}
-
-/** 预算状态：≥100% over / ≥阈值 warn / 否则 safe；未设上限 none */
-export function budgetTone(spentCents: number, limitCents: number, threshold = 80): { tone: "safe" | "warn" | "over" | "none"; pct: number } {
-  if (limitCents <= 0) return { tone: "none", pct: 0 };
-  const pct = Math.round((spentCents / limitCents) * 1000) / 10;
-  if (pct >= 100) return { tone: "over", pct };
-  if (pct >= threshold) return { tone: "warn", pct };
-  return { tone: "safe", pct };
-}
-
-/** 环比变化百分比：(cur-prev)/prev×100，prev≤0 为 null */
-export function momChange(cur: number, prev: number): number | null {
-  if (prev <= 0) return null;
-  return Math.round(((cur - prev) / prev) * 1000) / 10;
-}
+export {
+  TX_CATEGORIES,
+  TX_COLORS,
+  categoryBreakdown,
+  savingsRate,
+  budgetTone,
+  momChange,
+  isoToBjInput,
+  bjInputToIso,
+} from "@shiguangri/shared";
 
 /** 负数负号在前（直接拼接会出现 ¥-260） */
 export const fmtMoney = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
@@ -161,16 +124,4 @@ export function shiftMonth(m: string, delta: number): string {
   const [y, mm] = m.split("-").map(Number);
   const d = new Date(y, mm - 1 + delta, 1);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-}
-
-/** ISO → 北京墙上时间 datetime 串（YYYY-MM-DDTHH:mm；= web lib/bj-time isoToBjInput） */
-export function isoToBjInput(iso: string): string {
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-}
-/** 北京墙上时间串 → ISO（显式 +08:00 解析，防宿主时区错位；= web bjInputToIso） */
-export function bjInputToIso(v: string | null | undefined): string | null {
-  if (!v) return null;
-  const t = Date.parse(v.length === 16 ? `${v}:00+08:00` : `${v}+08:00`);
-  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }

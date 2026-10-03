@@ -19,6 +19,7 @@ import {
 } from "./api";
 import type { SpaceRow } from "../shared";
 import { bjDate, bjToday, dueTag, type DueTag } from "../shared";
+import { showToast } from "@/components/toast";
 import "./todo-section.scss";
 
 interface Activity {
@@ -57,10 +58,9 @@ export default function TodoSection(opts: {
   activities: Activity[];
   allSpaces: SpaceRow[];
   onChanged: () => void;
-  setMsg: (m: { ok: boolean; text: string } | null) => void;
   onPickSpace: (todoId: string, target: string | null) => Promise<boolean>;
 }) {
-  const { spaceId, todos, doneTodos, activities, allSpaces, onChanged, setMsg, onPickSpace } = opts;
+  const { spaceId, todos, doneTodos, activities, allSpaces, onChanged, onPickSpace } = opts;
   const [newTodo, setNewTodo] = useState("");
   const [addingTodo, setAddingTodo] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -98,11 +98,11 @@ export default function TodoSection(opts: {
     setBusyId(id);
     try {
       await patchTodo(id, body);
-      setMsg({ ok: true, text: okText });
+      showToast({ type: "ok", text: okText });
       await onChanged();
       return true;
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e?.message ?? "网络异常，请稍后重试" });
       return false;
     } finally {
       setBusyId(null);
@@ -116,7 +116,7 @@ export default function TodoSection(opts: {
     try {
       await createTodo({ title: t, spaceId });
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "添加失败" });
+      showToast({ type: "err", text: e?.message ?? "添加失败" });
       return;
     } finally {
       setAddingTodo(false);
@@ -141,10 +141,10 @@ export default function TodoSection(opts: {
     try {
       await deleteTodo(todo.id);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "删除失败" });
+      showToast({ type: "err", text: e?.message ?? "删除失败" });
       return;
     }
-    setMsg({ ok: true, text: "已删除" });
+    showToast({ type: "ok", text: "已删除" });
     await onChanged();
   }
 
@@ -159,10 +159,10 @@ export default function TodoSection(opts: {
     setBusyId(key);
     try {
       const j = await decomposeTodo(t.id, mode);
-      setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${t.isAction ? "，已插入原行动之后" : ""}` });
+      showToast({ type: "ok", text: `✨ AI 拆出 ${j.actions.length} 个行动${t.isAction ? "，已插入原行动之后" : ""}` });
       await onChanged();
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "AI 拆解失败，请稍后重试" });
+      showToast({ type: "err", text: e?.message ?? "AI 拆解失败，请稍后重试" });
     } finally {
       setBusyId(null);
     }
@@ -182,7 +182,7 @@ export default function TodoSection(opts: {
   async function saveEdit() {
     if (!editingId) return;
     if (!editTitle.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
+      showToast({ type: "err", text: "标题不能为空" });
       return;
     }
     const ok = await patch(
@@ -209,7 +209,7 @@ export default function TodoSection(opts: {
   async function saveNote() {
     if (!noteOpen) return;
     if (!noteTitle.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
+      showToast({ type: "err", text: "标题不能为空" });
       return;
     }
     const ok = await patch(
@@ -234,13 +234,13 @@ export default function TodoSection(opts: {
     try {
       await createTodo({ title, parentId: t.id }); // 行动经 parentId 继承空间归属
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "添加失败" });
+      showToast({ type: "err", text: e?.message ?? "添加失败" });
       return;
     } finally {
       setAddingAction(false);
     }
     setActionDrafts((d) => ({ ...d, [t.id]: "" }));
-    setMsg({ ok: true, text: "📌 行动已添加" });
+    showToast({ type: "ok", text: "📌 行动已添加" });
     await onChanged();
   }
 
@@ -251,7 +251,7 @@ export default function TodoSection(opts: {
       setLinkQuery("");
       setLinkOpen(true);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "加载失败，请稍后再试" });
+      showToast({ type: "err", text: e?.message ?? "加载失败，请稍后再试" });
     }
   }
 

@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import { showToast } from "@/components/toast";
 import { transcribeAudio } from "@/lib/api";
 import "./voice-button.scss";
 
@@ -34,20 +35,28 @@ interface StopResult {
   fileSize?: number;
 }
 
+/** 录音授权被拒后的恢复引导（REQ-009 9-C）：modal 说明 → openSetting 让用户自己翻开麦克风开关 */
+function guideRecordSetting() {
+  Taro.showModal({
+    title: "需要麦克风权限",
+    content: "用于语音一句话记录，请在设置中开启麦克风权限",
+    confirmText: "去设置",
+    cancelText: "暂不",
+  })
+    .then(({ confirm }) => {
+      if (confirm) Taro.openSetting().catch(() => {});
+    })
+    .catch(() => {});
+}
+
 export default function CaptureButton({
   onTap,
   onVoiceText,
-  onError,
-  onHint,
 }: {
   /** 点按（未到长按门槛松开）→ 父级打开空文字面板 */
   onTap: () => void;
   /** 长按说话松开且转写成功 → 父级打开面板并带入文字 */
   onVoiceText: (text: string) => void;
-  /** 失败冒泡到页面横幅 */
-  onError: (msg: string) => void;
-  /** 中性提示（已取消/没听到内容），父级用成功样式展示 */
-  onHint: (msg: string) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [seconds, setSeconds] = useState(0);
@@ -116,8 +125,9 @@ export default function CaptureButton({
         droppingRef.current = false;
         setBoth("idle");
         const msg = String(err?.errMsg ?? "");
-        // 授权拒绝是最常见的失败：errMsg 含 auth/deny，文案要指路设置页
-        onError(msg.includes("auth") || msg.includes("deny") ? "未授权麦克风，请到设置里开启后重试" : `录音失败：${msg || "未知错误"}`);
+        // 授权拒绝（scope.record，errMsg 含 auth/deny）：弹窗引导去设置页打开，比只报错多一步恢复路径
+        if (msg.includes("auth") || msg.includes("deny")) guideRecordSetting();
+        else showToast({ type: "err", text: `录音失败：${msg || "未知错误"}` });
       });
       recRef.current = rec;
     }
@@ -125,6 +135,18 @@ export default function CaptureButton({
   }
 
   function begin() {
+    if (phaseRef.current !== "idle") return;
+    // 授权恢复（REQ-009 9-C）：曾拒绝过（scope.record=false）不再白启动一次，直接引导去设置页；
+    // 首次授权由系统弹窗承接；onError 里也兜底接同一引导，防个别机型 getSetting 不可用漏网
+    Taro.getSetting()
+      .then(({ authSetting }) => {
+        if (authSetting && authSetting["scope.record"] === false) guideRecordSetting();
+        else startRecording();
+      })
+      .catch(() => startRecording());
+  }
+
+  function startRecording() {
     if (phaseRef.current !== "idle") return;
     ensureRec().start({ format: "wav", sampleRate: 16000, numberOfChannels: 1, duration: VOICE_MAX_SECONDS * 1000 });
     // start 失败（如未授权麦克风）会走 onError 统一兜回 idle
@@ -163,28 +185,28 @@ export default function CaptureButton({
     const path = res.tempFilePath;
     if (!path) {
       setBoth("idle");
-      onError("录音失败，请重试");
+      showToast({ type: "err", text: "录音失败，请重试" });
       return;
     }
     // <1s 基本转不出内容：本地直接拦，省一次必 422 的请求（中性提示，非错误）
     if (typeof res.duration === "number" && res.duration < 1000) {
       setBoth("idle");
-      onHint("说话时间太短，请长按后松手");
+      showToast({ type: "info", text: "说话时间太短，请长按后松手" });
       return;
     }
     setBoth("transcribing");
     try {
       const { text } = await transcribeAudio(path);
       if (text) onVoiceText(text);
-      else onHint("没有听清内容，请再试一次");
+      else showToast({ type: "info", text: "没有听清内容，请再试一次" });
     } catch (e: any) {
-      onError(e?.message ?? "语音识别失败");
+      showToast({ type: "err", text: e?.message ?? "语音识别失败" });
     } finally {
       setBoth("idle");
     }
   }
 
-  // 每次渲染把最新闭包挂到 ref，保证 onStop 里拿到的是最新的 onVoiceText/onError/onHint
+  // 每次渲染把最新闭包挂到 ref，保证 onStop 里拿到的是最新的 onVoiceText
   stopRef.current = (res) => {
     void handleStop(res);
   };

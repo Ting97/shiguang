@@ -18,6 +18,13 @@ export default defineAppConfig({
   // 微信系统深浅色跟随（REQ-009 9-A）：theme.json 由 design-tokens 生成，值随主题切换
   darkmode: true,
   themeLocation: "theme.json",
+  // 录音授权用途声明（REQ-009 9-C 提审配置）：语音一句话记录（长按悬浮钮说话）；
+  // 无位置等其它敏感接口，不加多余 permission。授权被拒的恢复引导在 voice-button/publish-sheet（openSetting）。
+  permission: {
+    "scope.record": {
+      desc: "用于语音一句话记录",
+    },
+  },
   window: {
     // 顶栏（含导航/标题）全部自绘：对齐 web 移动端顶部胶囊导航（components/nav.tsx）
     navigationStyle: "custom",

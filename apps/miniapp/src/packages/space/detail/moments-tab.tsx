@@ -7,15 +7,15 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import { linkMoment, loadUnlinkedFeed, type SpaceMoment } from "./api";
 import { bjStamp } from "../shared";
+import { showToast } from "@/components/toast";
 import "./moments-tab.scss";
 
 export default function MomentsTab(opts: {
   spaceId: string;
   moments: SpaceMoment[];
   onChanged: () => void;
-  setMsg: (m: { ok: boolean; text: string } | null) => void;
 }) {
-  const { spaceId, moments, onChanged, setMsg } = opts;
+  const { spaceId, moments, onChanged } = opts;
   // 未归属动态池（关联弹层）
   const [linkOpen, setLinkOpen] = useState(false);
   const [items, setItems] = useState<SpaceMoment[]>([]);
@@ -38,7 +38,7 @@ export default function MomentsTab(opts: {
       setItems((prev) => (append ? [...prev, ...list] : list));
     } catch (e: any) {
       if (seq !== seqRef.current) return;
-      setMsg({ ok: false, text: e?.message ?? "加载失败，请稍后再试" });
+      showToast({ type: "err", text: e?.message ?? "加载失败，请稍后再试" });
     } finally {
       if (seq === seqRef.current) setLoading(false);
     }
@@ -64,12 +64,12 @@ export default function MomentsTab(opts: {
     try {
       await linkMoment(id, spaceId);
     } catch (e: any) {
-      setMsg({ ok: false, text: e?.message ?? "关联失败" });
+      showToast({ type: "err", text: e?.message ?? "关联失败" });
       return;
     }
     setItems((list) => list.filter((m) => m.id !== id));
     setTotal((n) => Math.max(0, n - 1));
-    setMsg({ ok: true, text: "🌱 动态已关联到本空间" });
+    showToast({ type: "ok", text: "🌱 动态已关联到本空间" });
     onChanged();
   }
 

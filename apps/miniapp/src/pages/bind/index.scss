@@ -92,18 +92,3 @@
   font-size: 28px;
   line-height: inherit;
 }
-
-/* 反馈文案（= web login 纯色小字风格，非横幅） */
-.msg {
-  display: block;
-  margin-top: 24px;
-  font-size: 24px;
-  line-height: 1.5;
-  text-align: center;
-}
-.msg-ok {
-  color: var(--success);
-}
-.msg-err {
-  color: var(--danger);
-}

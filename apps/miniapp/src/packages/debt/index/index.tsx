@@ -7,10 +7,11 @@
  * - 新建/编辑档案、还款弹层用底部 sheet（web Modal 的移动端形态）；
  * - 策略模拟滑杆松手触发改为 Slider onChange +「开始模拟」按钮（触屏无 pointerup 语义差异，按钮更可靠）。
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { View, Text, Input, Button, Picker, Slider } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { showToast } from "@/components/toast";
 import { fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import { ApiError } from "@/lib/request";
@@ -321,7 +322,6 @@ export default function DebtPage() {
   const [modules, setModules] = useState<string[] | null>(null);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<Debt | null | "new">(null);
   const [paying, setPaying] = useState<Debt | null>(null);
   const [showCleared, setShowCleared] = useState(false);
@@ -333,12 +333,6 @@ export default function DebtPage() {
   const [armId, setArmId] = useState<string | null>(null);
   const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inited, setInited] = useState(false);
-
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   async function load(y = ym) {
     setLoadErr(null);
@@ -360,7 +354,7 @@ export default function DebtPage() {
       .then((r) => setReserve(r))
       .catch((e) => {
         if (e instanceof ApiError && e.status === 403) return; // 未开通模块：整页已是锁定态
-        setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+        showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
       });
     // 账户列表仅供还款选账/储蓄覆盖勾选：失败不阻塞负债页主数据
     loadAccountList()
@@ -386,7 +380,7 @@ export default function DebtPage() {
     try {
       setReserve(await loadReserve(nextYm));
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -409,7 +403,7 @@ export default function DebtPage() {
       }
       await reloadReserve();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setResBusy(false);
     }
@@ -422,7 +416,7 @@ export default function DebtPage() {
       await setReserveAll(ym, checked);
       await reloadReserve();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setResBusy(false);
     }
@@ -435,7 +429,7 @@ export default function DebtPage() {
       const r = await loadAccountList();
       setAccounts(r.accounts ?? []);
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -450,10 +444,10 @@ export default function DebtPage() {
     setArmId(null);
     try {
       await archiveDebt(d.id);
-      setMsg({ ok: true, text: "📦 已归档" });
+      showToast({ type: "ok", text: "📦 已归档" });
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -464,7 +458,7 @@ export default function DebtPage() {
       setSim(await runSimulation(cents));
     } catch (e) {
       setSim(null);
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setSimBusy(false);
     }
@@ -501,8 +495,6 @@ export default function DebtPage() {
       </View>
 
       <FinTabs modules={modules} />
-
-      {msg ? <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</View> : null}
 
       {debts !== null && loadErr ? (
         <View className="msg-banner msg-banner-err">
@@ -722,7 +714,7 @@ export default function DebtPage() {
               </View>
               <View className="list-head-ops">
                 {/* web 是客户端解析 JSON 的 DebtImportDrawer；小程序无文件读取能力，仅提示走 web（需求约定） */}
-                <View className="import-btn" hoverClass="press" onTap={() => setMsg({ ok: false, text: "JSON 导入请使用 web 端" })}>
+                <View className="import-btn" hoverClass="press" onTap={() => showToast({ type: "info", text: "JSON 导入请使用 web 端" })}>
                   📥 导入
                 </View>
                 <View className="new-btn" hoverClass="press" onTap={() => setEditing("new")}>
@@ -804,7 +796,7 @@ export default function DebtPage() {
                               await updateDebt(d.id, { status: "active" });
                               await load();
                             } catch (e) {
-                              setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                              showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
                             }
                           }}
                         >
@@ -886,7 +878,7 @@ export default function DebtPage() {
               if (editing === "new") await createDebt(payload);
               else await updateDebt(editing.id, payload);
               setEditing(null);
-              setMsg({ ok: true, text: editing === "new" ? "✅ 已建档" : "💾 已保存" });
+              showToast({ type: "ok", text: editing === "new" ? "✅ 已建档" : "💾 已保存" });
               await load();
             }}
           />
@@ -909,11 +901,11 @@ export default function DebtPage() {
             onCancel={() => setPaying(null)}
             onDone={async (text) => {
               setPaying(null);
-              setMsg({ ok: true, text });
+              showToast({ type: "ok", text });
               await load();
               setSim(null);
             }}
-            onError={(text) => setMsg({ ok: false, text })}
+            onError={(text) => showToast({ type: "err", text })}
           />
         </View>
       )}

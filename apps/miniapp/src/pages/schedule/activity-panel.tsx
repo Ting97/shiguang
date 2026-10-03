@@ -8,6 +8,7 @@ import { Input, Text, View } from "@tarojs/components";
 import IconPicker from "./icon-picker";
 import { createActivity, deleteActivity, loadActivities, patchActivity, type Activity } from "./api";
 import { ApiError } from "@/lib/request";
+import { showToast } from "@/components/toast";
 
 interface Draft {
   id: string;
@@ -25,13 +26,10 @@ const PALETTE = [
   "#22c55e", "#10b981", "#14b8a6", "#06b6d4", "#64748b", "#78716c",
 ];
 
-type Msg = { ok: boolean; text: string } | null;
-
 export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: number }) {
   const [list, setList] = useState<Activity[]>([]);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [adding, setAdding] = useState({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
-  const [msg, setMsg] = useState<Msg>(null);
   // 新增/保存进行中锁，防连点重复提交
   const [busy, setBusy] = useState(false);
   // 删除两步确认（= web armDeleteId）：首点进入待确认态，3 秒内再点才真删
@@ -45,7 +43,7 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
     } catch (e: any) {
       // 失败置空列表 + 提示（不外抛）
       setList([]);
-      setMsg({ ok: false, text: e?.message ?? "加载失败" });
+      showToast({ type: "err", text: e?.message ?? "加载失败" });
     }
   }
   useEffect(() => {
@@ -55,11 +53,6 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
   useEffect(() => {
     if (refreshTick > 0) void load();
   }, [refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 3000);
-    return () => clearTimeout(t);
-  }, [msg]);
   useEffect(
     () => () => {
       if (armTimer.current) clearTimeout(armTimer.current);
@@ -69,7 +62,7 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
 
   async function add() {
     if (!adding.name.trim()) {
-      setMsg({ ok: false, text: "名称必填" });
+      showToast({ type: "err", text: "名称必填" });
       return;
     }
     if (busy) return;
@@ -78,11 +71,11 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
       await createActivity(adding);
     } catch (e: any) {
       setBusy(false);
-      setMsg({ ok: false, text: e instanceof ApiError ? (e.message === "操作失败" ? "新增失败" : e.message) : "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e instanceof ApiError ? (e.message === "操作失败" ? "新增失败" : e.message) : "网络异常，请稍后重试" });
       return;
     }
     setBusy(false);
-    setMsg({ ok: true, text: `✅ 已新增分类「${adding.name.trim()}」` });
+    showToast({ type: "ok", text: `✅ 已新增分类「${adding.name.trim()}」` });
     setAdding({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
     await load();
   }
@@ -94,12 +87,12 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
       await patchActivity(editing.id, { name: editing.name, icon: editing.icon, color: editing.color, defaultMin: editing.defaultMin });
     } catch (e: any) {
       setBusy(false);
-      setMsg({ ok: false, text: e instanceof ApiError ? (e.message === "操作失败" ? "保存失败" : e.message) : "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e instanceof ApiError ? (e.message === "操作失败" ? "保存失败" : e.message) : "网络异常，请稍后重试" });
       return;
     }
     setBusy(false);
     setEditing(null);
-    setMsg({ ok: true, text: "💾 已保存" });
+    showToast({ type: "ok", text: "💾 已保存" });
     await load();
   }
 
@@ -107,10 +100,10 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
     try {
       await deleteActivity(a.id);
     } catch (e: any) {
-      setMsg({ ok: false, text: e instanceof ApiError ? (e.message === "操作失败" ? "删除失败" : e.message) : "网络异常，请稍后重试" });
+      showToast({ type: "err", text: e instanceof ApiError ? (e.message === "操作失败" ? "删除失败" : e.message) : "网络异常，请稍后重试" });
       return;
     }
-    setMsg({ ok: true, text: `🗑 已删除「${a.name}」` });
+    showToast({ type: "ok", text: `🗑 已删除「${a.name}」` });
     setArmDeleteId(null);
     await load();
   }
@@ -161,12 +154,6 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
       <Text className="ap-intro hint">
         预设分类不可删除（可改名称/图标/颜色/默认时长）；自定义分类删除后其记录归入「其他」
       </Text>
-
-      {msg && (
-        <View className={`msg-banner ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>
-          <Text>{msg.text}</Text>
-        </View>
-      )}
 
       {/* 新增（移动端纵向堆叠、控件全宽，触控目标 ≥40px，= web 注释同款要求） */}
       <View className="glass add-act">

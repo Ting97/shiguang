@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Textarea, Image } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import { showToast } from "@/components/toast";
 import { uploadWithRetry } from "./api";
 
 const MAX_PICS = 9; // 服务端硬上限：单条动态最多 9 张（apps/api addEntryImages）
@@ -23,7 +24,6 @@ export default function PublishSheet({
   busy,
   onPublish,
   onClose,
-  notify,
 }: {
   open: boolean;
   /** 打开时带入的初始文字（语音转写结果或空串） */
@@ -32,9 +32,21 @@ export default function PublishSheet({
   /** 发布文字动态；返回 entry id（供图片上传），失败/无图返回 null */
   onPublish: (text: string) => Promise<string | null>;
   onClose: () => void;
-  /** 取消且内容有改动时的轻提示（= web notify） */
-  notify?: (m: { ok: boolean; text: string } | null) => void;
 }) {
+  /** 相册/相机授权被拒后的恢复引导（REQ-009 9-C）：modal 说明 → openSetting 自行打开开关 */
+  function guideMediaSetting() {
+    Taro.showModal({
+      title: "需要相册/相机权限",
+      content: "用于给动态配图，请在设置中开启对应权限",
+      confirmText: "去设置",
+      cancelText: "暂不",
+    })
+      .then(({ confirm }) => {
+        if (confirm) Taro.openSetting().catch(() => {});
+      })
+      .catch(() => {});
+  }
+
   const [value, setValue] = useState("");
   const [pics, setPics] = useState<Pic[]>([]);
   const [sheetMsg, setSheetMsg] = useState<string | null>(null);
@@ -58,9 +70,24 @@ export default function PublishSheet({
   /** 取消：内容相对打开时有改动则轻提示"已取消，未保存"（= web cancel） */
   function cancel() {
     if (value.trim() && value.trim() !== initialRef.current.trim()) {
-      notify?.({ ok: true, text: "已取消，未保存" });
+      showToast({ type: "info", text: "已取消，未保存" });
     }
     onClose();
+  }
+
+  /** 相册/相机授权状态检测：任一被拒（false）→ 弹窗引导去设置打开（REQ-009 9-C 授权恢复） */
+  async function checkMediaScope(source: "album" | "camera"): Promise<boolean> {
+    try {
+      const { authSetting } = await Taro.getSetting();
+      const scope = source === "album" ? "scope.writePhotosAlbum" : "scope.camera";
+      if (authSetting && authSetting[scope] === false) {
+        guideMediaSetting();
+        return false;
+      }
+    } catch {
+      /* getSetting 不可用：放行走 chooseMedia，被拒时在 catch 里兜底引导 */
+    }
+    return true;
   }
 
   /** 选图（source 区分相册/拍照，对应 web 的两个入口）；微信 chooseMedia 一次面板双入口，这里按需指定 */
@@ -70,6 +97,7 @@ export default function PublishSheet({
       setSheetMsg("最多 9 张");
       return;
     }
+    if (!(await checkMediaScope(source))) return;
     try {
       const res = await Taro.chooseMedia({
         count: left,
@@ -84,8 +112,16 @@ export default function PublishSheet({
       if (all.length > sized.length) setSheetMsg("单张图片不能超过 5MB，已忽略超大图片");
       if (paths.length) setPics((prev) => [...prev, ...paths.map((p) => ({ path: p, status: "ready" as const }))]);
     } catch (e: any) {
+      const raw = String(e?.errMsg ?? "");
       // 用户在选图面板点取消也走 reject：静默，只有真失败才报
-      if (!String(e?.errMsg ?? "").includes("cancel")) setSheetMsg(e?.errMsg ?? "选图失败");
+      if (raw.includes("cancel")) return;
+      // 授权被拒（auth deny）：就地提示 + 弹窗引导去设置页打开，比一句死报错多一步恢复路径
+      if (raw.includes("auth") || raw.includes("deny")) {
+        setSheetMsg("未授权相册/相机，请开启后重试");
+        guideMediaSetting();
+        return;
+      }
+      setSheetMsg(raw || "选图失败");
     }
   }
 
