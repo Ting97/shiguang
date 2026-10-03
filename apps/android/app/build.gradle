@@ -7,9 +7,12 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "cn.ting97.shiguang"
-        minSdk = 24
-        targetSdk = 35
+        // 端标识治理（REQ-009 9-D）：applicationId 加 .web 后缀，与 Expo 主力端
+        // （apps/mobile，applicationId=cn.ting97.shiguang）区分——避免两包同 ID 但签名
+        // 不同（本壳 debug 签名 vs EAS 签名）时设备判定为异签名同应用，安装互斥覆盖
+        // （装 A 须先卸 B）。namespace 保持原值（资源/代码包名无冲突诉求，改了会动 Java 源码包）。
+        applicationId = "cn.ting97.shiguang.web"
+        // versionCode 保持 2：本壳独立发版节奏，不跟 Expo 端（app.json versionCode=5）对齐
         versionCode = 2
         versionName = "1.1.3"
     }

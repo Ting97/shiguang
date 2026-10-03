@@ -64,6 +64,14 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: "POST", body: JSON.stringify(body) });
 }
 
+/** DELETE（可选 JSON body；push 注销设备用） */
+export function apiDelete<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "DELETE",
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
 /** 语音上传（multipart，native FormData 用 { uri, name, type }）；文件名/MIME 跟随录音实际格式 */
 export function apiUpload<T>(path: string, fileUri: string): Promise<T> {
   const isM4a = fileUri.endsWith(".m4a") || fileUri.endsWith(".aac");
@@ -96,9 +104,23 @@ export async function login(account: string, password: string): Promise<void> {
   await apiPost("/api/auth/login", body);
 }
 
-export async function loadFeed(): Promise<Moment[]> {
-  const j = await apiGet<{ moments: Moment[] }>("/api/feed?limit=20");
-  return j.moments ?? [];
+export interface FeedPage {
+  moments: Moment[];
+  /** 服务端全量条数（listFeed 的 count(*) over ()），用于判断是否还有下一页 */
+  total: number;
+}
+
+/**
+ * 动态流分页（REQ-009 9-D 无限翻页）：GET /api/feed 支持 limit/offset（1–200 / 0–100000），
+ * 返回 { moments, total }——offset 翻页，total 判断 hasMore。
+ */
+export async function loadFeed(opts: { limit?: number; offset?: number } = {}): Promise<FeedPage> {
+  const limit = Math.min(Math.max(opts.limit ?? 20, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const j = await apiGet<{ moments?: Moment[]; total?: number }>(
+    `/api/feed?limit=${limit}&offset=${offset}`,
+  );
+  return { moments: j.moments ?? [], total: Number(j.total) || 0 };
 }
 
 export async function sendText(text: string): Promise<void> {

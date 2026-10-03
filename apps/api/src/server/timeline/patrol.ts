@@ -6,6 +6,7 @@
  */
 import { pool } from "@/server/platform/db";
 import { log } from "@/server/platform/http/logger";
+import { runDailyReminderPush } from "@/server/push/daily";
 import { analyzeAndPersist } from "./analyze";
 
 const SCAN_INTERVAL_MS = 5 * 60_000;
@@ -100,6 +101,12 @@ export function startAnalysisPatrol(): void {
       if (n > 0) log.info({ retried: n }, "analysis-patrol");
     } catch (e) {
       log.warn({ err: String(e).slice(0, 120) }, "analysis-patrol-error");
+    }
+    try {
+      // 每日提醒推送（REQ-009 9-D）：PUSH_DAILY_HOUR 点后每天最多一次（内部内存标记节流）
+      await runDailyReminderPush();
+    } catch (e) {
+      log.warn({ err: String(e).slice(0, 120) }, "daily-push-error");
     }
   };
   setInterval(tick, SCAN_INTERVAL_MS);

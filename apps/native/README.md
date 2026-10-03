@@ -1,5 +1,7 @@
 # @shiguangri/native —— Capacitor 壳（iOS）
 
+> **⚠️ Capacitor 壳归档（REQ-009 9-D）**：`server.url` 远程加载方案官方定位仅限开发热更用途，远程页面注入不了原生桥、插件全部失效（论证见 [apps/android/README.md](../android/README.md) 备选路线表）。本工程冻结维护，待真实原生桥需求（本地通知/分享等）出现再评估是否重启；移动端主力已转向 Expo（[apps/mobile](../mobile)）。
+
 Android 不走本工程（用 [apps/android](../android) 原生 WebView 壳，已含麦克风/文件选择/下载/断网全部兼容点，APK 见 [apps/artifacts](../artifacts)）。本工程服务于 **iOS**：Windows 上生成 Xcode 工程，需在 Mac 上编译。
 
 ## 架构

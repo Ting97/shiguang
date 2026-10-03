@@ -10,7 +10,9 @@
 |---|---|
 | 原生 WebView 壳（本方案） | ✅ 零依赖、麦克风/文件/下载完全可控、服务端不改 |
 | TWA（Bubblewrap） | ❌ 需给网站加 PWA manifest + assetlinks.json，麦克风授权走 Chrome 弹窗，依赖设备 Chrome |
-| Capacitor `server.url` | ❌ 官方仅限开发热更用途，远程页面注入不了原生桥，插件全部失效 |
+| Capacitor `server.url` | ❌ 官方仅限开发热更用途，远程页面注入不了原生桥，插件全部失效（iOS Capacitor 壳 [apps/native](../native) 已按此口径归档） |
+
+> 端标识（REQ-009 9-D）：本壳 applicationId 为 `cn.ting97.shiguang.web`（`.web` 后缀），与 Expo 主力端 `cn.ting97.shiguang` 区分，防异签名同 ID 安装互斥覆盖；见 `app/build.gradle` 注释。
 
 ## 构建
 

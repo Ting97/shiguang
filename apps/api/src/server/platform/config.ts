@@ -65,6 +65,8 @@ export interface AppConfig {
   readonly exchangeEncKey: string | null;
   /** Bitget 出站代理（如 http://127.0.0.1:7890）；null = 直连 */
   readonly bitgetProxy: string | null;
+  /** 每日提醒推送的小时（北京时间，PUSH_DAILY_HOUR，默认 9；非法值回退 9） */
+  readonly pushDailyHour: number;
 }
 
 class ConfigValidationError extends Error {
@@ -154,6 +156,11 @@ export function loadConfig(): AppConfig {
     /** Bitget 出站代理（国内服务器被墙，走本机 mihomo 等混合端口；null = 直连） */
     get bitgetProxy(): string | null {
       return process.env.BITGET_PROXY || null;
+    },
+    /** 每日提醒推送小时（REQ-009 9-D）：北京时间 PUSH_DAILY_HOUR，缺省/非法回退 9 */
+    get pushDailyHour(): number {
+      const n = Number(process.env.PUSH_DAILY_HOUR);
+      return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 9;
     },
   };
   return cached;
