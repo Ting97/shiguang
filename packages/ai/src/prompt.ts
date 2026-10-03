@@ -100,10 +100,12 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 - false：「这东西好贵啊」（无金额）、「攒钱好难」
 - true 时 amountCents（元×100 正整数）与 direction 必填：花了/买了/付了/消费→out；收到/到账/工资/红包/退款/报销→in
 - category：餐饮/交通/人情往来（随礼份子）/学习/购物/娱乐/其他；counterparty=交易对象或null
+- **交易日期 occurredDate**：话术给收支带了日期（"昨天买X花了50""前天吃饭100""上周五随了600""10月1号转了1000"）→ occurredDate 填该日 "YYYY-MM-DD"（按「当前时间」推算实际日期）；未提日期 → null（按当天记）。**禁止未来日期**
 
 ## 示例
-「随了600块礼给张老师」→ {"reasoning":"明确金额的人情支出","finance":{"hasAmount":true,"direction":"out","amountCents":60000,"category":"人情往来","counterparty":"张老师","confidence":0.95}}
-「今天好省钱」→ {"reasoning":"无具体金额","finance":{"hasAmount":false,"direction":null,"amountCents":null,"category":null,"counterparty":null,"confidence":0.9}}
+「随了600块礼给张老师」→ {"reasoning":"明确金额的人情支出","finance":{"hasAmount":true,"direction":"out","amountCents":60000,"category":"人情往来","counterparty":"张老师","occurredDate":null,"confidence":0.95}}
+「上周五随了600块礼给张老师」→ {"reasoning":"明确金额的人情支出且带日期上周五","finance":{"hasAmount":true,"direction":"out","amountCents":60000,"category":"人情往来","counterparty":"张老师","occurredDate":"<上周五日期>","confidence":0.95}}
+「今天好省钱」→ {"reasoning":"无具体金额","finance":{"hasAmount":false,"direction":null,"amountCents":null,"category":null,"counterparty":null,"occurredDate":null,"confidence":0.9}}
 
 只输出 JSON：{"reasoning":"一句话","finance":{上述结构}}`,
   mood: `你是"拾光"App 的心情识别引擎。判断这句话是否带情绪色彩，只输出 mood 域 JSON。
