@@ -84,13 +84,35 @@ function makeTitle(text: string): string {
   return (cleaned || text).slice(0, 20);
 }
 
-/** 话术日期词 → 花销发生日（规则兜底只认 昨天/前天/大前天；更复杂日期词交给 LLM，REQ-009 FR-E6） */
-function ruleFinanceOccurredDate(text: string, now: Date): string | null {
-  const offsets: Array<[RegExp, number]> = [[/大前天/, -3], [/前天/, -2], [/昨天|昨晚/, -1]];
-  for (const [re, off] of offsets) {
-    if (re.test(text)) {
-      const bj = new Date(now.getTime() + 8 * 3600_000 + off * 86_400_000);
-      return bj.toISOString().slice(0, 10);
+/**
+ * 话术日期词 → 花销发生日（北京 YYYY-MM-DD，REQ-009 FR-E6 确定性防漂移）。
+ * 实测（2026-10-03）：GLM 对相对日期推算不可靠（前天/上周五均算错一天以上），
+ * 明确日期词一律以本确定性引擎为准覆盖模型输出；解析不出才信模型给的 occurredDate。
+ */
+export function deterministicOccurredDate(text: string, now: Date): string | null {
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const bj = new Date(now.getTime() + 8 * 3600_000);
+  const shift = (n: number) => ymd(new Date(bj.getTime() + n * 86_400_000));
+  if (/大前天/.test(text)) return shift(-3);
+  if (/前天/.test(text)) return shift(-2);
+  if (/昨天|昨晚/.test(text)) return shift(-1);
+  if (/今天|今晚|今早|今晨|刚才|刚刚/.test(text)) return shift(0);
+  // 上周X：以本周一为基准回退一周（北京口径周一为一周之始）
+  const week = /(?:上周|上星期)([一二三四五六日天])/.exec(text);
+  if (week) {
+    const idx = week[1] === "天" ? 0 : "日一二三四五六".indexOf(week[1]);
+    const monday = new Date(bj.getTime() - ((bj.getUTCDay() + 6) % 7) * 86_400_000);
+    const lastWeekMonday = new Date(monday.getTime() - 7 * 86_400_000);
+    return ymd(new Date(lastWeekMonday.getTime() + (idx === 0 ? 6 : idx - 1) * 86_400_000));
+  }
+  // N号/N日：本月 N 日；N 大于今天（未来）→ 上月 N 日（补记上月的常见话术）
+  const m = /(\d{1,2})[号日]/.exec(text);
+  if (m) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 31) {
+      const day = bj.getUTCDate();
+      const base = n <= day ? bj : new Date(bj.getTime() - 30 * 86_400_000); // 近似上月（仅取年月）
+      return ymd(new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), n)));
     }
   }
   return null;
@@ -135,7 +157,7 @@ function ruleExtract(text: string, contactNames?: string[], now: Date = new Date
             : /超市|买菜|购物/.test(text)
               ? "购物"
               : "餐饮",
-          occurredDate: ruleFinanceOccurredDate(text, now),
+          occurredDate: deterministicOccurredDate(text, now),
           counterparty: people[0]?.name,
           confidence: 0.8,
         }
@@ -418,7 +440,10 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
 
   return ParseResult.parse({
     activity: ext.schedule.activity,
-    title: ext.schedule.title?.trim().slice(0, 30), // 上游瘦身契约允许 40 字，超 30 会让 zod 抛错且无法降级 → 此处截断
+    // 上游瘦身契约允许 40 字，超 30 会让 zod 抛错且无法降级 → 此处截断；
+    // 纯花销/心情句模型给 title=null（宽容化后合法），兜底话术文本（与规则路径 makeTitle 同口径），
+    // 否则 undefined 会让 ParseResult 校验抛错、整句被误判为 LLM 失败而降级（2026-10-03 实测踩坑）
+    title: ext.schedule.title?.trim().slice(0, 30) || text.slice(0, 30),
     time: {
       mode: tb.mode,
       start: tb.start.toISOString(),
@@ -447,6 +472,9 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
       amountCents: ext.finance.amountCents != null ? Math.abs(ext.finance.amountCents) : null,
       category: ext.finance.category ?? null,
       counterparty: ext.finance.counterparty ?? null,
+      // 话术带日期的花销 → 发生日（REQ-009 FR-E6）：确定性日期词优先（模型相对日期推算不可靠），
+      // 解析不出才信模型输出；落库侧另有 时间口径兜底与未来日期防线
+      occurredDate: deterministicOccurredDate(text, now) ?? ext.finance.occurredDate ?? null,
     },
     people: ext.people,
     ambiguity: ext.ambiguity ?? null,

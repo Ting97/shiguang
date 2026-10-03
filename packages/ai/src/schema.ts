@@ -170,8 +170,11 @@ const localMoment = z
 export const ScheduleDraftV2 = z
   .object({
     applicable: llmBoolean,
-    activity: ActivityId,
-    title: z.string().max(30),
+    // 宽容归一（实测 2026-10-03）：纯花销/心情句模型常不给 schedule 的 activity/title，
+    // 严格必填会打回重问再失败 → 整句降级规则兜底（金额/日期表达认不全）。
+    // applicable=true 时 superRefine 仍强制 title 非空与 start/end，语义不变。
+    activity: ActivityId.catch("other"),
+    title: z.string().max(30).nullish().catch(""),
     start: localMoment.nullish(),
     end: localMoment.nullish(),
     durationMin: z.coerce.number().int().positive().max(24 * 60).nullish(),
@@ -190,7 +193,7 @@ export const ScheduleDraftV2 = z
     if (new Date(v.end).getTime() <= new Date(v.start).getTime()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "schedule.end 必须晚于 start" });
     }
-    if (!v.title.trim()) {
+    if (!v.title?.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "schedule.applicable=true 时 title 必填" });
     }
   });
