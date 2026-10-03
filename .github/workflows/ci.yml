@@ -37,6 +37,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Design tokens drift check (REQ-009 9-A)
+        run: npm run tokens:verify
+
       - name: Lint
         run: npx eslint . --quiet   # 0 error（领域依赖规则已升 error）
 

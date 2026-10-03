@@ -5,7 +5,7 @@
 
 ## 铁律
 
-1. **禁止修改**：`src/app.scss`、`src/lib/**`、`src/components/**`、`src/lib/api.ts`、`src/app.config.ts`、`src/app.ts(x)`。缺的端点在页面目录建局部 `api.ts` 用 `request<T>(path,{method,body})`；缺的全局类向批次长（主会话）提出，不要自己加。
+1. **禁止修改**：`src/app.scss`（**例外**：`TOKENS:BEGIN/END` 标记块由 `@shiguangri/design-tokens` 生成——改值请编辑 `packages/design-tokens/src/tokens.ts` 后在仓库根 `npm run tokens` 重新生成，CI 跑 `tokens:verify`，不要手改块内任何一行）、`src/lib/**`、`src/components/**`、`src/lib/api.ts`、`src/app.config.ts`、`src/app.ts(x)`。缺的端点在页面目录建局部 `api.ts` 用 `request<T>(path,{method,body})`；缺的全局类向批次长（主会话）提出，不要自己加。
 2. **单位换算：web 的 1px = 小程序 2 单位**（designWidth 750）。所有 web 样式值 ×2 落到 scss。`rem` 按 ×16px 再 ×2。
 3. **页面骨架**：除登录/绑定页外，每页最外层用 `PageShell`（`import PageShell from "@/components/page-shell"`）：
    ```tsx

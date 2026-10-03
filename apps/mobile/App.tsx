@@ -15,13 +15,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Canvas, Circle, RadialGradient, vec } from "@shopify/react-native-skia";
 import { Audio } from "expo-av";
+// 设计令牌单一真源（REQ-009 9-A）：THEMES 由 packages/design-tokens 生成，勿手改
+import { THEMES, type MobileTheme as Theme } from "@shiguangri/design-tokens/generated/mobile-themes";
 import { ApiError, getToken, loadFeed, loadTradingAccounts, loadTradingDaily, login, sendText, transcribe, type Moment } from "./src/api";
-
-const C = {
-  bg: "#020617", card: "#0f172a", line: "#1e293b",
-  ink: "#f1f5f9", dim: "#94a3b8", accent: "#38bdf8",
-  amber: "#f1c66b", danger: "#f43f5e", ok: "#34d399",
-};
 
 /** 长按起录的等待时长：松开早于它 = 点按打开文字面板 */
 const LONG_PRESS_MS = 500;
@@ -34,81 +30,9 @@ const MIN_HOLD_MS = 600;
 const CANCEL_SLIDE_PX = 80;
 
 /**
- * 主题令牌：与 Web 端 globals.css 的 :root（深色默认）/ [data-theme="light"] 完全同源。
- * 悬浮圆钮颜色按约定：夜间浅蓝 / 日间奶白。
+ * 主题令牌 THEMES 已迁移至 @shiguangri/design-tokens（顶部 import）：
+ * 与 web globals.css / miniapp app.scss 同源生成（REQ-009 9-A）。
  */
-const THEMES = {
-  dark: {
-    bg: "#020617",
-    surface: "#0f172a",
-    surfaceSoft: "rgba(15, 23, 42, 0.72)",
-    elevated: "#1e293b",
-    glassBorder: "rgba(148, 163, 184, 0.16)",
-    glassHighlight: "rgba(255, 255, 255, 0.06)",
-    line: "#334155",
-    lineSoft: "#1e293b",
-    ink: "#f1f5f9",
-    inkSoft: "#cbd5e1",
-    inkMute: "#94a3b8",
-    inkDim: "#64748b",
-    inkFaint: "#475569",
-    accent: "#7dd3fc",
-    accentBright: "#0ea5e9",
-    danger: "#fda4af",
-    dangerSolid: "#f43f5e",
-    success: "#6ee7b7",
-    title: "#f8fafc",
-    scrim: "rgba(2, 6, 23, 0.55)",
-    fab: "#38bdf8",
-    fabFg: "#062033",
-    bannerOkBg: "rgba(16, 185, 129, 0.1)",
-    bannerOkBorder: "rgba(16, 185, 129, 0.3)",
-    bannerErrBg: "rgba(244, 63, 94, 0.1)",
-    bannerErrBorder: "rgba(244, 63, 94, 0.3)",
-    chipWarn: "#fcd34d",
-    blurTint: "dark" as const,
-    aurora: { sky: 0.16, indigo: 0.11, pink: 0.07 },
-  },
-  light: {
-    bg: "#f1f5f9",
-    surface: "#ffffff",
-    surfaceSoft: "rgba(255, 255, 255, 0.78)",
-    elevated: "#f1f5f9",
-    glassBorder: "rgba(15, 23, 42, 0.08)",
-    glassHighlight: "rgba(255, 255, 255, 0.65)",
-    line: "#d3dbe4",
-    lineSoft: "#e5eaf1",
-    ink: "#0f172a",
-    inkSoft: "#334155",
-    inkMute: "#475569",
-    inkDim: "#64748b",
-    inkFaint: "#94a3b8",
-    accent: "#0369a1",
-    accentBright: "#0ea5e9",
-    danger: "#be123c",
-    dangerSolid: "#f43f5e",
-    success: "#047857",
-    title: "#0f172a",
-    scrim: "rgba(100, 116, 139, 0.45)",
-    fab: "#f7f1e3",
-    fabFg: "#0f172a",
-    bannerOkBg: "rgba(16, 185, 129, 0.1)",
-    bannerOkBorder: "rgba(16, 185, 129, 0.3)",
-    bannerErrBg: "rgba(244, 63, 94, 0.1)",
-    bannerErrBorder: "rgba(244, 63, 94, 0.3)",
-    chipWarn: "#b45309",
-    blurTint: "light" as const,
-    aurora: { sky: 0.12, indigo: 0.08, pink: 0.06 },
-  },
-} as const;
-
-type Theme = {
-  [K in keyof typeof THEMES.dark]: K extends "aurora"
-    ? { sky: number; indigo: number; pink: number }
-    : K extends "blurTint"
-      ? "light" | "dark"
-      : string;
-};
 
 /** 触觉兜底：模拟器/老设备可能不支持，失败静默 */
 const haptic = {

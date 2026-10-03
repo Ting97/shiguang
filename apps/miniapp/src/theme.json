@@ -1,0 +1,10 @@
+{
+  "light": {
+    "bgColor": "#f1f5f9",
+    "bgTxtStyle": "dark"
+  },
+  "dark": {
+    "bgColor": "#020617",
+    "bgTxtStyle": "light"
+  }
+}

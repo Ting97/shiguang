@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@shopify/react-native-skia": "v2.0.0-next.4",
+    "@shiguangri/design-tokens": "*",
     "expo": "~53.0.0",
     "expo-av": "~15.1.0",
     "expo-blur": "~14.1.5",
