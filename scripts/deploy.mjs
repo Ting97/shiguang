@@ -61,6 +61,11 @@ if (!skipMigrate) {
     `tar czf - -C packages db | ssh tencent "mkdir -p /opt/shiguangri_repo/packages && tar xzf - -C /opt/shiguangri_repo/packages/"`,
     { quiet: true },
   );
+  // runner.ts 依赖 pg：服务器 repo 首次无 node_modules（幂等安装，后续为 no-op）
+  sh(
+    `ssh tencent "cd /opt/shiguangri_repo && [ -d node_modules/pg ] || npm install --no-save --no-audit --no-fund pg"`,
+    { quiet: true },
+  );
   sh(
     `ssh tencent "cd /opt/shiguangri_repo && DATABASE_URL=\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2-) npx tsx packages/db/runner.ts"`,
   );

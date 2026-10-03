@@ -77,5 +77,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json).*)"],
+  // sw.js 与 icons/manifest 同为无敏感数据的静态资源（PWA 离线壳，REQ-009 FR-B8）：
+  // 浏览器 SW 更新检查不保证带会话凭证，必须放行，否则注册/更新 307 → /login 导致离线能力失效
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|sw\\.js).*)"],
 };
