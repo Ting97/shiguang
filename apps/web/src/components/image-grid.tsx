@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FeedImage } from "@/lib/types";
 
 /**
@@ -45,7 +45,10 @@ export function ImageGrid({ images, onOpen }: { images: FeedImage[]; onOpen?: (i
   );
 }
 
-/** 全屏图片预览：左右切换 / Esc 与点遮罩关闭 */
+/**
+ * 全屏图片预览（REQ-009 FR-B7）：触摸滑动切图 / 双击缩放（定位点击点）/ 键盘左右切换 /
+ * 切换淡入过渡 / 邻图预加载 / Esc 与点遮罩关闭。
+ */
 export function ImageLightbox({
   images,
   index,
@@ -56,40 +59,87 @@ export function ImageLightbox({
   onClose: () => void;
 }) {
   const [cur, setCur] = useState(index);
+  const [zoom, setZoom] = useState(0); // 0=适应 1=放大 2.2x（origin 记在 zoomOrigin）
+  const [zoomOrigin, setZoomOrigin] = useState("50% 50%");
+  const swipeX = useRef<number | null>(null);
+  const lastTap = useRef(0);
+
+  const go = (delta: number) => {
+    setZoom(0);
+    setCur((c) => (c + delta + images.length) % images.length);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") setCur((c) => (c - 1 + images.length) % images.length);
-      if (e.key === "ArrowRight") setCur((c) => (c + 1) % images.length);
+      if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowRight") go(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [images.length, onClose]);
+
+  // 邻图预加载：切换零等待
+  useEffect(() => {
+    for (const d of [-1, 1]) {
+      const neighbor = images[(cur + d + images.length) % images.length];
+      if (neighbor) new window.Image().src = `/api/files/${neighbor.storageKey}`;
+    }
+  }, [cur, images]);
 
   if (!images.length) return null;
   const img = images[cur];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/95" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/95"
+      onClick={onClose}
+      onPointerDown={(e) => (swipeX.current = e.clientX)}
+      onPointerUp={(e) => {
+        if (swipeX.current === null || zoom > 0) return;
+        const dx = e.clientX - swipeX.current;
+        if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1); // 左滑下一张，右滑上一张
+        swipeX.current = null;
+      }}
+    >
       <img
+        key={cur}
         src={`/api/files/${img.storageKey}`}
         alt=""
-        className="max-h-[88dvh] max-w-[92dvw] select-none rounded-lg object-contain"
-        onClick={(e) => e.stopPropagation()}
+        draggable={false}
+        className="page-in max-h-[88dvh] max-w-[92dvw] select-none rounded-lg object-contain transition-transform duration-base"
+        style={zoom > 0 ? { transform: `scale(${zoom === 1 ? 2.2 : 1})`, transformOrigin: zoomOrigin } : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          // 双击缩放：300ms 内两次点击，以点击点为缩放原点；再双击复位
+          const now = Date.now();
+          if (now - lastTap.current < 300) {
+            if (zoom === 0) {
+              const rect = (e.target as HTMLElement).getBoundingClientRect();
+              setZoomOrigin(`${((e.clientX - rect.left) / rect.width) * 100}% ${((e.clientY - rect.top) / rect.height) * 100}%`);
+              setZoom(1);
+            } else {
+              setZoom(0);
+            }
+            lastTap.current = 0;
+          } else {
+            lastTap.current = now;
+          }
+        }}
       />
       {images.length > 1 && (
         <>
           <button
-            onClick={(e) => { e.stopPropagation(); setCur((c) => (c - 1 + images.length) % images.length); }}
-            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-lg text-white backdrop-blur transition hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); go(-1); }}
+            className="tap-lg press absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-lg text-white backdrop-blur transition hover:bg-white/20"
             aria-label="上一张"
           >
             ‹
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setCur((c) => (c + 1) % images.length); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-lg text-white backdrop-blur transition hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); go(1); }}
+            className="tap-lg press absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-lg text-white backdrop-blur transition hover:bg-white/20"
             aria-label="下一张"
           >
             ›
