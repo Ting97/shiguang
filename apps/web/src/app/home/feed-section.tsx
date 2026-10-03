@@ -62,7 +62,7 @@ export default function FeedSection({
             <button
               onClick={() => setSearchInput("")}
               title="清除搜索"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-ink-dim hover:text-ink"
+              className="tap-lg absolute right-2 top-1/2 -translate-y-1/2 text-xs text-ink-dim hover:text-ink"
             >
               ✕
             </button>

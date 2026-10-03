@@ -30,12 +30,44 @@ export function TxForm({
   // 提交失败就地提示（历史 bug：无 catch 时静默失败，unhandled rejection 还会触发整页刷新清空表单）
   const [err, setErr] = useState<string | null>(null);
 
+  /** 保存：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
+  async function save() {
+    if (busy || !amount) return;
+    const cents = Math.round(parseFloat(amount) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await onSubmit({
+        direction,
+        amountCents: cents,
+        category,
+        // 流水只作记录不入账：不挂账户（历史流水的账户标签保留不动）
+        // date 是北京墙上时间串（toLocalInput 产），须按 +08:00 解析——裸 new Date() 按宿主时区解释，海外设备记错账时间
+        occurredAt: fromLocalInput(date) ?? new Date().toISOString(),
+        note: note || null,
+        counterparty: counterparty.trim() || null,
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="space-y-2.5">
+    <form
+      className="space-y-2.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
       <div className="flex gap-1.5">
         {(["out", "in"] as const).map((d) => (
           <button
             key={d}
+            type="button"
             onClick={() => setDirection(d)}
             className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition ${
               direction === d
@@ -96,39 +128,18 @@ export function TxForm({
       </div>
       {err && <p className="text-micro text-danger">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
+        <button type="button" onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
           取消
         </button>
         <button
+          type="submit"
           disabled={busy || !amount}
-          onClick={async () => {
-            const cents = Math.round(parseFloat(amount) * 100);
-            if (!Number.isFinite(cents) || cents <= 0) return;
-            setBusy(true);
-            setErr(null);
-            try {
-              await onSubmit({
-                direction,
-                amountCents: cents,
-                category,
-                // 流水只作记录不入账：不挂账户（历史流水的账户标签保留不动）
-                // date 是北京墙上时间串（toLocalInput 产），须按 +08:00 解析——裸 new Date() 按宿主时区解释，海外设备记错账时间
-                occurredAt: fromLocalInput(date) ?? new Date().toISOString(),
-                note: note || null,
-                counterparty: counterparty.trim() || null,
-              });
-            } catch (e) {
-              setErr(e instanceof Error ? e.message : String(e));
-            } finally {
-              setBusy(false);
-            }
-          }}
           className="btn-primary rounded-lg px-5 py-1.5 text-xs font-medium disabled:opacity-40"
         >
           {busy ? "保存中…" : initial ? "保存" : "记入"}
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 

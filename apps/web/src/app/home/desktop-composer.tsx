@@ -110,7 +110,7 @@ export default function DesktopComposer({
                 <button
                   onClick={() => onRemoveImage(i)}
                   title="移除"
-                  className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-micro text-white"
+                  className="tap-lg absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-micro text-white"
                 >
                   ✕
                 </button>

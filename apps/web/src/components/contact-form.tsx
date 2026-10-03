@@ -57,9 +57,44 @@ export default function ContactFormModal({
     lunarLeap: bdayCal === "lunar" ? lunarLeap : undefined,
   });
 
+  /** 保存（建档/更新）：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
+  async function save() {
+    if (busy || !name.trim()) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const payload = {
+        name: name.trim(),
+        alias,
+        group,
+        ...birthdayPayload(),
+        anniversary: anniversary || null,
+        importance,
+        notes,
+      };
+      if (initial) {
+        await api(`/api/contacts/${initial.id}`, "PATCH", payload);
+        await onSaved("💾 档案已更新");
+      } else {
+        await api("/api/contacts", "POST", payload);
+        await onSaved(`✅ 已建档：${name.trim()}`);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Modal title={initial ? "编辑联系人" : "新建联系人"} onClose={onClose}>
-      <div className="space-y-2.5">
+      <form
+        className="space-y-2.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
           <div className="flex gap-2">
             <input
               autoFocus
@@ -191,50 +226,18 @@ export default function ContactFormModal({
           />
           {err && <p className="text-xs text-danger">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
+            <button type="button" onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
               取消
             </button>
             <button
+              type="submit"
               disabled={busy || !name.trim()}
-              onClick={async () => {
-                setBusy(true);
-                setErr(null);
-                try {
-                  if (initial) {
-                    await api(`/api/contacts/${initial.id}`, "PATCH", {
-                      name: name.trim(),
-                      alias,
-                      group,
-                      ...birthdayPayload(),
-                      anniversary: anniversary || null,
-                      importance,
-                      notes,
-                    });
-                    await onSaved("💾 档案已更新");
-                  } else {
-                    await api("/api/contacts", "POST", {
-                      name: name.trim(),
-                      alias,
-                      group,
-                      ...birthdayPayload(),
-                      anniversary: anniversary || null,
-                      importance,
-                      notes,
-                    });
-                    await onSaved(`✅ 已建档：${name.trim()}`);
-                  }
-                } catch (e) {
-                  setErr(e instanceof Error ? e.message : String(e));
-                } finally {
-                  setBusy(false);
-                }
-              }}
               className="btn-primary rounded-lg px-5 py-1.5 text-xs font-medium disabled:opacity-40"
             >
               {busy ? "保存中…" : initial ? "保存" : "建档"}
             </button>
           </div>
-        </div>
+        </form>
     </Modal>
   );
 }

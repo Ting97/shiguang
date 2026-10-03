@@ -34,8 +34,43 @@ export function DebtForm({
   // 提交失败就地提示（历史 bug：try/finally 无 catch，失败静默 + unhandled rejection 触发整页刷新清空表单）
   const [err, setErr] = useState<string | null>(null);
 
+  /** 保存：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
+  async function save() {
+    if (busy || !name.trim() || !principal) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const cents = (v: string, fallback: number | null = null) => {
+        const n = Math.round(parseFloat(v) * 100);
+        return Number.isFinite(n) ? n : fallback;
+      };
+      await onSubmit({
+        name: name.trim(),
+        type,
+        principalCents: cents(principal, 0),
+        ...(balance ? { balanceCents: cents(balance, 0) } : {}),
+        ratePct: Number.isFinite(parseFloat(rate)) ? parseFloat(rate) : 0,
+        monthlyCents: monthly ? cents(monthly, 0) : null,
+        payDay: payDay ? Number(payDay) : null,
+        dueDate: dueDate || null,
+        priority: Number.isFinite(Number(priority)) ? Number(priority) : 0,
+        note: note || null,
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="space-y-2.5">
+    <form
+      className="space-y-2.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
       <div className="flex gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="名称（如：招行信用卡）" maxLength={40} className={inputCls} />
         <select value={type} onChange={(e) => setType(e.target.value as DebtType)} className="w-32 shrink-0 rounded-lg border border-line-strong bg-surface px-2 py-2 text-sm outline-none focus:border-sky-500">
@@ -79,41 +114,16 @@ export function DebtForm({
       </div>
       {err && <p className="text-micro text-danger">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
+        <button type="button" onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
         <button
+          type="submit"
           disabled={busy || !name.trim() || !principal}
-          onClick={async () => {
-            setBusy(true);
-            setErr(null);
-            try {
-              const cents = (v: string, fallback: number | null = null) => {
-                const n = Math.round(parseFloat(v) * 100);
-                return Number.isFinite(n) ? n : fallback;
-              };
-              await onSubmit({
-                name: name.trim(),
-                type,
-                principalCents: cents(principal, 0),
-                ...(balance ? { balanceCents: cents(balance, 0) } : {}),
-                ratePct: Number.isFinite(parseFloat(rate)) ? parseFloat(rate) : 0,
-                monthlyCents: monthly ? cents(monthly, 0) : null,
-                payDay: payDay ? Number(payDay) : null,
-                dueDate: dueDate || null,
-                priority: Number.isFinite(Number(priority)) ? Number(priority) : 0,
-                note: note || null,
-              });
-            } catch (e) {
-              setErr(e instanceof Error ? e.message : String(e));
-            } finally {
-              setBusy(false);
-            }
-          }}
           className="btn-primary rounded-lg px-5 py-1.5 text-xs font-medium disabled:opacity-40"
         >
           {busy ? "保存中…" : initial ? "保存" : "建档"}
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -137,8 +147,36 @@ export function PaymentForm({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
+  /** 确认还款：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
+  async function save() {
+    if (busy || !amount) return;
+    const cents = Math.round(parseFloat(amount) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) return;
+    setBusy(true);
+    try {
+      const r = await api(`/api/debts/${debt.id}/payments`, "POST", {
+        amountCents: cents,
+        paidAt,
+        accountId: accountId || null,
+        note: note || null,
+      });
+      const cleared = r.debt?.status === "cleared";
+      await onDone(cleared ? `🎉 已还清「${debt.name}」，档案自动标记为已结清` : `✅ 已记还款 ${fmt(cents)}`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="space-y-2.5">
+    <form
+      className="space-y-2.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
       <p className="rounded-lg bg-elevated/60 px-3 py-2 text-micro text-ink-mute tabular-nums">
         当前余额 {fmt(debt.balance_cents)} · 年化 {debt.rate_pct}%{debt.monthly_cents != null ? ` · 月供 ${fmt(debt.monthly_cents)}` : ""}
       </p>
@@ -159,33 +197,15 @@ export function PaymentForm({
         {accountId ? "✓ 将同时在所选账户记一笔「还款」支出流水" : "仅记录还款进度，不生成流水（避免与已有记账重复）"}
       </p>
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
+        <button type="button" onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
         <button
+          type="submit"
           disabled={busy || !amount}
-          onClick={async () => {
-            const cents = Math.round(parseFloat(amount) * 100);
-            if (!Number.isFinite(cents) || cents <= 0) return;
-            setBusy(true);
-            try {
-              const r = await api(`/api/debts/${debt.id}/payments`, "POST", {
-                amountCents: cents,
-                paidAt,
-                accountId: accountId || null,
-                note: note || null,
-              });
-              const cleared = r.debt?.status === "cleared";
-              await onDone(cleared ? `🎉 已还清「${debt.name}」，档案自动标记为已结清` : `✅ 已记还款 ${fmt(cents)}`);
-            } catch (e) {
-              onError(e instanceof Error ? e.message : String(e));
-            } finally {
-              setBusy(false);
-            }
-          }}
           className="btn-primary rounded-lg px-5 py-1.5 text-xs font-medium disabled:opacity-40"
         >
           {busy ? "保存中…" : "确认还款"}
         </button>
       </div>
-    </div>
+    </form>
   );
 }

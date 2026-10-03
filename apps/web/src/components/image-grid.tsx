@@ -101,7 +101,7 @@ export function ImageLightbox({
       )}
       <button
         onClick={onClose}
-        className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+        className="tap-lg absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
         aria-label="关闭"
       >
         ✕

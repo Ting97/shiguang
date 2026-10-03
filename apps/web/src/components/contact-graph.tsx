@@ -369,7 +369,7 @@ export default function ContactGraph({
               key={b.title}
               title={b.title}
               onClick={b.fn}
-              className="h-7 w-7 rounded-lg border border-line-soft bg-surface/85 text-xs text-ink-soft shadow-sm transition hover:border-sky-500/50 hover:text-accent"
+              className="tap-lg press h-8 w-8 rounded-lg border border-line-soft bg-surface/85 text-xs text-ink-soft shadow-sm transition hover:border-sky-500/50 hover:text-accent"
             >
               {b.label}
             </button>

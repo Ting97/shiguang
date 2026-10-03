@@ -301,6 +301,13 @@ export default function SpacesPage() {
               setEditing(null);
             }}
           >
+              {/* Enter 提交：表单统一走 save（按钮 submit 与键盘回车共用路径） */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void save();
+                }}
+              >
               <input
                 autoFocus
                 value={editing.name}
@@ -320,6 +327,7 @@ export default function SpacesPage() {
                 {ICONS.map((ic) => (
                   <button
                     key={ic}
+                    type="button"
                     onClick={() => setEditing({ ...editing, icon: ic })}
                     className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition ${
                       editing.icon === ic ? "bg-sky-500/20 ring-2 ring-sky-500" : "bg-bg/40 hover:bg-elevated"
@@ -334,8 +342,9 @@ export default function SpacesPage() {
                 {COLORS.map((c) => (
                   <button
                     key={c}
+                    type="button"
                     onClick={() => setEditing({ ...editing, color: c })}
-                    className={`h-7 w-7 rounded-full transition ${editing.color === c ? "ring-2 ring-offset-2 ring-offset-surface" : ""}`}
+                    className={`tap-lg h-7 w-7 rounded-full transition ${editing.color === c ? "ring-2 ring-offset-2 ring-offset-surface" : ""}`}
                     style={{ backgroundColor: c, boxShadow: editing.color === c ? `0 0 0 2px ${c}` : undefined }}
                     aria-label={c}
                   />
@@ -362,17 +371,18 @@ export default function SpacesPage() {
                 </label>
               </div>
               <div className="mt-4 flex justify-end gap-2">
-                <button onClick={() => setEditing(null)} className="rounded-xl px-4 py-2 text-xs text-ink-mute hover:bg-soft">
+                <button type="button" onClick={() => setEditing(null)} className="rounded-xl px-4 py-2 text-xs text-ink-mute hover:bg-soft">
                   取消
                 </button>
                 <button
-                  onClick={save}
+                  type="submit"
                   disabled={!editing.name.trim() || saving}
                   className="btn-primary rounded-xl px-5 py-2 text-xs font-medium disabled:opacity-50"
                 >
                   {saving ? "保存中…" : editingId ? "保存" : "创建"}
                 </button>
               </div>
+              </form>
           </Modal>
         )}
 
