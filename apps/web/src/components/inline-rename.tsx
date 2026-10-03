@@ -73,7 +73,7 @@ export default function InlineRename({
             setTimeout(() => inputRef.current?.focus(), 50);
           }}
           title="重命名"
-          className="row-actions-hidden hidden shrink-0 rounded px-1 text-[11px] text-ink-mute transition hover:text-accent group-hover/rename:block"
+          className="row-actions-hidden hidden shrink-0 rounded px-1 text-micro text-ink-mute transition hover:text-accent group-hover/rename:block"
         >
           ✏️
         </button>
@@ -98,7 +98,7 @@ export default function InlineRename({
         maxLength={maxLength}
         className="input-glow min-w-0 rounded-lg border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
       />
-      {err && <span className="text-[10px] text-danger">{err}</span>}
+      {err && <span className="text-badge text-danger">{err}</span>}
     </span>
   );
 }

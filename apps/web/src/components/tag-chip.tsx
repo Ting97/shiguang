@@ -50,13 +50,13 @@ export function TagChip({
   className?: string;
   title?: string;
 }) {
-  const sizing = size === "sm" ? "gap-1 px-1.5 py-0.5 text-[10px]" : "gap-1 px-2 py-0.5 text-[11px]";
+  const sizing = size === "sm" ? "gap-1 px-1.5 py-0.5 text-badge" : "gap-1 px-2 py-0.5 text-micro";
   return (
     <span
       title={title}
       className={`inline-flex max-w-full items-center rounded-lg font-medium ${sizing} ${TONE_CHIP[tone]} ${className}`}
     >
-      {icon && <span className="shrink-0 text-[12px] leading-none">{icon}</span>}
+      {icon && <span className="shrink-0 text-xs leading-none">{icon}</span>}
       <span className="min-w-0 truncate">{label}</span>
     </span>
   );
@@ -74,7 +74,7 @@ export function IconDisc({
 }) {
   return (
     <span
-      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[13px] leading-none ${TONE_DISC[tone]} ${className}`}
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-body leading-none ${TONE_DISC[tone]} ${className}`}
     >
       {children}
     </span>
@@ -112,7 +112,7 @@ export function FilterChip({
 }) {
   const size =
     variant === "board"
-      ? `gap-2 rounded-xl px-3.5 py-2 text-[13px] ${vertical ? "w-full justify-between" : ""}`
+      ? `gap-2 rounded-xl px-3.5 py-2 text-body ${vertical ? "w-full justify-between" : ""}`
       : variant === "pill"
         ? "gap-1.5 rounded-full px-3.5 py-1.5 text-xs"
         : "gap-1 rounded-full px-3 py-1 text-xs";
@@ -132,7 +132,7 @@ export function FilterChip({
       {label}
       {count !== undefined && (
         <span
-          className={`min-w-5 rounded-full px-1.5 text-center text-[11px] tabular-nums ${
+          className={`min-w-5 rounded-full px-1.5 text-center text-micro tabular-nums ${
             active ? "bg-white/25 text-white" : "bg-elevated text-ink-dim"
           }`}
         >

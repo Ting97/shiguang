@@ -25,7 +25,7 @@ export default function MomentsSection(opts: {
         <span className="text-xs font-normal text-ink-dim">{moments.length} 条</span>
         <button
           onClick={openMomentLink}
-          className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-[11px] font-normal text-ink-mute transition hover:border-emerald-500/50 hover:text-accent"
+          className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-micro font-normal text-ink-mute transition hover:border-emerald-500/50 hover:text-accent"
         >
           🔗 关联动态
         </button>
@@ -38,7 +38,7 @@ export default function MomentsSection(opts: {
         <ul className="space-y-2">
           {moments.map((m) => (
             <li key={m.id} className="rounded-xl border border-line-soft bg-bg/30 px-3 py-2.5">
-              <p className="text-[10px] text-ink-faint">{bjStamp(m.created_at)}</p>
+              <p className="text-badge text-ink-faint">{bjStamp(m.created_at)}</p>
               <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-ink-soft">{m.raw_text}</p>
             </li>
           ))}

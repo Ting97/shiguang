@@ -53,7 +53,7 @@ export default function MomentFeed(props: MomentFeedProps) {
                     <div className="text-xs tabular-nums text-ink-mute">{t.clock}</div>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1 pl-1 text-[11px] tabular-nums text-ink-dim sm:hidden">{t.clock}</div>
+                    <div className="mb-1 pl-1 text-micro tabular-nums text-ink-dim sm:hidden">{t.clock}</div>
                     <MomentCard m={m} {...props} />
                   </div>
                 </div>
@@ -76,7 +76,7 @@ export default function MomentFeed(props: MomentFeedProps) {
         </div>
       ) : (
         props.moments.length >= FEED_PAGE_SIZE_HINT && (
-          <p className="pt-1 text-center text-[11px] text-ink-dim">— 已经到底啦 —</p>
+          <p className="pt-1 text-center text-micro text-ink-dim">— 已经到底啦 —</p>
         )
       )}
     </div>

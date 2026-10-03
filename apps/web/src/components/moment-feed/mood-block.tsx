@@ -31,7 +31,7 @@ export function MoodBlock({ m, run }: MoodBlockProps) {
                   return `${moodEmoji(w)} 心情已改为「${w}」`;
                 }).then(() => setMoodPicker(false))
               }
-              className={`rounded-full px-2 py-0.5 text-[11px] ${
+              className={`rounded-full px-2 py-0.5 text-micro ${
                 m.mood === w ? "bg-sky-600 text-white" : "bg-soft/60 text-ink-soft hover:bg-strong"
               }`}
             >
@@ -45,11 +45,11 @@ export function MoodBlock({ m, run }: MoodBlockProps) {
                 return "已清除心情";
               }).then(() => setMoodPicker(false))
             }
-            className="rounded-full px-2 py-0.5 text-[11px] text-danger hover:bg-rose-500/20"
+            className="rounded-full px-2 py-0.5 text-micro text-danger hover:bg-rose-500/20"
           >
             清除
           </button>
-          <button onClick={() => setMoodPicker(false)} className="ml-auto px-1 text-[11px] text-ink-dim">
+          <button onClick={() => setMoodPicker(false)} className="ml-auto px-1 text-micro text-ink-dim">
             取消
           </button>
         </div>
@@ -58,7 +58,7 @@ export function MoodBlock({ m, run }: MoodBlockProps) {
           <span>{moodEmoji(m.mood)} 此刻心情：{m.mood}</span>
           <button
             onClick={() => setMoodPicker(true)}
-            className="row-actions-hidden hidden text-[11px] text-ink-dim hover:text-accent group-hover/mood:inline"
+            className="row-actions-hidden hidden text-micro text-ink-dim hover:text-accent group-hover/mood:inline"
           >
             改
           </button>

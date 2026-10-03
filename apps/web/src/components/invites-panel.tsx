@@ -160,7 +160,7 @@ export default function InvitesPanel() {
               setState("loading");
               void load();
             }}
-            className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium"
+            className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium"
           >
             重试
           </button>
@@ -188,7 +188,7 @@ export default function InvitesPanel() {
       <div className="mt-4 border-t border-line-soft pt-3">
         <p className="text-xs font-medium text-ink-soft">
           📊 Token 消耗
-          <span className="ml-1.5 text-[11px] font-normal text-ink-dim">识别 · 复盘 · 语音全阶段</span>
+          <span className="ml-1.5 text-micro font-normal text-ink-dim">识别 · 复盘 · 语音全阶段</span>
         </p>
 
         {!usage ? (
@@ -203,14 +203,14 @@ export default function InvitesPanel() {
                 ] as const
               ).map(([label, u]) => (
                 <div key={label} className="rounded-xl border border-line-soft bg-elevated/60 px-3 py-2.5">
-                  <p className="text-[11px] text-ink-dim">
+                  <p className="text-micro text-ink-dim">
                     我的消耗 · {label}
                     <span className="ml-1 text-ink-faint">（{u.calls} 次调用）</span>
                   </p>
                   <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
                     {fmtTotal(u)} <span className="text-xs font-normal text-ink-mute">tokens</span>
                   </p>
-                  <p className="text-[10px] tabular-nums text-ink-faint">
+                  <p className="text-badge tabular-nums text-ink-faint">
                     输入 {fmtTokens(u.promptTokens)} · 输出 {fmtTokens(u.completionTokens)}
                   </p>
                 </div>
@@ -220,9 +220,9 @@ export default function InvitesPanel() {
             {/* 按模型统计 */}
             {usage.byModel && usage.byModel.length > 0 && (
               <div className="mt-3">
-                <p className="mb-1.5 text-[11px] text-ink-dim">按模型统计（自己 + 被邀请人）</p>
+                <p className="mb-1.5 text-micro text-ink-dim">按模型统计（自己 + 被邀请人）</p>
                 <div className="overflow-hidden rounded-xl border border-line-soft">
-                  <table className="w-full text-left text-[11px] tabular-nums">
+                  <table className="w-full text-left text-micro tabular-nums">
                     <thead className="bg-elevated/60 text-ink-dim">
                       <tr>
                         <th className="px-2.5 py-1.5 font-medium">模型</th>
@@ -245,7 +245,7 @@ export default function InvitesPanel() {
                     </tbody>
                   </table>
                 </div>
-                <p className="mt-1 text-[10px] text-ink-faint">
+                <p className="mt-1 text-badge text-ink-faint">
                   tokens = 输入 + 输出；明细可按 stage（asr/parse/review/chat）在 audit_logs 表中进一步追溯
                 </p>
               </div>
@@ -253,9 +253,9 @@ export default function InvitesPanel() {
 
             {/* 被邀请人消耗 */}
             <div className="mt-3">
-              <p className="mb-1.5 text-[11px] text-ink-dim">被邀请人（{usage.invitees.length} 人）</p>
+              <p className="mb-1.5 text-micro text-ink-dim">被邀请人（{usage.invitees.length} 人）</p>
               {usage.invitees.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-line px-3 py-3 text-center text-[11px] text-ink-dim">
+                <p className="rounded-xl border border-dashed border-line px-3 py-3 text-center text-micro text-ink-dim">
                   还没有通过邀请码注册的用户
                 </p>
               ) : (
@@ -264,13 +264,13 @@ export default function InvitesPanel() {
                     <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg px-2 py-1.5 text-xs hover:bg-wash">
                       <span className="font-medium text-ink">
                         {p.nickname}
-                        {p.phoneTail && <span className="ml-1 text-[10px] font-normal text-ink-faint">尾号 {p.phoneTail}</span>}
+                        {p.phoneTail && <span className="ml-1 text-badge font-normal text-ink-faint">尾号 {p.phoneTail}</span>}
                       </span>
-                      <span className="text-[10px] text-ink-faint">{zhDate(p.createdAt)} 加入</span>
+                      <span className="text-badge text-ink-faint">{zhDate(p.createdAt)} 加入</span>
                       <span className="ml-auto tabular-nums text-ink-mute">
                         近 30 天 <span className="tabular-nums text-ink">{fmtTotal(p.d30)}</span> · 累计{" "}
                         <span className="tabular-nums text-ink">{fmtTotal(p.all)}</span>
-                        <span className="ml-1 text-[10px] text-ink-faint">tokens（{p.all.calls} 次）</span>
+                        <span className="ml-1 text-badge text-ink-faint">tokens（{p.all.calls} 次）</span>
                       </span>
                     </li>
                   ))}
@@ -314,14 +314,14 @@ export default function InvitesPanel() {
               return (
                 <li key={i.code} className="glass glass-hover flex items-center gap-3 rounded-xl px-3 py-2.5">
                   <span className="flex-1 font-mono text-base tracking-[0.2em] text-ink">{i.code}</span>
-                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${st.cls}`}>{st.text}</span>
-                  <span className="hidden shrink-0 text-[10px] text-ink-faint sm:inline">
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-badge ${st.cls}`}>{st.text}</span>
+                  <span className="hidden shrink-0 text-badge text-ink-faint sm:inline">
                     {zhDate(i.created_at)} 生成 · 有效至 {zhDate(i.expires_at)}
                   </span>
                   {usable && (
                     <button
                       onClick={() => copy(i.code)}
-                      className="shrink-0 rounded px-2 py-0.5 text-[11px] text-accent transition hover:bg-wash"
+                      className="shrink-0 rounded px-2 py-0.5 text-micro text-accent transition hover:bg-wash"
                     >
                       {copied === i.code ? "✓ 已复制" : "复制"}
                     </button>

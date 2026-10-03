@@ -94,14 +94,14 @@ export function TodoCard({
               className={`min-w-0 flex-1 truncate text-left text-sm transition ${done ? "text-ink-dim line-through" : ""}`}
               title={t.title}
             >
-              {t.kind === "action" && <span className="mr-1.5 inline-flex shrink-0 items-center rounded-lg bg-slate-500/15 px-1.5 py-0.5 align-middle text-[10px] font-medium text-ink-dim" title="独立行动（不属于任何 todo）">行动</span>}
+              {t.kind === "action" && <span className="mr-1.5 inline-flex shrink-0 items-center rounded-lg bg-slate-500/15 px-1.5 py-0.5 align-middle text-badge font-medium text-ink-dim" title="独立行动（不属于任何 todo）">行动</span>}
                 {t.title}
               </button>
-            {t.activity_name && <span className="hidden shrink-0 text-[11px] text-ink-faint sm:inline">{t.icon} {t.activity_name}</span>}
+            {t.activity_name && <span className="hidden shrink-0 text-micro text-ink-faint sm:inline">{t.icon} {t.activity_name}</span>}
             {t.space_id && (() => {
               const sp = spaces.find((x) => x.id === t.space_id);
               return sp ? (
-                <span className="hidden shrink-0 items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[10px] font-medium sm:inline-flex" style={{ backgroundColor: `${sp.color}26`, color: sp.color }} title={`空间：${sp.name}`}>
+                <span className="hidden shrink-0 items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-badge font-medium sm:inline-flex" style={{ backgroundColor: `${sp.color}26`, color: sp.color }} title={`空间：${sp.name}`}>
                   {sp.icon} {sp.name}
                 </span>
               ) : null;
@@ -109,7 +109,7 @@ export function TodoCard({
             {prog && prog.m > 0 && (
               <button
                 onClick={() => onToggleExpand(t.id)}
-                className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[11px] tabular-nums text-ink-dim transition hover:text-accent"
+                className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-micro tabular-nums text-ink-dim transition hover:text-accent"
                 title="行动进度"
               >
                 {prog.n}/{prog.m}
@@ -127,7 +127,7 @@ export function TodoCard({
                 <button
                 onClick={() => onToggleExpand(t.id)}
                 title={open ? "收起行动" : "展开行动"}
-                className={`tap-lg shrink-0 text-[10px] text-ink-mute transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+                className={`tap-lg shrink-0 text-badge text-ink-mute transition-transform duration-200 ${open ? "rotate-180" : ""}`}
               >
                 ▼
               </button>

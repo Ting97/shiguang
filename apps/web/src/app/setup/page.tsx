@@ -101,7 +101,7 @@ export default function SetupPage() {
               {busy ? "创建中…" : "创建管理员并进入"}
             </button>
           </div>
-          <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
+          <p className="mt-4 text-micro leading-relaxed text-ink-faint">
             管理员将接管本站全部既有记录；此后其他账号凭管理员生成的邀请码注册，数据互相隔离。
           </p>
         </div>

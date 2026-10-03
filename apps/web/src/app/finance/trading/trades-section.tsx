@@ -98,13 +98,13 @@ export default function TradesSection({ accountId }: { accountId: string }) {
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
         <TagChip icon="📋" label="逐笔明细" tone="violet" />
-        {data && <span className="text-[10px] text-ink-faint">共 {data.total} 笔</span>}
+        {data && <span className="text-badge text-ink-faint">共 {data.total} 笔</span>}
       </p>
 
       <div className="mb-3 space-y-1.5">
         {GROUPS.map((g) => (
           <div key={g.key} className="flex items-center gap-1.5">
-            <span className="w-8 shrink-0 text-[10px] text-ink-faint">{g.label}</span>
+            <span className="w-8 shrink-0 text-badge text-ink-faint">{g.label}</span>
             <div className="flex min-w-0 flex-wrap gap-1.5">
               {g.options.map((o) => (
                 <FilterChip
@@ -124,7 +124,7 @@ export default function TradesSection({ accountId }: { accountId: string }) {
         loadErr ? (
           <div className="py-4 text-center">
             <p className="text-xs text-danger">加载失败：{loadErr}</p>
-            <button onClick={() => void load()} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+            <button onClick={() => void load()} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
               重试
             </button>
           </div>
@@ -135,7 +135,7 @@ export default function TradesSection({ accountId }: { accountId: string }) {
         <p className="py-4 text-center text-xs text-ink-faint">该筛选条件下没有成交记录</p>
       ) : (
         <>
-          <div className="flex items-center gap-2 border-b border-line-soft px-1 pb-1 text-[10px] text-ink-faint">
+          <div className="flex items-center gap-2 border-b border-line-soft px-1 pb-1 text-badge text-ink-faint">
             <span className="w-7">方向</span>
             <span className="w-20">品种 · 手数</span>
             <span className="min-w-0 flex-1">开仓 → 平仓（北京）</span>
@@ -150,7 +150,7 @@ export default function TradesSection({ accountId }: { accountId: string }) {
                 className="flex items-center gap-2 rounded-lg px-1 py-1.5 text-xs hover:bg-wash/60"
               >
                 <span
-                  className={`w-7 shrink-0 rounded px-1 text-center text-[10px] ${
+                  className={`w-7 shrink-0 rounded px-1 text-center text-badge ${
                     t.direction === "buy" ? "bg-sky-500/15 text-accent" : "bg-violet-500/15 text-ai"
                   }`}
                 >

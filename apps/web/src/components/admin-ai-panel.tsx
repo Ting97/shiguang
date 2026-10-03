@@ -25,7 +25,7 @@ export default function AdminAiPanel({ notify }: { notify: (text: string, ok?: b
     return ai.loadErr ? (
       <div className="py-10 text-center">
         <p className="text-xs text-danger">加载失败：{ai.loadErr}</p>
-        <button onClick={ai.retryLoad} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+        <button onClick={ai.retryLoad} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
           重试
         </button>
       </div>

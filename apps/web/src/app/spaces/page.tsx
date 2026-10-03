@@ -12,6 +12,7 @@ import type { Space } from "@/lib/types";
 import { bjToday } from "@/lib/date"; // 北京口径今天：本地 getter 在海外设备会差一天
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
+import Skeleton from "@/components/skeleton";
 
 /**
  * 目标空间列表（REQ-001 R3）：宏大目标（≥1 年）容器。
@@ -173,7 +174,7 @@ export default function SpacesPage() {
               </button>
             </div>
           ) : (
-            <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+            <Skeleton rows={4} className="py-2" />
           )
         ) : active.length === 0 ? (
           <div className="glass rounded-2xl p-10 text-center empty-state">
@@ -225,7 +226,7 @@ export default function SpacesPage() {
                 className="w-full text-sm font-semibold text-ink"
               />
             </span>
-                      <p className="mt-0.5 text-[11px] text-ink-dim">
+                      <p className="mt-0.5 text-micro text-ink-dim">
                         {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
                         {s.target_date && ` · ⏳ ${bjDay(s.target_date).slice(5)}`}
                       </p>
@@ -246,7 +247,7 @@ export default function SpacesPage() {
                   </div>
                   {s.description && <p className="mt-2 line-clamp-2 text-xs text-ink-mute">{s.description}</p>}
                   <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-[10px] tabular-nums text-ink-faint">
+                    <div className="mb-1 flex justify-between text-badge tabular-nums text-ink-faint">
                       <span>todo 进度</span>
                       <span>{progress == null ? "暂无 todo" : `${progress}%`}</span>
                     </div>
@@ -314,7 +315,7 @@ export default function SpacesPage() {
                 placeholder="描述（可空：为什么重要、衡量标准…）"
                 className="input-glow mt-2 w-full resize-none rounded-xl border border-line-soft bg-surface/60 px-3 py-2 text-xs outline-none placeholder:text-ink-faint"
               />
-              <p className="mt-2.5 mb-1 text-[11px] text-ink-faint">图标</p>
+              <p className="mt-2.5 mb-1 text-micro text-ink-faint">图标</p>
               <div className="flex flex-wrap gap-1.5">
                 {ICONS.map((ic) => (
                   <button
@@ -328,7 +329,7 @@ export default function SpacesPage() {
                   </button>
                 ))}
               </div>
-              <p className="mt-2.5 mb-1 text-[11px] text-ink-faint">颜色</p>
+              <p className="mt-2.5 mb-1 text-micro text-ink-faint">颜色</p>
               <div className="flex gap-2">
                 {COLORS.map((c) => (
                   <button
@@ -341,7 +342,7 @@ export default function SpacesPage() {
                 ))}
               </div>
               <div className="mt-3 flex gap-2">
-                <label className="flex flex-1 flex-col text-[11px] text-ink-faint">
+                <label className="flex flex-1 flex-col text-micro text-ink-faint">
                   开始日期
                   <input
                     type="date"
@@ -350,7 +351,7 @@ export default function SpacesPage() {
                     className="mt-1 rounded-lg border border-line-soft bg-surface/60 px-2 py-1.5 text-xs text-ink outline-none"
                   />
                 </label>
-                <label className="flex flex-1 flex-col text-[11px] text-ink-faint">
+                <label className="flex flex-1 flex-col text-micro text-ink-faint">
                   目标日期
                   <input
                     type="date"
@@ -384,7 +385,7 @@ export default function SpacesPage() {
               style={cardMenuPos ? { top: cardMenuPos.top, left: cardMenuPos.left } : undefined}
             >
               <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
-              <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{cardMenu.name}</p>
+              <p className="mb-1.5 truncate px-1.5 text-micro font-medium text-ink-dim">{cardMenu.name}</p>
               <div className="space-y-0.5">
                 <button
                   onClick={() => { const s = cardMenu; setCardMenu(null); openEdit(s); }}

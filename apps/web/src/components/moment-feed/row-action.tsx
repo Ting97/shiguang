@@ -15,7 +15,7 @@ export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "
         <button
           onClick={onEdit}
           title={editTitle}
-          className="rounded px-1 py-0.5 text-[11px] text-ink-dim hover:text-accent"
+          className="rounded px-1 py-0.5 text-micro text-ink-dim hover:text-accent"
         >
           ✏️
         </button>
@@ -24,7 +24,7 @@ export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "
         <button
           onClick={onDelete}
           title={armed ? "3 秒内再点确认删除" : delTitle}
-          className={`rounded px-1 py-0.5 text-[11px] ${armed ? "bg-rose-500/15 font-medium text-danger" : "text-ink-dim hover:text-danger"}`}
+          className={`rounded px-1 py-0.5 text-micro ${armed ? "bg-rose-500/15 font-medium text-danger" : "text-ink-dim hover:text-danger"}`}
         >
           {armed ? "确认删除?" : "🗑"}
         </button>

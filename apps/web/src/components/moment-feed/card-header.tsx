@@ -55,11 +55,11 @@ export function CardHeader({
       {m.space && (
         <Link href={`/spaces/${m.space.id}`} className="min-w-0">
           <span
-            className="inline-flex max-w-full items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] font-medium"
+            className="inline-flex max-w-full items-center gap-1 rounded-lg px-1.5 py-0.5 text-badge font-medium"
             style={{ backgroundColor: `${m.space.color}26`, color: m.space.color }}
             title={`目标空间：${m.space.name}`}
           >
-            <span className="shrink-0 text-[11px] leading-none">{m.space.icon}</span>
+            <span className="shrink-0 text-micro leading-none">{m.space.icon}</span>
             <span className="min-w-0 truncate">{m.space.name}</span>
           </span>
         </Link>
@@ -80,11 +80,11 @@ export function CardHeader({
           <button
             onClick={onConfirmDelete}
             disabled={deleting}
-            className="rounded bg-rose-600/80 px-2 py-0.5 text-[10px] text-white hover:bg-rose-500 disabled:opacity-50"
+            className="rounded bg-rose-600/80 px-2 py-0.5 text-badge text-white hover:bg-rose-500 disabled:opacity-50"
           >
             {deleting ? "删除中…" : "确认删除"}
           </button>
-          <button onClick={() => setConfirming(false)} className="px-1 text-[10px] text-ink-mute hover:text-ink">
+          <button onClick={() => setConfirming(false)} className="px-1 text-badge text-ink-mute hover:text-ink">
             取消
           </button>
         </span>

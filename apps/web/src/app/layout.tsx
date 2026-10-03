@@ -1,6 +1,7 @@
 import type { Viewport } from "next";
 import ChunkErrorReloader from "@/components/chunk-error-reloader";
 import Nav from "@/components/nav";
+import RegisterSw from "@/components/register-sw";
 import ErrorBoundary from "@/shared/ui/error-boundary";
 import Providers from "@/shared/providers";
 import "./globals.css";
@@ -8,6 +9,17 @@ import "./globals.css";
 export const metadata = {
   title: "拾光",
   description: "拾起光阴，记录今日 —— 个人经营系统：钱 · 时间 · 人",
+  // PWA（REQ-009 FR-B8）：此前 manifest.json 存在但从未挂载——应用根本不可安装
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "拾光",
+    statusBarStyle: "black-translucent" as const,
+  },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +47,7 @@ export default function RootLayout({
           <Nav />
           <ErrorBoundary>{children}</ErrorBoundary>
         </Providers>
+        <RegisterSw />
       </body>
     </html>
   );

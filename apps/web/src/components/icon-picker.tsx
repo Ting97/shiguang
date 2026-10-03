@@ -35,7 +35,7 @@ export default function IconPicker({ value, onChange }: { value: string; onChang
         <Dismissable onClose={() => setOpen(false)} className="absolute left-0 top-10 z-30 max-h-[65vh] w-72 overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-xl">
           {ICON_GROUPS.map(([group, icons]) => (
               <div key={group} className="mb-1.5 last:mb-0">
-                <p className="mb-1 text-[10px] text-ink-dim">{group}</p>
+                <p className="mb-1 text-badge text-ink-dim">{group}</p>
                 <div className="flex flex-wrap gap-1">
                   {icons.map((ic) => (
                     <button

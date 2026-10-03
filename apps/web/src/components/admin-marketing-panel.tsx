@@ -94,13 +94,13 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
         <h2 className="text-sm font-semibold text-ink-soft">
           <TagChip icon="👤" label="用户套餐与模块授权" tone="sky" />
         </h2>
-        <p className="mt-1.5 text-[10px] text-ink-faint">
+        <p className="mt-1.5 text-badge text-ink-faint">
           🏦负债 / 📈复盘 = 模块授权（点按钮切换，即时生效）；授权后用户财务页出现对应 tab
         </p>
         {usersErr ? (
           <div className="mt-2 text-xs">
             <p className="text-danger">加载失败：{usersErr}</p>
-            <button onClick={loadUsers} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+            <button onClick={loadUsers} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
               重试
             </button>
           </div>
@@ -124,7 +124,7 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                       key={m}
                       onClick={() => toggleModule(u.id, m, !on)}
                       title={on ? "点击撤销授权" : "点击授权该模块"}
-                      className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                      className={`rounded-full px-2.5 py-1 text-micro transition ${
                         on
                           ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-sm"
                           : "border border-line-soft bg-surface/60 text-ink-faint hover:border-sky-500/50 hover:text-ink-soft"
@@ -137,14 +137,14 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                 {u.plan === "pro" ? (
                   <button
                     onClick={() => setPlan(u.id, "free")}
-                    className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1 text-[11px] text-ink-soft transition hover:border-rose-500/50"
+                    className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1 text-micro text-ink-soft transition hover:border-rose-500/50"
                   >
                     取消Pro
                   </button>
                 ) : (
                   <button
                     onClick={() => setPlan(u.id, "pro")}
-                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-warn transition hover:bg-amber-500/20"
+                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-micro font-medium text-warn transition hover:bg-amber-500/20"
                   >
                     升级Pro(1年)
                   </button>

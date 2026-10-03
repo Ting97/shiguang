@@ -12,10 +12,10 @@ function AggList({ title, rows }: { title: string; rows: Digest["aggregations"][
   const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.net)));
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-medium text-ink-mute">{title}</p>
+      <p className="mb-1.5 text-micro font-medium text-ink-mute">{title}</p>
       <ul className="space-y-1">
         {rows.map((r) => (
-          <li key={r.bucket} className="flex items-center gap-2 text-[11px]">
+          <li key={r.bucket} className="flex items-center gap-2 text-micro">
             <span className="w-20 shrink-0 truncate text-ink-dim">{BUCKET_LABEL[r.bucket] ?? r.bucket}</span>
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-elevated">
               <div
@@ -106,7 +106,7 @@ export default function DigestSection({ accountId }: { accountId: string }) {
         <p className="mb-3 flex items-center gap-2">
           <TagChip icon="🧮" label="统计" tone="amber" />
           {st && (
-            <span className="text-[10px] text-ink-faint">
+            <span className="text-badge text-ink-faint">
               {st.totalTrades} 笔 · 净 {fmtUsd(st.totalNet)}
             </span>
           )}
@@ -115,7 +115,7 @@ export default function DigestSection({ accountId }: { accountId: string }) {
           digestErr ? (
             <div className="py-4 text-center">
               <p className="text-xs text-danger">加载失败：{digestErr}</p>
-              <button onClick={retryDigest} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+              <button onClick={retryDigest} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                 重试
               </button>
             </div>
@@ -130,12 +130,12 @@ export default function DigestSection({ accountId }: { accountId: string }) {
                 const ph = st!.phases[k];
                 return (
                   <div key={k} className="rounded-xl border border-line-soft bg-bg/40 p-3 text-center">
-                    <p className="text-[11px] text-ink-dim">
+                    <p className="text-micro text-ink-dim">
                       {k === "beforePeak" ? "峰值前" : "峰值后"}
                       {k === "beforePeak" && st!.peak ? `（≤ ${st!.peak.ymd}）` : ""}
                     </p>
                     <p className={`mt-1 text-lg font-bold tabular-nums ${pnlColor(ph.net)}`}>{fmtUsd(ph.net)}</p>
-                    <p className="mt-0.5 text-[10px] tabular-nums text-ink-faint">
+                    <p className="mt-0.5 text-badge tabular-nums text-ink-faint">
                       {ph.count} 笔 · 胜率 {ph.winRate != null ? `${ph.winRate}%` : "—"}
                     </p>
                   </div>
@@ -146,10 +146,10 @@ export default function DigestSection({ accountId }: { accountId: string }) {
             {/* 回撤段列表 */}
             {st!.drawdowns.length > 0 && (
               <div>
-                <p className="mb-1.5 text-[11px] font-medium text-ink-mute">回撤段（按深度）</p>
+                <p className="mb-1.5 text-micro font-medium text-ink-mute">回撤段（按深度）</p>
                 <ul className="space-y-1">
                   {st!.drawdowns.map((d, i) => (
-                    <li key={`${d.startYmd}-${d.troughYmd}-${i}`} className="flex items-center gap-2 text-[11px]">
+                    <li key={`${d.startYmd}-${d.troughYmd}-${i}`} className="flex items-center gap-2 text-micro">
                       <span className="w-4 shrink-0 text-ink-faint">{i + 1}.</span>
                       <span className="min-w-0 flex-1 truncate tabular-nums text-ink-dim">
                         {d.startYmd} → {d.troughYmd}
@@ -170,12 +170,12 @@ export default function DigestSection({ accountId }: { accountId: string }) {
             {/* 典型逐笔 */}
             {digest.notable.length > 0 && (
               <div>
-                <p className="mb-1.5 text-[11px] font-medium text-ink-mute">典型逐笔</p>
+                <p className="mb-1.5 text-micro font-medium text-ink-mute">典型逐笔</p>
                 <ul className="space-y-1">
                   {digest.notable.map((t, i) => (
-                    <li key={`${t.label}-${t.ticket}-${i}`} className="flex items-center gap-2 text-[11px]">
+                    <li key={`${t.label}-${t.ticket}-${i}`} className="flex items-center gap-2 text-micro">
                       <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-badge ${
                           t.netProfit >= 0 ? "bg-emerald-500/15 text-success" : "bg-rose-500/15 text-danger"
                         }`}
                       >
@@ -203,10 +203,10 @@ export default function DigestSection({ accountId }: { accountId: string }) {
           <div className="flex items-center gap-2">
             <TagChip icon="🤖" label="AI 复盘" tone="emerald" />
             {review?.kind === "fallback" && (
-              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-warn">已降级</span>
+              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-badge font-medium text-warn">已降级</span>
             )}
             {review?.kind === "ai" && (
-              <span className="text-[10px] text-ink-faint">
+              <span className="text-badge text-ink-faint">
                 {review.cached ? "缓存" : "已生成"}
                 {review.generatedAt ? ` · ${bjTime(review.generatedAt)}` : ""}
               </span>
@@ -215,7 +215,7 @@ export default function DigestSection({ accountId }: { accountId: string }) {
           <button
             onClick={() => void generate()}
             disabled={genBusy}
-            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-40 dark:text-emerald-400"
+            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-micro font-medium text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-40 dark:text-emerald-400"
           >
             {genBusy ? "生成中…" : review ? "重新生成" : "生成复盘"}
           </button>

@@ -57,7 +57,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
       <div className="overflow-x-auto rounded-lg border border-line-soft bg-bg/40 p-3">
         <div className="flex gap-[3px]">
           {/* 月份标签 */}
-          <div className="mr-1 flex flex-col justify-between py-[1px] text-[9px] text-ink-faint">
+          <div className="mr-1 flex flex-col justify-between py-[1px] text-micro text-ink-faint">
             {["1月", "", "", "4月", "", "", "7月", "", "", "10月", "", ""].slice(0, 12).map((m, i) => (
               <span key={i}>{m}</span>
             ))}
@@ -83,7 +83,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
             </div>
           ))}
         </div>
-        <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-ink-dim">
+        <div className="mt-2 flex items-center justify-end gap-1 text-badge text-ink-dim">
           少
           {COLORS.map((c) => (
             <span key={c} className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: c }} />
@@ -108,7 +108,7 @@ export default function YearView({ year, stats, activities, onPickDay }: Props) 
             {sorted.map(([id, min]) => {
               const a = actMap.get(id);
               return (
-                <span key={id} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+                <span key={id} className="flex items-center gap-1.5 text-micro text-ink-mute">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a?.color }} />
                   {a?.icon} {a?.name}
                   <span className="tabular-nums text-ink-dim">{zhDuration(min)} · {Math.round((min / grand) * 100)}%</span>

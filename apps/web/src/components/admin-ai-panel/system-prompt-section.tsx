@@ -43,7 +43,7 @@ export default function SystemPromptSection({
         <span className="flex-1" />
         <button
           onClick={() => setShowCompare((v) => !v)}
-          className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1 text-[11px] text-ink-soft transition hover:border-sky-500/50"
+          className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1 text-micro text-ink-soft transition hover:border-sky-500/50"
         >
           {showCompare ? "收起对比" : "对比默认值"}
         </button>
@@ -76,22 +76,22 @@ export default function SystemPromptSection({
             <span className="flex-1" />
             <button
               onClick={onAdopt}
-              className="rounded-lg bg-violet-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-violet-500"
+              className="rounded-lg bg-violet-600 px-3 py-1 text-micro font-medium text-white hover:bg-violet-500"
             >
               采纳
             </button>
-            <button onClick={onDismissSuggestion} className="rounded-lg px-2.5 py-1 text-[11px] text-ink-mute hover:bg-soft">
+            <button onClick={onDismissSuggestion} className="rounded-lg px-2.5 py-1 text-micro text-ink-mute hover:bg-soft">
               放弃
             </button>
           </p>
           <div className="grid gap-2 md:grid-cols-2">
             <div>
-              <p className="mb-1 text-[10px] text-ink-faint">当前（编辑器）</p>
-              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-bg/60 p-2 text-[10px] leading-relaxed text-ink-soft">{draft}</pre>
+              <p className="mb-1 text-badge text-ink-faint">当前（编辑器）</p>
+              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-bg/60 p-2 text-badge leading-relaxed text-ink-soft">{draft}</pre>
             </div>
             <div>
-              <p className="mb-1 text-[10px] text-ink-faint">AI 建议</p>
-              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-bg/60 p-2 text-[10px] leading-relaxed text-ink">{suggestion}</pre>
+              <p className="mb-1 text-badge text-ink-faint">AI 建议</p>
+              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-bg/60 p-2 text-badge leading-relaxed text-ink">{suggestion}</pre>
             </div>
           </div>
         </div>
@@ -107,15 +107,15 @@ export default function SystemPromptSection({
           }}
           rows={12}
           spellCheck={false}
-          className="input-glow w-full resize-y rounded-xl border border-line-soft bg-bg/40 p-3 font-mono text-[11px] leading-relaxed text-ink outline-none"
+          className="input-glow w-full resize-y rounded-xl border border-line-soft bg-bg/40 p-3 font-mono text-micro leading-relaxed text-ink outline-none"
         />
         {showCompare && (
-          <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-xl border border-line-soft bg-bg/60 p-3 font-mono text-[11px] leading-relaxed text-ink-mute">
+          <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap rounded-xl border border-line-soft bg-bg/60 p-3 font-mono text-micro leading-relaxed text-ink-mute">
             {sel.defaultContent}
           </pre>
         )}
       </div>
-      <p className="mt-1.5 text-[10px] text-ink-faint">{draft.length}/50000 · 关闭下方「启用此覆盖」或点「恢复代码默认」= 整 key 回退代码默认</p>
+      <p className="mt-1.5 text-badge text-ink-faint">{draft.length}/50000 · 关闭下方「启用此覆盖」或点「恢复代码默认」= 整 key 回退代码默认</p>
     </section>
   );
 }

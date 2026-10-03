@@ -40,7 +40,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
     <div>
       <div className="grid grid-cols-7 gap-1">
         {["一", "二", "三", "四", "五", "六", "日"].map((w) => (
-          <div key={w} className="pb-1 text-center text-[11px] text-ink-dim">
+          <div key={w} className="pb-1 text-center text-micro text-ink-dim">
             {w}
           </div>
         ))}
@@ -64,13 +64,13 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
               {donut ? (
                 <>
                   <MiniDonut byActivity={s!.byActivity} actMap={actMap} size={30} />
-                  <span className="block truncate text-[9px] tabular-nums text-ink-dim">
+                  <span className="block truncate text-micro tabular-nums text-ink-dim">
                     {zhDuration(s!.totalMin)}
                   </span>
                 </>
               ) : (
                 /* 未来日期没有"未记录"义务，仅过去/今天温和提示 */
-                !isFuture && <span className="text-[9px] text-ink-faint">未记录</span>
+                !isFuture && <span className="text-micro text-ink-faint">未记录</span>
               )}
             </button>
           );
@@ -93,7 +93,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
             {sorted.map(([id, min]) => {
               const a = actMap.get(id);
               return (
-                <span key={id} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+                <span key={id} className="flex items-center gap-1.5 text-micro text-ink-mute">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a?.color }} />
                   {a?.icon} {a?.name}
                   <span className="tabular-nums text-ink-dim">{zhDuration(min)} · {Math.round((min / grand) * 100)}%</span>

@@ -73,12 +73,12 @@ export default function DesktopComposer({
             onError={(m) => toast(m, "err")}
             onHint={(m) => toast(m)}
           />
-          <span className="hidden text-[11px] text-ink-faint sm:block">🎤 按住说话 · Enter 发布</span>
+          <span className="hidden text-micro text-ink-faint sm:block">🎤 按住说话 · Enter 发布</span>
         </div>
         <div className="flex items-center gap-3">
           {/* 接近上限才显示字数，与发布弹层口径一致 */}
           {text.length >= 1800 && (
-            <span className={`text-[11px] tabular-nums ${text.length >= 1950 ? "text-danger" : "text-ink-faint"}`}>
+            <span className={`text-micro tabular-nums ${text.length >= 1950 ? "text-danger" : "text-ink-faint"}`}>
               {text.length}/2000
             </span>
           )}
@@ -110,7 +110,7 @@ export default function DesktopComposer({
                 <button
                   onClick={() => onRemoveImage(i)}
                   title="移除"
-                  className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-[9px] text-white"
+                  className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-micro text-white"
                 >
                   ✕
                 </button>

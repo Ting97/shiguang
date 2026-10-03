@@ -65,7 +65,7 @@ export default function VoiceButton({
           {mmss} / {maxLabel}
         </span>
       ) : state === "transcribing" ? (
-        <span className="text-[11px]">识别中…</span>
+        <span className="text-micro">识别中…</span>
       ) : (
         <Mic size={16} />
       )}

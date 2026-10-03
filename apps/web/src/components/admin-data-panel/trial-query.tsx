@@ -78,7 +78,7 @@ export default function TrialQuery({ catalog }: { catalog: CatalogPayload }) {
         {ds?.timeCol && (
           <>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border border-line-soft bg-surface/60 px-2 py-1.5 text-xs text-ink outline-none focus:border-sky-500" />
-            <span className="text-[10px] text-ink-faint">→</span>
+            <span className="text-badge text-ink-faint">→</span>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border border-line-soft bg-surface/60 px-2 py-1.5 text-xs text-ink outline-none focus:border-sky-500" />
           </>
         )}
@@ -91,7 +91,7 @@ export default function TrialQuery({ catalog }: { catalog: CatalogPayload }) {
             className="w-40 rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-xs outline-none placeholder:text-ink-faint focus:border-sky-500"
           />
         )}
-        <label className="flex items-center gap-1 text-[11px] text-ink-dim">
+        <label className="flex items-center gap-1 text-micro text-ink-dim">
           limit
           <input
             type="number"
@@ -112,19 +112,19 @@ export default function TrialQuery({ catalog }: { catalog: CatalogPayload }) {
       </div>
 
       {err && (
-        <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] text-danger">{err}</p>
+        <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-micro text-danger">{err}</p>
       )}
 
       {result && (
         <div className="mt-2">
-          <p className="mb-1 text-[10px] text-ink-faint">
+          <p className="mb-1 text-badge text-ink-faint">
             共 <span className="tabular-nums text-ink-mute">{result.total}</span> 条，展示前 {result.items.length} 条
           </p>
           {result.items.length === 0 ? (
-            <p className="text-[11px] text-ink-faint">该条件下暂无数据</p>
+            <p className="text-micro text-ink-faint">该条件下暂无数据</p>
           ) : (
             <div className="max-h-96 overflow-auto rounded-xl border border-line-soft">
-              <table className="w-full min-w-[560px] border-collapse text-left text-[10px]">
+              <table className="w-full min-w-[560px] border-collapse text-left text-badge">
                 <thead className="sticky top-0">
                   <tr className="bg-elevated text-ink-faint">
                     {cols.map((k) => (

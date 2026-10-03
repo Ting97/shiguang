@@ -65,7 +65,7 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
               ))}
             </select>
             <span className="flex gap-1">
-              <button onClick={() => setEditTodo(null)} className="rounded px-2 py-1 text-[11px] text-ink-mute hover:bg-soft">取消</button>
+              <button onClick={() => setEditTodo(null)} className="rounded px-2 py-1 text-micro text-ink-mute hover:bg-soft">取消</button>
               <button
                 onClick={() =>
                   run(async () => {
@@ -80,7 +80,7 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
                     return "💾 todo 已更新";
                   })
                 }
-                className="rounded bg-sky-600 px-2 py-1 text-[11px] font-medium hover:bg-sky-500"
+                className="rounded bg-sky-600 px-2 py-1 text-micro font-medium hover:bg-sky-500"
               >
                 保存
               </button>

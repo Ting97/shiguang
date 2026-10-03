@@ -53,10 +53,10 @@ function MenuItem({ closeMenu, icon, label, hint, extra, danger, active, disable
       <span className="w-5 shrink-0 text-center text-sm leading-none">{busy ? "⏳" : icon}</span>
       <span className="min-w-0 flex-1">
         {label}
-        {hint && <span className="block truncate text-[10px] text-ink-faint">{hint}</span>}
+        {hint && <span className="block truncate text-badge text-ink-faint">{hint}</span>}
       </span>
-      {extra && <span className="shrink-0 text-[10px] tabular-nums text-success">{extra}</span>}
-      {active && <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-warn">已开启</span>}
+      {extra && <span className="shrink-0 text-badge tabular-nums text-success">{extra}</span>}
+      {active && <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-badge text-warn">已开启</span>}
     </button>
   );
 }
@@ -93,9 +93,9 @@ export function RowMenu({
       {/* 移动端拖拽指示条 */}
       <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
       <p className="mb-1.5 flex items-center gap-1.5 px-1.5">
-        <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-dim">{menuRow.todo.title}</span>
+        <span className="min-w-0 flex-1 truncate text-micro font-medium text-ink-dim">{menuRow.todo.title}</span>
         {menuRow.isChild && menuRow.parentTitle && (
-          <span className="max-w-24 shrink-0 truncate text-[10px] text-ink-faint">{menuRow.parentTitle}</span>
+          <span className="max-w-24 shrink-0 truncate text-badge text-ink-faint">{menuRow.parentTitle}</span>
         )}
       </p>
       <div className="space-y-0.5">
@@ -173,7 +173,7 @@ export function RowMenu({
             ) : (
               /* 已有未完成行动：给出显式二选一（替代原 confirm「确定=重生成/取消=追加」的双语义） */
               <>
-                <p className="px-2.5 pt-1.5 text-[10px] text-ink-faint">已有 {pendingCount(menuRow.todo)} 个未完成行动：</p>
+                <p className="px-2.5 pt-1.5 text-badge text-ink-faint">已有 {pendingCount(menuRow.todo)} 个未完成行动：</p>
                 <MenuItem
                   closeMenu={onClose}
                   icon="✨"

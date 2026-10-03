@@ -45,39 +45,39 @@ export function DebtForm({
         </select>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="text-[11px] text-ink-mute">
+        <label className="text-micro text-ink-mute">
           本金（元）
           <input type="number" min="0" step="0.01" value={principal} onChange={(e) => setPrincipal(e.target.value)} placeholder="原始本金" className={inputCls} />
         </label>
-        <label className="text-[11px] text-ink-mute">
+        <label className="text-micro text-ink-mute">
           当前余额（元）
           <input type="number" min="0" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="默认=本金" className={inputCls} />
         </label>
-        <label className="text-[11px] text-ink-mute">
+        <label className="text-micro text-ink-mute">
           年化利率 %
           <input type="number" min="0" max="36" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="0~36" className={inputCls} />
         </label>
-        <label className="text-[11px] text-ink-mute">
+        <label className="text-micro text-ink-mute">
           月供（元，亲友可空）
           <input type="number" min="0" step="0.01" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="可空" className={inputCls} />
         </label>
-        <label className="text-[11px] text-ink-mute">
+        <label className="text-micro text-ink-mute">
           每月还款日
           <input type="number" min="1" max="31" value={payDay} onChange={(e) => setPayDay(e.target.value)} placeholder="1~31 可空" className={inputCls} />
         </label>
-        <label className="text-[11px] text-ink-mute">
+        <label className="text-micro text-ink-mute">
           到期/结清日
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputCls} />
         </label>
       </div>
       <div className="flex gap-2">
-        <label className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+        <label className="flex items-center gap-1.5 text-micro text-ink-mute">
           优先级
           <input type="number" value={priority} onChange={(e) => setPriority(e.target.value)} title="数字越小越优先" className="w-16 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500" />
         </label>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="备注（可空）" className={inputCls} />
       </div>
-      {err && <p className="text-[11px] text-danger">{err}</p>}
+      {err && <p className="text-micro text-danger">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
         <button
@@ -139,7 +139,7 @@ export function PaymentForm({
 
   return (
     <div className="space-y-2.5">
-      <p className="rounded-lg bg-elevated/60 px-3 py-2 text-[11px] text-ink-mute tabular-nums">
+      <p className="rounded-lg bg-elevated/60 px-3 py-2 text-micro text-ink-mute tabular-nums">
         当前余额 {fmt(debt.balance_cents)} · 年化 {debt.rate_pct}%{debt.monthly_cents != null ? ` · 月供 ${fmt(debt.monthly_cents)}` : ""}
       </p>
       <div className="flex gap-2">
@@ -155,7 +155,7 @@ export function PaymentForm({
         </select>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="备注（可空）" className={inputCls} />
       </div>
-      <p className="text-[10px] text-ink-faint">
+      <p className="text-badge text-ink-faint">
         {accountId ? "✓ 将同时在所选账户记一笔「还款」支出流水" : "仅记录还款进度，不生成流水（避免与已有记账重复）"}
       </p>
       <div className="flex justify-end gap-2 pt-1">

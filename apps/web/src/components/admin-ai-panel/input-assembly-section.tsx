@@ -84,7 +84,7 @@ export default function InputAssemblySection({
       </div>
 
       {/* user 模板编辑 */}
-      <p className="mb-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-dim">
+      <p className="mb-1 flex flex-wrap items-center gap-1.5 text-micro text-ink-dim">
         <span className="font-medium text-ink-soft">user 模板</span>
         <span>合法占位符：</span>
         {sel.registry.placeholders.map((p) => {
@@ -93,7 +93,7 @@ export default function InputAssemblySection({
             <button
               key={p}
               onClick={() => onFillMissing(p)}
-              className={`rounded px-1.5 py-0.5 font-mono text-[10px] transition ${
+              className={`rounded px-1.5 py-0.5 font-mono text-badge transition ${
                 missing ? "bg-rose-500/15 text-danger hover:bg-rose-500/25" : "bg-sky-500/10 text-accent hover:bg-sky-500/20"
               }`}
               title={missing ? "缺失中——点击追加到模板末尾" : "已包含"}
@@ -105,7 +105,7 @@ export default function InputAssemblySection({
         {tplDraft !== sel.userTemplateDefault && (
           <button
             onClick={onResetTpl}
-            className="rounded px-1.5 py-0.5 text-[10px] text-ink-mute hover:bg-soft hover:text-accent"
+            className="rounded px-1.5 py-0.5 text-badge text-ink-mute hover:bg-soft hover:text-accent"
           >
             还原默认
           </button>
@@ -119,17 +119,17 @@ export default function InputAssemblySection({
         }}
         rows={5}
         spellCheck={false}
-        className="w-full resize-y rounded-xl border border-line-soft bg-bg/40 p-3 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-sky-500/60"
+        className="w-full resize-y rounded-xl border border-line-soft bg-bg/40 p-3 font-mono text-micro leading-relaxed text-ink outline-none focus:border-sky-500/60"
       />
       {(tplMissing.length > 0 || tplUnknown.length > 0) && (
-        <p className="mt-1 text-[11px] text-danger">
+        <p className="mt-1 text-micro text-danger">
           占位符校验：{tplMissing.length ? `缺失 ${tplMissing.map((x) => `{${x}}`).join("、")}（点上方红色占位符一键补齐）` : ""}
           {tplUnknown.length ? ` 未知 ${tplUnknown.map((x) => `{${x}}`).join("、")}` : ""}
         </p>
       )}
 
       {/* 注入开关 */}
-      <p className="mb-1 mt-3 text-[11px] font-medium text-ink-soft">注入项</p>
+      <p className="mb-1 mt-3 text-micro font-medium text-ink-soft">注入项</p>
       <ul className="space-y-1">
         {sel.registry.injects.map((i) => {
           const on = injectDraft[i.key] ?? i.default;
@@ -150,12 +150,12 @@ export default function InputAssemblySection({
               <span className="min-w-0 flex-1">
                 <span className={`text-xs font-medium ${locked ? "text-ink-dim" : on ? "text-ink" : "text-ink-faint"}`}>
                   {i.label}
-                  {locked && <span className="ml-1.5 rounded bg-amber-500/15 px-1 py-0.5 text-[9px] text-warn">必需</span>}
-                  {!on && !locked && <span className="ml-1.5 text-[9px] text-ink-faint">已关闭</span>}
+                  {locked && <span className="ml-1.5 rounded bg-amber-500/15 px-1 py-0.5 text-micro text-warn">必需</span>}
+                  {!on && !locked && <span className="ml-1.5 text-micro text-ink-faint">已关闭</span>}
                 </span>
-                <span className="block truncate text-[10px] text-ink-faint" title={i.desc}>{i.desc}</span>
+                <span className="block truncate text-badge text-ink-faint" title={i.desc}>{i.desc}</span>
               </span>
-              <span className="shrink-0 text-[9px] text-ink-faint" title={i.source}>{i.source}</span>
+              <span className="shrink-0 text-micro text-ink-faint" title={i.source}>{i.source}</span>
             </li>
           );
         })}
@@ -164,10 +164,10 @@ export default function InputAssemblySection({
       {/* 参数 */}
       {sel.registry.caps.length > 0 && (
         <>
-          <p className="mb-1 mt-3 text-[11px] font-medium text-ink-soft">参数（0 = 不设限；保存即在线上生效，明细类上限在 SQL 查询层生效）</p>
+          <p className="mb-1 mt-3 text-micro font-medium text-ink-soft">参数（0 = 不设限；保存即在线上生效，明细类上限在 SQL 查询层生效）</p>
           <div className="flex flex-wrap gap-2">
             {sel.registry.caps.map((c) => (
-              <label key={c.key} className="flex items-center gap-1.5 rounded-lg border border-line-soft bg-bg/30 px-2.5 py-1.5 text-[11px] text-ink-dim">
+              <label key={c.key} className="flex items-center gap-1.5 rounded-lg border border-line-soft bg-bg/30 px-2.5 py-1.5 text-micro text-ink-dim">
                 {c.label}
                 <input
                   type="number"
@@ -188,7 +188,7 @@ export default function InputAssemblySection({
       )}
 
       {/* 装配预览 */}
-      <p className="mb-1 mt-3 text-[11px] font-medium text-ink-soft">装配预览（不调 LLM、零 token；按上方当前配置与你的真实数据装配）</p>
+      <p className="mb-1 mt-3 text-micro font-medium text-ink-soft">装配预览（不调 LLM、零 token；按上方当前配置与你的真实数据装配）</p>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           value={previewSample}
@@ -215,7 +215,7 @@ export default function InputAssemblySection({
         </button>
       </div>
       {previewText !== null && (
-        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-3 font-mono text-[10px] leading-relaxed text-ink">
+        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-3 font-mono text-badge leading-relaxed text-ink">
           {previewText}
         </pre>
       )}

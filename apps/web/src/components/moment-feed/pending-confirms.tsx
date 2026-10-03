@@ -22,17 +22,17 @@ export function PendingConfirms({ m, run }: PendingConfirmsProps) {
   return (
     <div className="mt-2 space-y-1">
       {pendingDomains.map((d) => (
-        <div key={d.domain} className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5 px-3 py-1.5 text-[11px] text-warn/90">
+        <div key={d.domain} className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5 px-3 py-1.5 text-micro text-warn/90">
           <span>🤔 识别到{DOMAIN_LABELS[d.domain] ?? d.domain}（置信度 {Math.round((d.confidence ?? 0) * 100)}%），确认吗？</span>
           <button
             onClick={() => run(async () => { await api(`/api/entries/${m.id}/confirm`, "POST", { domain: d.domain }); return "✅ 已确认入账"; })}
-            className="rounded bg-sky-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-sky-500"
+            className="rounded bg-sky-600 px-2 py-0.5 text-badge font-medium text-white hover:bg-sky-500"
           >
             确认
           </button>
           <button
             onClick={() => run(async () => { await api(`/api/entries/${m.id}/confirm`, "POST", { domain: d.domain, ignore: true }); return "已忽略"; })}
-            className="rounded px-2 py-0.5 text-[10px] text-ink-mute hover:text-ink"
+            className="rounded px-2 py-0.5 text-badge text-ink-mute hover:text-ink"
           >
             忽略
           </button>

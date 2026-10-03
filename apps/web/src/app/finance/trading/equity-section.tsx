@@ -58,13 +58,13 @@ export default function EquitySection({ accountId }: { accountId: string }) {
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
         <TagChip icon="📈" label="权益曲线 · 累计净盈亏" tone="emerald" />
-        <span className="text-[10px] text-ink-faint">日粒度 · 峰值与回撤服务端预计算</span>
+        <span className="text-badge text-ink-faint">日粒度 · 峰值与回撤服务端预计算</span>
       </p>
       {!data ? (
         loadErr ? (
           <div className="py-4 text-center">
             <p className="text-xs text-danger">加载失败：{loadErr}</p>
-            <button onClick={retry} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+            <button onClick={retry} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
               重试
             </button>
           </div>
@@ -107,25 +107,25 @@ export default function EquitySection({ accountId }: { accountId: string }) {
               />
             )}
           </div>
-          <p className="mt-2 text-center text-[9px] text-ink-faint">
+          <p className="mt-2 text-center text-micro text-ink-faint">
             <span className="text-accent">━</span> 累计净盈亏 <span className="text-danger">━</span> 回撤段{" "}
             <span className="text-accent">●</span> 峰值
           </p>
 
           <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line-soft pt-3 text-center">
             <div>
-              <p className="text-[11px] text-ink-dim">累计净盈亏</p>
+              <p className="text-micro text-ink-dim">累计净盈亏</p>
               <p className={`mt-1 text-lg font-bold tabular-nums ${pnlColor(data.totalNet)}`}>{fmtUsd(data.totalNet)}</p>
             </div>
             <div>
-              <p className="text-[11px] text-ink-dim">权益峰值</p>
+              <p className="text-micro text-ink-dim">权益峰值</p>
               <p className="mt-1 text-lg font-bold tabular-nums text-ink">{data.peak ? fmtUsd(data.peak.cum) : "—"}</p>
-              <p className="mt-0.5 text-[10px] tabular-nums text-ink-faint">{data.peak?.ymd ?? "—"}</p>
+              <p className="mt-0.5 text-badge tabular-nums text-ink-faint">{data.peak?.ymd ?? "—"}</p>
             </div>
             <div>
-              <p className="text-[11px] text-ink-dim">最大回撤</p>
+              <p className="text-micro text-ink-dim">最大回撤</p>
               <p className="mt-1 text-lg font-bold tabular-nums text-danger">{maxDd ? `-${fmtUsd(maxDd.amount)}` : "—"}</p>
-              <p className="mt-0.5 text-[10px] tabular-nums text-ink-faint">{maxDd ? `${maxDd.startYmd} → ${maxDd.troughYmd}` : "无回撤"}</p>
+              <p className="mt-0.5 text-badge tabular-nums text-ink-faint">{maxDd ? `${maxDd.startYmd} → ${maxDd.troughYmd}` : "无回撤"}</p>
             </div>
           </div>
         </>

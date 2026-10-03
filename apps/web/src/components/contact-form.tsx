@@ -93,7 +93,7 @@ export default function ContactFormModal({
               title="纪念日（如：结婚纪念日）"
               className="flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none focus:border-sky-500"
             />
-            <span className="flex items-center whitespace-nowrap text-[11px] text-ink-dim">纪念日</span>
+            <span className="flex items-center whitespace-nowrap text-micro text-ink-dim">纪念日</span>
           </div>
           <div>
             <div className="flex gap-2">
@@ -144,7 +144,7 @@ export default function ContactFormModal({
                       <option key={d} value={d}>{lunarDayLabel(d)}</option>
                     ))}
                   </select>
-                  <label className="flex shrink-0 items-center gap-1 text-[11px] text-ink-mute" title="闰月生日；当年无闰月时按平月过">
+                  <label className="flex shrink-0 items-center gap-1 text-micro text-ink-mute" title="闰月生日；当年无闰月时按平月过">
                     <input
                       type="checkbox"
                       checked={lunarLeap}
@@ -156,12 +156,12 @@ export default function ContactFormModal({
                 </div>
               )}
             </div>
-            <p className="mt-1 text-[11px] text-ink-dim">
+            <p className="mt-1 text-micro text-ink-dim">
               {bdayCal === "lunar" ? "农历生日每年公历日期不同，会自动换算提醒 · 闰月生日无闰月年份按平月过" : "生日（可空）"}
             </p>
           </div>
           <div>
-            <div className="mb-1 flex items-center gap-2 text-[11px] text-ink-dim">
+            <div className="mb-1 flex items-center gap-2 text-micro text-ink-dim">
               重要程度
               <span className="text-ink-mute">决定图谱中与你的距离 · 当前：{importanceLabel(importance)}</span>
             </div>

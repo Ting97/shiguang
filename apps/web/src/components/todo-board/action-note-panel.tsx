@@ -22,7 +22,7 @@ export function ActionNotePanel({ c, note }: { c: TodoRow; note: ActionNote }) {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) note.saveNote();
           if (e.key === "Escape") note.setNoteOpenId(null);
         }}
-        className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-[13px] outline-none focus:border-sky-500"
+        className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-body outline-none focus:border-sky-500"
         placeholder="标题"
       />
       <textarea
@@ -31,20 +31,20 @@ export function ActionNotePanel({ c, note }: { c: TodoRow; note: ActionNote }) {
         rows={4}
         maxLength={1000}
         placeholder="详细内容（可选，记录细节/链接/备注，≤1000 字）"
-        className="input-glow mt-2 w-full resize-none rounded border border-line-soft bg-surface/60 px-2.5 py-2 text-[13px] leading-relaxed outline-none placeholder:text-ink-faint"
+        className="input-glow mt-2 w-full resize-none rounded border border-line-soft bg-surface/60 px-2.5 py-2 text-body leading-relaxed outline-none placeholder:text-ink-faint"
       />
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] tabular-nums text-ink-faint">{note.noteText.length}/1000</span>
+        <span className="text-badge tabular-nums text-ink-faint">{note.noteText.length}/1000</span>
         <input
           type="datetime-local"
           value={note.noteDue}
           onChange={(e) => note.setNoteDue(e.target.value)}
           title="截止时间（可清空）"
-          className="rounded border border-line-strong bg-surface px-2 py-1 text-[12px] tabular-nums outline-none focus:border-sky-500"
+          className="rounded border border-line-strong bg-surface px-2 py-1 text-xs tabular-nums outline-none focus:border-sky-500"
         />
         <label
           title="每日重复：完成后次日 06:00 自动恢复未完成，并累积完成次数"
-          className={`flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-[11px] transition ${
+          className={`flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-micro transition ${
             note.noteRepeat ? "bg-emerald-500/20 text-success" : "border border-line-soft text-ink-mute hover:text-ink"
           }`}
         >

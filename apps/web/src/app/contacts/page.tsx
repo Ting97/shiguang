@@ -117,7 +117,7 @@ export default function ContactsPage() {
                 variant="pill"
                 active={view === v}
                 onClick={() => setView(v)}
-                icon={<span className="text-[12px] leading-none">{icon}</span>}
+                icon={<span className="text-xs leading-none">{icon}</span>}
                 label={label}
               />
             ))}
@@ -136,7 +136,7 @@ export default function ContactsPage() {
                   variant="filter"
                   active={selected}
                   title={isAll ? "显示全部分组" : "点击加入/移出筛选（可多选）"}
-                  icon={isAll ? undefined : <span className="text-[12px] leading-none">{GROUP_EMOJI[g.name] ?? "👤"}</span>}
+                  icon={isAll ? undefined : <span className="text-xs leading-none">{GROUP_EMOJI[g.name] ?? "👤"}</span>}
                   label={isAll ? "全部" : g.name}
                   count={g.count}
                   onClick={() => {
@@ -233,12 +233,12 @@ export default function ContactsPage() {
                         <span className="truncate">{c.name}</span>
                         {c.alias && <span className="truncate text-xs font-normal text-ink-dim">（{c.alias}）</span>}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-dim">
+                      <p className="mt-0.5 flex items-center gap-2 text-micro text-ink-dim">
                         <TagChip label={c.group_tag} tone={GROUP_TONE[c.group_tag] ?? "sky"} size="sm" />
                         {bd?.countdown && <span className="text-ai">{bd.countdown}</span>}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">{c.interaction_count} 次</span>
+                    <span className="shrink-0 text-micro tabular-nums text-ink-dim">{c.interaction_count} 次</span>
                   </div>
                   <p className="mt-2.5 truncate text-xs text-ink-mute">
                     {c.last_at ? (
@@ -250,7 +250,7 @@ export default function ContactsPage() {
                     )}
                   </p>
                   {Number(c.gift_net_cents) !== 0 && (
-                    <p className="mt-1 text-[11px] tabular-nums text-ink-dim">
+                    <p className="mt-1 text-micro tabular-nums text-ink-dim">
                       {/* 金额展示统一走共享 yuan()（整数运算），替换原内联浮点除法 */}
                       人情往来 {Number(c.gift_net_cents) > 0 ? "+" : ""}
                       {`¥${yuan(Math.abs(Number(c.gift_net_cents)))}`}
@@ -274,7 +274,7 @@ export default function ContactsPage() {
           />
         )}
 
-        <footer className="mt-10 text-center text-[10px] text-ink-faint">
+        <footer className="mt-10 text-center text-badge text-ink-faint">
           拾光 · 人际模块 v2（Phase 3 W9~W11）· 语音提及自动建档
         </footer>
       </div>

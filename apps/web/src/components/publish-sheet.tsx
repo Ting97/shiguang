@@ -193,7 +193,7 @@ export default function PublishSheet({
         />
         {/* 接近上限才显示字数，平时不干扰 */}
         {value.length >= 1800 && (
-          <p className={`mt-1 text-right text-[11px] tabular-nums ${value.length >= 1950 ? "text-danger" : "text-ink-faint"}`}>
+          <p className={`mt-1 text-right text-micro tabular-nums ${value.length >= 1950 ? "text-danger" : "text-ink-faint"}`}>
             {value.length}/2000
           </p>
         )}
@@ -222,20 +222,20 @@ export default function PublishSheet({
                         return prev.filter((_, idx) => idx !== i);
                       })
                     }
-                    className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-[9px] text-white"
+                    className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-micro text-white"
                     aria-label="移除"
                   >
                     ✕
                   </button>
                 )}
                 {img.status === "uploading" && (
-                  <span className="absolute inset-x-0 bottom-0 bg-black/50 text-center text-[9px] text-white">上传中…</span>
+                  <span className="absolute inset-x-0 bottom-0 bg-black/50 text-center text-micro text-white">上传中…</span>
                 )}
               </span>
             ))}
           </div>
         )}
-        {sheetMsg && <p className="mt-1.5 text-[11px] text-warn">{sheetMsg}</p>}
+        {sheetMsg && <p className="mt-1.5 text-micro text-warn">{sheetMsg}</p>}
 
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -275,7 +275,7 @@ export default function PublishSheet({
                 />
               </label>
             )}
-            <span className="text-[11px] text-ink-faint">发布后 AI 自动识别</span>
+            <span className="text-micro text-ink-faint">发布后 AI 自动识别</span>
           </div>
           <button
             type="button"

@@ -120,14 +120,14 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
           <button
             onClick={() => void toggleAll(true)}
             disabled={busy || !data || data.items.length === 0}
-            className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-accent transition hover:bg-sky-500/20 disabled:opacity-40"
+            className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-micro font-medium text-accent transition hover:bg-sky-500/20 disabled:opacity-40"
           >
             一键备付
           </button>
           <button
             onClick={() => void toggleAll(false)}
             disabled={busy || !data || data.items.length === 0}
-            className="rounded-lg border border-line-soft px-2.5 py-1 text-[11px] text-ink-mute transition hover:text-danger disabled:opacity-40"
+            className="rounded-lg border border-line-soft px-2.5 py-1 text-micro text-ink-mute transition hover:text-danger disabled:opacity-40"
           >
             清空
           </button>
@@ -157,10 +157,10 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
                 />
                 <span className="min-w-0 flex-1 truncate font-medium text-ink">
                   {r.name}
-                  {r.payDays.length > 0 && <span className="ml-1.5 text-[10px] text-ink-faint">{r.payDays.join("/")} 日</span>}
-                  {r.extra > 0 && <span className="ml-1.5 rounded bg-rose-500/15 px-1 text-[10px] text-danger">本月到期</span>}
+                  {r.payDays.length > 0 && <span className="ml-1.5 text-badge text-ink-faint">{r.payDays.join("/")} 日</span>}
+                  {r.extra > 0 && <span className="ml-1.5 rounded bg-rose-500/15 px-1 text-badge text-danger">本月到期</span>}
                 </span>
-                <span className="text-[10px] text-ink-faint tabular-nums">
+                <span className="text-badge text-ink-faint tabular-nums">
                   月供 {fmt(r.pay)}{r.extra > 0 && ` + 到期本金 ${fmt(r.extra)}`}
                 </span>
                 <span className="font-semibold tabular-nums text-ink">{fmt(r.need)}</span>
@@ -169,7 +169,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
           </ul>
 
           <div className="mt-3 border-t border-line-soft pt-3">
-            <div className="flex items-center justify-between text-[11px] text-ink-mute">
+            <div className="flex items-center justify-between text-micro text-ink-mute">
               <span>
                 已备付 <span className="font-semibold tabular-nums text-success">{fmt(data.checkedNeed)}</span> / {fmt(data.totalNeed)}
               </span>
@@ -181,7 +181,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
           </div>
 
           <div className="mt-3 rounded-xl border border-line-soft bg-bg/40 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-micro">
               <span className="text-ink-mute">
                 储蓄覆盖（
                 {savings.length === 0 && <span className="text-ink-faint">尚未勾选参与账户</span>}
@@ -197,7 +197,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
             <ul className="mt-2 flex flex-wrap gap-1.5">
               {savings.map((a) => (
                 <li key={a.id}>
-                  <label className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
+                  <label className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-badge transition ${
                     a.reserveTracked ? "border-sky-500/40 bg-sky-500/10 text-accent" : "border-line-soft text-ink-mute hover:text-ink"
                   }`}>
                     <input
@@ -215,7 +215,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
         </>
       )}
 
-      {msg && <p className={`mt-2 text-[11px] ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>}
+      {msg && <p className={`mt-2 text-micro ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>}
     </section>
   );
 }

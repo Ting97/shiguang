@@ -134,33 +134,33 @@ export default function DebtPage() {
             <section className="glass mb-4 rounded-2xl p-5">
               <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                 <div>
-                  <p className="text-[11px] text-ink-dim">总负债（含亲友）</p>
+                  <p className="text-micro text-ink-dim">总负债（含亲友）</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-danger">{fmt(ov.totals.balanceCents)}</p>
                   {ov.totals.bankCents !== ov.totals.balanceCents && (
-                    <p className="mt-0.5 text-[10px] text-ink-faint tabular-nums">银行口径 {fmt(ov.totals.bankCents)}</p>
+                    <p className="mt-0.5 text-badge text-ink-faint tabular-nums">银行口径 {fmt(ov.totals.bankCents)}</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-[11px] text-ink-dim">月供合计</p>
+                  <p className="text-micro text-ink-dim">月供合计</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-ink">{fmt(ov.totals.monthlyDueCents)}</p>
-                  <p className="mt-0.5 text-[10px] text-ink-faint">{ov.totals.liabilityCount} 笔进行中</p>
+                  <p className="mt-0.5 text-badge text-ink-faint">{ov.totals.liabilityCount} 笔进行中</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-ink-dim">加权利率</p>
+                  <p className="text-micro text-ink-dim">加权利率</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-warn">{ov.totals.weightedRatePct}%</p>
-                  <p className="mt-0.5 text-[10px] text-ink-faint">按余额加权</p>
+                  <p className="mt-0.5 text-badge text-ink-faint">按余额加权</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-ink-dim">净资产</p>
+                  <p className="text-micro text-ink-dim">净资产</p>
                   <p className={`mt-1 text-xl font-bold tabular-nums ${ov.netWorthCents >= 0 ? "text-success" : "text-danger"}`}>
                     {fmt(ov.netWorthCents)}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-ink-faint tabular-nums">资产 {fmt(ov.assetBalanceCents)} − 负债</p>
+                  <p className="mt-0.5 text-badge text-ink-faint tabular-nums">资产 {fmt(ov.assetBalanceCents)} − 负债</p>
                 </div>
               </div>
 
               {/* 现金流月视图 */}
-              <div className="mt-4 border-t border-line-soft pt-3 text-[11px] text-ink-mute">
+              <div className="mt-4 border-t border-line-soft pt-3 text-micro text-ink-mute">
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                   <span>
                     {ov.cashFlow.monthKey.slice(0, 4)}年{Number(ov.cashFlow.monthKey.slice(5))}月结余
@@ -182,7 +182,7 @@ export default function DebtPage() {
               {ov.hints.length > 0 && (
                 <ul className="mt-3 space-y-1 border-t border-line-soft pt-3">
                   {ov.hints.map((h, i) => (
-                    <li key={i} className="text-[11px] text-warn">💡 {h}</li>
+                    <li key={i} className="text-micro text-warn">💡 {h}</li>
                   ))}
                 </ul>
               )}
@@ -213,7 +213,7 @@ export default function DebtPage() {
                         <span className="ml-1.5">剩 {w.daysLeft} 天</span>
                       </span>
                       <span className="ml-auto font-semibold tabular-nums text-ink">{fmt(w.balanceCents)}</span>
-                      {w.monthlyCents === 0 && <span className="text-[10px] text-ink-faint">无月供 · 到期一次结清</span>}
+                      {w.monthlyCents === 0 && <span className="text-badge text-ink-faint">无月供 · 到期一次结清</span>}
                     </li>
                   ))}
                 </ul>
@@ -253,8 +253,8 @@ export default function DebtPage() {
                       <span className="text-lg">{DEBT_TYPE_META[d.type]?.icon ?? "💳"}</span>
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
                         {d.name}
-                        <span className="ml-1.5 text-[10px] text-ink-faint">{DEBT_TYPE_META[d.type]?.label}</span>
-                        {d.priority > 0 && <span className="ml-1.5 rounded bg-rose-500/15 px-1 text-[10px] text-danger">P{d.priority}</span>}
+                        <span className="ml-1.5 text-badge text-ink-faint">{DEBT_TYPE_META[d.type]?.label}</span>
+                        {d.priority > 0 && <span className="ml-1.5 rounded bg-rose-500/15 px-1 text-badge text-danger">P{d.priority}</span>}
                       </span>
                       <span className="text-sm font-semibold tabular-nums text-danger">{fmt(d.balance_cents)}</span>
                       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
@@ -278,7 +278,7 @@ export default function DebtPage() {
                         </button>
                       </span>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink-dim">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-badge text-ink-dim">
                       <span className="tabular-nums">年化 {d.rate_pct}%</span>
                       {d.monthly_cents != null && <span className="tabular-nums">月供 {fmt(d.monthly_cents)}</span>}
                       {d.pay_day != null && <span>每月 {d.pay_day} 日</span>}
@@ -293,7 +293,7 @@ export default function DebtPage() {
                             style={{ width: `${Math.max(0, Math.min(100, ((d.principal_cents - d.balance_cents) / d.principal_cents) * 100))}%` }}
                           />
                         </div>
-                        <p className="mt-1 text-[10px] text-ink-faint tabular-nums">
+                        <p className="mt-1 text-badge text-ink-faint tabular-nums">
                           已还 {fmt(Math.max(0, d.principal_cents - d.balance_cents))} / 本金 {fmt(d.principal_cents)}
                           {d.paid_cents != null && d.paid_cents > 0 && ` · 累计还款 ${fmt(d.paid_cents)}（${d.payments_count} 笔）`}
                         </p>
@@ -314,7 +314,7 @@ export default function DebtPage() {
                         <li key={d.id} className="flex items-center gap-2 text-xs text-ink-mute">
                           <span>{DEBT_TYPE_META[d.type]?.icon}</span>
                           <span className="min-w-0 flex-1 truncate">{d.name}</span>
-                          <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px]">{d.status === "cleared" ? "已结清" : "已归档"}</span>
+                          <span className="rounded bg-elevated px-1.5 py-0.5 text-badge">{d.status === "cleared" ? "已结清" : "已归档"}</span>
                           <span className="tabular-nums">{fmt(d.balance_cents)}</span>
                           {d.status === "archived" && (
                             <button
@@ -326,7 +326,7 @@ export default function DebtPage() {
                                   toast(e instanceof Error ? e.message : String(e), "err");
                                 }
                               }}
-                              className="text-[10px] text-ink-faint hover:text-accent"
+                              className="text-badge text-ink-faint hover:text-accent"
                             >
                               恢复
                             </button>
@@ -361,7 +361,7 @@ export default function DebtPage() {
                 <button
                   onClick={() => void runSim(extra)}
                   disabled={simBusy}
-                  className="btn-primary rounded-lg px-3 py-1.5 text-[11px] font-medium disabled:opacity-40"
+                  className="btn-primary rounded-lg px-3 py-1.5 text-micro font-medium disabled:opacity-40"
                 >
                   {simBusy ? "推演中…" : "开始模拟"}
                 </button>
@@ -372,25 +372,25 @@ export default function DebtPage() {
                     <div key={p.strategy} className="rounded-xl border border-line-soft bg-bg/40 p-3">
                       <p className="mb-1.5 flex items-center justify-between text-xs font-semibold text-ink">
                         {p.strategy === "snowball" ? "❄️ 雪球（先清小额）" : "🏔️ 雪崩（先清高息）"}
-                        <span className="font-normal text-[10px] text-ink-faint">省 {fmt(p.interestSavedVsBaselineCents)} 利息</span>
+                        <span className="font-normal text-badge text-ink-faint">省 {fmt(p.interestSavedVsBaselineCents)} 利息</span>
                       </p>
-                      <p className="text-[11px] text-ink-mute tabular-nums">
+                      <p className="text-micro text-ink-mute tabular-nums">
                         {p.notCleared
                           ? "按当前月供 + 额外还款额无法在 50 年内清零，请提高还款额"
                           : `预计 ${p.clearedLabel} 清零（${p.months} 个月${p.monthsSavedVsBaseline ? `，提前 ${p.monthsSavedVsBaseline} 个月` : ""}）`}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-ink-mute tabular-nums">总利息 {fmt(p.totalInterestCents)}</p>
-                      <p className="mt-1 text-[10px] text-ink-faint">清偿顺序：{p.order.join(" → ")}</p>
+                      <p className="mt-0.5 text-micro text-ink-mute tabular-nums">总利息 {fmt(p.totalInterestCents)}</p>
+                      <p className="mt-1 text-badge text-ink-faint">清偿顺序：{p.order.join(" → ")}</p>
                     </div>
                   ))}
-                  <p className="col-span-full text-right text-[10px] text-ink-faint">
+                  <p className="col-span-full text-right text-badge text-ink-faint">
                     基线（仅最低月供）总利息 {fmt(sim.baseline.totalInterestCents)} · 模拟估算，仅供参考
                   </p>
                 </div>
               )}
             </section>
 
-            <footer className="mt-10 text-center text-[10px] text-ink-faint">拾光 · 负债管理 · 还款后余额自动递减</footer>
+            <footer className="mt-10 text-center text-badge text-ink-faint">拾光 · 负债管理 · 还款后余额自动递减</footer>
           </>
         )}
       </div>

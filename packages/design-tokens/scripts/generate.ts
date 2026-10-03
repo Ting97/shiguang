@@ -61,6 +61,24 @@ function renderCssVars(palette: Record<string, string>, indent: string, opts: { 
   return lines.join("\n");
 }
 
+/** 非颜色刻度（主题无关）：动效时长/缓动/层级，随色板一起写入 :root 与 page{} */
+function renderScaleVars(): string {
+  return [
+    "  /* ---- 动效与层级刻度（主题无关） ---- */",
+    `  --dur-fast: ${motion.fast}ms;`,
+    `  --dur-base: ${motion.base}ms;`,
+    `  --dur-slow: ${motion.slow}ms;`,
+    `  --dur-slower: ${motion.slower}ms;`,
+    `  --ease-out: ${motion.easeOut};`,
+    `  --ease-standard: ${motion.easeInOut};`,
+    `  --z-sticky: ${zIndex.sticky};`,
+    `  --z-overlay: ${zIndex.overlay};`,
+    `  --z-modal: ${zIndex.modal};`,
+    `  --z-toast: ${zIndex.toast};`,
+    `  --z-max: ${zIndex.max};`,
+  ].join("\n");
+}
+
 /** web：单个 TOKENS 块 = :root（dark）+ [data-theme=light] 两段 */
 function renderWebBlock(): string {
   return [
@@ -68,6 +86,7 @@ function renderWebBlock(): string {
     "  color-scheme: dark;",
     "",
     renderCssVars(dark, "", { webOnly: true }),
+    renderScaleVars(),
     "}",
     "",
     '[data-theme="light"] {',
@@ -82,7 +101,8 @@ function renderWebBlock(): string {
 function renderMiniappBlock(which: "page" | "light"): string {
   const palette = which === "page" ? dark : light;
   const extras = miniappExtraVars[which === "page" ? "dark" : "light"];
-  return renderCssVars(palette, "", { webOnly: false, extras });
+  const vars = renderCssVars(palette, "", { webOnly: false, extras });
+  return which === "page" ? `${vars}\n${renderScaleVars()}` : vars;
 }
 
 /** 替换 `/* TOKENS:BEGIN <name> … *​/` 与 `/* TOKENS:END <name> … *​/` 之间的内容（保留标记注释与缩进） */

@@ -139,7 +139,7 @@ export default function ActivityPanel() {
           title="默认时长（分钟）：没说时长时按此记录"
           className="w-20 rounded border border-line-strong bg-surface px-2 py-2 text-sm tabular-nums outline-none"
         />
-        <span className="text-[10px] text-ink-dim">分钟</span>
+        <span className="text-badge text-ink-dim">分钟</span>
         <button onClick={add} className="btn-primary rounded-lg px-5 py-2 text-sm font-medium">
           新增
         </button>
@@ -171,7 +171,7 @@ export default function ActivityPanel() {
                 onChange={(e) => setEditing({ ...editing, defaultMin: Number(e.target.value) })}
                 className="w-20 rounded border border-line-strong bg-surface px-2 py-1.5 text-sm tabular-nums outline-none"
               />
-              <span className="text-[10px] text-ink-dim">分钟</span>
+              <span className="text-badge text-ink-dim">分钟</span>
               <button onClick={() => setEditing(null)} className="rounded px-3 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
               <button onClick={save} className="btn-inline-save rounded px-3 py-1.5 text-xs font-medium">保存</button>
             </li>
@@ -181,7 +181,7 @@ export default function ActivityPanel() {
               <span className="text-lg">{a.icon}</span>
               <span className="flex-1 text-sm">
                 {a.name}
-                {a.is_preset && <span className="ml-2 rounded bg-elevated px-1.5 py-0.5 text-[9px] text-ink-dim">预设</span>}
+                {a.is_preset && <span className="ml-2 rounded bg-elevated px-1.5 py-0.5 text-micro text-ink-dim">预设</span>}
               </span>
               <span className="text-xs tabular-nums text-ink-dim">默认 {a.default_min} 分钟</span>
               <span className="row-actions hidden gap-1 group-hover:flex">

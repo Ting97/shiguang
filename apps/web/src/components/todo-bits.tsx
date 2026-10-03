@@ -52,7 +52,7 @@ export function TodoCircle({
       title={done ? "点击恢复为未完成" : "点击标记完成"}
       aria-label={done ? "恢复为未完成" : "标记完成"}
       className={`tap-lg flex shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200 ${
-        size === "sm" ? "h-5 w-5 text-[10px]" : "h-6 w-6 text-xs"
+        size === "sm" ? "h-5 w-5 text-badge" : "h-6 w-6 text-xs"
       } ${
         done
           ? "border-sky-500 bg-sky-500 text-white shadow-sm shadow-sky-500/40"

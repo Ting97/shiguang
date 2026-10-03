@@ -268,7 +268,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <p className="mt-4 text-center text-[11px] text-ink-dim">
+          <p className="mt-4 text-center text-micro text-ink-dim">
             {isRegister ? "已有账号？" : "没有账号？"}
             <button
               onClick={() => {
@@ -281,7 +281,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="mt-6 text-center text-[10px] text-ink-faint">个人经营系统 · 钱 · 时间 · 人</p>
+        <p className="mt-6 text-center text-badge text-ink-faint">个人经营系统 · 钱 · 时间 · 人</p>
       </div>
     </main>
   );

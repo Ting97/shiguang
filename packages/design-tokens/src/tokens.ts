@@ -84,8 +84,9 @@ export const light: Palette = {
   ink: "#0f172a",
   "ink-soft": "#334155",
   "ink-mute": "#475569",
-  "ink-dim": "#64748b",
-  "ink-faint": "#94a3b8",
+  // 9-B4 对比度修复：浅色下 #64748b 仅 4.2:1、#94a3b8 仅 2.3:1（AA 需 4.5:1）——各升一档 slate
+  "ink-dim": "#475569",
+  "ink-faint": "#64748b",
   "line-strong": "#cbd5e1",
   line: "#d3dbe4",
   "line-soft": "#e5eaf1",

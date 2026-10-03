@@ -145,7 +145,7 @@ export default function SpaceReflections({
               return (
                 <li key={it.id} className="group rounded-xl border border-line-soft bg-bg/30 px-3 py-2.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-ink-faint">
+                    <p className="text-badge text-ink-faint">
                       {day} {fmtTime(it.created_at)}
                       {it.edited && <span className="ml-1.5">· 已编辑</span>}
                     </p>
@@ -175,7 +175,7 @@ export default function SpaceReflections({
                   >
                     {full ?? it.preview}
                   </p>
-                  <p className="mt-1 text-right text-[10px] text-ink-faint">{it.chars} 字{it.edited ? " · 已编辑" : ""}</p>
+                  <p className="mt-1 text-right text-badge text-ink-faint">{it.chars} 字{it.edited ? " · 已编辑" : ""}</p>
                 </li>
               );
             })}

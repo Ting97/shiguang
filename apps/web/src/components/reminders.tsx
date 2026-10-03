@@ -48,7 +48,7 @@ export default function Reminders({
             setDismissed(true);
           }}
           title="今天不再展示"
-          className="rounded px-1.5 py-0.5 text-[11px] text-warn/70 transition hover:bg-amber-500/15 hover:text-warn"
+          className="rounded px-1.5 py-0.5 text-micro text-warn/70 transition hover:bg-amber-500/15 hover:text-warn"
         >
           知道了 ✕
         </button>
@@ -56,7 +56,7 @@ export default function Reminders({
       <ul className="mt-1.5 space-y-1">
         {items.map((it) => (
           <li key={it.key} className="flex items-start gap-1.5 leading-relaxed">
-            <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/15 text-[10px] leading-none">
+            <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/15 text-badge leading-none">
               {it.kind === "birthday" ? "🎂" : it.kind === "anniversary" ? "💞" : it.overdue ? "⏰" : "📋"}
             </span>
             {it.contactId ? (
@@ -77,7 +77,7 @@ export default function Reminders({
                     onClick={() => markToday(it)}
                     disabled={marked.has(it.todoId!)}
                     title="加入今日 todo（跨零点自动失效）"
-                    className="mt-px shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 px-2.5 py-1 text-[11px] text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
+                    className="mt-px shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 px-2.5 py-1 text-micro text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
                   >
                     {marked.has(it.todoId!) ? "已加入 ✓" : "☀️ 今日"}
                   </button>

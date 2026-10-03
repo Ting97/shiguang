@@ -19,7 +19,7 @@ export function ImageGrid({ images, onOpen }: { images: FeedImage[]; onOpen?: (i
       className={`group relative overflow-hidden rounded-xl bg-elevated ${cls}`}
     >
       {failed.has(img.id) ? (
-        <span className="flex h-full w-full items-center justify-center text-[10px] text-ink-faint">🖼 加载失败</span>
+        <span className="flex h-full w-full items-center justify-center text-badge text-ink-faint">🖼 加载失败</span>
       ) : (
         <img
           src={`/api/files/${img.storageKey}`}

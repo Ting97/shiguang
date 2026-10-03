@@ -399,13 +399,13 @@ export default function ContactGraph({
       {/* 分组图例 */}
       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
         {g.legend.map((l) => (
-          <span key={l.tag} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+          <span key={l.tag} className="flex items-center gap-1.5 text-micro text-ink-mute">
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />
             {l.tag}
             <span className="tabular-nums text-ink-dim">{l.count}</span>
           </span>
         ))}
-        <span className="text-[11px] text-ink-faint">
+        <span className="text-micro text-ink-faint">
           距离=重要程度 · 滚轮/双指缩放 · 拖空白平移 · 双击复位 · 拖节点摆位 · 点击看 TA 档案
         </span>
       </div>

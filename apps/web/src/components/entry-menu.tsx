@@ -48,7 +48,7 @@ function domainState(m: FeedMoment, key: SixKey): "applied" | "none" {
 
 const inputCls =
   "min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-xs outline-none focus:border-sky-500";
-const btnMini = "shrink-0 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-sky-500";
+const btnMini = "shrink-0 inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1.5 text-micro font-medium text-white hover:bg-sky-500";
 
 /** 识别菜单：六域（AI 识别 / 手动添加）。移动端底部弹层，桌面锚定卡片浮层 */
 export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, onSetSpace, onClose, desktopPos }: Props & { desktopPos?: { top: number; left: number } | null }) {
@@ -100,7 +100,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   function manualForm(key: SixKey) {
     const wrap = (label: string, node: React.ReactNode) => (
       <label className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[10px] text-ink-dim">{label}</span>
+        <span className="text-badge text-ink-dim">{label}</span>
         {node}
       </label>
     );
@@ -166,7 +166,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
                 <button
                   key={w}
                   onClick={() => setMood(w)}
-                  className={`rounded-full px-2.5 py-1.5 text-[11px] ${mood === w ? "bg-sky-600 text-white" : "bg-soft/60 text-ink-soft hover:bg-strong"}`}
+                  className={`rounded-full px-2.5 py-1.5 text-micro ${mood === w ? "bg-sky-600 text-white" : "bg-soft/60 text-ink-soft hover:bg-strong"}`}
                 >
                   {w}
                 </button>
@@ -251,10 +251,10 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs text-ink">{label}</span>
-                    <span className="block truncate text-[10px] text-ink-faint">{hint}</span>
+                    <span className="block truncate text-badge text-ink-faint">{hint}</span>
                   </span>
                   {busyDomain === key ? (
-                    <span className="shrink-0 animate-pulse text-[10px] text-accent">识别中…</span>
+                    <span className="shrink-0 animate-pulse text-badge text-accent">识别中…</span>
                   ) : st === "applied" ? (
                     <span className="shrink-0 text-success"><Check size={14} /></span>
                   ) : null}
@@ -277,7 +277,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
 
       {/* 所属空间（REQ-001 R3）：单选归属 / 移除；spaceMenu 列表由父级挂载时拉取 */}
       <div className="mt-2 border-t border-line-soft pt-2">
-        <span className="text-[11px] font-semibold text-ink">所属空间</span>
+        <span className="text-micro font-semibold text-ink">所属空间</span>
         {spaceMenu === null ? (
           <button
             onClick={() => {
@@ -285,13 +285,13 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
                 .then((j) => setSpaceMenu((j.spaces ?? []).filter((s: { status: string }) => s.status === "active")))
                 .catch(() => setSpaceMenu([]));
             }}
-            className="mt-1 block text-[11px] text-accent hover:underline"
+            className="mt-1 block text-micro text-accent hover:underline"
           >
             选择归属…
           </button>
         ) : (
           <div className="mt-1 space-y-0.5">
-            {spaceMenu.length === 0 && <p className="text-[10px] text-ink-faint">还没有进行中的空间</p>}
+            {spaceMenu.length === 0 && <p className="text-badge text-ink-faint">还没有进行中的空间</p>}
             {spaceMenu.map((s: { id: string; name: string; icon: string; color: string }) => (
               <button
                 key={s.id}
@@ -299,7 +299,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
                   void onSetSpace(s.id);
                   onClose();
                 }}
-                className={`flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] transition hover:bg-wash ${
+                className={`flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-micro transition hover:bg-wash ${
                   m.space?.id === s.id ? "font-medium text-accent" : "text-ink-soft"
                 }`}
               >
@@ -314,7 +314,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
                   void onSetSpace(null);
                   onClose();
                 }}
-                className="w-full rounded-lg px-1.5 py-1 text-left text-[11px] text-danger hover:bg-wash"
+                className="w-full rounded-lg px-1.5 py-1 text-left text-micro text-danger hover:bg-wash"
               >
                 移除归属
               </button>
@@ -323,7 +323,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
         )}
       </div>
 
-      <p className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-2 text-[10px] leading-relaxed text-ink-dim">
+      <p className="mt-2 flex items-center gap-1.5 border-t border-line-soft pt-2 text-badge leading-relaxed text-ink-dim">
         <Sparkles size={10} className="shrink-0 text-ai" /> 点行 = AI 识别该类
         <PencilLine size={10} className="ml-1 shrink-0 text-accent" /> 点 ✏️ = 手动补充
       </p>

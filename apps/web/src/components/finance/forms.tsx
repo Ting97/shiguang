@@ -94,7 +94,7 @@ export function TxForm({
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500"
         />
       </div>
-      {err && <p className="text-[11px] text-danger">{err}</p>}
+      {err && <p className="text-micro text-danger">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
           取消
@@ -219,7 +219,7 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 {armArchive.armedId === a.id ? "确认归档?" : "🗑"}
               </button>
             </div>
-            {rowErr[a.id] && <p className="mt-1 text-[11px] text-danger">{rowErr[a.id]}</p>}
+            {rowErr[a.id] && <p className="mt-1 text-micro text-danger">{rowErr[a.id]}</p>}
             {iconPick === a.id && (
               <Dismissable onClose={() => setIconPick(null)} className="mt-2 rounded-lg border border-line-soft bg-surface p-2">
                 <div className="flex flex-wrap gap-1.5">
@@ -290,7 +290,7 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
           添加
         </button>
       </div>
-      {addErr && <p className="text-[11px] text-danger">{addErr}</p>}
+      {addErr && <p className="text-micro text-danger">{addErr}</p>}
     </div>
   );
 }

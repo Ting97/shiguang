@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
+import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
@@ -121,12 +122,12 @@ export default function ProfilePage() {
           meErr ? (
             <div className="py-10 text-center">
               <p className="text-xs text-danger">加载失败：{meErr}</p>
-              <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+              <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                 重试
               </button>
             </div>
           ) : (
-            <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+            <Skeleton rows={3} className="py-2" />
           )
         ) : (
           <>
@@ -143,7 +144,7 @@ export default function ProfilePage() {
                       <>
                         {me.phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] ${
+                          className={`rounded px-1.5 py-0.5 text-badge ${
                             me.phoneVerified ? "bg-emerald-500/10 text-success" : "bg-elevated text-ink-mute"
                           }`}
                         >
@@ -154,12 +155,12 @@ export default function ProfilePage() {
                       "未绑定手机号"
                     )}
                     {me.isAdmin && (
-                      <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] text-accent">
+                      <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-badge text-accent">
                         管理员
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-ink-faint">加入于 {zhDate(me.createdAt)}</p>
+                  <p className="mt-0.5 text-badge text-ink-faint">加入于 {zhDate(me.createdAt)}</p>
                 </div>
               </div>
 
@@ -220,7 +221,7 @@ export default function ProfilePage() {
             {/* 会话安全（4-B FR-C1.3 全端登出） */}
             <section className="glass rounded-2xl p-5">
               <h2 className="mb-2 text-sm font-semibold text-ink-soft">会话安全</h2>
-              <p className="mb-3 text-[11px] text-ink-dim">
+              <p className="mb-3 text-micro text-ink-dim">
                 吊销本账号在所有设备（网页/App）上的登录状态，适合怀疑账号异常时使用；本机也会一并退出。
               </p>
               <button
@@ -266,7 +267,7 @@ export default function ProfilePage() {
                   {quota.byModel && quota.byModel.length > 0 && (
                     <ul className="mt-2.5 space-y-0.5">
                       {quota.byModel.map((m) => (
-                        <li key={m.model} className="flex items-center gap-2 text-[11px] tabular-nums text-ink-mute">
+                        <li key={m.model} className="flex items-center gap-2 text-micro tabular-nums text-ink-mute">
                           <span className="font-medium text-ink-soft">{m.model || "其他模型"}</span>
                           <span className="ml-auto">
                             近30天 {m.d30.calls} 次 · 累计 {m.all.calls} 次 /{" "}
@@ -276,17 +277,17 @@ export default function ProfilePage() {
                       ))}
                     </ul>
                   )}
-                  <p className="mt-2 text-[11px] text-ink-faint">语音速记、AI 识别、复盘均消耗次数；Pro 不限量。支付通道接入前，内测期间联系管理员开通 Pro。</p>
+                  <p className="mt-2 text-micro text-ink-faint">语音速记、AI 识别、复盘均消耗次数；Pro 不限量。支付通道接入前，内测期间联系管理员开通 Pro。</p>
                 </>
               ) : quotaErr ? (
                 <div className="mt-1">
                   <p className="text-xs text-danger">加载失败：{quotaErr}</p>
-                  <button onClick={loadQuota} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                  <button onClick={loadQuota} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                     重试
                   </button>
                 </div>
               ) : (
-                <p className="mt-1 text-xs text-ink-dim">加载中…</p>
+                <div className="mt-2 space-y-1.5"><div className="skeleton h-4 w-40" /><div className="skeleton h-4 w-28" /></div>
               )}
               {/* 管理员：后台入口（管理功能集中在 /admin） */}
               {quota?.isAdmin && (
@@ -297,7 +298,7 @@ export default function ProfilePage() {
                   <span className="text-lg">🛠</span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-semibold text-accent">后台管理</span>
-                    <span className="block text-[11px] text-ink-dim">AI prompt 调优 · 邀请与套餐 · Token 消耗</span>
+                    <span className="block text-micro text-ink-dim">AI prompt 调优 · 邀请与套餐 · Token 消耗</span>
                   </span>
                   <span className="text-ink-mute">→</span>
                 </a>

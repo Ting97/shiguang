@@ -30,25 +30,25 @@ export function OverviewCard({
     <section className="glass mb-4 rounded-2xl p-5">
       <div className="grid grid-cols-3 gap-3 text-center">
         <div>
-          <p className="text-[11px] text-ink-dim">本月支出</p>
+          <p className="text-micro text-ink-dim">本月支出</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-danger">¥{yuan(ov.outCents)}</p>
           {outDelta != null && (
-            <p className={`mt-0.5 text-[10px] tabular-nums ${outDelta > 0 ? "text-danger" : "text-success"}`}>
+            <p className={`mt-0.5 text-badge tabular-nums ${outDelta > 0 ? "text-danger" : "text-success"}`}>
               较上月 {outDelta > 0 ? "+" : ""}{outDelta}%
             </p>
           )}
         </div>
         <div>
-          <p className="text-[11px] text-ink-dim">本月收入</p>
+          <p className="text-micro text-ink-dim">本月收入</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-success">¥{yuan(ov.inCents)}</p>
         </div>
         <div>
-          <p className="text-[11px] text-ink-dim">结余</p>
+          <p className="text-micro text-ink-dim">结余</p>
           {/* whitespace-nowrap：移动端窄容器会把 -¥1506.50 从负号后断行成「-」/「¥1506.50」两行 */}
           <p className={`mt-1 whitespace-nowrap text-xl font-bold tabular-nums ${ov.inCents - ov.outCents >= 0 ? "text-accent" : "text-danger"}`}>
             {fmtMoney(ov.inCents - ov.outCents)}
           </p>
-          {rate != null && <p className="mt-0.5 text-[10px] text-ink-dim">储蓄率 {rate}%</p>}
+          {rate != null && <p className="mt-0.5 text-badge text-ink-dim">储蓄率 {rate}%</p>}
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export function OverviewCard({
           </Dismissable>
         ) : (
           <>
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center justify-between text-micro">
               <span className="text-ink-mute">
                 {ov.budget.monthly_limit_cents > 0
                   ? `月度上限 ¥${yuan(ov.budget.monthly_limit_cents)}`
@@ -94,7 +94,7 @@ export function OverviewCard({
                     style={{ width: `${Math.min(budget.pct, 100)}%` }}
                   />
                 </div>
-                <p className={`mt-1 text-[10px] tabular-nums ${
+                <p className={`mt-1 text-badge tabular-nums ${
                   budget.tone === "over" ? "text-danger" : budget.tone === "warn" ? "text-warn" : "text-ink-dim"
                 }`}>
                   {budget.tone === "over"
@@ -126,7 +126,7 @@ export function OverviewCard({
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
             {slices.slice(0, 6).map((s) => (
-              <span key={s.category} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+              <span key={s.category} className="flex items-center gap-1.5 text-micro text-ink-mute">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: TX_COLORS[s.category] ?? "#64748b" }} />
                 {s.category}
                 <span className="tabular-nums text-ink-dim">¥{yuan(s.cents)} · {s.pct}%</span>

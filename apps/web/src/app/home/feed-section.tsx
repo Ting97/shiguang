@@ -89,7 +89,7 @@ export default function FeedSection({
               key={s.id}
               variant="filter"
               active={spaceFilter === s.id}
-              icon={<span className="text-[12px] leading-none">{s.icon}</span>}
+              icon={<span className="text-xs leading-none">{s.icon}</span>}
               label={s.name}
               onClick={() => onSpaceChange(s.id)}
             />

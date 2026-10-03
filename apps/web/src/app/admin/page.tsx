@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
+import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminDataPanel from "@/components/admin-data-panel";
@@ -70,16 +71,16 @@ export default function AdminPage() {
               meErr ? (
                 <div className="py-10 text-center">
                   <p className="text-xs text-danger">加载失败：{meErr}</p>
-                  <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                  <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                     重试
                   </button>
                 </div>
               ) : (
-                <p className="py-10 text-center text-xs text-ink-dim">加载中…</p>
+                <Skeleton rows={3} className="py-2" />
               )
             ) : tab === "ai" ? (
               <section className="glass rounded-2xl p-5">
-                <p className="mb-4 flex items-center gap-1.5 text-[11px] text-ink-dim">
+                <p className="mb-4 flex items-center gap-1.5 text-micro text-ink-dim">
                   <TagChip icon="💡" label="保存即生效" tone="amber" size="sm" />
                   改坏可回滚版本历史或秒切代码默认；AI 优化只出建议稿，采纳后仍需手动保存
                 </p>

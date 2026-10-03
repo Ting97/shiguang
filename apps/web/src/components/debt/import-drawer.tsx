@@ -108,7 +108,7 @@ export default function DebtImportDrawer({
 
         {!rows && (
           <>
-            <p className="mb-2 text-[11px] text-ink-mute">
+            <p className="mb-2 text-micro text-ink-mute">
               粘贴 <code className="rounded bg-elevated px-1">shiguang-import.json</code> 内容（由
               <code className="mx-0.5 rounded bg-elevated px-1">scripts/trade-export.mjs</code> 在 trade 服务器生成），或选择文件。
             </p>
@@ -134,7 +134,7 @@ export default function DebtImportDrawer({
               value={jsonText}
               onChange={(e) => setJsonText(e.target.value)}
               placeholder='{"exportedAt":"…","liabilities":[…],"accounts":[…]}'
-              className="h-56 w-full rounded-xl border border-line-soft bg-bg/40 p-3 font-mono text-[11px] outline-none placeholder:text-ink-faint"
+              className="h-56 w-full rounded-xl border border-line-soft bg-bg/40 p-3 font-mono text-micro outline-none placeholder:text-ink-faint"
             />
             <button
               onClick={() => void runDry()}
@@ -149,7 +149,7 @@ export default function DebtImportDrawer({
         {rows && (
           <>
             {preview && (
-              <div className="mb-3 rounded-xl border border-line-soft bg-bg/40 p-3 text-[11px] text-ink-mute">
+              <div className="mb-3 rounded-xl border border-line-soft bg-bg/40 p-3 text-micro text-ink-mute">
                 共 {rows.length} 行：新建 <b className="text-accent">{preview.newCount}</b> · 跳过 <b>{preview.skipCount}</b>；
                 总负债 {fmt(preview.beforeTotalCents)} → <b className="text-ink">{fmt(preview.afterTotalCents)}</b>
               </div>
@@ -170,15 +170,15 @@ export default function DebtImportDrawer({
                     className="size-3.5 accent-sky-500"
                   />
                   <span className="min-w-0 flex-1 truncate font-medium text-ink">{r.name}</span>
-                  <span className="text-[10px] text-ink-faint">{r.type}</span>
+                  <span className="text-badge text-ink-faint">{r.type}</span>
                   <span className="tabular-nums text-ink-mute">{fmt(r.balanceCents ?? r.principalCents)}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] ${r.action === "skip" ? "bg-elevated text-ink-faint" : "bg-sky-500/15 text-accent"}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-badge ${r.action === "skip" ? "bg-elevated text-ink-faint" : "bg-sky-500/15 text-accent"}`}>
                     {r.action === "skip" ? "已存在·跳过" : "将创建"}
                   </span>
                 </li>
               ))}
             </ul>
-            {err && <p className="mb-2 text-[11px] text-danger">{err}</p>}
+            {err && <p className="mb-2 text-micro text-danger">{err}</p>}
       {doneMsg && <p className="text-xs text-success">{doneMsg}</p>}
             <div className="flex gap-2">
               <button onClick={() => setRows(null)} className="flex-1 rounded-xl border border-line-soft py-2 text-sm text-ink-mute hover:text-ink">
@@ -195,7 +195,7 @@ export default function DebtImportDrawer({
           </>
         )}
 
-        {!rows && err && <p className="mt-2 text-[11px] text-danger">{err}</p>}
+        {!rows && err && <p className="mt-2 text-micro text-danger">{err}</p>}
       </div>
     </div>
   );

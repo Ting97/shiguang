@@ -13,7 +13,7 @@ export default function CatalogTable({ catalog }: { catalog: CatalogPayload }) {
       <div className="overflow-x-auto rounded-xl border border-line-soft">
         <table className="w-full min-w-[720px] border-collapse text-left text-xs">
           <thead>
-            <tr className="border-b border-line-soft bg-elevated/60 text-[10px] tracking-wide text-ink-faint">
+            <tr className="border-b border-line-soft bg-elevated/60 text-badge tracking-wide text-ink-faint">
               <th className="px-2.5 py-1.5 font-medium">key</th>
               <th className="px-2.5 py-1.5 font-medium">名称</th>
               <th className="px-2.5 py-1.5 font-medium">描述</th>
@@ -25,19 +25,19 @@ export default function CatalogTable({ catalog }: { catalog: CatalogPayload }) {
           <tbody>
             {catalog.datasets.map((d) => (
               <tr key={d.key} className="border-b border-line-soft/50 align-top last:border-0">
-                <td className="px-2.5 py-1.5 font-mono text-[10px] text-accent">{d.key}</td>
+                <td className="px-2.5 py-1.5 font-mono text-badge text-accent">{d.key}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5 font-medium text-ink">{d.name}</td>
-                <td className="px-2.5 py-1.5 text-[11px] text-ink-dim">{d.desc}</td>
+                <td className="px-2.5 py-1.5 text-micro text-ink-dim">{d.desc}</td>
                 <td className="px-2.5 py-1.5">
                   <TagChip label={PARTITION_META[d.partition].label} tone={PARTITION_META[d.partition].tone} size="sm" />
                 </td>
-                <td className="px-2.5 py-1.5 font-mono text-[10px] text-ink-mute">{d.timeCol ?? "—"}</td>
+                <td className="px-2.5 py-1.5 font-mono text-badge text-ink-mute">{d.timeCol ?? "—"}</td>
                 <td className="px-2.5 py-1.5">
                   <div className="flex max-w-52 flex-wrap gap-1">
                     {d.promptRefs.length ? (
                       d.promptRefs.map((p) => <TagChip key={p} label={p} tone="sky" size="sm" title="引用该数据集的 prompt key" />)
                     ) : (
-                      <span className="text-[10px] text-ink-faint">—</span>
+                      <span className="text-badge text-ink-faint">—</span>
                     )}
                   </div>
                 </td>
@@ -46,7 +46,7 @@ export default function CatalogTable({ catalog }: { catalog: CatalogPayload }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[10px] text-ink-faint">{catalog._meta.note}</p>
+      <p className="mt-2 text-badge text-ink-faint">{catalog._meta.note}</p>
     </div>
   );
 }

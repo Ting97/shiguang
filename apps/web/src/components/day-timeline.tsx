@@ -170,7 +170,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
           {Array.from({ length: 25 }, (_, h) => (
             <div key={h} className="absolute inset-x-0 border-t border-line-soft/70" style={{ top: `${h * 60 * PX_PER_MIN}px` }}>
               <span
-                className={`absolute -top-2 left-1.5 text-[10px] tabular-nums ${h % 3 === 0 ? "text-ink-mute" : "text-ink-faint"}`}
+                className={`absolute -top-2 left-1.5 text-badge tabular-nums ${h % 3 === 0 ? "text-ink-mute" : "text-ink-faint"}`}
               >
                 {h % 3 === 0 ? `${h}点` : ""}
               </span>
@@ -190,7 +190,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
               style={{ top: `${g.s * PX_PER_MIN}px`, height: `${Math.max((g.e - g.s) * PX_PER_MIN - 2, 8)}px` }}
             >
               {(g.e - g.s) * PX_PER_MIN >= 22 && (
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 text-[10px] text-ink-faint group-hover:text-warn/80">
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 text-badge text-ink-faint group-hover:text-warn/80">
                   ✦ 未记录 {hmOf(g.s)}–{hmOf(g.e)}（{(g.e - g.s) >= 60 ? `${Math.floor((g.e - g.s) / 60)}小时${(g.e - g.s) % 60 || ""}` : `${g.e - g.s}分钟`}）
                 </span>
               )}
@@ -218,13 +218,13 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
                   <span className="pointer-events-none flex h-full items-center gap-1.5 truncate text-xs">
                     <span>{b.icon}</span>
                     <span className="truncate font-medium text-ink">{b.title}</span>
-                    <span className="shrink-0 tabular-nums text-[10px] text-ink-mute">
+                    <span className="shrink-0 tabular-nums text-badge text-ink-mute">
                       {hmOf(s)}–{hmOf(e)}
                     </span>
                   </span>
                 )}
                 {h < 18 && h >= 9 && (
-                  <span className="pointer-events-none flex h-full items-center text-[10px] text-ink-soft">{b.icon}</span>
+                  <span className="pointer-events-none flex h-full items-center text-badge text-ink-soft">{b.icon}</span>
                 )}
               </button>
             );
@@ -233,7 +233,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
           {isToday && nowMin != null && (
             <div className="pointer-events-none absolute inset-x-0 z-10" style={{ top: `${nowMin * PX_PER_MIN}px` }}>
               <div className="relative border-t-2 border-rose-500/80">
-                <span className="absolute -top-2.5 right-1 rounded bg-rose-500 px-1 text-[9px] font-bold tabular-nums text-white">
+                <span className="absolute -top-2.5 right-1 rounded bg-rose-500 px-1 text-micro font-bold tabular-nums text-white">
                   {hmOf(nowMin)}
                 </span>
               </div>
@@ -241,7 +241,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
           )}
         </div>
       </div>
-      <p className="mt-2 text-[10px] text-ink-faint">
+      <p className="mt-2 text-badge text-ink-faint">
         提示：点击彩色块可修改 · 点击空白处自动定位整点 1 小时补录（表单内可调时间）{isToday ? " · 红线为当前时刻" : ""}
       </p>
     </div>

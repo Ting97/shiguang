@@ -58,7 +58,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
           const isToday = d === bjToday();
           return (
             <button key={d} onClick={() => onPickDay(d)} className="group text-left">
-              <div className={`mb-1 rounded px-1 py-0.5 text-center text-[10px] ${isToday ? "bg-sky-600 font-bold" : "bg-elevated/80 text-ink-mute"}`}>
+              <div className={`mb-1 rounded px-1 py-0.5 text-center text-badge ${isToday ? "bg-sky-600 font-bold" : "bg-elevated/80 text-ink-mute"}`}>
                 {weekName(d)} {zhDate(d).replace("月", "/").replace("日", "")}
               </div>
               <div className="relative h-[432px] overflow-hidden rounded border border-line-soft bg-bg/40 group-hover:border-sky-600/50">
@@ -84,7 +84,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
                   );
                 })}
               </div>
-              <p className="mt-1 text-center text-[10px] tabular-nums text-ink-dim">
+              <p className="mt-1 text-center text-badge tabular-nums text-ink-dim">
                 {total > 0 ? zhDuration(total) : "—"}
               </p>
             </button>
@@ -109,7 +109,7 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
             {sorted.map(([id, min]) => {
               const a = actMap.get(id);
               return (
-                <span key={id} className="flex items-center gap-1.5 text-[11px] text-ink-mute">
+                <span key={id} className="flex items-center gap-1.5 text-micro text-ink-mute">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: a?.color }} />
                   {a?.icon} {a?.name} <span className="tabular-nums text-ink-dim">{zhDuration(min)}</span>
                 </span>

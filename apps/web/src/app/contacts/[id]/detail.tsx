@@ -193,7 +193,7 @@ export function ContactDetailPage() {
                 {contact.name}
                 {contact.alias && <span className="text-sm font-normal text-ink-dim">（{contact.alias}）</span>}
                 <TagChip label={contact.group_tag} tone={GROUP_TONE[contact.group_tag] ?? "sky"} size="sm" className="font-normal" />
-                <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-[10px] font-normal text-accent">
+                <span className="rounded bg-gradient-to-r from-sky-500/20 to-indigo-500/20 px-1.5 py-0.5 text-badge font-normal text-accent">
                   {importanceLabel(contact.importance)}
                 </span>
               </h1>
@@ -238,7 +238,7 @@ export function ContactDetailPage() {
           </div>
           {/* 亲密度 */}
           <div className="mt-4">
-            <div className="mb-1 flex items-center justify-between text-[11px] text-ink-dim">
+            <div className="mb-1 flex items-center justify-between text-micro text-ink-dim">
               <span>亲密度</span>
               <span className="tabular-nums">{contact.intimacy}/100</span>
             </div>
@@ -262,7 +262,7 @@ export function ContactDetailPage() {
             <h2 className="text-sm font-semibold text-ink-soft">
               ✨ AI 交往画像
               {contact.ai_profile_at && (
-                <span className="ml-2 text-[11px] font-normal text-ink-dim">提炼于 {bjMDHM(contact.ai_profile_at)}</span>
+                <span className="ml-2 text-micro font-normal text-ink-dim">提炼于 {bjMDHM(contact.ai_profile_at)}</span>
               )}
             </h2>
             <button
@@ -284,25 +284,25 @@ export function ContactDetailPage() {
               <p className="text-sm leading-relaxed text-ink">{contact.ai_profile.summary}</p>
               {contact.ai_profile.likes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-success/80">💚 喜欢</span>
+                  <span className="text-micro text-success/80">💚 喜欢</span>
                   {contact.ai_profile.likes.map((x) => (
-                    <span key={x} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-success">{x}</span>
+                    <span key={x} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-micro text-success">{x}</span>
                   ))}
                 </div>
               )}
               {contact.ai_profile.dislikes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-danger/80">⚠️ 忌讳</span>
+                  <span className="text-micro text-danger/80">⚠️ 忌讳</span>
                   {contact.ai_profile.dislikes.map((x) => (
-                    <span key={x} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-danger">{x}</span>
+                    <span key={x} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-micro text-danger">{x}</span>
                   ))}
                 </div>
               )}
               {contact.ai_profile.facts.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-accent/80">📌 记住</span>
+                  <span className="text-micro text-accent/80">📌 记住</span>
                   {contact.ai_profile.facts.map((x) => (
-                    <span key={x} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-accent">{x}</span>
+                    <span key={x} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-micro text-accent">{x}</span>
                   ))}
                 </div>
               )}
@@ -339,7 +339,7 @@ export function ContactDetailPage() {
                     </span>
                     <div className="min-w-0 flex-1 rounded-xl border border-line-soft bg-bg/40 px-3 py-2">
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-ink-mute">{t.type}</span>
+                        <span className="rounded bg-elevated px-1.5 py-0.5 text-badge text-ink-mute">{t.type}</span>
                         <span className="shrink-0 tabular-nums text-ink-dim">{zhDay(when)}</span>
                         {t.tx_amount_cents != null && (
                           <span className={`shrink-0 tabular-nums ${t.tx_direction === "out" ? "text-danger" : "text-success"}`}>
@@ -349,7 +349,7 @@ export function ContactDetailPage() {
                       </div>
                       {t.summary && <p className="mt-1 text-sm text-ink">{displaySummary(t.summary)}</p>}
                       {t.entry_text && t.entry_text !== t.summary && (
-                        <p className="mt-0.5 truncate text-[11px] text-ink-dim">「{t.entry_text}」</p>
+                        <p className="mt-0.5 truncate text-micro text-ink-dim">「{t.entry_text}」</p>
                       )}
                     </div>
                   </li>
@@ -369,11 +369,11 @@ export function ContactDetailPage() {
             <ul className="space-y-1">
               {money.map((m) => (
                 <li key={m.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-elevated/60">
-                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${m.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-badge ${m.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
                     {m.direction === "out" ? "送" : "收"}
                   </span>
                   <span className="flex-1 truncate text-xs text-ink-soft">{m.note || m.category}</span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">{zhDay(m.occurred_at)}</span>
+                  <span className="shrink-0 text-micro tabular-nums text-ink-dim">{zhDay(m.occurred_at)}</span>
                   <span className={`shrink-0 text-sm font-semibold tabular-nums ${m.direction === "out" ? "text-danger" : "text-success"}`}>
                     {m.direction === "out" ? "-" : "+"}
                     ¥{yuan(m.amount_cents)}

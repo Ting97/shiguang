@@ -185,7 +185,7 @@ export default function Home() {
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
 
-        <footer className="mt-10 text-center text-[10px] text-ink-faint">
+        <footer className="mt-10 text-center text-badge text-ink-faint">
           拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang
         </footer>
       </div>

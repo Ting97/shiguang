@@ -70,14 +70,14 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
       <section className="glass rounded-2xl p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
           <TagChip icon="🏷️" label="类别清单" tone="sky" />
-          <span className="text-[10px] font-normal text-ink-faint">AI 识别可用类别全域（活动分类 / 目标空间为 DB 实时，其余为共享包枚举）</span>
+          <span className="text-badge font-normal text-ink-faint">AI 识别可用类别全域（活动分类 / 目标空间为 DB 实时，其余为共享包枚举）</span>
         </h2>
         <div className="mt-3">
           {!groups ? (
             groupsErr ? (
               <div className="py-2 text-center">
                 <p className="text-xs text-danger">加载失败：{groupsErr}</p>
-                <button onClick={loadGroups} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                <button onClick={loadGroups} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                   重试
                 </button>
               </div>
@@ -94,14 +94,14 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
       <section className="glass rounded-2xl p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
           <TagChip icon="🗂️" label="数据目录" tone="violet" />
-          <span className="text-[10px] font-normal text-ink-faint">个性化注入 / 注入项可引用的全部数据集注册表（列白名单 + 分区）</span>
+          <span className="text-badge font-normal text-ink-faint">个性化注入 / 注入项可引用的全部数据集注册表（列白名单 + 分区）</span>
         </h2>
         <div className="mt-3">
           {!catalog ? (
             catalogErr ? (
               <div className="py-2 text-center">
                 <p className="text-xs text-danger">加载失败：{catalogErr}</p>
-                <button onClick={loadCatalog} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                <button onClick={loadCatalog} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                   重试
                 </button>
               </div>
@@ -118,14 +118,14 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
       <section className="glass rounded-2xl p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
           <TagChip icon="🔎" label="在线试查" tone="emerald" />
-          <span className="text-[10px] font-normal text-ink-faint">只读白名单查询（强制时间窗 ≤92 天；仅行为型 / AI 衍生可查）</span>
+          <span className="text-badge font-normal text-ink-faint">只读白名单查询（强制时间窗 ≤92 天；仅行为型 / AI 衍生可查）</span>
         </h2>
         <div className="mt-3">
           {!catalog ? (
             catalogErr ? (
               <div className="py-2 text-center">
                 <p className="text-xs text-danger">加载失败：{catalogErr}</p>
-                <button onClick={loadCatalog} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+                <button onClick={loadCatalog} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
                   重试
                 </button>
               </div>

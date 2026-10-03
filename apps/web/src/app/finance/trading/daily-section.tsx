@@ -63,8 +63,8 @@ export default function DailySection({ accountId }: { accountId: string }) {
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
         <TagChip icon="📅" label={mode === "week" ? "每周盈亏" : "每日盈亏"} tone="sky" />
-        <span className="text-[10px] text-ink-faint">{filtered ? `${fromSel || "…"} ~ ${toSel || "今天"}` : "按北京时区切日"}</span>
-        <span className="ml-auto flex overflow-hidden rounded-lg border border-line-strong text-[10px]">
+        <span className="text-badge text-ink-faint">{filtered ? `${fromSel || "…"} ~ ${toSel || "今天"}` : "按北京时区切日"}</span>
+        <span className="ml-auto flex overflow-hidden rounded-lg border border-line-strong text-badge">
           <button
             onClick={() => setMode("day")}
             className={`px-2 py-0.5 ${mode === "day" ? "bg-sky-500/15 font-medium text-sky-400" : "text-ink-dim"}`}
@@ -81,7 +81,7 @@ export default function DailySection({ accountId }: { accountId: string }) {
       </p>
 
       {/* 时间筛选：快捷段（近30天/本月/上月）+ 自定义起止（start==end 即看某一天） */}
-      <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[10px]">
+      <div className="mb-3 flex flex-wrap items-center gap-1.5 text-badge">
         <button
           onClick={() => {
             setFromSel("");
@@ -114,7 +114,7 @@ export default function DailySection({ accountId }: { accountId: string }) {
             type="date"
             value={fromSel}
             onChange={(e) => setFromSel(e.target.value)}
-            className="rounded-lg border border-line-strong bg-surface px-1.5 py-0.5 text-[10px] outline-none focus:border-sky-500"
+            className="rounded-lg border border-line-strong bg-surface px-1.5 py-0.5 text-badge outline-none focus:border-sky-500"
             aria-label="开始日期"
           />
           <span className="text-ink-faint">~</span>
@@ -122,7 +122,7 @@ export default function DailySection({ accountId }: { accountId: string }) {
             type="date"
             value={toSel}
             onChange={(e) => setToSel(e.target.value)}
-            className="rounded-lg border border-line-strong bg-surface px-1.5 py-0.5 text-[10px] outline-none focus:border-sky-500"
+            className="rounded-lg border border-line-strong bg-surface px-1.5 py-0.5 text-badge outline-none focus:border-sky-500"
             aria-label="结束日期"
           />
         </span>
@@ -131,7 +131,7 @@ export default function DailySection({ accountId }: { accountId: string }) {
         loadErr ? (
           <div className="py-4 text-center">
             <p className="text-xs text-danger">加载失败：{loadErr}</p>
-            <button onClick={retry} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-[11px] font-medium">
+            <button onClick={retry} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
               重试
             </button>
           </div>
@@ -197,7 +197,7 @@ export default function DailySection({ accountId }: { accountId: string }) {
               return (
                 <span key={`x-${mode === "week" ? (d as WeekDay).weekStart : (d as DailyDay).ymd}`} className="min-w-0 flex-1 text-center">
                   {(i % 5 === 0 || isCur) && (
-                    <span className={`text-[9px] tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
+                    <span className={`text-micro tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
                       {mode === "week"
                         ? Number(label.slice(0, 2))
                         : `${Number(label.slice(0, 2))}/${Number(label.slice(3, 5))}`}
@@ -207,13 +207,13 @@ export default function DailySection({ accountId }: { accountId: string }) {
               );
             })}
           </div>
-          <p className="mt-2 text-center text-[9px] text-ink-faint">
+          <p className="mt-2 text-center text-micro text-ink-faint">
             <span className="text-sky-400">━</span> 净盈亏走势（虚线中轴为 0）· 悬停看每日明细
           </p>
 
           {/* 横向滚动防溢出：固定列宽合计超 375px 小屏（不重排列，溢出可左右滑） */}
           <div className="mt-3 overflow-x-auto border-t border-line-soft pt-3">
-            <div className="flex items-center gap-2 px-1 pb-1 text-[10px] text-ink-faint">
+            <div className="flex items-center gap-2 px-1 pb-1 text-badge text-ink-faint">
               <span className="w-20">日期</span>
               <span className="w-10 text-right">笔数</span>
               <span className="w-16 text-right">手数</span>
@@ -259,10 +259,10 @@ export default function DailySection({ accountId }: { accountId: string }) {
                     </span>
                     <span className="w-16 shrink-0 text-right">
                       {(d as DailyDay).streak > 0 && (
-                        <span className="rounded bg-emerald-500/15 px-1 text-[10px] text-success">连赢{(d as DailyDay).streak}</span>
+                        <span className="rounded bg-emerald-500/15 px-1 text-badge text-success">连赢{(d as DailyDay).streak}</span>
                       )}
                       {(d as DailyDay).streak < 0 && (
-                        <span className="rounded bg-rose-500/15 px-1 text-[10px] text-danger">连亏{-(d as DailyDay).streak}</span>
+                        <span className="rounded bg-rose-500/15 px-1 text-badge text-danger">连亏{-(d as DailyDay).streak}</span>
                       )}
                       {(d as DailyDay).streak === 0 && <span className="text-ink-faint">—</span>}
                     </span>

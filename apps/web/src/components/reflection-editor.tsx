@@ -88,7 +88,7 @@ export default function ReflectionEditor({
           className="input-glow min-h-[40vh] w-full flex-1 resize-none rounded-xl border border-line-soft bg-surface/60 px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-ink-faint"
         />
         <div className="mt-2 flex items-center justify-between gap-2">
-          <span className={`text-[11px] tabular-nums ${over ? "text-danger" : chars > 45_000 ? "text-warn" : "text-ink-faint"}`}>
+          <span className={`text-micro tabular-nums ${over ? "text-danger" : chars > 45_000 ? "text-warn" : "text-ink-faint"}`}>
             {chars}/50000{over ? " · 超出上限" : ""}
           </span>
           <div className="flex gap-2">

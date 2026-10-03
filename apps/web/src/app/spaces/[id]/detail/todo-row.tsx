@@ -44,8 +44,8 @@ export default function TodoRowItem(opts: {
             >
               {t.title}
             </button>
-            {t.children.length > 0 && <span className="shrink-0 text-[11px] tabular-nums text-ink-faint">{(() => { const p = childProgress(t.children); return p ? `${p.n}/${p.m}` : ""; })()}</span>}
-            {tag && <span className={`shrink-0 text-[11px] ${tag.cls}`}>{tag.text}</span>}
+            {t.children.length > 0 && <span className="shrink-0 text-micro tabular-nums text-ink-faint">{(() => { const p = childProgress(t.children); return p ? `${p.n}/${p.m}` : ""; })()}</span>}
+            {tag && <span className={`shrink-0 text-micro ${tag.cls}`}>{tag.text}</span>}
             <button
               onClick={(e) => {
                 if (pendingCount(t) > 0) {
@@ -79,7 +79,7 @@ export default function TodoRowItem(opts: {
               <button
                 onClick={() => setExpanded((s) => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
                 title={open ? "收起行动" : "展开行动"}
-                className={`-mx-2 -my-3 shrink-0 p-2 text-[10px] text-ink-mute transition-transform hover:text-ink ${open ? "rotate-180" : ""}`}
+                className={`-mx-2 -my-3 shrink-0 p-2 text-badge text-ink-mute transition-transform hover:text-ink ${open ? "rotate-180" : ""}`}
               >
                 ▼
               </button>
@@ -93,11 +93,11 @@ export default function TodoRowItem(opts: {
                 return (
                   <div key={c.id} className="group/child flex items-center gap-2.5 rounded-lg px-1.5 py-1 hover:bg-elevated/60">
                     <TodoCircle size="sm" done={cDone} disabled={busyId === c.id} onClick={() => patchTodo(c.id, cDone ? { undone: true } : { done: true }, cDone ? "↩️ 已恢复" : "✅ 已完成")}/>
-                    <span className={`min-w-0 flex-1 cursor-pointer truncate text-[13px] transition hover:text-accent ${cDone ? "text-ink-faint line-through" : ""}`} onClick={() => (noteOpen === c.id ? setNoteOpen(null) : openNote(c))} title={`${c.title}（点击编辑详情）`}>
+                    <span className={`min-w-0 flex-1 cursor-pointer truncate text-body transition hover:text-accent ${cDone ? "text-ink-faint line-through" : ""}`} onClick={() => (noteOpen === c.id ? setNoteOpen(null) : openNote(c))} title={`${c.title}（点击编辑详情）`}>
                       {c.title}
                     </span>
                     {c.repeat_daily && <TagChip icon="🔁" label={c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : "每日"} tone="emerald" size="sm" />}
-                    {c.note && <span className="shrink-0 text-[10px] text-ink-faint">📄</span>}
+                    {c.note && <span className="shrink-0 text-badge text-ink-faint">📄</span>}
                     <button
                       onClick={(e) => {
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -124,7 +124,7 @@ export default function TodoRowItem(opts: {
                     }}
                     placeholder="＋ 添加行动，回车保存"
                     maxLength={200}
-                    className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-ink-faint"
+                    className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-ink-faint"
                   />
                 </div>
               )}
@@ -132,7 +132,7 @@ export default function TodoRowItem(opts: {
                 <button
                   onClick={() => decompose({ id: t.id, title: t.title, isAction: false })}
                   disabled={busyId === t.id || done}
-                  className="rounded-lg px-2 py-1 text-[11px] text-ai/80 transition hover:bg-soft disabled:opacity-40"
+                  className="rounded-lg px-2 py-1 text-micro text-ai/80 transition hover:bg-soft disabled:opacity-40"
                 >
                   {busyId === t.id ? "✨ AI 拆解中…" : "✨ 让 AI 拆解为可执行的行动"}
                 </button>

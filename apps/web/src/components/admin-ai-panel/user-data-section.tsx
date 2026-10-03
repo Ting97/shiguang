@@ -63,22 +63,22 @@ export default function UserDataSection({
         }}
         className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left"
       >
-        <span className={`text-[10px] text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+        <span className={`text-badge text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
         <span className="text-xs font-medium text-ink">🧩 个性化注入</span>
         {userDataDraft.length > 0 && <TagChip label={`${userDataDraft.length}/5 数据集`} tone="violet" size="sm" />}
         {userDataDirty && <TagChip label="注入配置未保存" tone="amber" size="sm" />}
         <span className="flex-1" />
-        <span className="text-[10px] text-ink-faint">把你的真实数据块装配进 user 输入</span>
+        <span className="text-badge text-ink-faint">把你的真实数据块装配进 user 输入</span>
       </button>
 
       {open && (
         <div className="space-y-2 px-3 pb-3">
-          <p className="text-[11px] text-ink-faint">
+          <p className="text-micro text-ink-faint">
             选择要注入的数据集（仅行为型 / AI 衍生可注入，类别型为维度表；最多 5 个，保存后装配期生效）
           </p>
           <div className="flex flex-wrap gap-1.5">
             {!catalogDatasets ? (
-              <span className="text-[11px] text-ink-faint">{catalogLoading ? "数据目录加载中…" : "（目录暂不可用）"}</span>
+              <span className="text-micro text-ink-faint">{catalogLoading ? "数据目录加载中…" : "（目录暂不可用）"}</span>
             ) : (
               catalogDatasets.map((d) => {
                 const on = userDataDraft.some((e) => e.dataset === d.key);
@@ -90,7 +90,7 @@ export default function UserDataSection({
                     disabled={isCategory || full}
                     onClick={() => toggleDataset(d.key)}
                     title={isCategory ? "类别型数据集为维度表，不参与个性化注入" : full ? "最多选择 5 个数据集" : d.desc}
-                    className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                    className={`rounded-full px-2.5 py-1 text-micro transition ${
                       on
                         ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-sm"
                         : isCategory
@@ -102,7 +102,7 @@ export default function UserDataSection({
                   >
                     {on ? "✓ " : ""}
                     {d.name}
-                    <span className="ml-1 font-mono text-[9px] opacity-70">{d.key}</span>
+                    <span className="ml-1 font-mono text-micro opacity-70">{d.key}</span>
                   </button>
                 );
               })
@@ -114,9 +114,9 @@ export default function UserDataSection({
               {userDataDraft.map((e) => {
                 const d = catalogDatasets?.find((x) => x.key === e.dataset);
                 return (
-                  <li key={e.dataset} className="flex flex-wrap items-center gap-2 rounded-lg border border-line-soft bg-bg/30 px-2.5 py-1.5 text-[11px]">
+                  <li key={e.dataset} className="flex flex-wrap items-center gap-2 rounded-lg border border-line-soft bg-bg/30 px-2.5 py-1.5 text-micro">
                     <TagChip label={d?.name ?? e.dataset} tone={d ? PARTITION_META[d.partition].tone : "slate"} size="sm" />
-                    <span className="font-mono text-[9px] text-ink-faint">{e.dataset}</span>
+                    <span className="font-mono text-micro text-ink-faint">{e.dataset}</span>
                     <span className="flex-1" />
                     <label className="flex items-center gap-1 text-ink-dim" title="时间窗 1~92 天（留空 = 默认 30 天）">
                       天数
@@ -144,7 +144,7 @@ export default function UserDataSection({
                     </label>
                     <button
                       onClick={() => toggleDataset(e.dataset)}
-                      className="rounded px-1.5 py-0.5 text-[10px] text-ink-mute transition hover:bg-rose-500/10 hover:text-danger"
+                      className="rounded px-1.5 py-0.5 text-badge text-ink-mute transition hover:bg-rose-500/10 hover:text-danger"
                       title="移除该数据集"
                     >
                       移除
@@ -155,7 +155,7 @@ export default function UserDataSection({
             </ul>
           )}
 
-          <p className={`text-[11px] ${userDataOverCap ? "text-danger" : "text-ink-faint"}`}>
+          <p className={`text-micro ${userDataOverCap ? "text-danger" : "text-ink-faint"}`}>
             预计注入 ≈ <span className="tabular-nums">{userDataEstChars}</span> / {USER_DATA_CAP} 字符（按 Σ条数上限×120 估算，线上装配超顶会截断）
             {userDataOverCap && " —— 超出上限，请下调条数或移除数据集（保存已禁用）"}
           </p>

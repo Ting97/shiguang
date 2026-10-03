@@ -184,27 +184,27 @@ export default function TradingPage() {
               {active && (
                 <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line-soft pt-3 text-center sm:grid-cols-5">
                   <div>
-                    <p className="text-[11px] text-ink-dim">总净盈亏</p>
+                    <p className="text-micro text-ink-dim">总净盈亏</p>
                     <p className={`mt-1 text-xl font-bold tabular-nums ${pnlColor(active.netProfit)}`}>
                       {fmtUsd(active.netProfit)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-ink-dim">胜率</p>
+                    <p className="text-micro text-ink-dim">胜率</p>
                     <p className="mt-1 text-xl font-bold tabular-nums text-ink">
                       {active.winRate != null ? `${active.winRate}%` : "—"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-ink-dim">笔数</p>
+                    <p className="text-micro text-ink-dim">笔数</p>
                     <p className="mt-1 text-xl font-bold tabular-nums text-ink">{active.trades}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-ink-dim">总手数</p>
+                    <p className="text-micro text-ink-dim">总手数</p>
                     <p className="mt-1 text-xl font-bold tabular-nums text-ink">{active.lots.toFixed(2)}</p>
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <p className="text-[11px] text-ink-dim">平仓区间</p>
+                    <p className="text-micro text-ink-dim">平仓区间</p>
                     <p className="mt-1.5 text-xs font-semibold tabular-nums text-ink-soft">
                       {active.firstClose ? `${bjDate(active.firstClose)}` : "—"}
                       {active.lastClose ? ` ~ ${bjDate(active.lastClose)}` : ""}
@@ -229,7 +229,7 @@ export default function TradingPage() {
               )
             )}
 
-            <footer className="mt-10 text-center text-[10px] text-ink-faint">
+            <footer className="mt-10 text-center text-badge text-ink-faint">
               拾光 · 交易 · 独立核算不入净资产，统计零 AI 消耗
             </footer>
           </>

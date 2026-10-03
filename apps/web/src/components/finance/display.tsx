@@ -20,10 +20,10 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete, delArmed = false }: { tx: T
   return (
     <>
       {/* 上行：徽章 + 分类/对方/备注 + 金额；窄屏自动折行后下行是 日期+账户+操作 */}
-      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${t.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
+      <span className={`shrink-0 rounded px-1.5 py-0.5 text-badge ${t.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
         {t.direction === "out" ? "支" : "收"}
       </span>
-      <span className="w-12 shrink-0 text-[11px] tabular-nums text-ink-dim" title={zhDay(t.occurred_at)}>
+      <span className="w-12 shrink-0 text-micro tabular-nums text-ink-dim" title={zhDay(t.occurred_at)}>
         {compactDay}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm">
@@ -35,7 +35,7 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete, delArmed = false }: { tx: T
         {t.direction === "out" ? "-" : "+"}¥{yuan(t.amount_cents)}
       </span>
       {t.account_name && (
-        <span className="row-secondary hidden shrink-0 items-center gap-1 text-[11px] text-ink-dim sm:flex">
+        <span className="row-secondary hidden shrink-0 items-center gap-1 text-micro text-ink-dim sm:flex">
           {t.account_icon} {t.account_name}
         </span>
       )}
@@ -71,7 +71,7 @@ export function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
   const max = Math.max(100, ...trend.map((t) => Math.abs(t.rate ?? 0)));
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
-      <p className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-mute">
+      <p className="mb-2 flex items-center gap-1.5 text-micro text-ink-mute">
         <TagChip icon="📈" label="储蓄率 · 近 6 个月" tone="emerald" />
       </p>
       <div className="flex items-end justify-between gap-2">
@@ -81,7 +81,7 @@ export function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
           return (
             <div key={t.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
               <span
-                className={`text-[10px] tabular-nums ${
+                className={`text-badge tabular-nums ${
                   t.rate == null ? "text-ink-faint" : t.rate >= 0 ? "text-success" : "text-danger"
                 }`}
               >
@@ -98,7 +98,7 @@ export function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
                 } ${isCur ? "ring-1 ring-sky-400/60" : ""}`}
                 style={{ height: h }}
               />
-              <span className={`text-[9px] tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
+              <span className={`text-micro tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
                 {Number(t.month.slice(5))}月
               </span>
             </div>
@@ -162,7 +162,7 @@ export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel
           保存
         </button>
       </span>
-      {msg && <p className="w-full text-[11px] text-danger">{msg}</p>}
+      {msg && <p className="w-full text-micro text-danger">{msg}</p>}
     </div>
   );
 }

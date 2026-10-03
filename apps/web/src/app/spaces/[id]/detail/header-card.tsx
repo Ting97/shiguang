@@ -58,7 +58,7 @@ export default function SpaceHeaderCard(opts: {
             />
           </h1>
           {space.description && <p className="mt-1 text-xs leading-relaxed text-ink-mute">{space.description}</p>}
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-dim">
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-micro text-ink-dim">
             {space.started_at && <span>{bjDate(space.started_at)} 开始</span>}
             {dateEdit ? (
               <Dismissable onClose={() => setDateEdit(false)} className="inline-flex items-center gap-1.5">
@@ -67,7 +67,7 @@ export default function SpaceHeaderCard(opts: {
                   autoFocus
                   value={dateDraft}
                   onChange={(e) => setDateDraft(e.target.value)}
-                  className="rounded-lg border border-sky-500/50 bg-elevated px-1.5 py-0.5 text-[11px] text-ink"
+                  className="rounded-lg border border-sky-500/50 bg-elevated px-1.5 py-0.5 text-micro text-ink"
                 />
                 <button
                   onClick={async () => {
@@ -130,7 +130,7 @@ export default function SpaceHeaderCard(opts: {
       {/* 进度概览 */}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div>
-          <div className="mb-1 flex justify-between text-[10px] text-ink-faint">
+          <div className="mb-1 flex justify-between text-badge text-ink-faint">
             <span>todo 完成率</span>
             <span className="tabular-nums">{todoProgress == null ? "—" : `${space.todo_done}/${space.todo_total} · ${todoProgress}%`}</span>
           </div>
@@ -139,7 +139,7 @@ export default function SpaceHeaderCard(opts: {
           </div>
         </div>
         <div>
-          <div className="mb-1 flex justify-between text-[10px] text-ink-faint">
+          <div className="mb-1 flex justify-between text-badge text-ink-faint">
             <span>行动完成率</span>
             <span className="tabular-nums">{actionProgress == null ? "—" : `${space.action_done}/${space.action_total} · ${actionProgress}%`}</span>
           </div>

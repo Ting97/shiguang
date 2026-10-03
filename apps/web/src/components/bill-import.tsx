@@ -168,7 +168,7 @@ export default function BillImport({
                 className="mt-2 w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 text-xs outline-none focus:border-sky-500"
               />
             </details>
-            <p className="text-[11px] leading-relaxed text-ink-faint">
+            <p className="text-micro leading-relaxed text-ink-faint">
               账单来源：支付宝 App「我的 → 账单 → … → 开具交易流水」/ 网页版导出；微信「我 → 服务 → 钱包 → 账单 → 下载账单（用于个人对账）」。导入自动去重、分类，商家记入对方。
             </p>
             {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger">{error}</p>}
@@ -212,7 +212,7 @@ export default function BillImport({
 
             {/* 分类分布 */}
             {Object.keys(preview.categories).length > 0 && (
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-mute">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-micro text-ink-mute">
                 {TX_CATEGORIES.filter((c) => preview.categories[c]).map((c) => (
                   <span key={c}>{c} × {preview.categories[c]}</span>
                 ))}
@@ -226,10 +226,10 @@ export default function BillImport({
 
             {/* 样例行 */}
             {preview.sample && preview.sample.length > 0 && (
-              <ul className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-line-soft bg-bg/40 p-2 text-[11px] text-ink-mute">
+              <ul className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-line-soft bg-bg/40 p-2 text-micro text-ink-mute">
                 {preview.sample.map((s, i) => (
                   <li key={i} className="flex items-center gap-2">
-                    <span className={`rounded px-1 text-[9px] ${s.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
+                    <span className={`rounded px-1 text-micro ${s.direction === "out" ? "bg-rose-500/15 text-danger" : "bg-emerald-500/15 text-success"}`}>
                       {s.direction === "out" ? "支" : "收"}
                     </span>
                     <span className="flex-1 truncate">{s.category}{s.counterparty ? ` · ${s.counterparty}` : ""}</span>

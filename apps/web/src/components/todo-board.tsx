@@ -162,7 +162,7 @@ export default function TodoBoard() {
                 />
               ))}
               {view === "done" && (
-                <li className="px-2 pt-3 text-center text-[11px] text-ink-faint">最多显示最近 200 条已完成的顶层 todo</li>
+                <li className="px-2 pt-3 text-center text-micro text-ink-faint">最多显示最近 200 条已完成的顶层 todo</li>
               )}
             </ul>
           )}

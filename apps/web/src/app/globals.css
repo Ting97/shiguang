@@ -99,8 +99,8 @@
   --ink: #0f172a;
   --ink-soft: #334155;
   --ink-mute: #475569;
-  --ink-dim: #64748b;
-  --ink-faint: #94a3b8;
+  --ink-dim: #475569;
+  --ink-faint: #64748b;
   /* ---- 边框层 ---- */
   --line-strong: #cbd5e1;
   --line: #d3dbe4;
@@ -184,6 +184,11 @@
 
 /* 动效刻度进 Tailwind（REQ-009 FR-B3）：duration-fast/base/slow/slower + ease-brand/standard 工具类 */
 @theme {
+  /* 字号刻度（REQ-009 FR-B4）：消灭 9px；10px 仅徽标（badge） */
+  --text-badge: 10px;
+  --text-micro: 11px;
+  --text-body: 13px;
+  --text-title: 15px;
   --duration-fast: 150ms;
   --duration-base: 200ms;
   --duration-slow: 350ms;

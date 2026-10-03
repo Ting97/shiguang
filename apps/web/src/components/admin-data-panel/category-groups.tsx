@@ -30,20 +30,20 @@ export default function CategoryGroups({ groups }: { groups: CategoryGroup[] }) 
               title={on ? "点击折叠" : "点击展开"}
               className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left"
             >
-              <span className={`text-[10px] text-ink-faint transition-transform ${on ? "rotate-90" : ""}`}>▶</span>
+              <span className={`text-badge text-ink-faint transition-transform ${on ? "rotate-90" : ""}`}>▶</span>
               <span className="text-xs font-medium text-ink">{g.name}</span>
               <TagChip label={g.domain} tone="slate" size="sm" />
-              <span className="min-w-0 flex-1 truncate text-[10px] text-ink-faint" title={g.items.source}>
+              <span className="min-w-0 flex-1 truncate text-badge text-ink-faint" title={g.items.source}>
                 {g.items.source}
               </span>
-              <span className="shrink-0 tabular-nums text-[10px] text-ink-faint">{g.items.values.length} 项</span>
+              <span className="shrink-0 tabular-nums text-badge text-ink-faint">{g.items.values.length} 项</span>
             </button>
             {on && (
               <div className="flex flex-wrap gap-1 px-3 pb-2.5">
                 {g.items.values.map((v, i) => (
                   <TagChip key={`${v}-${i}`} label={v} tone="sky" size="sm" />
                 ))}
-                {g.items.values.length === 0 && <span className="text-[10px] text-ink-faint">（暂无数据）</span>}
+                {g.items.values.length === 0 && <span className="text-badge text-ink-faint">（暂无数据）</span>}
               </div>
             )}
           </li>

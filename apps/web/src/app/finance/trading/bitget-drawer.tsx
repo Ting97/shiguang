@@ -135,14 +135,14 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
                   </span>
                   <button
                     onClick={() => setSyncLabel(k.label)}
-                    className={`rounded px-2 py-0.5 text-[10px] ${syncLabel === k.label ? "bg-sky-500/15 text-sky-400" : "text-ink-dim hover:text-ink"}`}
+                    className={`rounded px-2 py-0.5 text-badge ${syncLabel === k.label ? "bg-sky-500/15 text-sky-400" : "text-ink-dim hover:text-ink"}`}
                   >
                     {syncLabel === k.label ? "同步中" : "选用"}
                   </button>
                   <button
                     onClick={() => unbind(k.label)}
                     disabled={busy}
-                    className="rounded px-2 py-0.5 text-[10px] text-danger hover:bg-rose-500/10"
+                    className="rounded px-2 py-0.5 text-badge text-danger hover:bg-rose-500/10"
                   >
                     解绑
                   </button>
@@ -171,11 +171,11 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
             第二步：手动拉取（只读）。用「{syncLabel || "默认"}」拉取 Bitget CFD 资金流水（XAUUSD 等差价合约平仓明细）；首次同步数据量大时约需数分钟，请耐心等待
           </p>
           <div className="mb-2 grid grid-cols-2 gap-2">
-            <label className="text-[11px] text-ink-dim">
+            <label className="text-micro text-ink-dim">
               开始（北京）
               <input className={input} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </label>
-            <label className="text-[11px] text-ink-dim">
+            <label className="text-micro text-ink-dim">
               结束
               <input className={input} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </label>
@@ -189,13 +189,13 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
               {busy ? "同步中…" : "同步入库"}
             </button>
           </div>
-          <p className="mt-2 text-[10px] text-ink-faint">
+          <p className="mt-2 text-badge text-ink-faint">
             按平仓单 orderId 幂等去重，重复同步不产生重复明细；开仓/平仓行自动区分，开仓时间按最近开仓配对。
           </p>
         </section>
 
         {summary && (
-          <pre className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-bg/60 p-2 text-[11px] leading-relaxed text-ink-soft">
+          <pre className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-bg/60 p-2 text-micro leading-relaxed text-ink-soft">
             {JSON.stringify(summary, null, 2)}
           </pre>
         )}

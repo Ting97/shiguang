@@ -40,7 +40,7 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink-soft">
           <TagChip icon="✨" label="AI 月报" tone="violet" size="sm" />
-          <span className="ml-2 text-[11px] font-normal text-ink-dim">{Number(month.slice(5))} 月</span>
+          <span className="ml-2 text-micro font-normal text-ink-dim">{Number(month.slice(5))} 月</span>
         </h2>
         <button
           onClick={generate}
@@ -75,7 +75,7 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
           {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.suggestions.map((sg) => (
-                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 text-[9px] leading-none text-ai">💡</span><span>{sg}</span></li>
+                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 text-micro leading-none text-ai">💡</span><span>{sg}</span></li>
               ))}
             </ul>
           )}

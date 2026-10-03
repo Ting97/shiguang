@@ -23,7 +23,7 @@ export default function MomentLinkModal(opts: {
     >
       <p className="mb-2 flex items-center justify-between px-0.5">
         <span className="text-xs font-semibold text-ink">关联未归属动态</span>
-        <span className="text-[10px] tabular-nums text-ink-faint">{momentTotal} 条未归属</span>
+        <span className="text-badge tabular-nums text-ink-faint">{momentTotal} 条未归属</span>
       </p>
       <input
         autoFocus
@@ -40,7 +40,7 @@ export default function MomentLinkModal(opts: {
             className="w-full rounded-lg px-2.5 py-2 text-left transition hover:bg-wash"
           >
             {/* 北京口径时间戳（toLocaleString 按设备时区，海外设备会跨日错位；同 moments-section bjStamp） */}
-            <span className="block text-[10px] text-ink-faint">
+            <span className="block text-badge text-ink-faint">
               {new Date(new Date(m.created_at).getTime() + 8 * 3600_000)
                 .toISOString()
                 .slice(5, 16)
@@ -50,23 +50,23 @@ export default function MomentLinkModal(opts: {
           </button>
         ))}
         {momentItems.length === 0 && !momentLoading && (
-          <p className="px-2 py-6 text-center text-[11px] text-ink-faint">
+          <p className="px-2 py-6 text-center text-micro text-ink-faint">
             {momentQuery ? "没有匹配的动态" : "没有未归属的动态 —— 全部都已归入空间"}
           </p>
         )}
-        {momentLoading && <p className="px-2 py-4 text-center text-[11px] text-ink-faint">加载中…</p>}
+        {momentLoading && <p className="px-2 py-4 text-center text-micro text-ink-faint">加载中…</p>}
       </div>
       {momentItems.length < momentTotal && (
         <button
           onClick={() => void loadUnlinkedMoments(momentQuery, momentItems.length)}
-          className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-[11px] text-ink-mute transition hover:bg-soft"
+          className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-micro text-ink-mute transition hover:bg-soft"
         >
           加载更多（还有 {momentTotal - momentItems.length} 条）
         </button>
       )}
       <button
         onClick={() => setMomentLinkOpen(false)}
-        className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-[11px] text-ink-mute transition hover:bg-soft"
+        className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-micro text-ink-mute transition hover:bg-soft"
       >
         关闭
       </button>

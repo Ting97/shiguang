@@ -36,26 +36,26 @@ export function ChildArea({
               <div className="flex items-center gap-2.5">
                 <TodoCircle size="sm" done={cDone} onClick={() => onToggleDone(c)} />
                 <span
-                  className={`min-w-0 flex-1 cursor-pointer truncate text-[13px] ${cDone ? "text-ink-faint line-through" : ""}`}
+                  className={`min-w-0 flex-1 cursor-pointer truncate text-body ${cDone ? "text-ink-faint line-through" : ""}`}
                   onClick={() => note.openNote(c)}
                   title={c.note ? `${c.title}（点击查看详情）` : c.title}
                 >
                   {c.title}
                 </span>
                 {c.note && (
-                  <span className="shrink-0 text-[10px] text-ink-faint" title="有点击查看详情">
+                  <span className="shrink-0 text-badge text-ink-faint" title="有点击查看详情">
                     📄
                   </span>
                 )}
                 {c.repeat_daily && (
                   <span
-                    className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-success"
+                    className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success"
                     title="每日重复（06:00 日切自动恢复未完成）"
                   >
                     🔁 {c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : ""}
                   </span>
                 )}
-                {ctag && <span className={`shrink-0 text-[11px] ${ctag.cls}`}>{ctag.text}</span>}
+                {ctag && <span className={`shrink-0 text-micro ${ctag.cls}`}>{ctag.text}</span>}
                 <button
                   onClick={(e) => onOpenMenu(e, c, true, t.title)}
                   title="更多操作"
@@ -86,14 +86,14 @@ export function ChildArea({
             }}
             placeholder="行动，回车添加（Esc 结束）"
             maxLength={200}
-            className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-ink-faint"
+            className="min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-ink-faint"
           />
         </div>
       )}
       {t.children.length === 0 && sub.parentId !== t.id && (
-        <p className="px-1.5 py-1 text-[11px] text-ink-faint">还没有行动 —— 行右侧「⋯」里添加，或让 AI 拆解</p>
+        <p className="px-1.5 py-1 text-micro text-ink-faint">还没有行动 —— 行右侧「⋯」里添加，或让 AI 拆解</p>
       )}
-      {done && <p className="px-1.5 py-0.5 text-[11px] text-ink-faint">已完成的 todo 不可再添加行动</p>}
+      {done && <p className="px-1.5 py-0.5 text-micro text-ink-faint">已完成的 todo 不可再添加行动</p>}
     </div>
   );
 }

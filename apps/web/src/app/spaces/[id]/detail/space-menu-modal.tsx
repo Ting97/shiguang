@@ -22,7 +22,7 @@ export default function SpaceMenuModal(opts: {
       style={pos ? { top: pos.top, left: pos.left } : undefined}
     >
       <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
-      <p className="mb-1.5 truncate px-1.5 text-[11px] font-medium text-ink-dim">{space.name}</p>
+      <p className="mb-1.5 truncate px-1.5 text-micro font-medium text-ink-dim">{space.name}</p>
       <div className="space-y-0.5">
         {space.status === "archived" ? (
           <button

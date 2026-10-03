@@ -18,7 +18,7 @@ export default function PromptList({ items, selKey, onPick }: Props) {
         if (!list.length) return null;
         return (
           <div key={cat} className="flex gap-1.5 lg:block lg:space-y-1">
-            <p className="hidden px-1 text-[10px] font-medium uppercase tracking-wider text-ink-faint lg:block">{cat}</p>
+            <p className="hidden px-1 text-badge font-medium uppercase tracking-wider text-ink-faint lg:block">{cat}</p>
             {list.map((it) => (
               <button
                 key={it.key}

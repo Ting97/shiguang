@@ -183,7 +183,7 @@ export default function FinanceReviewPage() {
             </button>
             <button
               onClick={() => setAnchor(bjToday())}
-              className="rounded-lg px-2 py-1.5 text-[11px] text-ink-mute hover:text-accent"
+              className="rounded-lg px-2 py-1.5 text-micro text-ink-mute hover:text-accent"
             >
               今
             </button>
@@ -207,27 +207,27 @@ export default function FinanceReviewPage() {
             <section className="glass mb-4 rounded-2xl p-5">
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
-                  <p className="text-[11px] text-ink-dim">{period === "day" ? "当日支出" : "本周支出"}</p>
+                  <p className="text-micro text-ink-dim">{period === "day" ? "当日支出" : "本周支出"}</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-danger">{fmt(stats.totals.outCents)}</p>
                   {outMom != null && (
-                    <p className={`mt-0.5 text-[10px] tabular-nums ${outMom > 0 ? "text-danger" : "text-success"}`}>
+                    <p className={`mt-0.5 text-badge tabular-nums ${outMom > 0 ? "text-danger" : "text-success"}`}>
                       环比 {outMom > 0 ? "+" : ""}{outMom}%
                     </p>
                   )}
                 </div>
                 <div>
-                  <p className="text-[11px] text-ink-dim">{period === "day" ? "当日收入" : "本周收入"}</p>
+                  <p className="text-micro text-ink-dim">{period === "day" ? "当日收入" : "本周收入"}</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-success">{fmt(stats.totals.inCents)}</p>
                   {inMom != null && (
-                    <p className={`mt-0.5 text-[10px] tabular-nums ${inMom > 0 ? "text-success" : "text-danger"}`}>
+                    <p className={`mt-0.5 text-badge tabular-nums ${inMom > 0 ? "text-success" : "text-danger"}`}>
                       环比 {inMom > 0 ? "+" : ""}{inMom}%
                     </p>
                   )}
                 </div>
                 <div>
-                  <p className="text-[11px] text-ink-dim">笔数</p>
+                  <p className="text-micro text-ink-dim">笔数</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-ink">{stats.totals.count}</p>
-                  <p className="mt-0.5 text-[10px] text-ink-faint">
+                  <p className="mt-0.5 text-badge text-ink-faint">
                     结余 <span className={stats.totals.inCents - stats.totals.outCents >= 0 ? "text-success" : "text-danger"}>{fmt(stats.totals.inCents - stats.totals.outCents)}</span>
                   </p>
                 </div>
@@ -253,11 +253,11 @@ export default function FinanceReviewPage() {
                           style={{ height: d.inCents > 0 ? Math.max(3, (d.inCents / maxDaily) * 64) : 2 }}
                         />
                       </div>
-                      <span className="text-[9px] tabular-nums text-ink-faint">{Number(d.date.slice(8))}</span>
+                      <span className="text-micro tabular-nums text-ink-faint">{Number(d.date.slice(8))}</span>
                     </div>
                   ))}
                 </div>
-                <p className="mt-2 text-center text-[9px] text-ink-faint">
+                <p className="mt-2 text-center text-micro text-ink-faint">
                   <span className="text-danger">▮</span> 支出 <span className="text-success">▮</span> 收入
                 </p>
               </section>
@@ -331,14 +331,14 @@ export default function FinanceReviewPage() {
                   <TagChip icon="🤖" label="AI 交易周报" tone="emerald" />
                   <span className="flex items-center gap-2">
                     {reviewMeta && reviewForThisWeek && (
-                      <span className="text-[10px] text-ink-faint">
+                      <span className="text-badge text-ink-faint">
                         {reviewMeta.cached ? "缓存" : "已生成"} · {bjMD(reviewMeta.generatedAt)}
                       </span>
                     )}
                     <button
                       onClick={() => void loadReview(true)}
                       disabled={genBusy}
-                      className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-40 dark:text-emerald-400"
+                      className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-micro font-medium text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-40 dark:text-emerald-400"
                     >
                       {genBusy ? "生成中…" : reviewForThisWeek ? "重新生成" : "生成周报"}
                     </button>
@@ -369,7 +369,7 @@ export default function FinanceReviewPage() {
               </section>
             )}
 
-            <footer className="mt-10 text-center text-[10px] text-ink-faint">拾光 · 收支复盘 · 统计零 AI 消耗，周报走 AI 配额</footer>
+            <footer className="mt-10 text-center text-badge text-ink-faint">拾光 · 收支复盘 · 统计零 AI 消耗，周报走 AI 配额</footer>
           </>
         )}
       </div>

@@ -26,7 +26,7 @@ export default function TodoSection(opts: {
         <span className="text-xs font-normal text-ink-dim">{todos.length} 条</span>
         <button
           onClick={() => void openLinkPicker()}
-          className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-[11px] font-normal text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
+          className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-micro font-normal text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
         >
           🔗 关联已有
         </button>
@@ -59,7 +59,7 @@ export default function TodoSection(opts: {
       {/* 已完成（默认收起，可展开查看/恢复） */}
       {doneTodos.length > 0 && (
         <details className="group mt-3 border-t border-line-soft pt-2">
-          <summary className="cursor-pointer select-none list-none text-[11px] text-ink-faint transition hover:text-ink-mute">
+          <summary className="cursor-pointer select-none list-none text-micro text-ink-faint transition hover:text-ink-mute">
             ✓ 已完成（{doneTodos.length}）<span className="ml-1 inline-block transition-transform group-open:rotate-90">▸</span>
           </summary>
           <ul className="mt-1.5 space-y-0.5">
@@ -70,15 +70,15 @@ export default function TodoSection(opts: {
                   {t.title}
                 </span>
                 {t.children.length > 0 && (
-                  <span className="shrink-0 text-[10px] tabular-nums text-ink-faint">
+                  <span className="shrink-0 text-badge tabular-nums text-ink-faint">
                     {(() => { const p = childProgress(t.children); return p ? `${p.n}/${p.m}` : ""; })()}
                   </span>
                 )}
-                {t.done_at && <span className="shrink-0 text-[10px] text-ink-faint">{bjDate(t.done_at).slice(5)} 完成</span>}
+                {t.done_at && <span className="shrink-0 text-badge text-ink-faint">{bjDate(t.done_at).slice(5)} 完成</span>}
                 <button
                   onClick={() => patchTodo(t.id, { undone: true }, `↩️「${t.title}」已恢复`)}
                   title="恢复为未完成"
-                  className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-[11px] text-ink-dim transition hover:text-accent group-hover:block"
+                  className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-micro text-ink-dim transition hover:text-accent group-hover:block"
                 >
                   ↩️
                 </button>

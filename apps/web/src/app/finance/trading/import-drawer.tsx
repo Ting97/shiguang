@@ -138,7 +138,7 @@ export default function TradingImportDrawer({
                 </>
               )}
             </button>
-            <p className="text-[11px] leading-relaxed text-ink-faint">
+            <p className="text-micro leading-relaxed text-ink-faint">
               MT5 行情客户端 → 账户历史 → 右键「报表」导出；解析在本机完成，取「持仓」区块的平仓记录。
               时间口径：{MT5_TZ_LABEL}（夏令时为 UTC+2，导入前请确认）。
             </p>
@@ -210,10 +210,10 @@ export default function TradingImportDrawer({
               </div>
             </div>
             {preview.sample.length > 0 && (
-              <ul className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-line-soft bg-bg/40 p-2 text-[11px] text-ink-mute">
+              <ul className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-line-soft bg-bg/40 p-2 text-micro text-ink-mute">
                 {preview.sample.map((s) => (
                   <li key={s.ticket} className="flex items-center gap-2">
-                    <span className={`rounded px-1 text-[9px] ${s.direction === "buy" ? "bg-sky-500/15 text-accent" : "bg-violet-500/15 text-ai"}`}>
+                    <span className={`rounded px-1 text-micro ${s.direction === "buy" ? "bg-sky-500/15 text-accent" : "bg-violet-500/15 text-ai"}`}>
                       {s.direction === "buy" ? "买" : "卖"}
                     </span>
                     <span className="flex-1 truncate tabular-nums">#{s.ticket} · {s.lots} 手 · {bjTime(s.closeTime)}</span>
@@ -222,7 +222,7 @@ export default function TradingImportDrawer({
                 ))}
               </ul>
             )}
-            <p className="text-[10px] text-ink-faint">{MT5_TZ_LABEL}；重复以「账号 + Ticket」判重，可放心重复导入。</p>
+            <p className="text-badge text-ink-faint">{MT5_TZ_LABEL}；重复以「账号 + Ticket」判重，可放心重复导入。</p>
             {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger">{error}</p>}
             <div className="flex justify-between gap-2">
               <button onClick={() => setPreview(null)} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">

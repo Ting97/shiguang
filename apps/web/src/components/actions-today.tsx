@@ -132,19 +132,19 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
         <p className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 truncate text-sm text-ink">{a.title}</span>
           {!a.parent_title && (
-            <span className="shrink-0 rounded-lg bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-medium text-ink-dim" title="独立行动（不属于任何 todo）">
+            <span className="shrink-0 rounded-lg bg-slate-500/15 px-1.5 py-0.5 text-badge font-medium text-ink-dim" title="独立行动（不属于任何 todo）">
               行动
             </span>
           )}
           {a.repeat_daily && (
-            <span className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-success" title="每日重复">
+            <span className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success" title="每日重复">
               🔁 {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}
             </span>
           )}
-          {a.note && <span className="shrink-0 text-[10px] text-ink-faint" title="有描述">📄</span>}
+          {a.note && <span className="shrink-0 text-badge text-ink-faint" title="有描述">📄</span>}
         </p>
         {(a.parent_title || tag) && (
-          <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
+          <p className="mt-0.5 flex items-center gap-1.5 text-micro text-ink-faint">
             {a.parent_title && <span className="min-w-0 truncate">来自「{a.parent_title}」</span>}
             {tag && <span className={`shrink-0 ${tag.cls}`}>{tag.text}</span>}
           </p>
@@ -192,7 +192,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
               <button
                 onClick={() => void addAction()}
                 disabled={adding}
-                className="btn-primary shrink-0 rounded-lg px-3 py-1 text-[11px] font-medium disabled:opacity-50"
+                className="btn-primary shrink-0 rounded-lg px-3 py-1 text-micro font-medium disabled:opacity-50"
               >
                 {adding ? "保存中…" : "添加"}
               </button>
@@ -238,11 +238,11 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                               type="datetime-local"
                               value={editDue}
                               onChange={(e) => setEditDue(e.target.value)}
-                              className="rounded border border-line-strong bg-surface px-2 py-1 text-[11px] tabular-nums outline-none focus:border-sky-500"
+                              className="rounded border border-line-strong bg-surface px-2 py-1 text-micro tabular-nums outline-none focus:border-sky-500"
                             />
                             <div className="ml-auto flex gap-2">
-                              <button onClick={() => setEditingId(null)} className="rounded px-2 py-1 text-[11px] text-ink-mute hover:bg-soft">取消</button>
-                              <button onClick={() => void saveEdit()} disabled={!editTitle.trim() || editSaving} className="rounded bg-sky-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-sky-500 disabled:opacity-50">保存</button>
+                              <button onClick={() => setEditingId(null)} className="rounded px-2 py-1 text-micro text-ink-mute hover:bg-soft">取消</button>
+                              <button onClick={() => void saveEdit()} disabled={!editTitle.trim() || editSaving} className="rounded bg-sky-600 px-2.5 py-1 text-micro font-medium text-white hover:bg-sky-500 disabled:opacity-50">保存</button>
                             </div>
                           </div>
                         </Dismissable>
@@ -275,10 +275,10 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                   <ul className="mt-1.5 space-y-1">
                     {done.map((a) => (
                       <li key={a.id} className="group flex items-center gap-3 rounded-lg px-2 py-1">
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-[9px] text-white">✓</span>
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-micro text-white">✓</span>
                         <span className="min-w-0 flex-1 truncate text-xs text-ink-dim line-through">{a.title}</span>
                         {a.repeat_daily && a.repeat_done_count > 0 && (
-                          <span className="shrink-0 text-[10px] text-success">×{a.repeat_done_count}</span>
+                          <span className="shrink-0 text-badge text-success">×{a.repeat_done_count}</span>
                         )}
                         <button
                           onClick={() => toggleDone(a)}

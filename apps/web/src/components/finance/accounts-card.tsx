@@ -22,7 +22,7 @@ export function AccountsCard({ accounts, onManage }: { accounts: Account[]; onMa
         {accounts.map((a) => (
           <div key={a.id} className="rounded-xl border border-line-soft bg-bg/40 px-3 py-2.5 text-center">
             <p className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/15 text-base leading-none">{a.icon}</p>
-            <p className="truncate text-[11px] text-ink-mute">{a.name}</p>
+            <p className="truncate text-micro text-ink-mute">{a.name}</p>
             {a.balanceCents < 0 ? (
               <p className="text-sm font-semibold tabular-nums text-danger" title="余额为负——流水大于期初，点「管理」调整期初余额">
                 {fmtMoney(a.balanceCents)} ⚠

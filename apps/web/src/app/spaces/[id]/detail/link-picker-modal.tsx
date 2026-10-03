@@ -27,7 +27,7 @@ export default function LinkPickerModal(opts: {
           <>
             <p className="mb-2 flex items-center justify-between px-0.5">
               <span className="text-xs font-semibold text-ink">关联已有 TODO / 行动</span>
-              <span className="text-[10px] tabular-nums text-ink-faint">{linkItems.length} 条未关联</span>
+              <span className="text-badge tabular-nums text-ink-faint">{linkItems.length} 条未关联</span>
             </p>
             <input
               autoFocus
@@ -48,18 +48,18 @@ export default function LinkPickerModal(opts: {
                     <span className="w-5 shrink-0 text-center text-sm leading-none">{t.is_important ? "⭐" : "○"}</span>
                     <span className="min-w-0 flex-1 truncate" title={t.title}>
                       {t.kind === "action" && (
-                        <span className="mr-1 inline-flex items-center rounded bg-slate-500/15 px-1 py-0.5 align-middle text-[10px] text-ink-dim">
+                        <span className="mr-1 inline-flex items-center rounded bg-slate-500/15 px-1 py-0.5 align-middle text-badge text-ink-dim">
                           行动
                         </span>
                       )}
                       {t.title}
                     </span>
-                    {tag && <span className={`shrink-0 text-[10px] ${tag.cls}`}>{tag.text}</span>}
+                    {tag && <span className={`shrink-0 text-badge ${tag.cls}`}>{tag.text}</span>}
                   </button>
                 );
               })}
               {shown.length === 0 && (
-                <p className="px-2 py-6 text-center text-[11px] text-ink-faint">
+                <p className="px-2 py-6 text-center text-micro text-ink-faint">
                   {linkItems.length === 0
                     ? "没有未关联的 TODO/行动 —— 顶层条目都已归属空间"
                     : "没有匹配的 TODO/行动"}
@@ -68,7 +68,7 @@ export default function LinkPickerModal(opts: {
             </div>
             <button
               onClick={() => setLinkOpen(false)}
-              className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-[11px] text-ink-mute transition hover:bg-soft"
+              className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-micro text-ink-mute transition hover:bg-soft"
             >
               关闭
             </button>

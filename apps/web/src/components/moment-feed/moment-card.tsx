@@ -171,7 +171,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           m.recognitions?.schedule?.status === "none" &&
           !m.recognitions.schedule.reasonDismissed &&
           (m.recognitions.schedule.reason?.includes("已有日程") || m.recognitions.schedule.reason?.includes("时间冲突")) && (
-            <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-warn/90">
+            <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-micro text-warn/90">
               <span className="min-w-0 flex-1">⚠️ 未生成日程：{m.recognitions.schedule.reason}</span>
               {/* 就地给出处理入口：跳日程页对应日（按记录时刻的北京日期，跨天冲突需自行翻页） */}
               <a
@@ -207,7 +207,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
 
         {/* 交互提示：点原文打开识别菜单（六域 AI 识别 / 手动补充) */}
         {!menuOpen && (
-          <p className="mt-2 border-t border-line-soft/60 pt-2 text-[10px] text-ink-faint">
+          <p className="mt-2 border-t border-line-soft/60 pt-2 text-badge text-ink-faint">
             点击动态内容 → 打开识别菜单（AI 识别 / 手动补充六类信息）
           </p>
         )}
