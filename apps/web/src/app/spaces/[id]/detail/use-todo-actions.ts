@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TodoItem, TodoRow } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { confirmDialog } from "@/shared/ui/confirm";
 import { isoToLocalInput, localInputToIso } from "@/components/todo-bits";
 import type { MenuRowState, Msg, Pos } from "./types";
 
@@ -86,10 +87,13 @@ export function useTodoActions(opts: {
   }
 
   async function removeTodo(todoId: string, title: string) {
-    // ⚠ 保留原生 confirm：行菜单是 createPortal 渲染，008 实测 React 19 下 portal 内
-    // 经重渲染的按钮第二次点击事件不送达（两步确认不可靠），destructive 操作安全优先
-    if (!window.confirm(`删除「${title}」？
-其下行动会一并删除。`)) return;
+    // 确认弹窗（9-B）：独立渲染树单次点击确认——规避 008 实测 portal 菜单内二次点击丢失问题
+    const ok = await confirmDialog({
+      title: "删除 todo",
+      message: `删除「${title}」？\n其下行动会一并删除。`,
+      confirmText: "删除",
+    });
+    if (!ok) return;
     try {
       await api<any>(`/api/todos/${todoId}`, "DELETE");
     } catch (e) {

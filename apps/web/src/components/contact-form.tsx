@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
+import { Modal } from "@/components/ui/modal";
 import { CONTACT_GROUPS, GROUP_EMOJI, IMPORTANCE_TIERS, importanceLabel } from "@/lib/social";
 import { lunarDayLabel, lunarMonthLabel } from "@/lib/lunar";
 
@@ -57,13 +58,8 @@ export default function ContactFormModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl sm:max-w-md sm:rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">{initial ? "编辑联系人" : "新建联系人"}</h3>
-          <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
-        </div>
-        <div className="space-y-2.5">
+    <Modal title={initial ? "编辑联系人" : "新建联系人"} onClose={onClose}>
+      <div className="space-y-2.5">
           <div className="flex gap-2">
             <input
               autoFocus
@@ -239,7 +235,6 @@ export default function ContactFormModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

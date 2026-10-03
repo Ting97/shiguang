@@ -65,6 +65,18 @@ page {
   --capture-btn: #38bdf8;
   /* ---- 小程序补充（无 color-mix，显式给值） ---- */
   --input-bg: rgba(15, 23, 42, 0.6);
+  /* ---- 动效与层级刻度（主题无关） ---- */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 350ms;
+  --dur-slower: 500ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --z-sticky: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-max: 60;
 /* TOKENS:END page */
 
   background: var(--bg);

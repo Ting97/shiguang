@@ -7,6 +7,7 @@ import ModuleLocked from "@/components/module-locked";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { TX_COLORS, yuan } from "@/lib/finance";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 /**
  * 收支复盘（REQ-003 3-F FR-C2.7；REQ-005 FR-4.4 更名）：日/周统计（纯 SQL）+ AI 收支周报（缓存/配额走复盘管线）。
@@ -59,7 +60,6 @@ export default function FinanceReviewPage() {
   const [review, setReview] = useState<Review | null>(null);
   const [reviewMeta, setReviewMeta] = useState<{ cached: boolean; generatedAt: string; range: { from: string; to: string } } | null>(null);
   const [genBusy, setGenBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const rangeFrom = period === "week" ? mondayOf(anchor) : anchor;
 
@@ -94,7 +94,6 @@ export default function FinanceReviewPage() {
     if (refresh) {
       const seq = ++reviewSeq.current;
       setGenBusy(true);
-      setMsg(null);
       try {
         const j = await api<any>("/api/finance/review/week", "POST", { date: mondayOf(anchor), refresh: true });
         if (seq !== reviewSeq.current) return;
@@ -102,7 +101,7 @@ export default function FinanceReviewPage() {
         setReviewMeta({ cached: j.cached, generatedAt: j.generatedAt, range: j.range });
       } catch (e) {
         if (seq !== reviewSeq.current) return;
-        setMsg(e instanceof Error ? e.message : String(e));
+        toast(e instanceof Error ? e.message : String(e), "err");
       } finally {
         setGenBusy(false);
       }
@@ -190,8 +189,6 @@ export default function FinanceReviewPage() {
             </button>
           </div>
         </div>
-
-        {msg && <div className="msg-banner msg-banner-err mb-4">{msg}</div>}
 
         {!stats ? (
           statsErr ? (

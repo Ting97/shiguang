@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { TYPE_EMOJI, type InteractionType } from "@/lib/social";
 import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
+import { Modal } from "@/components/ui/modal";
 
 export function InteractionFormModal({
   contactName,
@@ -27,13 +28,8 @@ export function InteractionFormModal({
   const [err, setErr] = useState<string | null>(null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl sm:max-w-md sm:rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">补一笔往来 · {contactName}</h3>
-          <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
-        </div>
-        <div className="space-y-2.5">
+    <Modal title={`补一笔往来 · ${contactName}`} onClose={onClose}>
+      <div className="space-y-2.5">
           <div className="flex gap-2">
             <select
               value={type}
@@ -87,7 +83,6 @@ export function InteractionFormModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

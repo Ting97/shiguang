@@ -3,15 +3,14 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TodoItem, TodoRow } from "@/lib/types";
+import { toast } from "@/shared/ui/toast";
 import { isoToLocalInput, localInputToIso } from "../todo-bits";
 import { isChildId } from "./kit";
-import type { Msg } from "./types";
 
-/** useTodoEdit 上下文：列表数据 + patchTodo（保存）/ setMsg（空标题与取消提示） */
+/** useTodoEdit 上下文：列表数据 + patchTodo（保存） */
 export interface TodoEditCtx {
   todos: TodoItem[];
   patchTodo: (id: string, body: Record<string, unknown>, okText?: string) => Promise<boolean>;
-  setMsg: (m: Msg) => void;
 }
 
 /**
@@ -19,7 +18,7 @@ export interface TodoEditCtx {
  * 标题 / 截止 / 分类 / 🔁 每日重复（重复仅行动提交，isChildId 判定）。
  * closeEdit 复刻拆分前 Dismissable onClose 的「有改动轻提示」逻辑。
  */
-export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
+export function useTodoEdit({ todos, patchTodo }: TodoEditCtx) {
   const [editingId, setEditingId] = useState<string | null>(null);
   // 保存进行中：防双击/Enter+按钮双路径重复 PATCH
   const [editSaving, setEditSaving] = useState(false);
@@ -40,13 +39,13 @@ export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
   /** N3：点空白/Esc 取消，有改动轻提示 */
   function closeEdit(t: TodoRow) {
     const dirty = editTitle !== t.title || editDue !== isoToLocalInput(t.due_at) || editActivity !== (t.activity_id ?? "other");
-    if (dirty) setMsg({ ok: true, text: "已取消，未保存" });
+    if (dirty) toast("已取消，未保存", "info");
     setEditingId(null);
   }
 
   async function saveEdit() {
     if (!editingId || !editTitle.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
+      toast("标题不能为空", "err");
       return;
     }
     if (editSaving) return;
@@ -66,7 +65,7 @@ export function useTodoEdit({ todos, patchTodo, setMsg }: TodoEditCtx) {
       if (ok) setEditingId(null);
     } catch {
       // 兜底：任何异常只提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      toast("网络异常，请稍后重试", "err");
     } finally {
       setEditSaving(false);
     }

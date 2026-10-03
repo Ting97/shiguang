@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TodoRow } from "@/lib/types";
+import { toast } from "@/shared/ui/toast";
 import { useDismiss } from "./dismissable";
 import SpacePicker from "./space-picker";
 import { AddTodoRow } from "./todo-board/add-todo-row";
@@ -26,14 +27,14 @@ import { ViewBar } from "./todo-board/view-bar";
  */
 export default function TodoBoard() {
   const [view, setView] = useState<View>("today");
-  const { todos, counts, activities, spaces, loading, msg, setMsg, load } = useTodoData(view);
+  const { todos, counts, activities, spaces, loading, load } = useTodoData(view);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [draftOpen, setDraftOpen] = useState(false);
   // N3：添加行展开后点空白收起；有未提交标题则轻提示
   const addRowRef = useDismiss<HTMLDivElement>(() => {
     if (!draftOpen) return;
-    if (draft.title.trim()) setMsg({ ok: true, text: "已取消，未保存" });
+    if (draft.title.trim()) toast("已取消，未保存", "info");
     setDraftOpen(false);
     setDraft((d) => ({ ...EMPTY_DRAFT, activityId: d.activityId }));
   }, draftOpen);
@@ -69,15 +70,14 @@ export default function TodoBoard() {
     view,
     todos,
     load,
-    setMsg,
     draft,
     setDraft,
     setDraftOpen,
     subTitle,
     setSubTitle,
   });
-  const edit = useTodoEdit({ todos, patchTodo, setMsg });
-  const note = useActionNote({ patchTodo, setMsg });
+  const edit = useTodoEdit({ todos, patchTodo });
+  const note = useActionNote({ patchTodo });
 
   function toggleExpand(id: string) {
     setExpanded((s) => {
@@ -105,21 +105,10 @@ export default function TodoBoard() {
     open: setSubParentId,
     close: () => setSubParentId(null),
     add: addSubtask,
-    setMsg,
   };
 
   return (
     <div>
-      {msg && (
-        <div
-          className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
-            msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"
-          }`}
-        >
-          {msg.text}
-        </div>
-      )}
-
       {/* 移动端：横滑 chips（lg 以下）；右缘渐隐提示可滑动（隐藏滚动条时唯一的可供性） */}
       <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1 [mask-image:linear-gradient(to_right,black_calc(100%-28px),transparent)] lg:hidden">
         <ViewBar vertical={false} view={view} counts={counts} onSelect={setView} chipRefs={chipRefs} />

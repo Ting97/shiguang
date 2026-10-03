@@ -2,8 +2,9 @@
 
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { FeedMoment } from "@/lib/types";
+import { toast } from "@/shared/ui/toast";
 import { Dismissable } from "../dismissable";
-import type { CardMsg, MenuPos } from "./types";
+import type { MenuPos } from "./types";
 
 interface RawTextSectionProps {
   m: FeedMoment;
@@ -14,8 +15,6 @@ interface RawTextSectionProps {
   setActionsOpen: Dispatch<SetStateAction<boolean>>;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   setMenuPos: Dispatch<SetStateAction<MenuPos>>;
-  /** 点空白取消编辑且有改动时的轻提示 */
-  setCardMsg: Dispatch<SetStateAction<CardMsg>>;
   onSaveRaw: () => void;
 }
 
@@ -27,7 +26,6 @@ export function RawTextSection({
   setActionsOpen,
   setMenuOpen,
   setMenuPos,
-  setCardMsg,
   onSaveRaw,
 }: RawTextSectionProps) {
   // 长文折叠：超过 150 字默认收起 6 行，用独立「展开全文」按钮（不与"点原文弹识别菜单"抢交互）
@@ -40,7 +38,7 @@ export function RawTextSection({
         <Dismissable
           onClose={() => {
             // N3/N3.5：点空白或 Esc 取消编辑；内容有改动则轻提示
-            if (editRaw.trim() !== m.raw_text.trim()) setCardMsg({ ok: true, text: "已取消，未保存" });
+            if (editRaw.trim() !== m.raw_text.trim()) toast("已取消，未保存", "info");
             setEditRaw(null);
           }}
           className="mt-1.5"

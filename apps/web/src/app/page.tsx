@@ -5,11 +5,12 @@ import ActionsToday from "@/components/actions-today";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
 import { api } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import DesktopComposer from "./home/desktop-composer";
 import FeedSection from "./home/feed-section";
 import RemindersBanner from "./home/reminders-banner";
 import TodaySchedule from "./home/today-schedule";
-import type { Msg } from "./home/types";
+import type { Notify } from "./home/types";
 import { useDesktopPublisher } from "./home/use-desktop-publisher";
 import { useHomeData } from "./home/use-home-data";
 
@@ -20,13 +21,23 @@ import { useHomeData } from "./home/use-home-data";
 export default function Home() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<Msg>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // 发布后识别产物的延迟刷新定时器（卸载时清理，避免对已卸载组件 setState）
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // 移动端发布：sheetOpen 控制底部输入面板；voiceDraft 是长按语音转写出的待预览文字
   const [sheetOpen, setSheetOpen] = useState(false);
   const [voiceDraft, setVoiceDraft] = useState("");
+
+  // 首页操作反馈统一走全局 toast（自动消失）；尚未迁移的下游仍以消息对象上报，经下面两个包装转发
+  const notifyLoadErr = useCallback((t: string) => toast(t, "err"), []);
+  const forwardMsg = useCallback((m: { ok: boolean; text: string } | null) => {
+    if (m) toast(m.text, m.ok ? "ok" : "err");
+  }, []);
+  // use-desktop-publisher 的形参是旧 Notify（setState 签名）：只可能收到消息对象值，函数式更新视为无操作
+  const notifyDispatch = useCallback<Notify>((m) => {
+    if (typeof m === "function") return;
+    if (m) toast(m.text, m.ok ? "ok" : "err");
+  }, []);
 
   const {
     moments,
@@ -46,7 +57,7 @@ export default function Home() {
     loadMore,
     resetSearch,
     changeSpace,
-  } = useHomeData({ notify: (t) => setMsg({ ok: false, text: t }) });
+  } = useHomeData({ notify: notifyLoadErr });
   // 消费组件的 load 形参是 () => Promise<void>：包一层丢弃 load 的成功与否返回值
   const loadVoid = useCallback(async () => {
     await load();
@@ -64,19 +75,12 @@ export default function Home() {
     removeDesktopImage,
     retryDesktopUpload,
     uploadAfterPublish,
-  } = useDesktopPublisher({ setMsg, load: loadVoid });
+  } = useDesktopPublisher({ setMsg: notifyDispatch, load: loadVoid });
 
   useEffect(() => {
     const timers = refreshTimers.current;
     return () => timers.forEach(clearTimeout);
   }, []);
-
-  useEffect(() => {
-    if (!msg) return;
-    // 成功提示短展示；失败/警示保留更久，避免用户错过原因
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   async function submit() {
     const files = desktopImages.filter((i) => i.status !== "error").map((i) => i.file);
@@ -95,7 +99,7 @@ export default function Home() {
       // 防御非约定响应（结构变更）：给出可读原因，而不是 TypeError
       if (!j?.entry) throw new Error("服务异常，请稍后重试");
       // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
-      setMsg({ ok: true, text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
+      toast("✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…");
       setText("");
       // 新动态要立即可见：搜索过滤中则清空搜索再刷新
       if (query || searchInput) {
@@ -110,7 +114,7 @@ export default function Home() {
       }
       return j.entry.id as string;
     } catch (e) {
-      setMsg({ ok: false, text: `记录失败：${e instanceof Error ? e.message : e}` });
+      toast(`记录失败：${e instanceof Error ? e.message : e}`, "err");
       return null;
     } finally {
       setBusy(false);
@@ -133,7 +137,7 @@ export default function Home() {
         </header>
 
         {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
-        <RemindersBanner items={reminderItems} setMsg={setMsg} load={loadVoid} />
+        <RemindersBanner items={reminderItems} load={loadVoid} />
 
         {/* 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */}
         <DesktopComposer
@@ -142,16 +146,12 @@ export default function Home() {
           inputRef={inputRef}
           busy={busy}
           onSubmit={submit}
-          setMsg={setMsg}
           images={desktopImages}
           fileInputRef={fileInputRef}
           onAddImages={addDesktopImages}
           onRemoveImage={removeDesktopImage}
           onRetryUpload={retryDesktopUpload}
         />
-        {msg && (
-          <div className={`msg-banner mb-5 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>
-        )}
 
         {/* 取数失败态：给出重试入口，避免失败后整页静默空态（对齐 spaces 页范式） */}
         {loadErr && (
@@ -164,7 +164,7 @@ export default function Home() {
         )}
 
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
-        <ActionsToday notify={setMsg} />
+        <ActionsToday notify={forwardMsg} />
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <FeedSection
@@ -183,7 +183,7 @@ export default function Home() {
         />
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
-        <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} setMsg={setMsg} load={loadVoid} />
+        <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
 
         <footer className="mt-10 text-center text-[10px] text-ink-faint">
           拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang
@@ -200,8 +200,8 @@ export default function Home() {
           setVoiceDraft(t);
           setSheetOpen(true);
         }}
-        onError={(m) => setMsg({ ok: false, text: m })}
-        onHint={(m) => setMsg({ ok: true, text: m })}
+        onError={(m) => toast(m, "err")}
+        onHint={(m) => toast(m)}
       />
       <PublishSheet
         open={sheetOpen}
@@ -209,7 +209,7 @@ export default function Home() {
         busy={busy}
         onPublish={publish}
         onClose={() => setSheetOpen(false)}
-        notify={setMsg}
+        notify={forwardMsg}
       />
     </main>
   );

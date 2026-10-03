@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react";
 import type { TodoItem, TodoRow } from "@/lib/types";
+import { toast } from "@/shared/ui/toast";
 import { TodoCircle, dueTag } from "../todo-bits";
 import { ActionNotePanel } from "./action-note-panel";
 import type { SubtaskCtl } from "./types";
@@ -76,7 +77,7 @@ export function ChildArea({
             onChange={(e) => sub.setTitle(e.target.value)}
             onBlur={() => {
               // blur 即"点空白"（N3）；有未提交内容轻提示
-              if (sub.title.trim()) sub.setMsg({ ok: true, text: "已取消，未保存" });
+              if (sub.title.trim()) toast("已取消，未保存", "info");
               sub.close();
             }}
             onKeyDown={(e) => {

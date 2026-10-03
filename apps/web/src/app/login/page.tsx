@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"password" | "sms">("password"); // 登录方式：密码/验证码
@@ -18,7 +19,6 @@ export default function LoginPage() {
   // 验证码请求飞行中锁：与 countdown 分开（countdown 成功后才启动），飞行中也要禁用按钮防连发
   const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -54,22 +54,22 @@ export default function LoginPage() {
     if (sending) return; // 请求飞行中忽略再次点击，防重复发送
     const isEmail = account.includes("@");
     if (isEmail ? !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(account) : !/^1[3-9]\d{9}$/.test(account)) {
-      setMsg({ ok: false, text: isEmail ? "请先填写正确的邮箱地址" : "请先填写正确的手机号" });
+      toast(isEmail ? "请先填写正确的邮箱地址" : "请先填写正确的手机号", "err");
       return;
     }
     setSending(true);
     try {
       const body = isEmail ? { email: account, purpose: "login" } : { phone: account, purpose: "login" };
       await api(isEmail ? "/api/auth/email/send" : "/api/auth/sms/send", "POST", body);
-      setMsg({ ok: true, text: "验证码已发送，5 分钟内有效" });
+      toast("验证码已发送，5 分钟内有效");
       startCountdown();
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
       // 通道未开通：注册场景下邀请码即凭证，可不填验证码
       if (isRegister && e instanceof ApiClientError && e.status === 503) {
-        setMsg({ ok: false, text: `${text}（当前注册凭邀请码即可，验证码可留空）` });
+        toast(`${text}（当前注册凭邀请码即可，验证码可留空）`, "err");
       } else {
-        setMsg({ ok: false, text });
+        toast(text, "err");
       }
     } finally {
       setSending(false);
@@ -78,12 +78,13 @@ export default function LoginPage() {
 
   async function submit() {
     if (busy) return;
+    if (isRegister && password !== password2) {
+      // 密码一致性属表单校验：字段旁已有 ✓/✗ 即时指示，这里 toast 收口提交反馈
+      toast("两次输入的密码不一致", "err");
+      return;
+    }
     setBusy(true);
-    setMsg(null);
     try {
-      if (isRegister && password !== password2) {
-        throw new Error("两次输入的密码不一致");
-      }
       if (isRegister) {
         await api("/api/auth/register", "POST",
           account.includes("@")
@@ -101,7 +102,7 @@ export default function LoginPage() {
       }
       location.href = "/";
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setBusy(false);
     }
@@ -267,16 +268,11 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {msg && (
-            <p className={`mt-3 text-xs ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>
-          )}
-
           <p className="mt-4 text-center text-[11px] text-ink-dim">
             {isRegister ? "已有账号？" : "没有账号？"}
             <button
               onClick={() => {
                 setIsRegister(!isRegister);
-                setMsg(null);
               }}
               className="ml-1 text-accent hover:underline"
             >

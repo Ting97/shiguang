@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useDismiss } from "@/components/dismissable";
 import { TagChip } from "@/components/tag-chip";
+
+// REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
+export { Modal } from "@/components/ui/modal";
 import { yuan } from "@/lib/finance";
 import type { Tx } from "./kit";
 import type { Overview } from "./kit";
@@ -161,26 +163,6 @@ export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel
         </button>
       </span>
       {msg && <p className="w-full text-[11px] text-danger">{msg}</p>}
-    </div>
-  );
-}
-
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  // N3：点遮罩/空白关闭由面板 useDismiss 统一处理（遮罩保留视觉）
-  const ref = useDismiss<HTMLDivElement>(onClose);
-  return (
-    /* 移动端底部弹层（键盘不遮提交钮、拇指可达）；桌面居中卡片 */
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
-      <div
-        ref={ref}
-        className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">{title}</h3>
-          <button onClick={onClose} className="rounded px-2 py-1 text-ink-dim hover:text-ink">✕</button>
-        </div>
-        {children}
-      </div>
     </div>
   );
 }

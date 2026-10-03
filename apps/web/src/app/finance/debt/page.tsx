@@ -18,6 +18,7 @@ import { fmt } from "../../../components/debt/kit";
 import ReserveSection from "../../../components/debt/reserve-section";
 import DebtImportDrawer from "../../../components/debt/import-drawer";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import type { Debt, Overview, Account, SimResult } from "../../../components/debt/kit";
 import { Modal, DebtForm, PaymentForm } from "../../../components/debt/forms";
 export default function DebtPage() {
@@ -27,7 +28,6 @@ export default function DebtPage() {
   const [locked, setLocked] = useState(false);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 归档两步确认（全站规范，替代原生 confirm）
   const armArchive = useArmConfirm();
   const [editing, setEditing] = useState<Debt | null | "new">(null);
@@ -37,12 +37,6 @@ export default function DebtPage() {
   const [sim, setSim] = useState<SimResult | null>(null);
   const [simBusy, setSimBusy] = useState(false);
   const [importing, setImporting] = useState(false); // REQ-005 R2 导入抽屉
-
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -85,7 +79,7 @@ export default function DebtPage() {
       setSim(r as SimResult);
     } catch (e) {
       setSim(null);
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setSimBusy(false);
     }
@@ -112,8 +106,6 @@ export default function DebtPage() {
         </header>
 
         <FinanceTabs />
-
-        {msg && <div className={`msg-banner mb-4 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>}
 
         {/* 已有数据时的刷新失败提示（首次加载失败走上方整页错误态） */}
         {loadErr && (
@@ -274,10 +266,10 @@ export default function DebtPage() {
                             if (!armArchive.arm(d.id)) return;
                             try {
                               await api(`/api/debts/${d.id}`, "DELETE");
-                              setMsg({ ok: true, text: "📦 已归档" });
+                              toast("📦 已归档");
                               await load();
                             } catch (e) {
-                              setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                              toast(e instanceof Error ? e.message : String(e), "err");
                             }
                           }}
                           className={`rounded px-1.5 py-0.5 text-xs ${armArchive.armedId === d.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
@@ -331,7 +323,7 @@ export default function DebtPage() {
                                   await api(`/api/debts/${d.id}`, "PATCH", { status: "active" });
                                   await load();
                                 } catch (e) {
-                                  setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                                  toast(e instanceof Error ? e.message : String(e), "err");
                                 }
                               }}
                               className="text-[10px] text-ink-faint hover:text-accent"
@@ -413,7 +405,7 @@ export default function DebtPage() {
               if (editing === "new") await api("/api/debts", "POST", payload);
               else await api(`/api/debts/${editing.id}`, "PATCH", payload);
               setEditing(null);
-              setMsg({ ok: true, text: editing === "new" ? "✅ 已建档" : "💾 已保存" });
+              toast(editing === "new" ? "✅ 已建档" : "💾 已保存");
               await load();
             }}
           />
@@ -426,7 +418,7 @@ export default function DebtPage() {
           open={importing}
           onClose={() => setImporting(false)}
           onDone={async () => {
-            setMsg({ ok: true, text: "✅ 导入完成" });
+            toast("✅ 导入完成");
             await load();
           }}
         />
@@ -441,11 +433,11 @@ export default function DebtPage() {
             onCancel={() => setPaying(null)}
             onDone={async (text) => {
               setPaying(null);
-              setMsg({ ok: true, text });
+              toast(text);
               await load();
               setSim(null);
             }}
-            onError={(text) => setMsg({ ok: false, text })}
+            onError={(text) => toast(text, "err")}
           />
         </Modal>
       )}

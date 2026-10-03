@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminDataPanel from "@/components/admin-data-panel";
 import AdminMarketingPanel from "@/components/admin-marketing-panel";
@@ -20,9 +21,6 @@ export default function AdminPage() {
   // 身份加载失败态：失败要落错误 + 重试入口（历史 bug：catch 空吞，永久「加载中…」）
   const [meErr, setMeErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("ai");
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // 上一条成功提示的定时器：notify 前先清，避免 3.5s 内第二条提示被第一条的定时器提前清掉
-  const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadMe = useCallback(() => {
     setMeErr(null);
@@ -35,15 +33,8 @@ export default function AdminPage() {
     loadMe();
   }, [loadMe]);
 
-  useEffect(() => () => {
-    if (msgTimer.current) clearTimeout(msgTimer.current);
-  }, []);
-
-  const notify = (text: string, ok = true) => {
-    if (msgTimer.current) clearTimeout(msgTimer.current);
-    setMsg({ ok, text });
-    if (ok) msgTimer.current = setTimeout(() => setMsg(null), 3500);
-  };
+  // 各管理面板统一经 notify 上报操作结果 → 全局 toast
+  const notify = (text: string, ok = true) => toast(text, ok ? "ok" : "err");
 
   return (
     <main className="min-h-screen text-ink">
@@ -74,16 +65,6 @@ export default function AdminPage() {
                 <FilterChip variant="pill" active={tab === "data"} onClick={() => setTab("data")} label="📊 数据" />
               </div>
             </div>
-
-            {msg && (
-              <div
-                className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
-                  msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"
-                }`}
-              >
-                {msg.text}
-              </div>
-            )}
 
             {!me ? (
               meErr ? (

@@ -3,13 +3,12 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TodoRow } from "@/lib/types";
+import { toast } from "@/shared/ui/toast";
 import { isoToLocalInput, localInputToIso } from "../todo-bits";
-import type { Msg } from "./types";
 
-/** useActionNote 上下文：patchTodo（保存）/ setMsg（空标题与取消提示） */
+/** useActionNote 上下文：patchTodo（保存） */
 export interface ActionNoteCtx {
   patchTodo: (id: string, body: Record<string, unknown>, okText?: string) => Promise<boolean>;
-  setMsg: (m: Msg) => void;
 }
 
 /**
@@ -17,7 +16,7 @@ export interface ActionNoteCtx {
  * 点标题展开——标题 + 详细内容（≤1000 字）+ 截止 + 🔁 每日重复（与已完成次数只读展示）。
  * closeNote 复刻拆分前 Dismissable onClose 的「有改动轻提示」逻辑。
  */
-export function useActionNote({ patchTodo, setMsg }: ActionNoteCtx) {
+export function useActionNote({ patchTodo }: ActionNoteCtx) {
   const [noteOpenId, setNoteOpenId] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
@@ -44,13 +43,13 @@ export function useActionNote({ patchTodo, setMsg }: ActionNoteCtx) {
       noteText !== (c.note ?? "") ||
       noteDue !== isoToLocalInput(c.due_at) ||
       noteRepeat !== c.repeat_daily;
-    if (dirty) setMsg({ ok: true, text: "已取消，未保存" });
+    if (dirty) toast("已取消，未保存", "info");
     setNoteOpenId(null);
   }
 
   async function saveNote() {
     if (!noteOpenId || !noteTitle.trim()) {
-      setMsg({ ok: false, text: "标题不能为空" });
+      toast("标题不能为空", "err");
       return;
     }
     setNoteSaving(true);
@@ -69,7 +68,7 @@ export function useActionNote({ patchTodo, setMsg }: ActionNoteCtx) {
       if (ok) setNoteOpenId(null);
     } catch {
       // 兜底：任何异常只提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      toast("网络异常，请稍后重试", "err");
     } finally {
       setNoteSaving(false);
     }

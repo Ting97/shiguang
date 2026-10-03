@@ -7,6 +7,7 @@ import Skeleton from "@/components/skeleton";
 import ContactFormModal from "@/components/contact-form";
 import { TagChip, TONE_BG } from "@/components/tag-chip";
 import { api, ApiClientError } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
+import { toast } from "@/shared/ui/toast";
 import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabel, type InteractionType } from "@/lib/social";
 import { yuan } from "@/lib/finance"; // 金额展示统一走共享 yuan()（整数运算），替换原本地浮点除法版本（¥ 前缀在各调用点拼接）
 import { GROUP_TONE } from "@/lib/group-tone";
@@ -81,7 +82,6 @@ export function ContactDetailPage() {
   // 加载失败态：与 404（真不存在）区分开（历史 bug：请求失败也渲染「联系人不存在」）
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [rev, setRev] = useState(0);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
@@ -101,9 +101,9 @@ export function ContactDetailPage() {
     try {
       const j = await api(`/api/contacts/${id}/ai-profile`, "POST");
       setContact((c) => (c ? { ...c, ai_profile: j.profile, ai_profile_at: new Date().toISOString() } : c));
-      setMsg({ ok: true, text: "✨ 交往画像已更新" });
+      toast("✨ 交往画像已更新");
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setProfiling(false);
     }
@@ -124,12 +124,6 @@ export function ContactDetailPage() {
   function retryLoad() {
     setRev((r) => r + 1);
   }
-
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   if (loading) {
     return (
@@ -174,7 +168,7 @@ export function ContactDetailPage() {
       await api(`/api/contacts/${contact!.id}`, "DELETE");
       router.push("/contacts");
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     }
   }
 
@@ -316,18 +310,6 @@ export function ContactDetailPage() {
           )}
         </section>
 
-        {msg && (
-          <div
-            className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
-              msg.ok
-                ? "border-emerald-500/30 bg-emerald-500/10 text-success"
-                : "border-rose-500/30 bg-rose-500/10 text-danger"
-            }`}
-          >
-            {msg.text}
-          </div>
-        )}
-
         {/* 一起经历过的事 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -408,7 +390,7 @@ export function ContactDetailPage() {
             onClose={() => setEditing(false)}
             onSaved={async (text) => {
               setEditing(false);
-              setMsg({ ok: true, text });
+              toast(text);
               await load();
             }}
           />
@@ -420,7 +402,7 @@ export function ContactDetailPage() {
             onClose={() => setAdding(false)}
             onSaved={async (text) => {
               setAdding(false);
-              setMsg({ ok: true, text });
+              toast(text);
               await load();
             }}
           />

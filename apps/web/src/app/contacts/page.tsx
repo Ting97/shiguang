@@ -8,6 +8,7 @@ import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
 import { TagChip, FilterChip, TONE_BG } from "@/components/tag-chip";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
+import { toast } from "@/shared/ui/toast";
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
 import { yuan } from "@/lib/finance";
 import { GROUP_TONE } from "@/lib/group-tone";
@@ -56,7 +57,6 @@ export default function ContactsPage() {
   const [groups, setGroups] = useState<Set<string>>(new Set()); // 多选；空集=全部分组
   const [q, setQ] = useState("");
   const [view, setView] = useState<"list" | "graph">("list");
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 加载失败态：持久呈现 + 重试入口（历史 bug：失败只有 8 秒横幅，骨架永久）
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Contact | "new" | null>(null);
@@ -74,12 +74,6 @@ export default function ContactsPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   const groupChips = useMemo(() => {
     const counts = new Map<string, number>();
@@ -173,18 +167,6 @@ export default function ContactsPage() {
             </button>
           </div>
         </div>
-
-        {msg && (
-          <div
-            className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
-              msg.ok
-                ? "border-emerald-500/30 bg-emerald-500/10 text-success"
-                : "border-rose-500/30 bg-rose-500/10 text-danger"
-            }`}
-          >
-            {msg.text}
-          </div>
-        )}
 
         {/* 已有数据时的刷新失败提示（首次加载失败走下方整页错误态） */}
         {contacts !== null && loadErr && (
@@ -286,7 +268,7 @@ export default function ContactsPage() {
             onClose={() => setEditing(null)}
             onSaved={async (text) => {
               setEditing(null);
-              setMsg({ ok: true, text });
+              toast(text);
               await load();
             }}
           />

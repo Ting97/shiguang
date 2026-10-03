@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
@@ -35,8 +36,6 @@ export default function ProfilePage() {
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
-  const [msgNick, setMsgNick] = useState<{ ok: boolean; text: string } | null>(null);
-  const [msgPwd, setMsgPwd] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [quota, setQuota] = useState<{
     plan: string;
@@ -73,15 +72,14 @@ export default function ProfilePage() {
 
   async function saveNickname() {
     if (busy) return;
-    setMsgNick(null);
     setBusy(true);
     try {
       const j = await api<any>("/api/auth/profile", "PATCH", { nickname });
-      setMsgNick({ ok: true, text: "✅ 昵称已更新（导航栏即刻生效）" });
+      toast("✅ 昵称已更新（导航栏即刻生效）");
       setSavedNick(j.nickname);
       await refresh(); // 经 SessionProvider 重拉 /api/auth/me：Nav 昵称就地生效（替代旧的 location.reload）
     } catch (e) {
-      setMsgNick({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setBusy(false);
     }
@@ -89,9 +87,8 @@ export default function ProfilePage() {
 
   async function savePassword() {
     if (busy) return;
-    setMsgPwd(null);
     if (newPwd !== confirmPwd) {
-      setMsgPwd({ ok: false, text: "两次输入的新密码不一致" });
+      toast("两次输入的新密码不一致", "err");
       return;
     }
     setBusy(true);
@@ -100,12 +97,12 @@ export default function ProfilePage() {
         currentPassword: currentPwd || undefined,
         newPassword: newPwd,
       });
-      setMsgPwd({ ok: true, text: "✅ 密码已更新，下次登录请使用新密码" });
+      toast("✅ 密码已更新，下次登录请使用新密码");
       setCurrentPwd("");
       setNewPwd("");
       setConfirmPwd("");
     } catch (e) {
-      setMsgPwd({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setBusy(false);
     }
@@ -183,7 +180,6 @@ export default function ProfilePage() {
                   保存
                 </button>
               </div>
-              {msgNick && <p className={`mt-2 text-xs ${msgNick.ok ? "text-success" : "text-danger"}`}>{msgNick.text}</p>}
             </section>
 
             {/* 修改密码 */}
@@ -219,7 +215,6 @@ export default function ProfilePage() {
                   更新密码
                 </button>
               </div>
-              {msgPwd && <p className={`mt-3 text-xs ${msgPwd.ok ? "text-success" : "text-danger"}`}>{msgPwd.text}</p>}
             </section>
 
             {/* 会话安全（4-B FR-C1.3 全端登出） */}

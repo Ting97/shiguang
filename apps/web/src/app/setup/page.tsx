@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 export default function SetupPage() {
   const [nickname, setNickname] = useState("");
@@ -10,7 +11,6 @@ export default function SetupPage() {
   const [confirm, setConfirm] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     // 已有账号或已登录 → 回登录/首页（未登录 401 → 停留本页继续初始化）
@@ -24,11 +24,10 @@ export default function SetupPage() {
   async function submit() {
     if (busy) return;
     if (password !== confirm) {
-      setMsg({ ok: false, text: "两次输入的密码不一致" });
+      toast("两次输入的密码不一致", "err");
       return;
     }
     setBusy(true);
-    setMsg(null);
     try {
       // 部署配置了 SETUP_TOKEN 时服务端强制校验 x-setup-token 头（一次性）；
       // 旧实现从不携带该头——令牌模式的部署首次提交即 403 且令牌作废，初始化走不通
@@ -41,11 +40,11 @@ export default function SetupPage() {
       location.href = "/";
     } catch (e) {
       if (e instanceof ApiClientError && e.status === 403 && e.message.includes("管理员已存在")) {
-        setMsg({ ok: false, text: "管理员已存在，即将跳转登录页…" });
+        toast("管理员已存在，即将跳转登录页…", "err");
         setTimeout(() => (location.href = "/login"), 1200);
         return;
       }
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setBusy(false);
     }
@@ -102,7 +101,6 @@ export default function SetupPage() {
               {busy ? "创建中…" : "创建管理员并进入"}
             </button>
           </div>
-          {msg && <p className={`mt-3 text-xs ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>}
           <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
             管理员将接管本站全部既有记录；此后其他账号凭管理员生成的邀请码注册，数据互相隔离。
           </p>

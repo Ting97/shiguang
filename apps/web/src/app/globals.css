@@ -70,6 +70,18 @@
   --text-gradient-3: #a5b4fc;
   /* ---- 悬浮发布钮 ---- */
   --capture-btn: #38bdf8;
+  /* ---- 动效与层级刻度（主题无关） ---- */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 350ms;
+  --dur-slower: 500ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --z-sticky: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-max: 60;
 }
 
 [data-theme="light"] {
@@ -170,8 +182,49 @@
   --color-ai: var(--ai);
 }
 
-html {
-  scroll-behavior: smooth;
+/* 动效刻度进 Tailwind（REQ-009 FR-B3）：duration-fast/base/slow/slower + ease-brand/standard 工具类 */
+@theme {
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 350ms;
+  --duration-slower: 500ms;
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* 键盘焦点环（REQ-009 FR-B6）：focus-visible 全站品牌化，鼠标点击不出现 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* 触屏按压反馈（REQ-009 FR-B3）：可点元素挂 .press 即获得缩放+微透明按压态 */
+.press {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.press:active {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
+/* prefers-reduced-motion：全站动效关停（含 shimmer/smooth scroll） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 body {
@@ -396,6 +449,73 @@ body {
 }
 
 /* ---------- 动效 ---------- */
+
+/* 弹层进出场（REQ-009 FR-B2）：遮罩淡入 + 桌面卡片弹入 / 移动端底部抽屉上滑 */
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(48px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-scrim-in {
+  animation: scrim-in var(--dur-base) ease both;
+}
+.anim-modal-pop {
+  animation: modal-pop var(--dur-base) var(--ease-out) both;
+}
+@media (max-width: 639px) {
+  .anim-modal-pop {
+    animation-name: sheet-up;
+    animation-duration: var(--dur-slow);
+  }
+}
+
+/* 页面切换过渡（template.tsx）：仅 opacity，不碰 transform（保护子树 fixed 定位） */
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.page-in {
+  animation: page-in var(--dur-base) ease both;
+}
+
+/* 列表 stagger 入场：容器挂 .stagger，直接子项依次淡入上移（≤8 项，之后同时入场） */
+.stagger > * {
+  animation: fade-up var(--dur-slow) var(--ease-out) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 30ms; }
+.stagger > *:nth-child(3) { animation-delay: 60ms; }
+.stagger > *:nth-child(4) { animation-delay: 90ms; }
+.stagger > *:nth-child(5) { animation-delay: 120ms; }
+.stagger > *:nth-child(6) { animation-delay: 150ms; }
+.stagger > *:nth-child(7) { animation-delay: 180ms; }
+.stagger > *:nth-child(8) { animation-delay: 210ms; }
 
 /* 区块入场：一次性淡入上移（挂页面主区块/卡片） */
 @keyframes fade-up {

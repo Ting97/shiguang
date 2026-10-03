@@ -1,26 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useDismiss } from "@/components/dismissable";
 import { DEBT_TYPES, DEBT_TYPE_META, type DebtType } from "@/lib/finance";
 import type { Debt, Account } from "./kit";
 import { fmt, bjToday, api } from "./kit";
 
-/** 余额曲线 sparkline：本金 → 逐笔还款后的余额（最近 12 个点） */
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  const ref = useDismiss<HTMLDivElement>(onClose);
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
-      <div ref={ref} className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">{title}</h3>
-          <button onClick={onClose} className="rounded px-2 py-1 text-ink-dim hover:text-ink">✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
+// REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
+export { Modal } from "@/components/ui/modal";
 
 const inputCls =
   "w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-sky-500";

@@ -4,16 +4,17 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TodoItem, TodoRow } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
+import { confirmDialog } from "@/shared/ui/confirm";
 import { localInputToIso } from "../todo-bits";
 import { EMPTY_DRAFT } from "./kit";
-import type { Draft, Msg, View } from "./types";
+import type { Draft, View } from "./types";
 
 /** useTodoActions 上下文：入口的视图/列表数据 + 添加行草稿与行动输入行状态（props 传值，不引入新状态管理） */
 export interface TodoActionsCtx {
   view: View;
   todos: TodoItem[];
   load: (v: View) => Promise<void>;
-  setMsg: (m: Msg) => void;
   draft: Draft;
   setDraft: Dispatch<SetStateAction<Draft>>;
   setDraftOpen: (open: boolean) => void;
@@ -27,7 +28,7 @@ export interface TodoActionsCtx {
  * 错误分支、提示文案、成功后 reload 与拆分前逐行一致。
  */
 export function useTodoActions(ctx: TodoActionsCtx) {
-  const { view, todos, load, setMsg, draft, setDraft, setDraftOpen, subTitle, setSubTitle } = ctx;
+  const { view, todos, load, draft, setDraft, setDraftOpen, subTitle, setSubTitle } = ctx;
   const [adding, setAdding] = useState(false);
   // 添加行动进行中：防连按 Enter 重复建行动（历史 bug：双击 Enter 落两条重复行动）
   const [addingSub, setAddingSub] = useState(false);
@@ -49,10 +50,10 @@ export function useTodoActions(ctx: TodoActionsCtx) {
       });
       setDraft({ ...EMPTY_DRAFT, activityId: draft.activityId });
       setDraftOpen(false);
-      setMsg({ ok: true, text: `📌 已添加「${j.todo.title}」` });
+      toast(`📌 已添加「${j.todo.title}」`);
       await load(view);
     } catch (e) {
-      setMsg({ ok: false, text: `添加失败：${e instanceof Error ? e.message : e}` });
+      toast(`添加失败：${e instanceof Error ? e.message : e}`, "err");
     } finally {
       setAdding(false);
     }
@@ -64,18 +65,18 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发 ChunkErrorReloader 整页刷新、丢失编辑状态）
       if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message });
+        toast(e.message, "err");
       } else {
-        setMsg({ ok: false, text: "网络异常，请稍后重试" });
+        toast("网络异常，请稍后重试", "err");
       }
       return false;
     }
-    if (okText) setMsg({ ok: true, text: okText });
+    if (okText) toast(okText);
     try {
       await load(view);
     } catch {
       // 刷新列表失败同样只提示，不外抛
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      toast("网络异常，请稍后重试", "err");
     }
     return true;
   }
@@ -102,18 +103,18 @@ export function useTodoActions(ctx: TodoActionsCtx) {
         j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
       } catch (e) {
         // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-        setMsg({
-          ok: false,
-          text: e instanceof ApiClientError ? (e.message === "操作失败" ? "AI 拆解失败" : e.message) : "网络异常，请稍后重试",
-        });
+        toast(
+          e instanceof ApiClientError ? (e.message === "操作失败" ? "AI 拆解失败" : e.message) : "网络异常，请稍后重试",
+          "err",
+        );
         return;
       }
-      setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${isAction ? "，已插入原行动之后" : ""}` });
+      toast(`✨ AI 拆出 ${j.actions.length} 个行动${isAction ? "，已插入原行动之后" : ""}`);
       try {
         await load(view);
       } catch {
         // 刷新列表失败同样只提示，不外抛
-        setMsg({ ok: false, text: "网络异常，请稍后重试" });
+        toast("网络异常，请稍后重试", "err");
       }
     } finally {
       setDecomposingId(null);
@@ -121,26 +122,30 @@ export function useTodoActions(ctx: TodoActionsCtx) {
   }
 
   async function removeTodo(t: TodoRow, isChild: boolean) {
-    // ⚠ 保留原生 confirm：行菜单是 createPortal 渲染，008 实测 React 19 下 portal 内
-    // 经重渲染的按钮第二次点击事件不送达（两步确认不可靠），destructive 操作安全优先
+    // 确认弹窗（9-B）：独立渲染树单次点击确认——规避 008 实测 portal 菜单内二次点击丢失问题
     const hint = isChild ? "" : "\n其下行动将一并删除。";
-    if (!window.confirm(`删除${isChild ? "行动" : "todo"}？${hint}\n「${t.title}」`)) return;
+    const ok = await confirmDialog({
+      title: `删除${isChild ? "行动" : "todo"}`,
+      message: `「${t.title}」${hint}`,
+      confirmText: "删除",
+    });
+    if (!ok) return;
     try {
       await api<any>(`/api/todos/${t.id}`, "DELETE");
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      setMsg({
-        ok: false,
-        text: e instanceof ApiClientError ? (e.message === "操作失败" ? "删除失败" : e.message) : "网络异常，请稍后重试",
-      });
+      toast(
+        e instanceof ApiClientError ? (e.message === "操作失败" ? "删除失败" : e.message) : "网络异常，请稍后重试",
+        "err",
+      );
       return;
     }
-    setMsg({ ok: true, text: `🗑 已删除「${t.title}」` });
+    toast(`🗑 已删除「${t.title}」`);
     try {
       await load(view);
     } catch {
       // 刷新列表失败同样只提示，不外抛
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      toast("网络异常，请稍后重试", "err");
     }
   }
 
@@ -152,10 +157,10 @@ export function useTodoActions(ctx: TodoActionsCtx) {
       await api<any>("/api/todos", "POST", { title, parentId });
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      setMsg({
-        ok: false,
-        text: e instanceof ApiClientError ? (e.message === "操作失败" ? "添加失败" : e.message) : "网络异常，请稍后重试",
-      });
+      toast(
+        e instanceof ApiClientError ? (e.message === "操作失败" ? "添加失败" : e.message) : "网络异常，请稍后重试",
+        "err",
+      );
       setAddingSub(false); // 失败也要复位，否则输入行永久锁死
       return;
     }
@@ -164,7 +169,7 @@ export function useTodoActions(ctx: TodoActionsCtx) {
       await load(view);
     } catch {
       // 刷新列表失败同样只提示，不外抛
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      toast("网络异常，请稍后重试", "err");
     } finally {
       setAddingSub(false);
     }

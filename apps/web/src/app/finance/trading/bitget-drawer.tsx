@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 /** 北京日历日（n 天前）——与 kit.bjToday 同口径（UTC getter + 8h） */
 const isoDaysAgo = (n: number) => new Date(Date.now() + 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
@@ -27,7 +28,6 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   const [from, setFrom] = useState(() => isoDaysAgo(30));
   const [to, setTo] = useState(() => isoDaysAgo(0));
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
 
   const keys = status?.keys ?? [];
@@ -38,7 +38,7 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
         setStatus(j);
         if (j.keys?.length) setSyncLabel((cur) => cur || j.keys![0].label);
       })
-      .catch((e) => setMsg({ ok: false, text: e instanceof Error ? e.message : "状态加载失败" }));
+      .catch((e) => toast(e instanceof Error ? e.message : "状态加载失败", "err"));
   }, []);
 
   async function refreshKeys() {
@@ -50,7 +50,6 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   async function saveKeys() {
     if (busy) return;
     setBusy(true);
-    setMsg(null);
     try {
       const r = await api<{ label: string }>("/api/trading/bitget/keys", "PUT", {
         label: keyLabel.trim(),
@@ -62,9 +61,9 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
       setSyncLabel(r.label);
       setApiSecret("");
       setPassphrase("");
-      setMsg({ ok: true, text: "✅ 凭据已加密保存（仅只读权限需要）" });
+      toast("✅ 凭据已加密保存（仅只读权限需要）");
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "保存失败" });
+      toast(e instanceof Error ? e.message : "保存失败", "err");
     } finally {
       setBusy(false);
     }
@@ -77,9 +76,9 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
       await api(`/api/trading/bitget/keys${label ? `?label=${encodeURIComponent(label)}` : ""}`, "DELETE");
       const j = await refreshKeys();
       setSyncLabel((cur) => (label && cur === label ? j.keys?.[0]?.label ?? "" : cur));
-      setMsg({ ok: true, text: label ? `已解绑「${label}」` : "已解绑全部密钥" });
+      toast(label ? `已解绑「${label}」` : "已解绑全部密钥");
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "解绑失败" });
+      toast(e instanceof Error ? e.message : "解绑失败", "err");
     } finally {
       setBusy(false);
     }
@@ -88,7 +87,6 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   async function sync(dryRun: boolean) {
     if (busy) return;
     setBusy(true);
-    setMsg(null);
     setSummary(null);
     try {
       const j = await api<Record<string, unknown>>("/api/trading/bitget/sync", "POST", {
@@ -100,11 +98,11 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
       });
       setSummary(j);
       if (!dryRun) {
-        setMsg({ ok: true, text: "✅ 同步完成" });
+        toast("✅ 同步完成");
         await onSynced();
       }
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof ApiClientError ? e.message : "同步失败" });
+      toast(e instanceof ApiClientError ? e.message : "同步失败", "err");
     } finally {
       setBusy(false);
     }
@@ -195,8 +193,6 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
             按平仓单 orderId 幂等去重，重复同步不产生重复明细；开仓/平仓行自动区分，开仓时间按最近开仓配对。
           </p>
         </section>
-
-        {msg && <div className={`msg-banner mt-3 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>}
 
         {summary && (
           <pre className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-bg/60 p-2 text-[11px] leading-relaxed text-ink-soft">

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import IconPicker from "@/components/icon-picker";
 import type { Activity } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 /** 日程页 · 分类子页：活动分类管理（原 /categories 页整体平移，逻辑不变） */
 
@@ -20,7 +21,6 @@ export default function ActivityPanel() {
   const [list, setList] = useState<Activity[]>([]);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [adding, setAdding] = useState({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 新增/保存进行中锁，防连点重复提交
   const [busy, setBusy] = useState(false);
 
@@ -31,33 +31,28 @@ export default function ActivityPanel() {
     } catch (e) {
       // 失败置空列表 + 提示（裸 rejection 会触发 ChunkErrorReloader 整页刷新循环）
       setList([]);
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "加载失败" });
+      toast(e instanceof Error ? e.message : "加载失败", "err");
     }
   }, []);
   useEffect(() => {
     load();
   }, [load]);
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 3000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   async function add() {
-    if (!adding.name.trim()) { setMsg({ ok: false, text: "名称必填" }); return; }
+    if (!adding.name.trim()) { toast("名称必填", "err"); return; }
     if (busy) return;
     setBusy(true);
     try {
       await api<any>("/api/activities", "POST", adding);
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "新增失败" : e.message }); return; }
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "新增失败" : e.message, "err"); return; }
+      toast("网络异常，请稍后重试", "err");
       return;
     } finally {
       setBusy(false);
     }
-    setMsg({ ok: true, text: `✅ 已新增分类「${adding.name.trim()}」` });
+    toast(`✅ 已新增分类「${adding.name.trim()}」`);
     setAdding({ name: "", icon: "🏷", color: "#eab308", defaultMin: 30 });
     await load();
   }
@@ -70,14 +65,14 @@ export default function ActivityPanel() {
       await api<any>(`/api/activities/${editing.id}`, "PATCH", { name: editing.name, icon: editing.icon, color: editing.color, defaultMin: editing.defaultMin });
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message }); return; }
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "保存失败" : e.message, "err"); return; }
+      toast("网络异常，请稍后重试", "err");
       return;
     } finally {
       setBusy(false);
     }
     setEditing(null);
-    setMsg({ ok: true, text: "💾 已保存" });
+    toast("💾 已保存");
     await load();
   }
 
@@ -86,11 +81,11 @@ export default function ActivityPanel() {
       await api<any>(`/api/activities/${a.id}`, "DELETE");
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      if (e instanceof ApiClientError) { setMsg({ ok: false, text: e.message === "操作失败" ? "删除失败" : e.message }); return; }
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "删除失败" : e.message, "err"); return; }
+      toast("网络异常，请稍后重试", "err");
       return;
     }
-    setMsg({ ok: true, text: `🗑 已删除「${a.name}」` });
+    toast(`🗑 已删除「${a.name}」`);
     setArmDeleteId(null);
     await load();
   }
@@ -116,12 +111,6 @@ export default function ActivityPanel() {
       <p className="mb-4 text-xs text-ink-dim">
         预设分类不可删除（可改名称/图标/颜色/默认时长）；自定义分类删除后其记录归入「其他」
       </p>
-
-      {msg && (
-        <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"}`}>
-          {msg.text}
-        </div>
-      )}
 
       {/* 新增（移动端纵向堆叠、控件全宽，触控目标 ≥40px） */}
       <div className="glass mb-5 flex flex-wrap items-center gap-2 rounded-2xl p-4">

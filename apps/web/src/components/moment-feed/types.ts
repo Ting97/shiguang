@@ -19,10 +19,7 @@ export interface MomentFeedProps {
   searchKeyword?: string;
 }
 
-/** 卡内操作反馈：识别/手动添加/编辑/删除的就地提示 */
-export type CardMsg = { ok: boolean; text: string } | null;
-
-/** 卡内操作统一执行器：执行 fn → 成功/失败消息就地展示 → 刷新 */
+/** 卡内操作统一执行器：执行 fn → 成功/失败消息经全局 toast 提示 → 刷新 */
 export type RunFn = (fn: () => Promise<string>) => Promise<void>;
 
 /** 两步删除：首点 del(key) 进入待确认态（按钮变「确认删除？」，3 秒超时自动复位），

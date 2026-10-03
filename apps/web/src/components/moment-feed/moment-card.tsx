@@ -46,7 +46,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           : { icon: "📝", label: "动态", tone: "slate" as const };
 
   // 卡内操作反馈 + 提交逻辑（识别/手动添加/删除），由 useCardActions 提供
-  const { cardMsg, setCardMsg, busyDomain, run, recognizeDomain, manualAdd, del, delArmed } = useCardActions(m, onRefresh);
+  const { busyDomain, run, recognizeDomain, manualAdd, del, delArmed } = useCardActions(m, onRefresh);
 
   // 延迟刷新定时器：卸载（删卡/切页）时清理，避免对已卸载卡片发起请求（失败会触发整页自愈刷新）
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -117,7 +117,6 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           setActionsOpen={setActionsOpen}
           setMenuOpen={setMenuOpen}
           setMenuPos={setMenuPos}
-          setCardMsg={setCardMsg}
           onSaveRaw={saveRaw}
         />
 
@@ -211,16 +210,6 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           <p className="mt-2 border-t border-line-soft/60 pt-2 text-[10px] text-ink-faint">
             点击动态内容 → 打开识别菜单（AI 识别 / 手动补充六类信息）
           </p>
-        )}
-
-        {/* 卡内操作反馈：识别/手动添加/编辑/删除的结果就地展示（不滚到页面顶部也能看到） */}
-        {cardMsg && (
-          <div
-            role="status"
-            className={`msg-banner mt-2 ${cardMsg.ok ? "msg-banner-ok" : "msg-banner-err"}`}
-          >
-            {cardMsg.text}
-          </div>
         )}
       </div>
     </article>

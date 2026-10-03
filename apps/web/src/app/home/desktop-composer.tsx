@@ -2,7 +2,8 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import VoiceButton from "@/components/voice-button";
-import type { DesktopImage, Notify } from "./types";
+import { toast } from "@/shared/ui/toast";
+import type { DesktopImage } from "./types";
 
 interface Props {
   text: string;
@@ -10,7 +11,6 @@ interface Props {
   inputRef: RefObject<HTMLTextAreaElement | null>;
   busy: boolean;
   onSubmit: () => void;
-  setMsg: Notify;
   images: DesktopImage[];
   fileInputRef: RefObject<HTMLInputElement | null>;
   onAddImages: (files: File[]) => void;
@@ -25,7 +25,6 @@ export default function DesktopComposer({
   inputRef,
   busy,
   onSubmit,
-  setMsg,
   images,
   fileInputRef,
   onAddImages,
@@ -71,8 +70,8 @@ export default function DesktopComposer({
           </label>
           <VoiceButton
             onText={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))}
-            onError={(m) => setMsg({ ok: false, text: m })}
-            onHint={(m) => setMsg({ ok: true, text: m })}
+            onError={(m) => toast(m, "err")}
+            onHint={(m) => toast(m)}
           />
           <span className="hidden text-[11px] text-ink-faint sm:block">🎤 按住说话 · Enter 发布</span>
         </div>

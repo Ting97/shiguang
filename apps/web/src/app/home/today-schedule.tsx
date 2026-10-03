@@ -6,23 +6,23 @@ import DayDonut from "@/components/day-donut";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import { bjToday, zhDuration } from "@/lib/date";
 import { combineHM } from "@/lib/bj-time";
 import type { Activity, Block } from "@/lib/types";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { zhTime } from "./kit";
-import type { BlockDraft, Notify } from "./types";
+import type { BlockDraft } from "./types";
 
 interface Props {
   blocks: Block[];
   activities: Activity[];
   todayKcal: number;
-  setMsg: Notify;
   load: () => Promise<void>;
 }
 
 /** 今日日程：时间轴 / 列表 双视图（行内编辑、删除、缺口补录逻辑自 page.tsx 原样迁出） */
-export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, load }: Props) {
+export default function TodaySchedule({ blocks, activities, todayKcal, load }: Props) {
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [listDraft, setListDraft] = useState<BlockDraftValue | null>(null);
@@ -47,7 +47,7 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
   async function saveEdit() {
     if (!editing || saving) return; // 保存进行中忽略再次提交，防双击重复保存
     if (editing.end <= editing.start) {
-      setMsg({ ok: false, text: "结束时间必须晚于开始时间" });
+      toast("结束时间必须晚于开始时间", "err");
       return;
     }
     const b = blocks.find((x) => x.id === editing.id);
@@ -61,13 +61,13 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
         activityId: editing.activityId,
       });
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "保存失败" });
+      toast(e instanceof Error ? e.message : "保存失败", "err");
       return;
     } finally {
       setSaving(false);
     }
     setEditing(null);
-    setMsg({ ok: true, text: "💾 日程已更新" });
+    toast("💾 日程已更新");
     await load();
   }
 
@@ -76,10 +76,10 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     try {
       await api(`/api/blocks/${b.id}`, "DELETE");
     } catch {
-      setMsg({ ok: false, text: "删除失败" });
+      toast("删除失败", "err");
       return;
     }
-    setMsg({ ok: true, text: `🗑 已删除「${b.title}」` });
+    toast(`🗑 已删除「${b.title}」`);
     await load();
   }
 
@@ -88,10 +88,10 @@ export default function TodaySchedule({ blocks, activities, todayKcal, setMsg, l
     try {
       await api("/api/blocks", "POST", payload);
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "补录失败" });
+      toast(e instanceof Error ? e.message : "补录失败", "err");
       return false;
     }
-    setMsg({ ok: true, text: `✍️ 已补录：${payload.title}` });
+    toast(`✍️ 已补录：${payload.title}`);
     await load();
     return true;
   }

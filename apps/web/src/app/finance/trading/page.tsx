@@ -6,6 +6,7 @@ import ModuleLocked from "@/components/module-locked";
 import Skeleton from "@/components/skeleton";
 import { FilterChip, TagChip } from "@/components/tag-chip";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import DailySection from "./daily-section";
 import DigestSection from "./digest-section";
 import EquitySection from "./equity-section";
@@ -27,7 +28,6 @@ export default function TradingPage() {
   const [importing, setImporting] = useState(false);
   const [bitgetOpen, setBitgetOpen] = useState(false);
   const [quickSyncing, setQuickSyncing] = useState(false);
-  const [quickMsg, setQuickMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPc, setIsPc] = useState(false);
   const [rev, setRev] = useState(0);
 
@@ -56,7 +56,6 @@ export default function TradingPage() {
   const quickSync = useCallback(async () => {
     if (quickSyncing) return;
     setQuickSyncing(true);
-    setQuickMsg(null);
     try {
       const st = await api<{ bound: boolean; keys?: { label: string }[] }>("/api/trading/bitget/keys");
       const labels = st.keys?.map((k) => k.label) ?? [];
@@ -74,10 +73,10 @@ export default function TradingPage() {
         );
         parts.push(`「${label}」${r.fromUsed}~${r.toUsed} 新增 ${r.rowsNew} · 重复 ${r.rowsDup}`);
       }
-      setQuickMsg({ ok: true, text: `✅ 同步完成：${parts.join("；")}` });
+      toast(`✅ 同步完成：${parts.join("；")}`);
       await load();
     } catch (e) {
-      setQuickMsg({ ok: false, text: e instanceof ApiClientError ? e.message : "同步失败，请稍后再试" });
+      toast(e instanceof ApiClientError ? e.message : "同步失败，请稍后再试", "err");
     } finally {
       setQuickSyncing(false);
     }
@@ -181,12 +180,6 @@ export default function TradingPage() {
                   </button>
                 )}
               </div>
-
-              {quickMsg && (
-                <p className={`mt-2 rounded-lg px-3 py-1.5 text-[11px] ${quickMsg.ok ? "bg-emerald-500/10 text-success" : "bg-rose-500/10 text-danger"}`}>
-                  {quickMsg.text}
-                </p>
-              )}
 
               {active && (
                 <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line-soft pt-3 text-center sm:grid-cols-5">

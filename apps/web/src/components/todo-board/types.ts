@@ -5,9 +5,6 @@ import type { TodoRow } from "@/lib/types";
 /** 智能列表视图 */
 export type View = "today" | "important" | "all" | "done";
 
-/** 轻提示：ok=成功（绿）/ 否则失败（红）；null=隐藏 */
-export type Msg = { ok: boolean; text: string } | null;
-
 /** 添加行草稿（due 为 datetime-local 值，空串=无截止；activityId "other" 默认；spaceId ""=不关联空间） */
 export interface Draft {
   title: string;
@@ -33,5 +30,4 @@ export interface SubtaskCtl {
   open: (id: string) => void;
   close: () => void;
   add: (parentId: string) => void;
-  setMsg: (m: Msg) => void;
 }

@@ -6,6 +6,7 @@ import BillImport from "@/components/bill-import";
 import FinanceTabs from "@/components/finance-tabs";
 import { yuan } from "@/lib/finance";
 import { api } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 import {
   type Tx,
@@ -27,7 +28,6 @@ export default function FinancePage() {
   const [txs, setTxs] = useState<Tx[]>([]);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [managingAccount, setManagingAccount] = useState(false);
@@ -37,12 +37,6 @@ export default function FinancePage() {
   // 删除流水两步确认：待确认的流水 id + 超时复位定时器
   const [armDel, setArmDel] = useState<string | null>(null);
   const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), msg.ok ? 3500 : 8000);
-    return () => clearTimeout(t);
-  }, [msg]);
 
   // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
   const loadSeq = useRef(0);
@@ -75,10 +69,10 @@ export default function FinancePage() {
     setConfirmBusy(true); // 提交期间锁按钮：防双击双发 PATCH 重复确认
     try {
       await api(`/api/transactions/${t.id}`, "PATCH", { confirm: true });
-      setMsg({ ok: true, text: `✅ 已确认：${t.direction === "out" ? "支出" : "收入"} ¥${yuan(t.amount_cents)}` });
+      toast(`✅ 已确认：${t.direction === "out" ? "支出" : "收入"} ¥${yuan(t.amount_cents)}`);
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setConfirmBusy(false);
     }
@@ -90,10 +84,10 @@ export default function FinancePage() {
     setConfirmBusy(true); // 提交期间锁按钮：防双击双发整批 PATCH
     try {
       await Promise.all(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true })));
-      setMsg({ ok: true, text: `✅ 已全部确认（${drafts.length} 笔）` });
+      toast(`✅ 已全部确认（${drafts.length} 笔）`);
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
       await load();
     } finally {
       setConfirmBusy(false);
@@ -106,10 +100,10 @@ export default function FinancePage() {
     setArmDel(null);
     try {
       await api(`/api/transactions/${t.id}`, "DELETE");
-      setMsg({ ok: true, text: "🗑 已删除流水" });
+      toast("🗑 已删除流水");
       await load();
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
     }
   }
 
@@ -161,8 +155,6 @@ export default function FinancePage() {
           </div>
         </div>
 
-        {msg && <div className={`msg-banner mb-4 ${msg.ok ? "msg-banner-ok" : "msg-banner-err"}`}>{msg.text}</div>}
-
         {/* 已有数据时的刷新失败提示（首次加载失败走上方整页错误态） */}
         {loadErr && (
           <div className="msg-banner msg-banner-err mb-4">
@@ -189,7 +181,7 @@ export default function FinancePage() {
           editingBudget={editingBudget}
           onEditBudget={setEditingBudget}
           onBudgetSaved={async () => {
-            setMsg({ ok: true, text: "💾 月度上限已保存" });
+            toast("💾 月度上限已保存");
             await load();
           }}
         />
@@ -216,7 +208,7 @@ export default function FinancePage() {
           onSubmitEdit={async (t, payload) => {
             await api(`/api/transactions/${t.id}`, "PATCH", payload);
             setEditing(null);
-            setMsg({ ok: true, text: "💾 流水已更新" });
+            toast("💾 流水已更新");
             await load();
           }}
           onRemove={removeTx}
@@ -233,11 +225,11 @@ export default function FinancePage() {
                   await api("/api/transactions", "POST", payload);
                 } catch (e) {
                   // 失败提示且不关表单（无 catch 会静默 + unhandled rejection 触发整页刷新清空表单）
-                  setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+                  toast(e instanceof Error ? e.message : String(e), "err");
                   return;
                 }
                 setAdding(false);
-                setMsg({ ok: true, text: "✅ 已记一笔" });
+                toast("✅ 已记一笔");
                 await load();
               }}
             />

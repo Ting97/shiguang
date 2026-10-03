@@ -5,11 +5,13 @@ import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Dismissable } from "@/components/dismissable";
+import { Modal } from "@/components/ui/modal";
 import InlineRename from "@/components/inline-rename";
 import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
 import { bjToday } from "@/lib/date"; // 北京口径今天：本地 getter 在海外设备会差一天
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 
 /**
  * 目标空间列表（REQ-001 R3）：宏大目标（≥1 年）容器。
@@ -35,7 +37,6 @@ export default function SpacesPage() {
   const [editing, setEditing] = useState<Draft | null>(null); // null=关闭；"new" 用 EMPTY
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false); // 新建/编辑保存中：防慢网络双击重复创建
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // 删除空间两步确认（全站规范，替代原生 confirm）
   const armDelete = useArmConfirm();
   const [showArchived, setShowArchived] = useState(false);
@@ -97,17 +98,17 @@ export default function SpacesPage() {
       await api<any>(editingId ? `/api/spaces/${editingId}` : "/api/spaces", editingId ? "PATCH" : "POST", body);
     } catch (e) {
       if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "保存失败" : e.message });
+        toast(e.message === "操作失败" ? "保存失败" : e.message, "err");
         return;
       }
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      setMsg({ ok: false, text: "网络异常，请稍后重试" });
+      toast("网络异常，请稍后重试", "err");
       return;
     } finally {
       setSaving(false);
     }
     setEditing(null);
-    setMsg({ ok: true, text: editingId ? "空间已更新" : `空间「${editing.name}」已创建 🎯` });
+    toast(editingId ? "空间已更新" : `空间「${editing.name}」已创建 🎯`);
     load();
   }
 
@@ -116,10 +117,10 @@ export default function SpacesPage() {
       await api<any>(`/api/spaces/${s.id}`, "PATCH", { status });
     } catch (e) {
       // 失败报错并中止，不提示成功（历史 bug：吞掉 ApiClientError 后无条件弹「已归档/已恢复」）
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
       return;
     }
-    setMsg({ ok: true, text: status === "archived" ? `「${s.name}」已归档` : `「${s.name}」已恢复` });
+    toast(status === "archived" ? `「${s.name}」已归档` : `「${s.name}」已恢复`);
     load();
   }
 
@@ -131,10 +132,10 @@ export default function SpacesPage() {
       await api<any>(`/api/spaces/${s.id}`, "DELETE");
     } catch (e) {
       // 失败报错并中止，不提示成功（历史 bug：吞掉 ApiClientError 后无条件弹「已删除」）
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      toast(e instanceof Error ? e.message : String(e), "err");
       return;
     }
-    setMsg({ ok: true, text: `「${s.name}」已删除` });
+    toast(`「${s.name}」已删除`);
     load();
   }
 
@@ -150,12 +151,6 @@ export default function SpacesPage() {
   return (
     <main className="min-h-screen text-ink">
       <div className="mx-auto max-w-6xl px-5 pb-16 pt-8">
-        {msg && (
-          <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-success" : "border-rose-500/30 bg-rose-500/10 text-danger"}`}>
-            {msg.text}
-          </div>
-        )}
-
         {/* 模块抬头：与动态/财务统一的居中 hero 样式 */}
         <header className="mb-5 text-center">
           <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
@@ -216,14 +211,14 @@ export default function SpacesPage() {
                     await api<any>(`/api/spaces/${s.id}`, "PATCH", { name });
                   } catch (e) {
                     if (e instanceof ApiClientError) {
-                      setMsg({ ok: false, text: e.message === "操作失败" ? "重命名失败" : e.message });
+                      toast(e.message === "操作失败" ? "重命名失败" : e.message, "err");
                       return false;
                     }
                     // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-                    setMsg({ ok: false, text: "网络异常，请稍后重试" });
+                    toast("网络异常，请稍后重试", "err");
                     return false;
                   }
-                  setMsg({ ok: true, text: "已重命名" });
+                  toast("已重命名");
                   await load();
                   return true;
                 }}
@@ -296,16 +291,15 @@ export default function SpacesPage() {
 
         {/* 新建/编辑弹层（N3：点空白/Esc 取消，有改动轻提示） */}
         {editing && (
-          <Dismissable
+          <Modal
+            title={editingId ? "编辑空间" : "新建目标空间"}
             onClose={() => {
               if (editing.name.trim() !== (spaces?.find((s) => s.id === editingId)?.name ?? "")) {
-                setMsg({ ok: true, text: "已取消，未保存" });
+                toast("已取消，未保存", "info");
               }
               setEditing(null);
             }}
-            className="fixed inset-x-4 top-1/2 z-[61] -translate-y-1/2 rounded-2xl border border-line-soft bg-surface p-5 shadow-2xl sm:mx-auto sm:max-w-md"
           >
-            <h2 className="mb-3 text-sm font-semibold text-ink">{editingId ? "编辑空间" : "新建目标空间"}</h2>
               <input
                 autoFocus
                 value={editing.name}
@@ -378,7 +372,7 @@ export default function SpacesPage() {
                   {saving ? "保存中…" : editingId ? "保存" : "创建"}
                 </button>
               </div>
-          </Dismissable>
+          </Modal>
         )}
 
         {/* 卡片 ⋯ 菜单：编辑/归档/删除收纳（桌面锚定浮层 / 移动端底部弹层） */}
@@ -386,7 +380,7 @@ export default function SpacesPage() {
           createPortal(
             <Dismissable
               onClose={() => setCardMenu(null)}
-              className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
+              className="fixed inset-x-0 bottom-0 z-[var(--z-max)] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
               style={cardMenuPos ? { top: cardMenuPos.top, left: cardMenuPos.left } : undefined}
             >
               <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />

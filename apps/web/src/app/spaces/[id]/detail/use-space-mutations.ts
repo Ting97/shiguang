@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { Space } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { confirmDialog } from "@/shared/ui/confirm";
 import type { Msg } from "./types";
 
 /** 空间级变更（自 detail.tsx 拆出）：目标到期时间就地保存 / 归档·恢复 / 删除 */
@@ -44,11 +45,14 @@ export function useSpaceMutations(opts: {
 
   async function removeSpace() {
     if (!space) return;
-    // ⚠ 保留原生 confirm：空间菜单是 createPortal 渲染，008 实测 React 19 下 portal 内
-    // 经重渲染的按钮第二次点击事件不送达（两步确认不可靠），destructive 操作安全优先
+    // 确认弹窗（9-B）：独立渲染树单次点击确认——规避 008 实测 portal 菜单内二次点击丢失问题
     const refN = space.reflection_count ?? 0;
-    if (!window.confirm(`删除空间「${space.name}」？
-含 ${refN} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`)) return;
+    const ok = await confirmDialog({
+      title: "删除空间",
+      message: `确定删除「${space.name}」？\n含 ${refN} 篇感悟（将一并删除）；${space.todo_total ?? 0} 条关联 todo、${space.entry_count ?? 0} 条动态仅解除归属。`,
+      confirmText: "删除",
+    });
+    if (!ok) return;
     try {
       await api<any>(`/api/spaces/${space.id}`, "DELETE");
     } catch (e) {
