@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "@/server/platform/config";
 import { hasApiKey, transcribeAudio, asrModel } from "@shiguangri/ai";
 import { withAuth } from "@/server/platform/http/route";
-import { writeAuditRecord } from "@/server/ai";
+import { writeAuditRecord, checkAiQuota } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +54,15 @@ async function toWav(buffer: Buffer, contentType: string): Promise<Buffer> {
  */
 export const POST = withAuth(async (req, { user }) => {
   if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
+
+  // 9-E 配额闭环：此前 ASR 只事后计数不拦截，超额免费用户可无限烧语音识别
+  const q = await checkAiQuota(user.id);
+  if (!q.allowed) {
+    return NextResponse.json(
+      { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·语音识别需升级 Pro`, quota: q },
+      { status: 402 },
+    );
+  }
 
   // body 上限前置预检（15MB 音频 + multipart 开销余量）：formData() 全量缓冲进内存，先拦超大 body
   const declared = Number(req.headers.get("content-length") ?? 0);

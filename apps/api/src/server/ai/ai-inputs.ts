@@ -67,7 +67,7 @@ const EXTRACT_FULL_INJECTS: InjectSpec[] = [
 ];
 const EXTRACT_FULL_CAPS: CapSpec[] = [
   { key: "catCount", label: "分类对照条数", min: 1, max: 50, default: 50 },
-  { key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 100 },
+  { key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 30 },
 ];
 
 // ---- 复盘类通用注入/参数 ----
@@ -133,7 +133,7 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
       REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"),
       REQ("text", "用户话术", "动态原文，抽取对象本体", "本次输入"),
     ],
-    caps: [{ key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 100 }],
+    caps: [{ key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 30 }],
   },
   extract_domain_schedule: {
     userTemplate: EXTRACT_PLAIN_TEMPLATE,
@@ -169,7 +169,7 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     userTemplate: EXTRACT_PEOPLE_TEMPLATE,
     placeholders: ["nowCst", "contactList", "text"],
     injects: [...CONTACT_INJECT(false), REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"), REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入")],
-    caps: [{ key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 100 }],
+    caps: [{ key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 30 }],
   },
   review_day: {
     userTemplate: REVIEW_TEMPLATE(""),

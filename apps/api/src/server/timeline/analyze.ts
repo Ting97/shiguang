@@ -81,12 +81,15 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
     const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`).join("\n");
     const userPrompt = await assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) }, { userId });
     const t0 = Date.now();
+    // 9-E 记账补漏：space_classify 此前不传 onUsage，token 恒 0（计费口径失真）
+    let usage: { prompt_tokens: number; completion_tokens: number } | null = null;
     const raw = await chat({
       system: bundle.system,
       user: userPrompt,
       temperature: 0,
       maxTokens: 256,
       timeoutMs: 45_000,
+      onUsage: (u) => { usage = u; },
     });
     const parsed = SpaceClassification.safeParse(extractJson(raw));
     if (!parsed.success) return;
@@ -101,10 +104,12 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
       entryId,
       userId,
     ]);
+    const u = usage as { prompt_tokens: number; completion_tokens: number } | null;
     void writeAuditRecord({
       userId, entryId, stage: "space_classify",
       model: activeModel(), engine: "space-classify",
       latencyMs: Date.now() - t0, ok: true,
+      promptTokens: u?.prompt_tokens, completionTokens: u?.completion_tokens,
     });
   } catch (e) {
     console.warn("[space-classify] 归属失败（静默忽略）:", String(e).slice(0, 160));

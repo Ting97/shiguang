@@ -326,10 +326,14 @@ export async function generateAiProfile(userId: string, id: string) {
       engine: "ai_profile",
       latencyMs: Date.now() - t0,
       textLen: lines.join("\n").length,
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
       ok,
       error: error ?? null,
     });
 
+  // 9-E 记账补漏：ai_profile 此前不传 onUsage，token 恒 0（计费口径失真）
+  let usage: { prompt_tokens: number; completion_tokens: number } | null = null;
   let profile: AiProfile;
   try {
     const raw = await chat({
@@ -338,6 +342,7 @@ export async function generateAiProfile(userId: string, id: string) {
       temperature: 0.3,
       maxTokens: 600,
       timeoutMs: 45_000,
+      onUsage: (u) => { usage = u; },
     });
     const parsed = extractJson(raw) as Partial<AiProfile>;
     const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, 3) : []);
