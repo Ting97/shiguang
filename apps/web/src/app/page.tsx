@@ -186,7 +186,7 @@ export default function Home() {
         <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
 
         <footer className="mt-10 text-center text-badge text-ink-faint">
-          拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang
+          拾光 · 钱·时间·人 · 源码仓库 github.com/Ting97/shiguang
         </footer>
       </div>
 
