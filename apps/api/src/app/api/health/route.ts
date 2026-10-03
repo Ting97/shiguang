@@ -45,14 +45,29 @@ export async function GET() {
   checks.aiConfigured = cfg.hasGlmKey;
   checks.jevConfigured = cfg.hasJevKey;
 
-  // 迁移待执行（schema_migrations 存在时比对目录；表不存在=未初始化 runner，不算失败）
+  // 迁移待执行（9-F 修复：原实现读 process.cwd()/migrations——dev 与 standalone 下都不存在，检查恒 null）
+  // 优先读构建期清单（.next/migrations-manifest.json，standalone 随产物携带）；dev 回退向上搜 packages/db/migrations
   let migrationPending: boolean | null = null;
   try {
     const { rows } = await pool.query(`select count(*)::int as n from schema_migrations`);
-    const { readdirSync } = await import("node:fs");
-    const dir = join(process.cwd(), "migrations");
-    const files = readdirSync(dir).filter((f) => f.endsWith(".sql"));
-    migrationPending = rows[0].n < files.length;
+    let expected: number | null = null;
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const manifest = JSON.parse(await readFile(join(process.cwd(), ".next", "migrations-manifest.json"), "utf8"));
+      expected = Number(manifest.count) || null;
+    } catch {
+      const { readdirSync } = await import("node:fs");
+      let dir = process.cwd();
+      for (let i = 0; i < 6 && expected === null; i++) {
+        const candidate = join(dir, "packages", "db", "migrations");
+        try {
+          expected = readdirSync(candidate).filter((f) => f.endsWith(".sql")).length;
+        } catch {
+          dir = join(dir, "..");
+        }
+      }
+    }
+    if (expected !== null) migrationPending = rows[0].n < expected;
   } catch {
     migrationPending = null; // runner 未初始化（035 未跑）——不作为不健康依据
   }

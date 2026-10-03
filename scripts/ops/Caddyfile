@@ -1,0 +1,6 @@
+# Caddy 反代模板（REQ-009 FR-F3）：生产在 /etc/caddy/Caddyfile，改动须同步本模板
+# 自动 HTTPS（Let's Encrypt）；web 静态由 API 进程托管（/ 单一上游），无第二上游
+shiguang.ting97.cn {
+	encode gzip
+	reverse_proxy 127.0.0.1:3001
+}

@@ -17,24 +17,35 @@ export const GET = withAuth(async (req, { user }) => {
   }
   const TZ = "Asia/Shanghai"; // 与时间模块一致：按北京日期切月
 
+  // 9-F sargable 化：to_char(occurred_at …) = 'YYYY-MM' 对列套函数，idx_tx_user_time 无法走范围扫描，
+  // 每次请求都全量求值。北京为固定 UTC+8，月界可预计算成半开区间 [start, end)，SQL 改纯范围条件。
+  const bjMonthRange = (ym: string): [string, string] => {
+    const [y, m] = ym.split("-").map(Number);
+    return [
+      new Date(Date.UTC(y, m - 1, 1, -8)).toISOString(), // 北京 1 日 00:00 = UTC 前一日 16:00
+      new Date(Date.UTC(y, m, 1, -8)).toISOString(),
+    ];
+  };
+
   const summary = async (m: string) => {
+    const [start, end] = bjMonthRange(m);
     const { rows } = await pool.query(
       `select
          coalesce(sum(case when direction = 'out' then amount_cents else 0 end), 0) as out_cents,
          coalesce(sum(case when direction = 'in'  then amount_cents else 0 end), 0) as in_cents
        from transactions
        where user_id = $1 and is_draft = false
-         and to_char(occurred_at at time zone $2, 'YYYY-MM') = $3`,
-      [user.id, TZ, m],
+         and occurred_at >= $2 and occurred_at < $3`,
+      [user.id, start, end],
     );
     const byCat: Record<string, number> = {};
     const cats = await pool.query(
       `select category, sum(amount_cents)::int as cents
        from transactions
        where user_id = $1 and is_draft = false and direction = 'out'
-         and to_char(occurred_at at time zone $2, 'YYYY-MM') = $3
+         and occurred_at >= $2 and occurred_at < $3
        group by category order by cents desc`,
-      [user.id, TZ, m],
+      [user.id, start, end],
     );
     for (const r of cats.rows) byCat[r.category] = r.cents;
     return { outCents: Number(rows[0].out_cents), inCents: Number(rows[0].in_cents), byCategory: byCat };
@@ -43,15 +54,16 @@ export const GET = withAuth(async (req, { user }) => {
   const [cur, prev] = await Promise.all([summary(month), summary(monthOf(month, -1))]);
 
   // 近 6 个月（含当月）收支 → 储蓄率趋势；无流水的月份由前端补零
+  const [trendStart, trendEnd] = [bjMonthRange(monthOf(month, -5))[0], bjMonthRange(month)[1]];
   const { rows: trendRows } = await pool.query(
     `select to_char(occurred_at at time zone $2, 'YYYY-MM') as month,
             sum(case when direction = 'out' then amount_cents else 0 end)::int as out_cents,
             sum(case when direction = 'in'  then amount_cents else 0 end)::int as in_cents
      from transactions
      where user_id = $1 and is_draft = false
-       and to_char(occurred_at at time zone $2, 'YYYY-MM') >= $3
+       and occurred_at >= $3 and occurred_at < $4
      group by 1 order by 1`,
-    [user.id, TZ, monthOf(month, -5)],
+    [user.id, TZ, trendStart, trendEnd],
   );
   const trendMap = new Map(trendRows.map((r) => [r.month, r]));
   const trend = Array.from({ length: 6 }, (_, i) => {

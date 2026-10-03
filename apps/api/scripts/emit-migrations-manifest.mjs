@@ -1,0 +1,16 @@
+/**
+ * 构建期生成迁移清单（REQ-009 FR-F4）：把 packages/db/migrations 的 .sql 数量写进
+ * .next/migrations-manifest.json，standalone 产物携带；/api/health 据此判断迁移待执行。
+ * （原实现读 process.cwd()/migrations——该目录在 dev 与 standalone 下都不存在，检查恒 null。）
+ */
+import { readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const migrationsDir = join(here, "..", "..", "..", "packages", "db", "migrations");
+const count = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).length;
+const out = join(here, "..", ".next", "migrations-manifest.json");
+mkdirSync(dirname(out), { recursive: true });
+writeFileSync(out, JSON.stringify({ count, generatedAt: new Date().toISOString() }));
+console.log(`[migrations-manifest] ${count} migrations -> ${out}`);

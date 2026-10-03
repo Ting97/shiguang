@@ -320,15 +320,19 @@ async function buildProfileCtxValue(userId: string): Promise<string> {
 async function buildLatest(userId: string, kind: ReviewContentKind, period: ReviewPeriod): Promise<Date | null> {
   if (kind !== "day" && kind !== "week" && kind !== "month") {
     const year = Number(period.year ?? new Date(Date.now() + 8 * 3600_000).getUTCFullYear());
+    // 9-F sargable 化：extract(year from (col at time zone …)) 对列套函数不可走索引，
+    // 北京为固定 UTC+8 → 自然年即半开区间 [1月1日+08, 次年1月1日+08)，改纯范围条件
+    const from = `${year}-01-01T00:00:00+08:00`;
+    const to = `${year + 1}-01-01T00:00:00+08:00`;
     const { rows } = await pool.query(
       `select greatest(
-         (select max(created_at) from entries where user_id = $1 and extract(year from (created_at at time zone $2)) = $3::int),
-         (select max(done_at) from todos where user_id = $1 and status = 'done' and extract(year from (done_at at time zone $2)) = $3::int),
-         (select max(occurred_at) from transactions where user_id = $1 and extract(year from (occurred_at at time zone $2)) = $3::int),
-         (select max(start_at) from time_blocks where user_id = $1 and extract(year from (start_at at time zone $2)) = $3::int and start_at <= now()),
-         (select max(occurred_at) from interactions where user_id = $1 and extract(year from (occurred_at at time zone $2)) = $3::int)
+         (select max(created_at) from entries where user_id = $1 and created_at >= $3::timestamptz and created_at < $4::timestamptz),
+         (select max(done_at) from todos where user_id = $1 and status = 'done' and done_at >= $3::timestamptz and done_at < $4::timestamptz),
+         (select max(occurred_at) from transactions where user_id = $1 and occurred_at >= $3::timestamptz and occurred_at < $4::timestamptz),
+         (select max(start_at) from time_blocks where user_id = $1 and start_at >= $3::timestamptz and start_at < $4::timestamptz and start_at <= now()),
+         (select max(occurred_at) from interactions where user_id = $1 and occurred_at >= $3::timestamptz and occurred_at < $4::timestamptz)
        ) as latest`,
-      [userId, TZ, year],
+      [userId, TZ, from, to],
     );
     return (rows[0]?.latest as Date | null) ?? null;
   }

@@ -12,24 +12,27 @@ export const dynamic = "force-dynamic";
  * 条目筛选/排序由 lib/reminders.pickReminders 完成
  */
 export const GET = withAuth(async (_req, { user }) => {
-  const { rows: contacts } = await pool.query(
-    `select id, name,
-            to_char(birthday, 'YYYY-MM-DD') as birthday,
-            birthday_cal, lunar_month, lunar_day, lunar_leap,
-            to_char(anniversary, 'YYYY-MM-DD') as anniversary
-     from contacts
-     where user_id = $1
-       and (birthday is not null or anniversary is not null
-            or (birthday_cal = 'lunar' and lunar_month is not null and lunar_day is not null))`,
-    [user.id],
-  );
-  const { rows: todos } = await pool.query(
-    `select id, title, due_at, remind_at
-     from todos
-     where user_id = $1 and status = 'pending' and remind_at is not null and remind_at <= now()
-     order by due_at asc nulls last`,
-    [user.id],
-  );
+  // 9-F：两查互不依赖，并行执行
+  const [{ rows: contacts }, { rows: todos }] = await Promise.all([
+    pool.query(
+      `select id, name,
+              to_char(birthday, 'YYYY-MM-DD') as birthday,
+              birthday_cal, lunar_month, lunar_day, lunar_leap,
+              to_char(anniversary, 'YYYY-MM-DD') as anniversary
+       from contacts
+       where user_id = $1
+         and (birthday is not null or anniversary is not null
+              or (birthday_cal = 'lunar' and lunar_month is not null and lunar_day is not null))`,
+      [user.id],
+    ),
+    pool.query(
+      `select id, title, due_at, remind_at
+       from todos
+       where user_id = $1 and status = 'pending' and remind_at is not null and remind_at <= now()
+       order by due_at asc nulls last`,
+      [user.id],
+    ),
+  ]);
 
-  return NextResponse.json({ contacts, todos });
+    return NextResponse.json({ contacts, todos });
 });

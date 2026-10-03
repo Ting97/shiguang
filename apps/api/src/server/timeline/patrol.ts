@@ -46,6 +46,40 @@ export async function retryPendingAnalysis(): Promise<number> {
   }
 }
 
+/**
+ * 数据留存清扫（REQ-009 FR-F1，迁移 044）：
+ * - audit_logs：明细保留 180 天；删除前按 用户×月×stage×模型×engine 上卷进 audit_logs_monthly（永久）
+ * - sms/email 验证码、登录尝试、微信绑定票据：过期/陈旧行清理（此前未核销过期行永不清理）
+ * 幂等：上卷 insert ... on conflict 累加，删除按时间窗推进，重复执行无副作用。
+ */
+export async function runRetentionSweep(): Promise<void> {
+  // 上卷 180 天前、尚未归档的明细（按小时粒度去重执行：标记依据 = 明细被删除即不再出现）
+  await pool.query(`
+    with old as (
+      delete from audit_logs
+      where created_at < now() - interval '180 days'
+      returning user_id, created_at, stage, model, engine, ok, prompt_tokens, completion_tokens
+    )
+    insert into audit_logs_monthly (user_id, month, stage, model, engine, calls, ok_calls, prompt_tokens, completion_tokens)
+    select user_id,
+           date_trunc('month', (created_at at time zone 'Asia/Shanghai'))::date,
+           stage, coalesce(model, ''), coalesce(engine, ''),
+           count(*)::int, count(*) filter (where ok)::int,
+           coalesce(sum(prompt_tokens), 0), coalesce(sum(completion_tokens), 0)
+    from old
+    group by 1, 2, 3, 4, 5
+    on conflict (user_id, month, stage, model, engine) do update set
+      calls = audit_logs_monthly.calls + excluded.calls,
+      ok_calls = audit_logs_monthly.ok_calls + excluded.ok_calls,
+      prompt_tokens = audit_logs_monthly.prompt_tokens + excluded.prompt_tokens,
+      completion_tokens = audit_logs_monthly.completion_tokens + excluded.completion_tokens`);
+  // 过期验证码 / 陈旧登录尝试 / 过期绑定票据（表小，行数有界，直接清理）
+  await pool.query(`delete from sms_codes where expires_at < now() - interval '1 day'`);
+  await pool.query(`delete from email_codes where expires_at < now() - interval '1 day'`);
+  await pool.query(`delete from login_attempts where created_at < now() - interval '30 days'`);
+  await pool.query(`delete from wechat_bind_tickets where expires_at < now() - interval '1 day'`);
+}
+
 /** 启动周期巡检（instrumentation 调用；返回停止函数便于测试） */
 export function startAnalysisPatrol(): void {
   const tick = async () => {
@@ -55,6 +89,11 @@ export function startAnalysisPatrol(): void {
       await pool.query(`delete from sessions where expires_at < now()`);
     } catch {
       /* 清理失败不影响主巡检 */
+    }
+    try {
+      await runRetentionSweep();
+    } catch (e) {
+      log.warn({ err: String(e).slice(0, 120) }, "retention-sweep-error");
     }
     try {
       const n = await retryPendingAnalysis();

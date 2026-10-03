@@ -34,44 +34,42 @@ export const GET = withAuth(async (_req, { user }) => {
     for (const k of kids) byParent.get(k.parent_todo_id)?.push(k);
     todos = parents.map((p) => ({ ...p, children: byParent.get(p.id) ?? [] }));
   }
-  const { rows: doneToday } = await pool.query(
-    `select t.*, a.name as activity_name, a.icon
-     from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id
-     where t.user_id = $1 and t.status = 'done'
-       and (t.done_at at time zone $2)::date = (now() at time zone $2)::date
-     order by t.done_at desc`,
-    [user.id, TZ],
-  );
-  // 今日块：按「区间与今天有交集」取——跨天块（如昨晚23:00→今早07:00的睡眠）也要出现在今天，
-  // 否则它的凌晨段在界面上不可见，但冲突检测仍会拦截，造成"有冲突却看不到块"的错觉
-  const { rows: blocks } = await pool.query(
-    `select b.*, a.name as activity_name, a.icon, a.color
-     from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
-     where b.user_id = $1
-       and tstzrange(b.start_at, b.end_at, '[)') && tstzrange(
-            date_trunc('day', now() at time zone $2) at time zone $2,
-            (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2)
-     order by b.start_at desc`,
-    [user.id, TZ],
-  );
-  const { rows: activities } = await pool.query(
-    `select id, name, icon, color, sort_order from activities
-     where user_id = $1 order by sort_order`,
-    [user.id],
-  );
-  // 今日卡路里合计（饮食域）：只计「今天记录」的动态的饮食记录，按北京自然日切。
-  // 旧口径用 created_at±12h 窗口与今天求交集，会把昨天 12:00 后记录的正餐/夜宵
-  // 也算进今天（窗口宽达 24 小时，跨天双向渗漏），导致当日卡路里明显虚高。
-  const { rows: kcalRows } = await pool.query(
-    `select coalesce(sum(d.total_kcal), 0)::int as kcal
-     from diet_records d
-     join entries e on e.id = d.entry_id
-     where d.user_id = $1
-       and coalesce(d.total_kcal, 0) > 0
-       and e.created_at >= date_trunc('day', now() at time zone $2) at time zone $2
-       and e.created_at < (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2`,
-    [user.id, TZ],
-  );
+  // 9-F：doneToday/blocks/activities/kcal 四查互不依赖，并行执行（此前串行白叠 3 个 RTT）
+  const [{ rows: doneToday }, { rows: blocks }, { rows: activities }, { rows: kcalRows }] = await Promise.all([
+    pool.query(
+      `select t.*, a.name as activity_name, a.icon
+       from todos t left join activities a on a.id = t.activity_id and a.user_id = t.user_id
+       where t.user_id = $1 and t.status = 'done'
+         and (t.done_at at time zone $2)::date = (now() at time zone $2)::date
+       order by t.done_at desc`,
+      [user.id, TZ],
+    ),
+    pool.query(
+      `select b.*, a.name as activity_name, a.icon, a.color
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       where b.user_id = $1
+         and tstzrange(b.start_at, b.end_at, '[)') && tstzrange(
+              date_trunc('day', now() at time zone $2) at time zone $2,
+              (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2)
+       order by b.start_at desc`,
+      [user.id, TZ],
+    ),
+    pool.query(
+      `select id, name, icon, color, sort_order from activities
+       where user_id = $1 order by sort_order`,
+      [user.id],
+    ),
+    pool.query(
+      `select coalesce(sum(d.total_kcal), 0)::int as kcal
+       from diet_records d
+       join entries e on e.id = d.entry_id
+       where d.user_id = $1
+         and coalesce(d.total_kcal, 0) > 0
+         and e.created_at >= date_trunc('day', now() at time zone $2) at time zone $2
+         and e.created_at < (date_trunc('day', now() at time zone $2) + interval '1 day') at time zone $2`,
+      [user.id, TZ],
+    ),
+  ]);
   const todayKcal = kcalRows[0]?.kcal ?? 0;
   return NextResponse.json({ todos, doneToday, blocks, activities, todayKcal });
 });

@@ -7,7 +7,13 @@ export const DEV_USER_ID = "00000000-0000-0000-0000-000000000000";
 const connectionString =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/shiguangri";
 
-export const pool = new Pool({ connectionString, max: 5 });
+export const pool = new Pool({
+  connectionString,
+  // 9-F：max 5→10（请求 + 后台识别事务 + Bitget 长同步共用池，5 连接多用户排队）；
+  // statement_timeout 兜底防止失控查询长期占住连接（业务大查询均有索引支撑，15s 远超所需）
+  max: 10,
+  statement_timeout: 15_000,
+});
 
 // 空闲连接出错（DB 重启/网络闪断）会以 EventEmitter error 事件冒泡：无监听即未捕获异常打崩整个进程
 pool.on("error", (e) => log.error({ err: String(e) }, "pg-idle-client-error"));

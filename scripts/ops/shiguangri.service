@@ -1,0 +1,22 @@
+# Unit: shiguangri —— Next.js standalone API（含 web 静态托管）
+# 模板（REQ-009 FR-F3）：生产在 /etc/systemd/system/shiguangri.service，改动须同步本模板
+[Unit]
+Description=shiguangri API (Next.js standalone)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+# standalone server.js 的 cwd 必须是应用根（.env 由 deploy 脚本随版本目录携带）
+WorkingDirectory=/opt/shiguangri/apps/api
+ExecStart=/usr/bin/node /opt/shiguangri/apps/api/server.js
+Restart=always
+RestartSec=3
+# 生产环境变量仅 .env 一处（DATABASE_URL/ZHIPUAI_API_KEY 等），不在此重复
+Environment=NODE_ENV=production
+# 上传目录在版本目录外（数据与代码分离，发布/回滚不动数据）
+Environment=UPLOAD_DIR=/opt/shiguangri_data/uploads
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
