@@ -107,9 +107,14 @@ export default function Home() {
       } else {
         await load();
       }
-      // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）
+      // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）。
+      // 同时派发识别完成事件：今日行动等自取数区块（不走 use-home-data）联动刷新，
+      // 否则识别出的 todo 要手动刷新页面才出现（2026-10-04 用户反馈）
       for (const delay of [6000, 16000]) {
-        const t2 = setTimeout(() => void loadRef.current(), delay);
+        const t2 = setTimeout(() => {
+          void loadRef.current();
+          window.dispatchEvent(new CustomEvent("shiguang:entry-analyzed"));
+        }, delay);
         refreshTimers.current.push(t2);
       }
       return j.entry.id as string;

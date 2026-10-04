@@ -46,6 +46,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     void load();
   }, [load]);
 
+  // 发布动态后 AI 识别数秒落库：订阅识别完成事件自动重拉（否则识别出的 todo 要手动刷新页面才出现）
+  useEffect(() => {
+    const onAnalyzed = () => void load();
+    window.addEventListener("shiguang:entry-analyzed", onAnalyzed);
+    return () => window.removeEventListener("shiguang:entry-analyzed", onAnalyzed);
+  }, [load]);
+
   /** N6：直接添加独立行动（默认标记今日，当日出现在清单） */
   async function addAction() {
     const t = newTitle.trim();
