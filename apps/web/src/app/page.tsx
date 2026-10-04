@@ -6,6 +6,7 @@ import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
+import { bjToday } from "@/lib/date";
 import DesktopComposer from "./home/desktop-composer";
 import FeedSection from "./home/feed-section";
 import RemindersBanner from "./home/reminders-banner";
@@ -73,23 +74,28 @@ export default function Home() {
   // 历史回看横幅锚点：跳转后滚动定位用
   const historyBannerRef = useRef<HTMLDivElement | null>(null);
 
-  // 「跳到当天最后一条」：动态卡派发事件 → 以该动态次日北京零点为锚刷新 feed
-  //（首条即该天最后一条；该天无更早动态时自然衔接前一天）
-  useEffect(() => {
-    const onJumpDayEnd = (ev: Event) => {
-      const createdAt = (ev as CustomEvent<{ createdAt: string }>).detail?.createdAt;
-      if (!createdAt) return;
-      const bj = new Date(new Date(createdAt).getTime() + 8 * 3600_000);
-      // 次日北京零点 = 该天全天的上界（UTC 前一日 16:00）
-      const before = new Date(Date.UTC(bj.getUTCFullYear(), bj.getUTCMonth(), bj.getUTCDate() + 1, -8)).toISOString();
-      void loadRef.current({ before }).then(() => {
-        toast(`⏳ 已跳到 ${bj.getUTCMonth() + 1}月${bj.getUTCDate()}日 的最后一条`, "info");
-        setTimeout(() => historyBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-      });
-    };
-    window.addEventListener("shiguang:jump-day-end", onJumpDayEnd);
-    return () => window.removeEventListener("shiguang:jump-day-end", onJumpDayEnd);
+  // 日期跳转锚点（YYYY-MM-DD）：null=最新模式。选择某天 → feed 以该天次日北京零点为 before
+  // 锚刷新，首条即那天的最后一条；往前加载更多=更早，横幅提供相邻日切换
+  const [anchorDate, setAnchorDate] = useState<string | null>(null);
+
+  const jumpToDate = useCallback((date: string | null) => {
+    setAnchorDate(date);
+    if (!date) {
+      void loadRef.current({ before: null });
+      return;
+    }
+    const [y, m, d] = date.split("-").map(Number);
+    // 次日北京零点 = 该天全天的上界（UTC 前一日 16:00）
+    const before = new Date(Date.UTC(y, m - 1, d + 1, -8)).toISOString();
+    void loadRef.current({ before }).then(() => {
+      setTimeout(() => historyBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    });
   }, []);
+
+  // 搜索/空间筛选会重置 before（use-home-data 内同名 effect）：锚点日期同步清空，避免 input 显示过期锚点
+  useEffect(() => {
+    setAnchorDate(null);
+  }, [query, spaceFilter]);
   const {
     desktopImages,
     fileInputRef,
@@ -193,17 +199,36 @@ export default function Home() {
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
         <ActionsToday notify={forwardMsg} />
 
-        {/* 历史回看横幅：跳转某天后显示，提供醒目的「回到最新」出口 */}
-        {historyBefore && (
+        {/* 历史回看横幅：相邻日切换 + 回到最新（前一天无界；后一天越过今天即等于回到最新） */}
+        {historyBefore && anchorDate && (
           <div
             ref={historyBannerRef}
-            className="fade-up mb-2 flex items-center justify-between gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-micro text-accent"
+            className="fade-up mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-micro text-accent"
           >
-            <span className="min-w-0 truncate">⏳ 历史回看中：从某天的最后一条往前展示（搜索/筛选会回到最新）</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => jumpToDate(shiftYmd(anchorDate, -1))}
+                className="btn-ghost press rounded-lg px-2 py-1"
+                title="前一天"
+              >
+                ← 前一天
+              </button>
+              <span className="tabular-nums font-medium">{zhYmd(anchorDate)}</span>
+              <button
+                type="button"
+                onClick={() => jumpToDate(shiftYmd(anchorDate, +1) > bjToday() ? null : shiftYmd(anchorDate, +1))}
+                className="btn-ghost press rounded-lg px-2 py-1"
+                title="后一天（越过今天回到最新）"
+              >
+                后一天 →
+              </button>
+            </div>
+            <span className="min-w-0 truncate text-ink-mute">列表从这天的最后一条往前展示；搜索/筛选会回到最新</span>
             <button
               type="button"
-              onClick={() => void loadRef.current({ before: null })}
-              className="btn-ghost press shrink-0 rounded-lg px-2.5 py-1"
+              onClick={() => jumpToDate(null)}
+              className="btn-ghost press shrink-0 rounded-lg px-2.5 py-1 font-medium"
             >
               ↩ 回到最新
             </button>
@@ -224,6 +249,8 @@ export default function Home() {
           loadingMore={loadingMore}
           onLoadMore={loadMore}
           onRefresh={loadVoid}
+          anchorDate={anchorDate}
+          onJumpDate={jumpToDate}
         />
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
@@ -257,4 +284,17 @@ export default function Home() {
       />
     </main>
   );
+}
+
+/** Y-M-D 平移 n 天（UTC 日历算术，与时区无关） */
+function shiftYmd(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Y-M-D → 中文展示 */
+function zhYmd(ymd: string): string {
+  const [, m, d] = ymd.split("-").map(Number);
+  return `${m}月${d}日`;
 }

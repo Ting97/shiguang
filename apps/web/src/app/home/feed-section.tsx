@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import MomentFeed from "@/components/moment-feed";
 import { FilterChip } from "@/components/tag-chip";
 import type { Activity, FeedMoment, Space } from "@/lib/types";
+import { bjToday } from "@/lib/date";
 
 interface Props {
   moments: FeedMoment[];
@@ -18,6 +19,10 @@ interface Props {
   loadingMore: boolean;
   onLoadMore: () => void;
   onRefresh: () => Promise<void>;
+  /** 历史回看锚点日（YYYY-MM-DD）；null=最新模式 */
+  anchorDate: string | null;
+  /** 跳到某天（列表定位到那天最后一条往前）；null=回到最新 */
+  onJumpDate: (date: string | null) => void;
 }
 
 /** 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除）；含搜索框与空间切换条 */
@@ -34,12 +39,25 @@ export default function FeedSection({
   loadingMore,
   onLoadMore,
   onRefresh,
+  anchorDate,
+  onJumpDate,
 }: Props) {
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <h2 className="text-sm font-semibold text-ink-soft">
-          🌱 我的动态{" "}
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+          🌱 我的动态
+          {/* 日期跳转（2026-10-04）：选某天 → 列表定位到那天的动态（从当天最后一条往前） */}
+          <input
+            type="date"
+            value={anchorDate ?? ""}
+            max={bjToday()}
+            onChange={(e) => onJumpDate(e.target.value || null)}
+            title="跳到某一天：从那天的动态往前回看（清除 = 回到最新）"
+            aria-label="选择日期跳转动态"
+            className="w-[8.5rem] rounded-lg border border-line-soft bg-surface/60 px-2 py-0.5 text-xs font-normal text-ink-soft outline-none focus:border-sky-500/60"
+          />
+          {" "}
           <span className="ml-1 text-xs font-normal text-ink-dim">
             {query
               ? `找到 ${feedTotal} 条`

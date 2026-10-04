@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useRef } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { PencilLine, SkipForward, Trash2 } from "lucide-react";
+import { PencilLine, Trash2 } from "lucide-react";
 import type { FeedMoment } from "@/lib/types";
 import { TagChip } from "../tag-chip";
 import { Dismissable } from "../dismissable";
@@ -75,15 +75,6 @@ export function CardHeader({
         />
       )}
       <span className="flex-1" />
-      {/* 跳到当天最后一条动态：页面监听事件切换 feed 历史锚点，从那天末尾往前回看（2026-10-04） */}
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent("shiguang:jump-day-end", { detail: { createdAt: m.created_at } }))}
-        title="跳到当天最后一条动态（从这天末尾往前回看）"
-        aria-label="跳到当天最后一条动态"
-        className="tap-lg press rounded p-1 text-ink-faint transition hover:bg-wash hover:text-accent"
-      >
-        <SkipForward size={13} aria-hidden />
-      </button>
       {confirming ? (
         <span className="flex items-center gap-1">
           <button
