@@ -73,6 +73,8 @@ export default function Home() {
 
   // 历史回看横幅锚点：跳转后滚动定位用
   const historyBannerRef = useRef<HTMLDivElement | null>(null);
+  // 动态流顶部锚点：发布后视口定位（scroll-mt 预留吸顶导航高度）
+  const feedTopRef = useRef<HTMLDivElement | null>(null);
 
   // 日期跳转锚点（YYYY-MM-DD）：null=最新模式。选择某天 → feed 以该天次日北京零点为 before
   // 锚刷新，首条即那天的最后一条；往前加载更多=更早，横幅提供相邻日切换
@@ -137,12 +139,19 @@ export default function Home() {
       // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
       toast("✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…");
       setText("");
-      // 新动态要立即可见：搜索过滤中则清空搜索再刷新
-      if (query || searchInput) {
+      // 新动态要立即可见：历史回看中发布的新动态晚于锚点会不可见 → 发布即回到「今天」；
+      // 搜索过滤中则清空搜索再刷新（搜索词可能不匹配新动态）
+      if (anchorDate) {
+        setAnchorDate(null);
+        if (query || searchInput) await resetSearch();
+        else await loadRef.current({ before: null });
+      } else if (query || searchInput) {
         await resetSearch();
       } else {
         await load();
       }
+      // 视口带到动态流顶部：移动端发布面板在底部弹出，发布后刚发的动态（列表首位）不一定在视口内
+      setTimeout(() => feedTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
       // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）。
       // 同时派发识别完成事件：今日行动等自取数区块（不走 use-home-data）联动刷新，
       // 否则识别出的 todo 要手动刷新页面才出现（2026-10-04 用户反馈）
@@ -206,6 +215,9 @@ export default function Home() {
 
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
         <ActionsToday notify={forwardMsg} />
+
+        {/* 动态流顶部锚点：发布后视口定位到这（新动态即列表首位） */}
+        <div ref={feedTopRef} className="scroll-mt-24" aria-hidden />
 
         {/* 历史回看横幅：相邻日切换 + 回到最新（前一天无界；后一天越过今天即等于回到最新） */}
         {historyBefore && anchorDate && (
