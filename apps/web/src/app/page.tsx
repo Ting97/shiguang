@@ -78,17 +78,25 @@ export default function Home() {
   // 锚刷新，首条即那天的最后一条；往前加载更多=更早，横幅提供相邻日切换
   const [anchorDate, setAnchorDate] = useState<string | null>(null);
 
+  // 跳转后横幅闪烁强调（含相邻日切换），3s 后停止
+  const [bannerFlash, setBannerFlash] = useState(false);
+
   const jumpToDate = useCallback((date: string | null) => {
     setAnchorDate(date);
     if (!date) {
       void loadRef.current({ before: null });
       return;
     }
+    setBannerFlash(true);
     const [y, m, d] = date.split("-").map(Number);
     // 次日北京零点 = 该天全天的上界（UTC 前一日 16:00）
     const before = new Date(Date.UTC(y, m - 1, d + 1, -8)).toISOString();
     void loadRef.current({ before }).then(() => {
-      setTimeout(() => historyBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      setTimeout(() => {
+        // scroll-mt-24 已在横幅上：sticky 导航不会盖住 block:start 的定位结果
+        historyBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => setBannerFlash(false), 3200);
+      }, 80);
     });
   }, []);
 
@@ -203,7 +211,7 @@ export default function Home() {
         {historyBefore && anchorDate && (
           <div
             ref={historyBannerRef}
-            className="fade-up mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-micro text-accent"
+            className={`fade-up mb-2 flex scroll-mt-24 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-micro text-accent ${bannerFlash ? "banner-flash" : ""}`}
           >
             <div className="flex items-center gap-1.5">
               <button

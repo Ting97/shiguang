@@ -522,6 +522,16 @@ body {
 .stagger > *:nth-child(7) { animation-delay: 180ms; }
 .stagger > *:nth-child(8) { animation-delay: 210ms; }
 
+/* 历史回看横幅跳转强调（2026-10-04）：滚动定位后呼吸两轮，让"页面已切换"可感知 */
+@keyframes banner-flash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  30%, 70% { box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25), 0 0 28px rgba(56, 189, 248, 0.18); }
+  50% { box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4); }
+}
+.banner-flash {
+  animation: banner-flash 1.4s ease 2;
+}
+
 /* 区块入场：一次性淡入上移（挂页面主区块/卡片） */
 @keyframes fade-up {
   from {
