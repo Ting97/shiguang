@@ -201,11 +201,13 @@ export interface FeedQuery {
   offset: number;
   q: string;
   spaceId: string;
+  /** 历史回看锚点：只取 created_at 严格早于该时刻的动态——首条即锚点日（或更早最近日）的最后一条 */
+  before?: string;
 }
 
 /** GET /api/feed：动态流（聚合五域产物/图片/识别登记簿；关键字检索；空间过滤） */
 export async function listFeed(userId: string, query: FeedQuery) {
-  const { limit, offset, q, spaceId } = query;
+  const { limit, offset, q, spaceId, before } = query;
   let spaceSql = "";
   // 占位符动态取号：q 存在时检索 ilike 占用 $4，空间过滤顺延为 $5（避免双 $4 实参错位 → uuid 解析 500）
   const spaceParamIndex = q ? 5 : 4;
@@ -214,6 +216,10 @@ export async function listFeed(userId: string, query: FeedQuery) {
   const spaceFiltered = spaceId !== "none" && spaceId !== "all" && UUID_RE.test(spaceId);
   if (spaceId === "none") spaceSql = ` and e.space_id is null`;
   else if (spaceFiltered) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
+
+  // before 占位号：q($4)/space($4|$5) 之后的顺延位
+  const beforeIdx = spaceFiltered ? spaceParamIndex + 1 : spaceParamIndex;
+  const beforeSql = before ? ` and e.created_at < $${beforeIdx}::timestamptz` : "";
 
   const searchSql = q
     ? `and (
@@ -276,16 +282,17 @@ export async function listFeed(userId: string, query: FeedQuery) {
          from entry_recognitions rg where rg.entry_id = e.id
        ), '{}'::jsonb) as recognitions
      from entries e
-     where e.user_id = $1 ${searchSql} ${spaceSql}
+     where e.user_id = $1 ${searchSql} ${spaceSql} ${beforeSql}
      order by e.created_at desc
      limit $2 offset $3`,
-    q
-      ? spaceFiltered
-        ? [userId, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`, spaceId]
-        : [userId, limit, offset, `%${q.replace(/[\\%_]/g, "\\$&")}%`]
-      : spaceFiltered
-        ? [userId, limit, offset, spaceId]
-        : [userId, limit, offset],
+    ((): unknown[] => {
+      // 实参顺序与占位号一一对应：q → space → before（均按存在性追加）
+      const params: unknown[] = [userId, limit, offset];
+      if (q) params.push(`%${q.replace(/[\\%_]/g, "\\$&")}%`);
+      if (spaceFiltered) params.push(spaceId);
+      if (before) params.push(before);
+      return params;
+    })(),
   );
   const total = rows[0] ? Number(rows[0].total_count) : 0;
   return { moments: rows, total };

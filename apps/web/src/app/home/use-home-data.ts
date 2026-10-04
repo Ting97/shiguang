@@ -37,22 +37,30 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
   const [todayKcal, setTodayKcal] = useState(0);
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
 
-  const load = useCallback(async (opts?: { limit?: number; query?: string; spaceId?: string }): Promise<boolean> => {
+  // 历史回看锚点（before，ISO 时刻）：跳转「某天最后一条」时置位；null=最新模式。
+  // ref 供 loadMore/延迟刷新延续当前锚点，state 供横幅展示
+  const beforeRef = useRef<string | null>(null);
+  const [historyBefore, setHistoryBefore] = useState<string | null>(null);
+
+  const load = useCallback(async (opts?: { limit?: number; query?: string; spaceId?: string; before?: string | null }): Promise<boolean> => {
     // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
     const seq = ++seqRef.current;
     const lim = opts?.limit ?? feedLimitRef.current;
     const q = opts?.query !== undefined ? opts.query : query;
     const sp = opts?.spaceId ?? spaceFilter;
+    const bf = opts?.before !== undefined ? opts.before : beforeRef.current;
     setLoadErr(null);
     try {
       const [j, f, rj] = await Promise.all([
         api("/api/today"),
-        api(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}${sp !== "all" ? `&spaceId=${sp}` : ""}`),
+        api(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}${sp !== "all" ? `&spaceId=${sp}` : ""}${bf ? `&before=${encodeURIComponent(bf)}` : ""}`),
         // W12 提醒横幅：接口失败不打扰主流程
         api("/api/reminders").catch(() => null),
       ]);
       // 已卸载或已有更新的请求发出：丢弃过期响应，避免旧数据覆盖新视图（连续快切空间场景）
       if (!aliveRef.current || seq !== seqRef.current) return false;
+      beforeRef.current = bf ?? null;
+      setHistoryBefore(bf ?? null);
       setTodos(j.todos ?? []);
       setDoneToday(j.doneToday ?? []);
       setBlocks(j.blocks ?? []);
@@ -87,6 +95,12 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
       aliveRef.current = false;
     };
   }, []);
+
+  // 新搜索/新空间筛选从最新开始：历史回看锚点一并重置（先于下方 load-effect 声明，同轮取数即生效）
+  useEffect(() => {
+    beforeRef.current = null;
+    setHistoryBefore(null);
+  }, [query, spaceFilter]);
 
   useEffect(() => {
     load();
@@ -142,6 +156,7 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
     load,
     loadMore,
     resetSearch,
+    historyBefore,
     changeSpace,
   };
 }

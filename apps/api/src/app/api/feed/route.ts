@@ -11,6 +11,8 @@ const schema = z.object({
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
   q: z.string().default(""),
   spaceId: z.string().default("all"),
+  // 历史回看锚点（ISO 时刻）：只取早于该时刻的动态，首条=锚点日的最后一条
+  before: z.string().datetime().optional(),
 });
 
 /** GET /api/feed —— 动态流（聚合识别产物/关键字检索/空间过滤） */

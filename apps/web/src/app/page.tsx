@@ -57,6 +57,7 @@ export default function Home() {
     loadMore,
     resetSearch,
     changeSpace,
+    historyBefore,
   } = useHomeData({ notify: notifyLoadErr });
   // 消费组件的 load 形参是 () => Promise<void>：包一层丢弃 load 的成功与否返回值
   const loadVoid = useCallback(async () => {
@@ -68,6 +69,27 @@ export default function Home() {
   useEffect(() => {
     loadRef.current = load;
   }, [load]);
+
+  // 历史回看横幅锚点：跳转后滚动定位用
+  const historyBannerRef = useRef<HTMLDivElement | null>(null);
+
+  // 「跳到当天最后一条」：动态卡派发事件 → 以该动态次日北京零点为锚刷新 feed
+  //（首条即该天最后一条；该天无更早动态时自然衔接前一天）
+  useEffect(() => {
+    const onJumpDayEnd = (ev: Event) => {
+      const createdAt = (ev as CustomEvent<{ createdAt: string }>).detail?.createdAt;
+      if (!createdAt) return;
+      const bj = new Date(new Date(createdAt).getTime() + 8 * 3600_000);
+      // 次日北京零点 = 该天全天的上界（UTC 前一日 16:00）
+      const before = new Date(Date.UTC(bj.getUTCFullYear(), bj.getUTCMonth(), bj.getUTCDate() + 1, -8)).toISOString();
+      void loadRef.current({ before }).then(() => {
+        toast(`⏳ 已跳到 ${bj.getUTCMonth() + 1}月${bj.getUTCDate()}日 的最后一条`, "info");
+        setTimeout(() => historyBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      });
+    };
+    window.addEventListener("shiguang:jump-day-end", onJumpDayEnd);
+    return () => window.removeEventListener("shiguang:jump-day-end", onJumpDayEnd);
+  }, []);
   const {
     desktopImages,
     fileInputRef,
@@ -170,6 +192,23 @@ export default function Home() {
 
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
         <ActionsToday notify={forwardMsg} />
+
+        {/* 历史回看横幅：跳转某天后显示，提供醒目的「回到最新」出口 */}
+        {historyBefore && (
+          <div
+            ref={historyBannerRef}
+            className="fade-up mb-2 flex items-center justify-between gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-micro text-accent"
+          >
+            <span className="min-w-0 truncate">⏳ 历史回看中：从某天的最后一条往前展示（搜索/筛选会回到最新）</span>
+            <button
+              type="button"
+              onClick={() => void loadRef.current({ before: null })}
+              className="btn-ghost press shrink-0 rounded-lg px-2.5 py-1"
+            >
+              ↩ 回到最新
+            </button>
+          </div>
+        )}
 
         {/* 动态流：每条记录都是一条动态（记录时刻 + AI 识别结果，均可修改/删除） */}
         <FeedSection
