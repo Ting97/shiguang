@@ -9,7 +9,7 @@
  * 发布后安排 6s/16s 两轮延迟刷新把 AI 产物带上墙（经 loadRef 总是以最新筛选参数取数）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Input, ScrollView } from "@tarojs/components";
+import { View, Text, Input, Picker, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh, useReachBottom, useShareAppMessage } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
@@ -24,13 +24,32 @@ import TodaySchedule from "./today-schedule";
 import RemindersBanner from "./reminders-banner";
 import CaptureButton from "./voice-button";
 import PublishSheet from "./publish-sheet";
-import { pickReminders, zhRecordTime, type ReminderContact, type ReminderItem, type ReminderTodo } from "./kit";
+import { bjToday, pickReminders, zhRecordTime, type ReminderContact, type ReminderItem, type ReminderTodo } from "./kit";
 import "./index.scss";
 import "./moment-card.scss";
 import "./voice-button.scss";
 
 /** 动态流每页条数，「加载更多」按页扩 limit（= web FEED_PAGE_SIZE） */
 const PAGE_SIZE = 10;
+
+/** Y-M-D 平移 n 天（UTC 日历算术；= web shiftYmd） */
+function shiftYmd(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** before 锚点（次日零点 ISO）→ 锚点日 Y-M-D */
+function ymdFromBefore(beforeIso: string): string {
+  const bj = new Date(new Date(beforeIso).getTime() - 1 + 8 * 3600_000);
+  return bj.toISOString().slice(0, 10);
+}
+
+/** Y-M-D → 「M月D日」 */
+function zhDay(ymd: string): string {
+  const [, m, d] = ymd.split("-").map(Number);
+  return `${m}月${d}日`;
+}
 
 export default function Feed() {
   /* ---------- 首页取数（= web use-home-data.ts 的页面局部移植） ---------- */
@@ -52,22 +71,31 @@ export default function Feed() {
   const [todayKcal, setTodayKcal] = useState(0);
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
 
+  // 历史回看锚点（= web）：beforeRef 供加载更多/延迟刷新延续，anchorDate 供日期控件与横幅展示
+  const beforeRef = useRef<string | null>(null);
+  const [anchorDate, setAnchorDate] = useState<string | null>(null);
+  // 今日行动联动刷新 key：发布后的延迟刷新轮 bump，ActionsToday 监听重拉（= web entry-analyzed 事件）
+  const [actionsKey, setActionsKey] = useState(0);
+
   const load = useCallback(
-    async (opts?: { limit?: number; query?: string; spaceId?: string }): Promise<boolean> => {
+    async (opts?: { limit?: number; query?: string; spaceId?: string; before?: string | null }): Promise<boolean> => {
       // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
       const seq = ++seqRef.current;
       const lim = opts?.limit ?? feedLimitRef.current;
       const q = opts?.query !== undefined ? opts.query : query;
       const sp = opts?.spaceId ?? spaceFilter;
+      const bf = opts?.before !== undefined ? opts.before : beforeRef.current;
       setLoadErr(null);
       try {
         const [today, feed, reminders] = await Promise.all([
           loadToday(),
-          loadFeedPage(lim, q, sp),
+          loadFeedPage(lim, q, sp, bf),
           // 提醒横幅：接口失败不打扰主流程（= web api("/api/reminders").catch(() => null)）
           loadRemindersSafe(),
         ]);
         if (seq !== seqRef.current) return false;
+        beforeRef.current = bf ?? null;
+        setAnchorDate(bf ? ymdFromBefore(bf) : null);
         setBlocks(today.blocks ?? []);
         setActivities(today.activities ?? []);
         setTodayKcal(today.todayKcal ?? 0);
@@ -96,6 +124,28 @@ export default function Feed() {
   useEffect(() => {
     loadRef.current = load;
   }, [load]);
+
+  // 新搜索/新空间筛选从最新开始：历史锚点一并重置（先于取数 effect 声明，同轮拉取即生效；= web）
+  useEffect(() => {
+    beforeRef.current = null;
+    setAnchorDate(null);
+  }, [query, spaceFilter]);
+
+  /** 日期跳转（= web jumpToDate）：选某天 → feed 以该天次日北京零点为锚，首条即那天最后一条 */
+  function jumpToDate(date: string | null) {
+    if (!date) {
+      beforeRef.current = null;
+      setAnchorDate(null);
+      void loadRef.current({ before: null });
+      return;
+    }
+    const [y, m, d] = date.split("-").map(Number);
+    beforeRef.current = new Date(Date.UTC(y, m - 1, d + 1, -8)).toISOString();
+    setAnchorDate(date);
+    void loadRef.current({ before: beforeRef.current }).then(() => {
+      Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
+    });
+  }
 
   // 搜索词输入防抖：停顿 400ms 才真正检索（= web；query 变化由上面的取数 effect 接力）
   useEffect(() => {
@@ -175,14 +225,26 @@ export default function Feed() {
       // 防御非约定响应（结构变更）：给出可读原因，而不是 TypeError
       if (!j?.entry) throw new Error("服务异常，请稍后重试");
       showToast({ type: "ok", text: "✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…" });
-      // 新动态要立即可见：搜索过滤中则清空搜索再刷新
-      if (query || searchInput) await resetSearch();
-      else await load();
-      // 识别通常数秒完成：两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数）
+      // 新动态要立即可见：历史回看中发布的新动态晚于锚点不可见 → 发布即回到「今天」（= web）；
+      // 搜索过滤中则清空搜索再刷新（搜索词可能不匹配新动态）
+      if (beforeRef.current) {
+        beforeRef.current = null;
+        setAnchorDate(null);
+        if (query || searchInput) await resetSearch();
+        else await loadRef.current({ before: null });
+      } else if (query || searchInput) {
+        await resetSearch();
+      } else {
+        await load();
+      }
+      // 回到列表顶：刚发的动态即首位（= web 滚动定位）
+      Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
+      // 识别通常数秒完成：两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数）；
+      // 同步 bump actionsKey 让今日行动重拉（识别出的 todo 立即可见，= web）
       refreshTimers.current.forEach(clearTimeout);
       refreshTimers.current = [
-        setTimeout(() => void loadRef.current(), 6000),
-        setTimeout(() => void loadRef.current(), 16000),
+        setTimeout(() => { void loadRef.current(); setActionsKey((k) => k + 1); }, 6000),
+        setTimeout(() => { void loadRef.current(); setActionsKey((k) => k + 1); }, 16000),
       ];
       return j.entry.id as string;
     } catch (e: any) {
@@ -234,8 +296,8 @@ export default function Feed() {
         </View>
       ) : null}
 
-      {/* 今日行动清单：只展示行动级条目，完整管理在「日程 · todo」 */}
-      <ActionsToday />
+      {/* 今日行动清单：只展示行动级条目，完整管理在「日程 · todo」；actionsKey=发布后识别联动刷新 */}
+      <ActionsToday refreshKey={actionsKey} />
 
       {/* = web FeedSection：计数 + 搜索框 + 空间过滤 chips + MomentFeed */}
       <View className="fs">
@@ -250,6 +312,17 @@ export default function Feed() {
                   : ""}
             </Text>
           </Text>
+          {/* 日期跳转（= web）：选某天 → 列表定位到那天最后一条往前；横幅提供相邻日切换 */}
+          <Picker
+            mode="date"
+            value={anchorDate ?? bjToday()}
+            end={bjToday()}
+            onChange={(e) => jumpToDate(e.detail.value || null)}
+          >
+            <View className={`fs-date-chip${anchorDate ? " fs-date-chip-on" : ""}`}>
+              <Text>📅 {anchorDate ? zhDay(anchorDate) : "跳到某天"}</Text>
+            </View>
+          </Picker>
           <View className="fs-search">
             <Input
               className="fs-search-input"
@@ -266,6 +339,27 @@ export default function Feed() {
             ) : null}
           </View>
         </View>
+
+        {/* 历史回看横幅：相邻日切换 + 回到最新（= web；后一天越过今天自动回最新） */}
+        {anchorDate ? (
+          <View className="fs-history-bar">
+            <View className="fs-history-nav" hoverClass="press" hoverStayTime={80} onTap={() => jumpToDate(shiftYmd(anchorDate, -1))}>
+              <Text>← 前一天</Text>
+            </View>
+            <Text className="fs-history-date">{zhDay(anchorDate)}</Text>
+            <View
+              className="fs-history-nav"
+              hoverClass="press"
+              hoverStayTime={80}
+              onTap={() => jumpToDate(shiftYmd(anchorDate, +1) > bjToday() ? null : shiftYmd(anchorDate, +1))}
+            >
+              <Text>后一天 →</Text>
+            </View>
+            <View className="fs-history-back" hoverClass="press" hoverStayTime={80} onTap={() => jumpToDate(null)}>
+              <Text>↩ 回到最新</Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* 空间切换条：全部 / 未归属 / 各 active 空间（有归属数据才显示），横滑 */}
         {spaces.length > 0 || moments.some((m) => m.space) ? (

@@ -100,9 +100,15 @@ export interface FeedPageResp {
   total: number;
 }
 
-/** 动态流：limit 递增式分页（= web use-home-data：只加 limit 不用 offset，刷新后 total 驱动「还有 N 条」） */
-export function loadFeedPage(limit: number, q = "", spaceId = "all") {
-  const qs = [`limit=${limit}`, q ? `q=${encodeURIComponent(q)}` : "", spaceId !== "all" ? `spaceId=${spaceId}` : ""]
+/** 动态流：limit 递增式分页（= web use-home-data：只加 limit 不用 offset，刷新后 total 驱动「还有 N 条」）；
+ * before=历史回看锚点（ISO 时刻）：只取早于该时刻的动态，首条即锚点日的最后一条（= web 日期跳转） */
+export function loadFeedPage(limit: number, q = "", spaceId = "all", before?: string | null) {
+  const qs = [
+    `limit=${limit}`,
+    q ? `q=${encodeURIComponent(q)}` : "",
+    spaceId !== "all" ? `spaceId=${spaceId}` : "",
+    before ? `before=${encodeURIComponent(before)}` : "",
+  ]
     .filter(Boolean)
     .join("&");
   return request<FeedPageResp>(`/api/feed?${qs}`);

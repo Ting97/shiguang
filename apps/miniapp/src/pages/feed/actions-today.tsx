@@ -18,7 +18,7 @@ function splitDue(iso: string | null): { date: string; time: string } {
   return { date: v.slice(0, 10), time: v.slice(11, 16) || "09:00" };
 }
 
-export default function ActionsToday() {
+export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }) {
   const [actions, setActions] = useState<TodayActionRow[] | null>(null);
   // 打卡进行中的行动 id：接到对应行按钮 disabled，防连点重复打卡
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -58,6 +58,16 @@ export default function ActionsToday() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // 发布后识别联动刷新（= web entry-analyzed 事件）：key 变化重拉（跳过首次挂载）
+  const firstKey = useRef(true);
+  useEffect(() => {
+    if (firstKey.current) {
+      firstKey.current = false;
+      return;
+    }
+    void load();
+  }, [refreshKey, load]);
 
   /** 直接添加独立行动（默认标记今日，当日出现在清单） */
   async function addAction() {
