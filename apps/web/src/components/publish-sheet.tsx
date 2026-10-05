@@ -5,8 +5,9 @@ import { uploadImages } from "@/lib/image";
 import { useDismiss } from "./dismissable";
 
 /**
- * 移动端发布输入面板（底部抽屉）：悬浮圆圈点按=空面板；长按语音松开=转写文字带入预览，
+ * 发布输入面板（REQ-009 滚动：全端统一移动式交互）——悬浮圆圈点按=空面板；长按语音松开=转写文字带入预览，
  * 用户确认/修改后点「发布」才真正提交。
+ * 双形态：<640px 底部抽屉（拇指可达）；≥640px 居中卡片（桌面端与移动端同交互）。
  * 附带图片（REQ-001 R1）：相册多选 ≤9 张 + 触屏设备「拍照」入口；文字秒发后并行上传，失败可重试。
  */
 interface SheetImage {
@@ -160,9 +161,12 @@ export default function PublishSheet({
 
   return (
     <>
-      {/* 遮罩仅视觉；点空白关闭由面板 useDismiss 统一处理（N3） */}
-      <div className="fixed inset-0 z-[55] bg-black/50" />
-      <div ref={panelRef} className="safe-bottom fixed inset-x-0 bottom-0 z-[56] rounded-t-2xl border-t border-line-soft bg-surface p-4 pb-5 shadow-2xl">
+      {/* 遮罩仅视觉；点空白关闭由面板 useDismiss 统一处理（N3）；桌面加 scrim 模糊 */}
+      <div className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm" />
+      <div
+        ref={panelRef}
+        className="safe-bottom anim-modal-pop fixed inset-x-0 bottom-0 z-[56] rounded-t-2xl border-t border-line-soft bg-surface p-4 pb-5 shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:border-line-soft"
+      >
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-ink-soft">记录此刻</h3>
           <button
