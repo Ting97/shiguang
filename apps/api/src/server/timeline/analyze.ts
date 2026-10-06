@@ -6,6 +6,14 @@ import {
 } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
+import {
+  activityJevCriteria,
+  catListFromActivities,
+  financeJevCriteria,
+  listUserActivities,
+  listUserFinanceCats,
+  resolveActivityValue,
+} from "@/server/ai/user-vocab";
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { CONFIDENCE_THRESHOLD, type Domain } from "@shiguangri/ai";
 import { writeAuditRecord } from "@/server/ai/audit";
@@ -209,16 +217,28 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   // —— 识别阶段：prompt 装配 + LLM 调用全程不占池连接 ——
   // LLM 单次可达 45s+（含修复重问更久），若期间占住 max=5 的池连接，几条并发后台识别即可拖垮全站
   let r: ParseResult;
+  let userActs: { id: string; name: string; isPreset: boolean }[] = [];
   try {
     // 输入装配（3-A）：按 DB 配置开关/参数组装 user prompt；联系人注入关闭时不取数
     const bundle = await getPromptBundle("extract_full");
     const contactsOn = bundle.config.inject.contactList;
     const contactNames = contactsOn ? await listContactNames(userId, bundle.config.caps.contactCount) : [];
+    // 分类对照：用户 activities 表（预设含改名 + 自定义分类）；空表回落代码枚举
+    userActs = bundle.config.inject.catList ? await listUserActivities(userId) : [];
     const catList = bundle.config.inject.catList
-      ? (Object.keys(ACTIVITY_NAMES) as (keyof typeof ACTIVITY_NAMES)[])
-          .slice(0, bundle.config.caps.catCount)
-          .map((k) => `${k}=${ACTIVITY_NAMES[k]}`)
-          .join("、")
+      ? userActs.length
+        ? catListFromActivities(userActs.slice(0, bundle.config.caps.catCount))
+        : (Object.keys(ACTIVITY_NAMES) as (keyof typeof ACTIVITY_NAMES)[])
+            .slice(0, bundle.config.caps.catCount)
+            .map((k) => `${k}=${ACTIVITY_NAMES[k]}`)
+            .join("、")
+      : "";
+    // 常用分类：用户历史花销分类词表（finance.category 优先取值依据）
+    const financeCatsOn = bundle.config.inject.financeCats !== false;
+    const financeCatNames = financeCatsOn ? await listUserFinanceCats(userId, bundle.config.caps.financeCatCount ?? 15) : [];
+    const financeCats = financeCatNames.length
+      ? `
+常用分类（finance.category 优先从中选取）：${financeCatNames.join("、")}`
       : "";
     const contactList =
       contactsOn && contactNames.length
@@ -227,6 +247,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     const userPrompt = await assembleUserPrompt("extract_full", bundle, {
       nowCst: toCstWallClock(new Date()),
       catList,
+      financeCats,
       contactList,
       text: rawText,
     }, { userId });
@@ -261,6 +282,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
                 contactNames: slimBundle.config.inject.contactList ? contactNames : undefined,
                 slimSystemPrompt: slimBundle.system,
                 slimUserPrompt,
+                activityCriteria: activityJevCriteria(userActs),
+                financeCriteria: financeJevCriteria(financeCatNames),
                 onUsage,
               });
             } catch (e) {
@@ -276,6 +299,12 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
       promptTokens, completionTokens,
     });
     throw e;
+  }
+
+  // 自定义分类归一：模型输出的 activity（枚举 id/自定义 id/名称）对齐到用户 activities 表的 id，
+  // time_blocks.activity_id 的 join 两类 id 都成立；归一在落库与待确认快照之前
+  if (userActs.length && r.scheduleApplicable) {
+    r.activity = resolveActivityValue(r.activity, userActs);
   }
 
   engine = r.engine;

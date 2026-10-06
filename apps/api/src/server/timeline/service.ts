@@ -6,6 +6,12 @@
  */
 import { pool, findOverlap, overlapError } from "@/server/platform/db";
 import { ruleMood, parseInput, DOMAIN_LABELS, activeModel, toCstWallClock, type Domain, type ParseResult } from "@shiguangri/ai";
+import {
+  catListFromActivities,
+  listUserActivities,
+  listUserFinanceCats,
+  resolveActivityValue,
+} from "@/server/ai/user-vocab";
 import { inferInteractionType } from "@shiguangri/shared/social";
 import { checkAiQuota } from "@/server/ai/quota";
 import { writeAuditRecord } from "../ai/audit";
@@ -604,8 +610,25 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     contactsOn && contactNames && contactNames.length
       ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
       : "";
+  // 单域注入（与全量同源）：schedule→分类对照（用户活动分类），finance→常用分类词表
+  let userActs: { id: string; name: string; isPreset: boolean }[] = [];
+  let catList = "";
+  let financeCats = "";
+  if (domain === "schedule" && bundle.config.inject.catList) {
+    userActs = await listUserActivities(userId);
+    catList = userActs.length
+      ? catListFromActivities(userActs.slice(0, bundle.config.caps.catCount ?? 50))
+      : "";
+  }
+  if (domain === "finance" && bundle.config.inject.financeCats) {
+    const cats = await listUserFinanceCats(userId, bundle.config.caps.financeCatCount ?? 15);
+    if (cats.length) financeCats = `
+常用分类（category 优先从中选取）：${cats.join("、")}`;
+  }
   const userPrompt = await assembleUserPrompt(key, bundle, {
     nowCst: toCstWallClock(new Date()),
+    catList,
+    financeCats,
     contactList,
     text: entry.raw_text,
   }, { userId });
@@ -620,6 +643,10 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
       completionTokens += u.completion_tokens;
     },
   });
+  // schedule 域自定义分类归一（与全量 analyzeAndPersist 同语义）
+  if (domain === "schedule" && userActs.length && r.scheduleApplicable) {
+    r.activity = resolveActivityValue(r.activity, userActs);
+  }
   // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型
   void writeAuditRecord({
     userId, entryId, stage: "parse",

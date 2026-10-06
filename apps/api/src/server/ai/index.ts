@@ -6,3 +6,4 @@ export * from "./ai-mode";
 export * from "./jev-shadow";
 export * from "./ai-inputs";
 export * from "./admin-data";
+export * from "./user-vocab";

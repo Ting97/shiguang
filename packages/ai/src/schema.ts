@@ -13,6 +13,13 @@ export const ACTIVITY_IDS = [
 
 export const ActivityId = z.enum(ACTIVITY_IDS);
 
+/**
+ * 识别结果 activity 取值：预设枚举 id 或用户自定义分类（id/名称原样透传）。
+ * 硬枚举会拒掉用户自定义分类——这里只做形状校验，归一由服务端 resolveActivityValue
+ * 对着用户 activities 表做（精确 id → 精确名 → 包含模糊 → other）。
+ */
+export const ActivityValue = z.string().trim().min(1).max(60);
+
 export const ACTIVITY_NAMES: Record<(typeof ACTIVITY_IDS)[number], string> = {
   sleep: "睡眠", work: "工作", study: "学习", fitness: "健身",
   social: "社交", fun: "娱乐", chores: "家务", commute: "通勤", other: "其他",
@@ -125,7 +132,8 @@ export const OpenVocabExtraction = z.object({
 export type OpenVocabExtractionT = z.infer<typeof OpenVocabExtraction>;
 
 export const ParseResult = z.object({
-  activity: ActivityId,
+  // 规则引擎只产预设枚举，但 LLM 链路可能带自定义分类——统一放宽为字符串
+  activity: ActivityValue.catch("other"),
   title: z.string().max(30),
   time: TimeBlock,
   /** 派生意图：todo=有待办｜schedule=有日程｜status=纯动态（两域都不适用） */
@@ -173,7 +181,8 @@ export const ScheduleDraftV2 = z
     // 宽容归一（实测 2026-10-03）：纯花销/心情句模型常不给 schedule 的 activity/title，
     // 严格必填会打回重问再失败 → 整句降级规则兜底（金额/日期表达认不全）。
     // applicable=true 时 superRefine 仍强制 title 非空与 start/end，语义不变。
-    activity: ActivityId.catch("other"),
+    // activity 放宽为字符串（预设 id 或用户自定义分类），服务端 resolveActivityValue 归一
+    activity: ActivityValue.catch("other"),
     title: z.string().max(30).nullish().catch(""),
     start: localMoment.nullish(),
     end: localMoment.nullish(),
@@ -328,7 +337,7 @@ export const LlmExtraction = z.object({
   schedule: z
     .object({
       applicable: z.coerce.boolean().default(true),
-      activity: ActivityId.default("other"),
+      activity: ActivityValue.default("other"),
       title: z.string().max(30),
       durationMin: z.coerce.number().int().positive().nullish(),
       /** AI 直推的起止时刻（北京时间本地串 "YYYY-MM-DDTHH:MM"）；语义含糊给 null 走规则推断 */

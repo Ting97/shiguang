@@ -15,7 +15,7 @@ import {
   type LlmExtraction as LlmExtractionT, type ParseResult as ParseResultT, type OpenVocabExtractionT,
 } from "./schema";
 import { jevAsk, jevEnabled, JevError } from "./jev";
-import { extractClosedSetQuestions } from "./questions/jev-sets";
+import { BASE_FIN_CATEGORY_CRITERIA, extractClosedSetQuestions } from "./questions/jev-sets";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment, anchorRangeToToday, anchorMomentToToday } from "./time-infer";
 import { parseAmountCents, parseDuration } from "./duration";
 import { ruleMood } from "./mood-rules";
@@ -249,6 +249,10 @@ export interface HybridParseOptions extends ParseOptions {
   /** 瘦身开放词汇提取的 system/user prompt（apps/api 按 DB 配置装配传入；缺省用包内默认） */
   slimSystemPrompt?: string;
   slimUserPrompt?: string;
+  /** 用户自定义活动分类（id→「自定义分类：名称」）：合并进 Jev activity 闭集选项，key 即答案 */
+  activityCriteria?: Record<string, string>;
+  /** 用户常用花销分类（分类名→说明）：合并进 Jev fin_category 闭集选项 */
+  financeCriteria?: Record<string, string>;
 }
 
 /** GLM 瘦身提取：只出开放词汇字段（校验不过自动带错误清单重问一次，与 aiExtract 同策略） */
@@ -296,7 +300,7 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
   let jev: Awaited<ReturnType<typeof jevAsk>>;
   try {
     const state = `用户随口记录了一句话（当前时间：${toCstWallClock(now)}）：\n「${text}」`;
-    jev = await jevAsk(state, extractClosedSetQuestions());
+    jev = await jevAsk(state, extractClosedSetQuestions({ activityCriteria: opts.activityCriteria, financeCriteria: opts.financeCriteria }));
   } catch (e) {
     throw new HybridUnavailableError(e instanceof JevError ? e.kind : String(e).slice(0, 120));
   }
@@ -318,9 +322,12 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
   const peopleA = noulOf(jev, "people_applicable");
   const recordFuture = jev.answers["record_type"]?.value === "future";
   const activityRaw = jev.answers["activity"]?.value;
-  const activity = (ACTIVITY_IDS as readonly string[]).includes(activityRaw as string)
-    ? (activityRaw as LlmExtractionT["schedule"]["activity"])
-    : "other";
+  const customActivityIds = Object.keys(opts.activityCriteria ?? {});
+  const activity =
+    (ACTIVITY_IDS as readonly string[]).includes(activityRaw as string) ||
+    customActivityIds.includes(activityRaw as string)
+      ? (activityRaw as string)
+      : "other";
   const dirRaw = jev.answers["fin_direction"]?.value;
   const mealRaw = jev.answers["diet_meal"]?.value;
   const meal = (["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"] as readonly string[]).includes(mealRaw as string)
@@ -353,7 +360,13 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
       hasAmount: fin.v && g.amountCents != null,
       direction: dirRaw === "income" ? "in" : "out",
       amountCents: g.amountCents ?? null,
-      category: fin.v ? (jev.answers["fin_category"]?.value as string | null) ?? "其他" : null,
+      // Jev 答案校验：基础七类 ∪ 用户常用分类之外的一律落「其他」（防模型编造）
+      category: fin.v
+        ? ((c) => {
+            const valid = [...Object.keys(BASE_FIN_CATEGORY_CRITERIA), ...Object.keys(opts.financeCriteria ?? {})];
+            return typeof c === "string" && valid.includes(c) ? c : "其他";
+          })(jev.answers["fin_category"]?.value)
+        : null,
       counterparty: g.counterparty ?? null,
       confidence: fin.p,
     },
@@ -494,7 +507,7 @@ function rulesPipeline(
   const ext = ruleExtract(text, opts.contactNames, now);
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
   const durationFromText = parseDuration(text);
-  const durationMin = ext.schedule.durationMin ?? durationFromText ?? defaults[ext.schedule.activity];
+  const durationMin = ext.schedule.durationMin ?? durationFromText ?? defaults[ext.schedule.activity as keyof typeof defaults] ?? 30;
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
   const future = ext.todo.applicable || detectFuture(text) !== null;
   const tb = inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);

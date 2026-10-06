@@ -6,6 +6,11 @@ import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { isValidYearMonth } from "@/server/platform/http/validate";
 import { assembleUserPrompt, getPrompt, getPromptBundle, PROMPT_KEYS, writeAuditRecord, type PromptKey } from "@/server/ai";
+import {
+  catListFromActivities,
+  listUserActivities,
+  listUserFinanceCats,
+} from "@/server/ai/user-vocab";
 import { listContactNames } from "@/server/timeline";
 import { loadProfileBlock } from "@/server/insight";
 import { buildReviewCtx, type ReviewContentKind as ReviewKind } from "@/server/insight";
@@ -45,19 +50,26 @@ export const POST = withAdminParams(async (req, { user, params }) => {
   if (key === "extract_full" || key.startsWith("extract_domain_")) {
     const contactsOn = cfg.inject.contactList ?? false;
     const contactNames = contactsOn ? await listContactNames(user.id, cfg.caps.contactCount ?? 100) : [];
-    const catList =
-      key === "extract_full" && cfg.inject.catList
-        ? (Object.keys(ACTIVITY_NAMES) as (keyof typeof ACTIVITY_NAMES)[])
+    // 与线上同源：分类对照/常用分类按用户数据装配（空表回落代码枚举）
+    const needCat = cfg.inject.catList && (key === "extract_full" || key === "extract_domain_schedule");
+    const userActs = needCat ? await listUserActivities(user.id) : [];
+    const catList = needCat
+      ? userActs.length
+        ? catListFromActivities(userActs.slice(0, cfg.caps.catCount ?? 50))
+        : (Object.keys(ACTIVITY_NAMES) as (keyof typeof ACTIVITY_NAMES)[])
             .slice(0, cfg.caps.catCount ?? 50)
             .map((k) => `${k}=${ACTIVITY_NAMES[k]}`)
             .join("、")
-        : "";
+      : "";
+    const needCats = cfg.inject.financeCats && (key === "extract_full" || key === "extract_domain_finance");
+    const cats = needCats ? await listUserFinanceCats(user.id, cfg.caps.financeCatCount ?? 15) : [];
+    const financeCats = cats.length ? `\n常用分类（finance.category 优先从中选取）：${cats.join("、")}` : "";
     const contactList =
       contactsOn && contactNames.length
         ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
         : "";
     const text = sampleText ?? (await latestEntry()) ?? "（管理员名下暂无动态，可粘贴样例话术）";
-    ctxOut = { nowCst: toCstWallClock(new Date()), catList, contactList, text };
+    ctxOut = { nowCst: toCstWallClock(new Date()), catList, financeCats, contactList, text };
     userPrompt = await assembleUserPrompt(key as PromptKey, bundle, ctxOut, { userId: user.id });
   } else if (key.startsWith("review_")) {
     const kind = key.slice("review_".length) as ReviewKind;

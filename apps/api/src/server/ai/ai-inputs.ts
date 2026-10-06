@@ -46,9 +46,14 @@ const CAP_LINES = (key: string, label: string, def: number): CapSpec => ({
 
 // ---- 识别类通用片段 ----
 const EXTRACT_FULL_TEMPLATE = `当前时间：{nowCst}
-分类对照：{catList}{contactList}
+分类对照：{catList}{financeCats}{contactList}
 用户的话：「{text}」`;
 const EXTRACT_PLAIN_TEMPLATE = `当前时间：{nowCst}
+用户的话：「{text}」`;
+const EXTRACT_SCHEDULE_TEMPLATE = `当前时间：{nowCst}
+分类对照：{catList}
+用户的话：「{text}」`;
+const EXTRACT_FINANCE_TEMPLATE = `当前时间：{nowCst}{financeCats}
 用户的话：「{text}」`;
 const EXTRACT_PEOPLE_TEMPLATE = `当前时间：{nowCst}{contactList}
 用户的话：「{text}」`;
@@ -60,13 +65,15 @@ const CONTACT_INJECT = (withCat: boolean): InjectSpec[] => [
     ? [OPT("contactList", "联系人名单", "用户已有联系人，人物识别时把称呼对齐到名单原文、避免重复建档", "contacts 表按最近往来排序")]
     : []),
 ];
-// extract_full 的注入项（分类对照 + 联系人）
+// extract_full 的注入项（分类对照 + 常用分类 + 联系人）
 const EXTRACT_FULL_INJECTS: InjectSpec[] = [
-  OPT("catList", "分类对照", "九大活动分类 id=中文名 对照表，schedule.activity 取值依据", "代码枚举 ACTIVITY_NAMES"),
+  OPT("catList", "分类对照", "用户活动分类 id=名称 对照表（预设含改名，含自定义分类），schedule.activity 取值依据", "activities 表（回落代码枚举 ACTIVITY_NAMES）"),
+  OPT("financeCats", "常用分类", "用户历史常用花销分类词表（频次降序），finance.category 优先取值依据", "transactions 表 distinct category"),
   OPT("contactList", "联系人名单", "用户已有联系人，人物识别时把称呼对齐到名单原文、避免重复建档", "contacts 表按最近往来排序"),
 ];
 const EXTRACT_FULL_CAPS: CapSpec[] = [
   { key: "catCount", label: "分类对照条数", min: 1, max: 50, default: 50 },
+  { key: "financeCatCount", label: "常用分类条数", min: 0, max: 50, default: 15 },
   { key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 30 },
 ];
 
@@ -121,7 +128,7 @@ const DECOMPOSE_TEMPLATE = `{todoBlock}
 export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
   extract_full: {
     userTemplate: EXTRACT_FULL_TEMPLATE,
-    placeholders: ["nowCst", "catList", "contactList", "text"],
+    placeholders: ["nowCst", "catList", "financeCats", "contactList", "text"],
     injects: [...EXTRACT_FULL_INJECTS, REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对时间推算基准", "服务端时钟"), REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入")],
     caps: EXTRACT_FULL_CAPS,
   },
@@ -136,10 +143,14 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     caps: [{ key: "contactCount", label: "联系人名单条数", min: 0, max: 500, default: 30 }],
   },
   extract_domain_schedule: {
-    userTemplate: EXTRACT_PLAIN_TEMPLATE,
-    placeholders: ["nowCst", "text"],
-    injects: [REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"), REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入")],
-    caps: [],
+    userTemplate: EXTRACT_SCHEDULE_TEMPLATE,
+    placeholders: ["nowCst", "catList", "text"],
+    injects: [
+      OPT("catList", "分类对照", "用户活动分类 id=名称 对照表（预设含改名，含自定义分类），schedule.activity 取值依据", "activities 表（回落代码枚举 ACTIVITY_NAMES）"),
+      REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"),
+      REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入"),
+    ],
+    caps: [{ key: "catCount", label: "分类对照条数", min: 1, max: 50, default: 50 }],
   },
   extract_domain_todo: {
     userTemplate: EXTRACT_PLAIN_TEMPLATE,
@@ -148,10 +159,14 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     caps: [],
   },
   extract_domain_finance: {
-    userTemplate: EXTRACT_PLAIN_TEMPLATE,
-    placeholders: ["nowCst", "text"],
-    injects: [REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"), REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入")],
-    caps: [],
+    userTemplate: EXTRACT_FINANCE_TEMPLATE,
+    placeholders: ["nowCst", "financeCats", "text"],
+    injects: [
+      OPT("financeCats", "常用分类", "用户历史常用花销分类词表（频次降序），finance.category 优先取值依据", "transactions 表 distinct category"),
+      REQ("nowCst", "当前时间", "北京时间，相对时间推算基准", "服务端时钟"),
+      REQ("text", "用户话术", "动态原文，识别对象本体", "本次输入"),
+    ],
+    caps: [{ key: "financeCatCount", label: "常用分类条数", min: 0, max: 50, default: 15 }],
   },
   extract_domain_mood: {
     userTemplate: EXTRACT_PLAIN_TEMPLATE,

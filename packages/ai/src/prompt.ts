@@ -20,7 +20,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
 - **量词不是钟点**："一点点薯条""两杯咖啡"里的"一点/两杯"绝对不是 01:00/02:00。
 
 ## 五域标准
-- **schedule 日程**（发生了/正在做的具体"事"）：「刚跑完步」「7点半到8点半通勤」「中午和小陈吃饭」。不适用：「今天有点累」（感想）、「喝了两杯咖啡」（归 diet）、「明天三点看牙」（归 todo）。applicable=true 时 title 必填（≤8字）+ activity（取值见用户消息的「分类对照」；例词：sleep 午睡/睡觉｜work 开会/写周报/见客户｜study 看书/上课/刷题｜fitness 跑步/撸铁/球类｜social 亲友吃饭聊天/随礼｜fun 刷抖音/看电影/逛街｜chores 做饭/打扫/买菜｜commute 上下班路上/打车地铁）。confidence：时段时长明确 0.95+；只有动作靠估 0.6~0.9；拿不准 <0.6。
+- **schedule 日程**（发生了/正在做的具体"事"）：「刚跑完步」「7点半到8点半通勤」「中午和小陈吃饭」。不适用：「今天有点累」（感想）、「喝了两杯咖啡」（归 diet）、「明天三点看牙」（归 todo）。applicable=true 时 title 必填（≤8字）+ activity（取值见用户消息的「分类对照」，含用户自定义分类——自定义分类填其 id 或名称；例词：sleep 午睡/睡觉｜work 开会/写周报/见客户｜study 看书/上课/刷题｜fitness 跑步/撸铁/球类｜social 亲友吃饭聊天/随礼｜fun 刷抖音/看电影/逛街｜chores 做饭/打扫/买菜｜commute 上下班路上/打车地铁）。confidence：时段时长明确 0.95+；只有动作靠估 0.6~0.9；拿不准 <0.6。
 - **todo 待办**（未来才做的计划）：「明天下午三点看牙」「待会儿倒垃圾」「打算/准备去做/记得去做…」。先对照「当前时间」：钟点已过的是已发生的事→todo=false、schedule=true。不适用：习惯陈述（"我经常跑步"）、名词性（"工作计划"）、已发生的饮食。
 - **finance 收支**（提到钱）：hasAmount=true 时 amountCents（元×100 正整数）与 direction 必填：花了/买了/付了/消费→out；收到/到账/工资/红包/退款/报销→in；随礼份子→category"人情往来"。
 - **mood 心情**：「挺开心的」「累死了」「好焦虑」——情绪可能藏在动作里。label 非空则 score 必填（-100~100，积极为正、消极为负、越强绝对值越大）。
@@ -38,7 +38,7 @@ export const EXTRACT_SYSTEM_PROMPT = `你是"拾光"App 的记录解析引擎。
   "reasoning": { "schedule": "一句话判断", "todo": "…", "finance": "…", "mood": "…", "diet": "…" },
   "schedule": { "applicable": bool, "activity": "sleep|work|study|fitness|social|fun|chores|commute|other", "title": "≤8字或空", "start": "YYYY-MM-DDTHH:MM"或null, "end": "同左", "durationMin": 正整数或null(话术明确才给), "periodHint": "now|morning|noon|afternoon|evening|night|lateNight或null", "confidence": 0~1 },
   "todo": { "applicable": bool, "due": "YYYY-MM-DDTHH:MM"或null, "confidence": 0~1 },
-  "finance": { "hasAmount": bool, "direction": "out|in或null", "amountCents": 正数或null, "category": "餐饮/交通/人情往来/学习/购物/娱乐/其他或null", "counterparty": "或null", "occurredDate": "YYYY-MM-DD"或null(话术带日期才给), "confidence": 0~1 },
+  "finance": { "hasAmount": bool, "direction": "out|in或null", "amountCents": 正数或null, "category": "优先取用户消息「常用分类」之一，都没有才给 餐饮/交通/人情往来/学习/购物/娱乐/其他，或null", "counterparty": "或null", "occurredDate": "YYYY-MM-DD"或null(话术带日期才给), "confidence": 0~1 },
   "mood": { "label": "情绪词或null", "score": -100~100或null, "confidence": 0~1 },
   "diet": { "applicable": bool, "meal": "早餐|午餐|晚餐|加餐|夜宵|未知", "items": [ { "name": "食物", "amount": "分量或null", "kcal": 整数或null } ], "totalKcal": 合计或null, "confidence": 0~1 },
   "people": [ { "name": "人名", "event": "吃饭/送礼/通话/帮忙…或null" } ],
@@ -73,7 +73,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 - true 时 start/end 必填（"YYYY-MM-DDTHH:MM" 北京时间，按「当前时间」推算实际日期）：显式起止按话术；大概时段给合理区间；刚发生→end=当前时间、start=end-durationMin；跨天 end 给次日；补记昨天填昨天日期。**话术没提任何日期词时日期一律=今天，结束钟点未到也不许挪到明天（如 17:22 说"下午2点到6点"→今天 14:00–18:00）**
 - 量词不是钟点（"一点点/两杯/有点"）
 - title ≤8字必填；durationMin 话术明确才给否则按常识估；confidence 必填
-- 分类：sleep 睡眠/work 工作/study 学习/fitness 健身/social 社交/fun 娱乐/chores 家务/commute 通勤/other
+- 分类：取值见用户消息的「分类对照」（含用户自定义分类——自定义填其 id 或名称；预设例：sleep/work/study/fitness/social/fun/chores/commute/other）
 
 ## 示例
 「7点半到8点半 通勤+读书」(当前09:15) → {"reasoning":"显式起止的具体活动","schedule":{"applicable":true,"activity":"commute","title":"通勤读书","start":"<今天日期>T07:30","end":"<今天日期>T08:30","durationMin":60,"confidence":0.95}}
@@ -99,7 +99,7 @@ export const DOMAIN_PROMPTS: Record<string, string> = {
 - true：「花了260」「随了600块礼」「退款到账50」「午饭28」
 - false：「这东西好贵啊」（无金额）、「攒钱好难」
 - true 时 amountCents（元×100 正整数）与 direction 必填：花了/买了/付了/消费→out；收到/到账/工资/红包/退款/报销→in
-- category：餐饮/交通/人情往来（随礼份子）/学习/购物/娱乐/其他；counterparty=交易对象或null
+- category：优先取用户消息「常用分类」之一，没有合适的才自拟（基础类：餐饮/交通/人情往来（随礼份子）/学习/购物/娱乐/其他）；counterparty=交易对象或null
 - **交易日期 occurredDate**：话术给收支带了日期（"昨天买X花了50""前天吃饭100""上周五随了600""10月1号转了1000"）→ occurredDate 填该日 "YYYY-MM-DD"（按「当前时间」推算实际日期）；未提日期 → null（按当天记）。**禁止未来日期**
 
 ## 示例
