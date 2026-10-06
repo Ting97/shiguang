@@ -151,8 +151,11 @@ export default function Home() {
       } else {
         await load();
       }
-      // 视口带到动态流顶部：移动端发布面板在底部弹出，发布后刚发的动态（列表首位）不一定在视口内
-      setTimeout(() => feedTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      // 视口定位仅移动端：发布面板从底部弹出，刚发的动态（列表首位）可能不在视口内；
+      // PC 发布框在顶部、新动态就在下方，自动滚动反而把视口从输入框拽走（2026-10-04 反馈）
+      if (window.innerWidth < 640) {
+        setTimeout(() => feedTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      }
       // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）。
       // 同时派发识别完成事件：今日行动等自取数区块（不走 use-home-data）联动刷新，
       // 否则识别出的 todo 要手动刷新页面才出现（2026-10-04 用户反馈）
