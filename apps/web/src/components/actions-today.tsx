@@ -8,6 +8,7 @@ import { TodoRowMenu } from "@/components/todo";
 import { confirmDialog } from "@/shared/ui/confirm";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
+import { Repeat } from "lucide-react";
 
 /**
  * 首页「今日行动清单」（REQ-001 R3 + REQ-002 N6）：
@@ -193,8 +194,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             </span>
           )}
           {a.repeat_daily && (
-            <span className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success" title="每日重复">
-              🔁 {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}
+            <span className="flex shrink-0 items-center gap-0.5 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success" title="每日重复">
+              <Repeat size={11} aria-hidden /> {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}
             </span>
           )}
           {a.note && <span className="shrink-0 text-badge text-ink-faint" title="有描述">📄</span>}

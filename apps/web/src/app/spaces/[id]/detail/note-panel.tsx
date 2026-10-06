@@ -6,6 +6,7 @@ import { isoToLocalInput } from "@/components/todo-bits";
 import type { TodoRow } from "@/lib/types";
 import type { Msg } from "./types";
 import type { TodoActions } from "./use-todo-actions";
+import { Repeat } from "lucide-react";
 
 /** 行动详情面板（自 detail.tsx 拆出；可编辑，与 todo-board 同交互；点空白/Esc 取消，有改动轻提示） */
 export default function NotePanel(opts: {
@@ -71,7 +72,7 @@ export default function NotePanel(opts: {
             onChange={(e) => setNoteRepeat(e.target.checked)}
             className="h-3 w-3 accent-emerald-500"
           />
-          🔁 每日{noteRepeat && noteDoneCount > 0 ? ` · 已完成 ×${noteDoneCount}` : ""}
+          <Repeat size={12} className="inline align-[-1px]" /> 每日{noteRepeat && noteDoneCount > 0 ? ` · 已完成 ×${noteDoneCount}` : ""}
         </label>
         <div className="ml-auto flex gap-2">
           <button onClick={() => setNoteOpen(null)} className="rounded px-2.5 py-1 text-xs text-ink-mute hover:bg-soft">

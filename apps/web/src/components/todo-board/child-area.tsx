@@ -7,6 +7,7 @@ import { TodoCircle, dueTag } from "../todo-bits";
 import { ActionNotePanel } from "./action-note-panel";
 import type { SubtaskCtl } from "./types";
 import type { ActionNote } from "./use-action-note";
+import { Repeat } from "lucide-react";
 
 /** 行动（子任务）区（拆分自 todo-board，行为零变化；最多一层）：详情面板 ↔ 展示行 + 添加输入行 + 空态/已完成提示 */
 export function ChildArea({
@@ -49,10 +50,10 @@ export function ChildArea({
                 )}
                 {c.repeat_daily && (
                   <span
-                    className="shrink-0 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success"
+                    className="flex shrink-0 items-center gap-0.5 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success"
                     title="每日重复（06:00 日切自动恢复未完成）"
                   >
-                    🔁 {c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : ""}
+                    <Repeat size={11} aria-hidden /> {c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : ""}
                   </span>
                 )}
                 {ctag && <span className={`shrink-0 text-micro ${ctag.cls}`}>{ctag.text}</span>}

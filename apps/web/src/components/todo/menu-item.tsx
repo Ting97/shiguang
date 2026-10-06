@@ -47,7 +47,8 @@ export interface TodoMenuActions {
 /** 菜单单项：点击即关菜单再执行动作（danger 红、active 已开启徽标、busy 转圈、twoStep 两步确认） */
 export function MenuItem({ closeMenu, icon, label, hint, extra, danger, active, disabled, busy, armed, twoStep, onClick }: {
   closeMenu: () => void;
-  icon: string;
+  /** 图标：emoji 或 lucide 组件（线性图标体系） */
+  icon: React.ReactNode;
   label: string;
   hint?: string;
   extra?: string;

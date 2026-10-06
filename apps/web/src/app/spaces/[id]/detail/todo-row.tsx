@@ -8,6 +8,7 @@ import NotePanel from "./note-panel";
 import TodoEditRow from "./todo-edit-row";
 import type { Msg } from "./types";
 import type { TodoActions } from "./use-todo-actions";
+import { Repeat } from "lucide-react";
 
 /** 顶层关联 todo 行（自 detail.tsx 拆出）：勾选/标题/行动列表/添加行动/AI 拆解/行内编辑/行动详情 */
 export default function TodoRowItem(opts: {
@@ -96,7 +97,7 @@ export default function TodoRowItem(opts: {
                     <span className={`min-w-0 flex-1 cursor-pointer truncate text-body transition hover:text-accent ${cDone ? "text-ink-faint line-through" : ""}`} onClick={() => (noteOpen === c.id ? setNoteOpen(null) : openNote(c))} title={`${c.title}（点击编辑详情）`}>
                       {c.title}
                     </span>
-                    {c.repeat_daily && <TagChip icon="🔁" label={c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : "每日"} tone="emerald" size="sm" />}
+                    {c.repeat_daily && <TagChip icon={<Repeat size={11} />} label={c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : "每日"} tone="emerald" size="sm" />}
                     {c.note && <span className="shrink-0 text-badge text-ink-faint">📄</span>}
                     <button
                       onClick={(e) => {

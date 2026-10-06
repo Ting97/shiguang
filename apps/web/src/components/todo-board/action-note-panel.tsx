@@ -3,6 +3,7 @@
 import type { TodoRow } from "@/lib/types";
 import { Dismissable } from "../dismissable";
 import type { ActionNote } from "./use-action-note";
+import { Repeat } from "lucide-react";
 
 /**
  * 行动详情面板（拆分自 todo-board，行为零变化）：
@@ -54,7 +55,7 @@ export function ActionNotePanel({ c, note }: { c: TodoRow; note: ActionNote }) {
             onChange={(e) => note.setNoteRepeat(e.target.checked)}
             className="h-3 w-3 accent-emerald-500"
           />
-          🔁 每日{note.noteRepeat && note.noteDoneCount > 0 ? ` · 已完成 ×${note.noteDoneCount}` : ""}
+          <Repeat size={12} className="inline align-[-1px]" /> 每日{note.noteRepeat && note.noteDoneCount > 0 ? ` · 已完成 ×${note.noteDoneCount}` : ""}
         </label>
         <div className="ml-auto flex gap-2">
           <button onClick={() => note.setNoteOpenId(null)} className="rounded px-2.5 py-1 text-xs text-ink-mute hover:bg-soft">

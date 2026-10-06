@@ -7,6 +7,7 @@
  * handlers 缺席时对应项隐藏（见 TodoMenuActions）。
  */
 import { createPortal } from "react-dom";
+import { Repeat } from "lucide-react";
 import { Dismissable } from "../dismissable";
 import { MenuItem, type TodoMenuActions, type TodoMenuInfo } from "./menu-item";
 
@@ -53,7 +54,7 @@ export function TodoRowMenu({
             {actions.patch && t.repeat_daily !== undefined && !isDone(t) && (
               <MenuItem
                 closeMenu={close}
-                icon="🔁"
+                icon={<Repeat size={14} className="text-success" />}
                 label={t.repeat_daily ? "关闭每日重复" : "每日重复（次日 6 点恢复）"}
                 active={!!t.repeat_daily}
                 extra={t.repeat_done_count ? `已完成 ×${t.repeat_done_count}` : undefined}
