@@ -8,13 +8,12 @@
  * - apps/web/src/app/globals.css            TOKENS 块（:root + [data-theme=light] 全部变量）
  * - apps/miniapp/src/app.scss               TOKENS 块 page / light（变量段）
  * - apps/miniapp/src/theme.json             微信 darkmode 主题映射
- * - packages/design-tokens/generated/…      mobile-themes.js / .d.ts（Expo import）
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  dark, light, groups, webOnlyVars, miniappExtraVars, mobileThemes,
+  dark, light, groups, webOnlyVars, miniappExtraVars,
   typeScale, badge, radius, motion, zIndex,
 } from "../src/tokens";
 
@@ -117,46 +116,6 @@ function replaceTokenBlock(src: string, name: string, content: string): string {
   return src.slice(0, bEnd) + "\n" + content + "\n" + src.slice(eStart);
 }
 
-function renderMobileThemesJs(): string {
-  const fmt = (t: typeof mobileThemes.dark, indent: string): string => {
-    const pad = indent + "  ";
-    const scalar = Object.entries(t)
-      .filter(([, v]) => typeof v === "string")
-      .map(([k, v]) => `${pad}${k}: ${JSON.stringify(v)},`)
-      .join("\n");
-    const aurora = `${pad}aurora: { sky: ${t.aurora.sky}, indigo: ${t.aurora.indigo}, pink: ${t.aurora.pink} },`;
-    return `{\n${scalar}\n${aurora}\n${indent}}`;
-  };
-  return [
-    `/* ${GENERATED_NOTE} */`,
-    "/** Expo 端主题令牌（值全部由 src/tokens.ts 色板派生，勿手改） */",
-    "export const THEMES = {",
-    `  dark: ${fmt(mobileThemes.dark, "  ")},`,
-    `  light: ${fmt(mobileThemes.light, "  ")},`,
-    "};",
-    "",
-  ].join("\n");
-}
-
-function renderMobileThemesDts(): string {
-  const t = mobileThemes.dark;
-  const fields = (Object.keys(t) as Array<keyof typeof t>)
-    .map((k) => {
-      if (k === "blurTint") return `  blurTint: "light" | "dark";`;
-      if (k === "aurora") return `  aurora: { sky: number; indigo: number; pink: number };`;
-      return `  ${k}: string;`;
-    })
-    .join("\n");
-  return [
-    `/* ${GENERATED_NOTE} */`,
-    "export interface MobileTheme {",
-    fields,
-    "}",
-    "export declare const THEMES: { dark: MobileTheme; light: MobileTheme };",
-    "",
-  ].join("\n");
-}
-
 // theme.json：微信 darkmode 主题映射（key 由 app.config window 以 @key 引用）
 function renderWechatThemeJson(): string {
   return JSON.stringify(
@@ -204,11 +163,6 @@ applyTarget(scssFile, scss);
 
 const themeJsonFile = join(repoRoot, "apps", "miniapp", "src", "theme.json");
 applyTarget(themeJsonFile, renderWechatThemeJson());
-
-const genDir = join(pkgRoot, "generated");
-mkdirSync(genDir, { recursive: true });
-applyTarget(join(genDir, "mobile-themes.js"), renderMobileThemesJs());
-applyTarget(join(genDir, "mobile-themes.d.ts"), renderMobileThemesDts());
 
 for (const r of results) console.log(`[tokens] ${r.status === "written" ? (verify ? "漂移" : "已写入") : "一致  "} ${r.file.replace(repoRoot, ".")}`);
 if (verify && process.exitCode !== 1) console.log("[tokens] verify 通过：全部生成物与源一致。");

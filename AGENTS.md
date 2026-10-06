@@ -6,7 +6,7 @@
 
 - `apps/web`：Next.js 15 App Router，`output: export` 纯静态；UI 全部 `"use client"`
 - `apps/api`：Next.js standalone，托管 API 与 web 静态导出（catch-all）；业务在 `src/server/<domain>`（004 重构已完成 9 域拆分）
-- `apps/mobile`（Expo，不重写）、`apps/android`/`apps/native`（WebView 壳）
+- `apps/android`/`apps/native`（WebView 壳）
 - `packages/ai`：AI 内核（zod 契约 + GLM/Jev + 规则兜底）——**纯包，禁止 import DB/服务器层**
 - `packages/shared`：类型/纯函数（日期、农历、CSV、图谱、api 客户端）
 - `packages/db`：`schema.sql` + 手写 SQL 迁移 + `runner.ts`

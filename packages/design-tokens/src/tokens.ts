@@ -4,14 +4,12 @@
  * 三端消费方式：
  * - web      → scripts/generate.ts 生成 globals.css 的 TOKENS 块（:root + [data-theme="light"]）
  * - miniapp  → 同脚本生成 app.scss 的 page{} / .theme-light TOKENS 块 + theme.json（微信 darkmode）
- * - mobile   → 生成 generated/mobile-themes.js(.d.ts)，App.tsx import
  *
  * 规则：
  * - 色板值以 web globals.css 为基准；改任何值只改这里，然后 `npm run tokens` 重新生成，
  *   CI 跑 `npm run tokens:verify`，手改生成块会被拒绝。
  * - webOnlyVars 仅进 web（小程序无 hover/滚动条概念）；miniappExtraVars 仅进小程序
  *   （无 color-mix，需显式给 input-bg）。
- * - mobileThemes 全部从色板派生（withAlpha/alphaOf），不存在第二份手写数值。
  */
 
 export type Palette = Record<string, string>;
@@ -179,8 +177,6 @@ export const motion = {
 /** 层级刻度：收编散布的 30~100 字面量与 z-[..] 任意值 */
 export const zIndex = { base: 0, sticky: 20, overlay: 30, modal: 40, toast: 50, max: 60 } as const;
 
-// ============ mobile（Expo）派生词汇表 ============
-
 /** #rrggbb → rgba(r, g, b, a) */
 function withAlpha(hex: string, alpha: number): string {
   const n = hex.replace("#", "");
@@ -197,78 +193,3 @@ function alphaOf(rgba: string): number {
   return Number(m[1]);
 }
 
-export interface MobileTheme {
-  bg: string;
-  surface: string;
-  /** 半透明面板（=web bg-surface/70 合成值） */
-  surfaceSoft: string;
-  elevated: string;
-  glassBorder: string;
-  glassHighlight: string;
-  line: string;
-  lineSoft: string;
-  ink: string;
-  inkSoft: string;
-  inkMute: string;
-  inkDim: string;
-  inkFaint: string;
-  accent: string;
-  accentBright: string;
-  danger: string;
-  dangerSolid: string;
-  success: string;
-  /** 大标题（=text-gradient-1） */
-  title: string;
-  /** 弹层遮罩（=web bg-scrim/70 实际合成值，RN 无 color-mix 需预合成） */
-  scrim: string;
-  /** 悬浮发布钮（=capture-btn） */
-  fab: string;
-  fabFg: string;
-  bannerOkBg: string;
-  bannerOkBorder: string;
-  bannerErrBg: string;
-  bannerErrBorder: string;
-  chipWarn: string;
-  blurTint: "light" | "dark";
-  aurora: { sky: number; indigo: number; pink: number };
-}
-
-function toMobileTheme(p: Palette, blurTint: "light" | "dark"): MobileTheme {
-  return {
-    bg: p.bg,
-    surface: p.surface,
-    surfaceSoft: withAlpha(p.surface, 0.7),
-    elevated: p.elevated,
-    glassBorder: p["glass-border"],
-    glassHighlight: p["glass-highlight"],
-    line: p.line,
-    lineSoft: p["line-soft"],
-    ink: p.ink,
-    inkSoft: p["ink-soft"],
-    inkMute: p["ink-mute"],
-    inkDim: p["ink-dim"],
-    inkFaint: p["ink-faint"],
-    accent: p.accent,
-    accentBright: "#0ea5e9",
-    danger: p.danger,
-    dangerSolid: "#f43f5e",
-    success: p.success,
-    title: p["text-gradient-1"],
-    scrim: withAlpha(p.scrim, 0.7),
-    fab: p["capture-btn"],
-    fabFg: blurTint === "dark" ? "#062033" : "#0f172a",
-    bannerOkBg: "rgba(16, 185, 129, 0.1)",
-    bannerOkBorder: "rgba(16, 185, 129, 0.3)",
-    bannerErrBg: "rgba(244, 63, 94, 0.1)",
-    bannerErrBorder: "rgba(244, 63, 94, 0.3)",
-    chipWarn: p.warn,
-    blurTint,
-    aurora: { sky: alphaOf(p["aurora-1"]), indigo: alphaOf(p["aurora-2"]), pink: alphaOf(p["aurora-3"]) },
-  };
-}
-
-/** Expo 端主题（生成 generated/mobile-themes.js 的源） */
-export const mobileThemes: { dark: MobileTheme; light: MobileTheme } = {
-  dark: toMobileTheme(dark, "dark"),
-  light: toMobileTheme(light, "light"),
-};

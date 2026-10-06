@@ -2,9 +2,7 @@
   "name": "@shiguangri/design-tokens",
   "version": "1.0.0",
   "private": true,
-  "description": "拾光设计令牌单一真源：三端色板/排版/动效/层级的唯一来源，脚本生成四端产物（REQ-009 批次 9-A）",
-  "main": "./generated/mobile-themes.js",
-  "types": "./generated/mobile-themes.d.ts",
+  "description": "拾光设计令牌单一真源：web/小程序双端色板/排版/动效/层级的唯一来源，脚本生成三端产物（REQ-009 批次 9-A）",
   "scripts": {
     "generate": "tsx scripts/generate.ts",
     "verify": "tsx scripts/generate.ts --verify"

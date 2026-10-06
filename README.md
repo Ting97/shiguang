@@ -36,7 +36,6 @@ npm workspaces monorepo，逻辑共享、UI 分端：
 
 ```
 apps/web      Web 客户端（Next.js 15 纯静态导出，PWA）
-apps/mobile   Android 原生主力端（Expo/RN，EAS 云构建 + OTA 热更）
 apps/android  Android WebView 壳（34KB 极简备选）   apps/native  iOS（Capacitor，待 Mac）
 apps/api      唯一服务端（Next.js standalone）：27 组 REST API + 静态托管 + 会话门卫
 packages/ai   AI 内核（GLM 客户端/五域管线/确定性时间引擎/ASR/46 句 PoC）
@@ -55,14 +54,14 @@ apps/miniapp 微信小程序端（Taro 4 + React，[docs/15](docs/15-微信小�
 | Phase 1 | 时间主线：一句话打卡、四视图日历、动态流、待办 | ✅ |
 | Phase 2 | 财务主线：记账/账户/CSV 导入/预算/报表 + 账户体系（密码/短信/邮箱/邀请码） | ✅ |
 | Phase 3 | 人际主线：联系人档案、星型图谱、TA 档案页、提醒横幅 | ✅ |
-| M1–M3 | 三端适配（Expo 原生 v1.1.3 + WebView 壳）+ 商业化（free/pro 套餐与 AI 配额）+ 语音记账全链路 | ✅ |
+| M1–M3 | 多端适配（WebView 壳；Expo 原生端已移除）+ 商业化（free/pro 套餐与 AI 配额）+ 语音记账全链路 | ✅ |
 | **Phase 4（当前）** | 交叉复盘 v3（已上线）· 主动消息 · **目标主线**（目标/OKR 与目标教练）· 上线收尾 | ▶️ |
 | 远期 | iOS 上架 · 微信生态（[小程序端评估](docs/15-微信小程序端评估.md)） · 记忆系统（pgvector RAG）· 新型决策模型观察（[Jev 调研](docs/10-技术调研-Jev决策模型详解.html)） | 规划 |
 
 ## 线上与产物
 
 - **Web**：https://shiguang.ting97.cn （注册需邀请码）
-- **Android APK**：[GitHub Releases](https://github.com/Ting97/shiguang/releases)（Expo 原生包走 Releases，小壳入库 `apps/artifacts/`）
+- **Android APK**：[GitHub Releases](https://github.com/Ting97/shiguang/releases)（WebView 壳包，源码 `apps/android`）
 - 运维：发布/备份/回滚见 [docs/08-部署文档.md](docs/08-部署文档.md)
 
 ## 文档索引
