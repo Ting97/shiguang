@@ -21,6 +21,7 @@ export default function RowMenuModal(opts: {
       onClose={() => setMenuRow(null)}
       actions={{
         decomposingId: busyId,
+        patch: patchTodo,
         decompose: (_t, isAction, mode) => decompose({ id: row.id, title: row.title, isAction }, mode),
         remove: (_t) => removeTodo(row.id, row.title),
         pendingCount: () => pendingCount(row),
