@@ -6,7 +6,6 @@ import { TodoCircle, dueTag, isoToLocalInput, localInputToIso } from "./todo-bit
 import { Dismissable } from "./dismissable";
 import { TodoRowMenu } from "@/components/todo";
 import { confirmDialog } from "@/shared/ui/confirm";
-import { useArmConfirm } from "@/lib/use-arm-confirm";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
 
@@ -31,9 +30,6 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   // 行内编辑保存进行中：防双击重复保存
   const [editSaving, setEditSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
-  // 删除两步确认（全站规范，替代原生 confirm）
-  const armDelete = useArmConfirm();
-
   const load = useCallback(async () => {
     try {
       const j = await api("/api/todos?view=today-actions");
@@ -94,7 +90,6 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   async function removeAction(a: TodayAction) {
     try {
       await api(`/api/todos/${a.id}`, "DELETE");
-      armDelete.disarm();
       notify({ ok: true, text: "🗑 行动已删除" });
       await load();
     } catch (e) {
@@ -234,6 +229,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             decompose,
             remove: menuRemove,
             pendingCount: () => 0,
+            startEdit: (t) => startEdit(t as TodayAction),
           }}
         />
       )}
@@ -332,17 +328,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                         <>
                           <TodoCircle size="md" done={false} disabled={busyId === a.id} onClick={() => toggleDone(a)} />
                           <ActionRow a={a} />
-                          {/* N6 行操作（hover 显 / 触屏常显） */}
-                          <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                            <button onClick={() => startEdit(a)} title="编辑行动" className="rounded px-1.5 py-0.5 text-xs text-ink-mute opacity-70 transition hover:bg-soft hover:text-ink">✏️</button>
-                            <button
-                              onClick={() => { if (armDelete.arm(a.id)) void removeAction(a); }}
-                              title="删除行动（3 秒内再点确认）"
-                              className={`rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-soft ${armDelete.armedId === a.id ? "font-medium text-danger opacity-100" : "text-ink-mute hover:text-danger"}`}
-                            >
-                              {armDelete.armedId === a.id ? "确认删除?" : "🗑"}
-                            </button>
-                          </span>
+                          {/* 编辑/删除收进 ⋯ 菜单（REQ-009 滚动：行面只留打卡与菜单入口） */}
                         </>
                       )}
                     </li>
