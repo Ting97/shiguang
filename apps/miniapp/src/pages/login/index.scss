@@ -86,10 +86,11 @@
   flex-direction: column;
   gap: 24px;
 }
-/* REQ-登录页可用性：输入框加高——48px 高 + 加大纵向内边距，字与占位清晰 */
+/* REQ-登录页可用性：输入框加高（显式 height+line-height，同全局 .input 的原生层定位修复） */
 .fields .input {
-  min-height: 96px;
-  padding: 26px 32px;
+  height: 96px;
+  line-height: 96px;
+  padding: 0 32px;
   font-size: 32px;
 }
 
