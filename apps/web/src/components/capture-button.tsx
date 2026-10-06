@@ -157,7 +157,7 @@ export default function CaptureButton({
         onPointerCancel={onCancel}
         onContextMenu={(e) => e.preventDefault()}
         style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))", touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
-        className={`fixed left-1/2 z-40 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full shadow-lg shadow-black/40 transition capture-btn ${
+        className={`fixed left-1/2 z-40 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full shadow-lg shadow-black/40 transition capture-btn sm:hidden ${
           recording ? "capture-btn-rec" : ""
         } ${state === "transcribing" ? "opacity-60" : ""}`}
       >
@@ -170,7 +170,7 @@ export default function CaptureButton({
 
       {/* 首次使用提示：用过一次后消失 */}
       {showHint && state === "idle" && (
-        <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-line-soft bg-surface px-3 py-1 text-micro text-ink-mute">
+        <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-line-soft bg-surface px-3 py-1 text-micro text-ink-mute sm:hidden">
           点按打字 · 长按说话
         </div>
       )}

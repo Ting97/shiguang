@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react";
 import ActionsToday from "@/components/actions-today";
+import { useDesktopPublisher } from "./home/use-desktop-publisher";
+import type { Notify } from "./home/types";
+import DesktopComposer from "./home/desktop-composer";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
 import { api } from "@/shared/api";
@@ -18,7 +21,9 @@ import { useHomeData } from "./home/use-home-data";
  * 各区块 UI 与取数/随图上传逻辑拆至 ./home/（行为与视觉与拆分前一致）。
  */
 export default function Home() {
+  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // 发布后识别产物的延迟刷新定时器（卸载时清理，避免对已卸载组件 setState）
   const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // 移动端发布：sheetOpen 控制底部输入面板；voiceDraft 是长按语音转写出的待预览文字
@@ -97,10 +102,31 @@ export default function Home() {
   useEffect(() => {
     setAnchorDate(null);
   }, [query, spaceFilter]);
+  // use-desktop-publisher 的形参是旧 Notify（setState 签名）：只可能收到消息对象值，函数式更新视为无操作
+  const notifyDispatch = useCallback<Notify>((m) => {
+    if (typeof m === "function") return;
+    if (m) toast(m.text, m.ok ? "ok" : "err");
+  }, []);
+  const {
+    desktopImages,
+    fileInputRef,
+    addDesktopImages,
+    removeDesktopImage,
+    retryDesktopUpload,
+    uploadAfterPublish,
+  } = useDesktopPublisher({ setMsg: notifyDispatch, load: loadVoid });
+
   useEffect(() => {
     const timers = refreshTimers.current;
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  async function submit() {
+    const files = desktopImages.filter((i) => i.status !== "error").map((i) => i.file);
+    const entryId = await publish(text);
+    if (!entryId) return;
+    await uploadAfterPublish(entryId, files);
+  }
 
   /** 发布一条动态（文字秒存上墙），返回 entry id；图片上传由调用方拿到 id 后自行并行处理（可重试） */
   async function publish(raw: string): Promise<string | null> {
@@ -113,6 +139,7 @@ export default function Home() {
       if (!j?.entry) throw new Error("服务异常，请稍后重试");
       // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
       toast("✨ 已记录动态，AI 正在识别日程 / 关系 / todo / 收支 / 心情 / 饮食…");
+      setText("");
       // 新动态要立即可见：历史回看中发布的新动态晚于锚点会不可见 → 发布即回到「今天」；
       // 搜索过滤中则清空搜索再刷新（搜索词可能不匹配新动态）
       if (anchorDate) {
@@ -142,6 +169,8 @@ export default function Home() {
       return null;
     } finally {
       setBusy(false);
+      // 桌面回焦输入框便于连发；移动端不回焦（重新拉起键盘打断阅读）
+      if (window.innerWidth >= 640) inputRef.current?.focus();
     }
   }
 
@@ -162,6 +191,20 @@ export default function Home() {
         <RemindersBanner items={reminderItems} load={loadVoid} />
 
         {/* 取数失败态：给出重试入口，避免失败后整页静默空态（对齐 spaces 页范式） */}
+        {/* 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */}
+        <DesktopComposer
+          text={text}
+          setText={setText}
+          inputRef={inputRef}
+          busy={busy}
+          onSubmit={submit}
+          images={desktopImages}
+          fileInputRef={fileInputRef}
+          onAddImages={addDesktopImages}
+          onRemoveImage={removeDesktopImage}
+          onRetryUpload={retryDesktopUpload}
+        />
+
         {loadErr && (
           <div className="glass mb-5 rounded-2xl p-6 text-center">
             <p className="text-sm text-danger">加载失败：{loadErr}</p>
@@ -172,8 +215,13 @@ export default function Home() {
         )}
 
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
-        <ActionsToday notify={forwardMsg} />
+        {/* 桌面双列：左=动态流主列，右=今日行动侧栏（sticky）；移动端单列自然流（今日行动仍在顶部） */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-6 lg:items-start">
+          <aside className="lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1">
+            <ActionsToday notify={forwardMsg} />
+          </aside>
 
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
         {/* 动态流顶部锚点：发布后视口定位到这（新动态即列表首位） */}
         <div ref={feedTopRef} className="scroll-mt-24" aria-hidden />
 
@@ -233,6 +281,8 @@ export default function Home() {
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
+          </div>
+        </div>
 
         <footer className="mt-10 text-center text-badge text-ink-faint">
           拾光 · 钱·时间·人 · 源码仓库 github.com/Ting97/shiguang
