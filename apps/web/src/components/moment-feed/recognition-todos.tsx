@@ -6,6 +6,8 @@ import { ClipboardList } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
+import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { useHoverCapable } from "./use-hover-capable";
 import { isoToLocalInput, localInputToIso, todoTimeLabel } from "./kit";
 import type { DelFn, RunFn } from "./types";
 
@@ -29,6 +31,8 @@ interface TodoRowsProps {
 
 /** ---- todo ----：展示 + 行内编辑/删除 */
 export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
+  const hoverOk = useHoverCapable();
+  const [menu, setMenu] = useState<RowMenuState | null>(null);
   const [editTodo, setEditTodo] = useState<EditTodoState | null>(null);
 
   return (
@@ -88,7 +92,26 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
             </span>
           </div>
         ) : (
-          <p key={td.id} className="group/row flex items-center gap-x-2">
+          <p
+            key={td.id}
+            className="group/row flex items-center gap-x-2"
+            onClick={(e) => {
+              if (hoverOk) return;
+              setMenu({
+                x: e.clientX,
+                y: e.clientY,
+                onEdit: () =>
+                  setEditTodo({
+                    id: td.id,
+                    title: td.title,
+                    start: isoToLocalInput(td.startAt ?? null),
+                    due: isoToLocalInput(td.dueAt),
+                    activityId: activities.some((a) => a.id === td.activityId) ? td.activityId! : activities[0]?.id ?? "",
+                  }),
+                onDelete: () => del(`todo:${td.id}`, () => api(`/api/todos/${td.id}`, "DELETE")),
+              });
+            }}
+          >
             <TagChip icon={<ClipboardList size={12} />} label="todo" tone="sky" size="sm" className="shrink-0" />
             <span className="truncate">{td.title}</span>
             <span className="shrink-0 text-ink-mute">
@@ -111,6 +134,7 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
           </p>
         ),
       )}
+      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
     </>
   );
 }

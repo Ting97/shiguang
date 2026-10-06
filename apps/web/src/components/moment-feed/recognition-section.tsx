@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { Trash2, Users, Utensils } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
+import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { useHoverCapable } from "./use-hover-capable";
 import { BlockRows } from "./recognition-blocks";
 import { TodoRows } from "./recognition-todos";
 import { TxRows } from "./recognition-transactions";
@@ -21,6 +24,8 @@ interface RecognitionSectionProps {
 
 /** AI 识别产物容器：日程 / todo / 金额 / 人物 / 饮食（均可修改/删除），无任何产物时不渲染 */
 export function RecognitionSection({ m, activities, run, del, delArmed }: RecognitionSectionProps) {
+  const hoverOk = useHoverCapable();
+  const [menu, setMenu] = useState<RowMenuState | null>(null);
   if (!(m.blocks.length > 0 || m.todos.length > 0 || m.transactions.length > 0 || m.people.length > 0 || m.diet)) {
     return null;
   }
@@ -38,7 +43,19 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
 
       {/* ---- 人物 ---- */}
       {m.people.length > 0 && (
-        <p className="group/row flex items-center gap-x-2 text-ink-mute">
+        <p
+          className="group/row flex items-center gap-x-2 text-ink-mute"
+          onClick={(e) => {
+            if (hoverOk) return;
+            setMenu({
+              x: e.clientX,
+              y: e.clientY,
+              onDelete: () =>
+                del(`people:${m.id}`, () =>
+                  Promise.all(m.people.map((p) => api(`/api/interactions/${p.interactionId}`, "DELETE"))).then(() => undefined)),
+            });
+          }}
+        >
           <TagChip icon={<Users size={12} />} label={m.people.map((p) => p.name).join("、")} tone="sky" size="sm" />
           <RowAction
             armed={delArmed === `people:${m.id}`}
@@ -52,7 +69,21 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
 
       {/* ---- 饮食 ---- */}
       {m.diet && (
-        <p className="group/row flex items-center gap-x-2 text-ink-mute">
+        <p
+          className="group/row flex items-center gap-x-2 text-ink-mute"
+          onClick={(e) => {
+            if (hoverOk) return;
+            setMenu({
+              x: e.clientX,
+              y: e.clientY,
+              onDelete: () =>
+                del(`diet:${m.id}`, async () => {
+                  await api(`/api/entries/${m.id}/diet`, "DELETE");
+                  return "🗑 已删除饮食记录";
+                }),
+            });
+          }}
+        >
           <TagChip icon={<Utensils size={12} />} label="饮食" tone="amber" size="sm" className="shrink-0" />
           <span className="min-w-0 flex-1 truncate">
             {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
@@ -73,6 +104,7 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
           </button>
         </p>
       )}
+      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }

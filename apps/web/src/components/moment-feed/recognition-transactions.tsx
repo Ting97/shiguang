@@ -7,6 +7,8 @@ import { Coins } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
+import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { useHoverCapable } from "./use-hover-capable";
 import { yuan } from "./kit";
 import type { DelFn, RunFn } from "./types";
 
@@ -29,6 +31,8 @@ interface TxRowsProps {
 
 /** ---- 金额流水 ----：展示 + 行内编辑/删除 */
 export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
+  const hoverOk = useHoverCapable();
+  const [menu, setMenu] = useState<RowMenuState | null>(null);
   const [editTx, setEditTx] = useState<EditTxState | null>(null);
 
   return (
@@ -92,7 +96,26 @@ export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
             </span>
           </div>
         ) : (
-          <p key={x.id} className="group/row flex items-center gap-x-2 text-ink-mute">
+          <p
+              key={x.id}
+              className="group/row flex items-center gap-x-2 text-ink-mute"
+              onClick={(e) => {
+                if (hoverOk) return;
+                setMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  onEdit: () =>
+                    setEditTx({
+                      id: x.id,
+                      direction: x.direction,
+                      amount: String(x.amountCents / 100),
+                      category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
+                      counterparty: x.counterparty ?? "",
+                    }),
+                  onDelete: () => del(`tx:${x.id}`, () => api(`/api/transactions/${x.id}`, "DELETE")),
+                });
+              }}
+            >
             <TagChip
               icon={<Coins size={12} />}
               label={`${x.direction === "out" ? "支出" : "收入"} ${yuan(x.amountCents)}`}
@@ -121,6 +144,7 @@ export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
           </p>
         ),
       )}
+      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
     </>
   );
 }

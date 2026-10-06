@@ -41,27 +41,27 @@ import EntryMenu from "./entry-menu";
 import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import "./moment-card.scss";
 
-/** 行内小操作按钮（= web row-action.tsx）：删除两步确认（armed 时按钮变「确认删除?」，3 秒超时复位） */
-function RowAction(props: { onEdit?: () => void; onDelete?: () => void; armed: boolean }) {
-  const { onEdit, onDelete, armed } = props;
-  return (
-    <View className="row-actions">
-      {onEdit ? (
-        <View className="row-action-btn row-action-edit" onClick={onEdit}>
-          <LucideIcon name="pencil" size={11} color="var(--accent)" />
-        </View>
-      ) : null}
-      {onDelete ? (
-        <View className={`row-action-btn${armed ? " row-action-armed" : ""}`} onClick={onDelete}>
-          {armed ? (
-            "确认删除?"
-          ) : (
-            <LucideIcon name="trash_2" size={11} color="var(--danger)" />
-          )}
-        </View>
-      ) : null}
-    </View>
-  );
+/**
+ * 识别产物行操作菜单（全端统一交互：编辑/删除图标默认隐藏，点行弹出）。
+ * 编辑有入口才给项；删除走模态二次确认（等价原行内两步删除的防误触语义）。
+ */
+async function rowMenu(label: string, onEdit: (() => void) | null, onDelete: () => void) {
+  try {
+    const items = onEdit ? ["✏️ 编辑", "🗑 删除"] : ["🗑 删除"];
+    const r = await Taro.showActionSheet({ itemList: items });
+    if (onEdit && r.tapIndex === 0) {
+      onEdit();
+      return;
+    }
+    const c = await Taro.showModal({
+      title: "删除确认",
+      content: `确定删除这条${label}？删除后不可恢复。`,
+      confirmColor: "#f43f5e",
+    });
+    if (c.confirm) onDelete();
+  } catch {
+    /* 用户取消 ActionSheet */
+  }
 }
 
 export default function MomentCard({
@@ -129,27 +129,12 @@ export default function MomentCard({
     refreshTimers.current = [setTimeout(onRefresh, 6000), setTimeout(onRefresh, 14000)];
   };
 
-  // 两步删除的待确认 key（3 秒超时自动复位）
-  const [delArmed, setDelArmed] = useState<string | null>(null);
-  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (armTimer.current) clearTimeout(armTimer.current);
-    },
-    [],
-  );
-  const del = (key: string, fn: () => Promise<unknown>) => {
-    if (delArmed === key) {
-      setDelArmed(null);
-      void run(async () => {
-        await fn();
-        return "🗑 已删除";
-      });
-      return;
-    }
-    setDelArmed(key);
-    if (armTimer.current) clearTimeout(armTimer.current);
-    armTimer.current = setTimeout(() => setDelArmed(null), 3000);
+  // 删除执行（二次确认已由 rowMenu 的模态承担）；key 仅作语义占位
+  const del = (_key: string, fn: () => Promise<unknown>) => {
+    void run(async () => {
+      await fn();
+      return "🗑 已删除";
+    });
   };
 
   /** 菜单里点某域：AI 识别该域（busyDomain 由 EntryMenu 自管） */
@@ -466,7 +451,20 @@ export default function MomentCard({
                   </View>
                 </View>
               ) : (
-                <View key={b.id} className="mc-row">
+                <View
+                  key={b.id}
+                  className="mc-row"
+                  onClick={() =>
+                    void rowMenu("日程", () =>
+                      setEditBlock({
+                        id: b.id,
+                        title: b.title,
+                        start: b.startAt ? bjClock(String(b.startAt)) : "",
+                        end: b.endAt ? bjClock(String(b.endAt)) : "",
+                        activityId: activities.some((a) => a.id === b.activityId) ? String(b.activityId) : activities[0]?.id ?? "",
+                      }), () => del(`block:${b.id}`, () => deleteBlock(b.id)))
+                  }
+                >
                   <View className="mc-dot" style={{ backgroundColor: b.color ?? "var(--ink-mute)" }} />
                   <Text className="mc-row-main">
                     {b.icon} {b.activityName} · {b.title}
@@ -474,19 +472,6 @@ export default function MomentCard({
                   <Text className="mc-row-time">
                     {b.startAt ? `${dayPrefix(String(b.startAt))}${bjClock(String(b.startAt))}–${bjClock(String(b.endAt ?? b.startAt))} · ${b.durationMin ?? ""} 分钟` : ""}
                   </Text>
-                  <RowAction
-                    armed={delArmed === `block:${b.id}`}
-                    onEdit={() =>
-                      setEditBlock({
-                        id: b.id,
-                        title: b.title,
-                        start: b.startAt ? bjClock(String(b.startAt)) : "",
-                        end: b.endAt ? bjClock(String(b.endAt)) : "",
-                        activityId: activities.some((a) => a.id === b.activityId) ? String(b.activityId) : activities[0]?.id ?? "",
-                      })
-                    }
-                    onDelete={() => del(`block:${b.id}`, () => deleteBlock(b.id))}
-                  />
                 </View>
               ),
             )}
@@ -547,29 +532,30 @@ export default function MomentCard({
                   </View>
                 </View>
               ) : (
-                <View key={td.id} className="mc-row">
-                  <TagChip lucide="list_todo" label="todo" tone="sky" size="sm" />
-                  <Text className="mc-row-main">{td.title}</Text>
-                  <Text className="mc-row-time">{todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}</Text>
-                  {td.status === "done" ? <Text className="mc-row-done">已完成</Text> : null}
-                  <RowAction
-                    armed={delArmed === `todo:${td.id}`}
-                    onEdit={() => {
+                <View
+                  key={td.id}
+                  className="mc-row"
+                  onClick={() =>
+                    void rowMenu("todo", () => {
                       // ISO → 北京墙上串再拆日期/时间两段（微信 Picker 无 datetime-local，用 date+time 双 Picker 承载）
-                      const s = splitBjInput(isoToBjInput(td.startAt));
+                      const st = splitBjInput(isoToBjInput(td.startAt));
                       const d = splitBjInput(isoToBjInput(td.dueAt));
                       setEditTodo({
                         id: td.id,
                         title: td.title,
-                        startDate: s.date,
-                        startTime: s.time,
+                        startDate: st.date,
+                        startTime: st.time,
                         dueDate: d.date,
                         dueTime: d.time,
                         activityId: activities.some((a) => a.id === td.activityId) ? String(td.activityId) : activities[0]?.id ?? "",
                       });
-                    }}
-                    onDelete={() => del(`todo:${td.id}`, () => deleteTodo(td.id))}
-                  />
+                    }, () => del(`todo:${td.id}`, () => deleteTodo(td.id)))
+                  }
+                >
+                  <TagChip lucide="list_todo" label="todo" tone="sky" size="sm" />
+                  <Text className="mc-row-main">{td.title}</Text>
+                  <Text className="mc-row-time">{todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}</Text>
+                  {td.status === "done" ? <Text className="mc-row-done">已完成</Text> : null}
                 </View>
               ),
             )}
@@ -626,7 +612,20 @@ export default function MomentCard({
                   </View>
                 </View>
               ) : (
-                <View key={x.id} className="mc-row">
+                <View
+                  key={x.id}
+                  className="mc-row"
+                  onClick={() =>
+                    void rowMenu("金额流水", () =>
+                      setEditTx({
+                        id: x.id,
+                        direction: x.direction,
+                        amount: String(Number(x.amountCents) / 100),
+                        category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
+                        counterparty: x.counterparty ?? "",
+                      }), () => del(`tx:${x.id}`, () => deleteTransaction(x.id)))
+                  }
+                >
                   <TagChip
                     lucide="coins"
                     label={`${x.direction === "out" ? "支出" : "收入"} ${yuanCents(x.amountCents)}`}
@@ -637,48 +636,36 @@ export default function MomentCard({
                     {x.category}
                     {x.counterparty ? ` · 对方：${x.counterparty}` : ""}
                   </Text>
-                  <RowAction
-                    armed={delArmed === `tx:${x.id}`}
-                    onEdit={() =>
-                      setEditTx({
-                        id: x.id,
-                        direction: x.direction,
-                        amount: String(Number(x.amountCents) / 100),
-                        category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
-                        counterparty: x.counterparty ?? "",
-                      })
-                    }
-                    onDelete={() => del(`tx:${x.id}`, () => deleteTransaction(x.id))}
-                  />
                 </View>
               ),
             )}
 
             {/* ---- 人物（= web people 行：👥 chip + 两步删除） ---- */}
             {people.length > 0 ? (
-              <View className="mc-row">
-                <TagChip lucide="users" label={people.map((p) => p.name).join("、")} tone="sky" size="sm" maxWidth />
-                <RowAction
-                  armed={delArmed === `people:${m.id}`}
-                  onDelete={() =>
+              <View
+                className="mc-row"
+                onClick={() =>
+                  void rowMenu("人物往来", null, () =>
                     del(`people:${m.id}`, () =>
-                      Promise.all(people.map((p) => deleteInteraction(p.interactionId))).then(() => undefined),
-                    )
-                  }
-                />
+                      Promise.all(people.map((p) => deleteInteraction(p.interactionId))).then(() => undefined)))
+                }
+              >
+                <TagChip lucide="users" label={people.map((p) => p.name).join("、")} tone="sky" size="sm" maxWidth />
               </View>
             ) : null}
 
             {/* ---- 饮食（= web diet 行：餐次 · 菜品 + kcal + 两步删除） ---- */}
             {m.diet ? (
-              <View className="mc-row">
+              <View
+                className="mc-row"
+                onClick={() => void rowMenu("饮食记录", null, () => del(`diet:${m.id}`, () => deleteDiet(m.id)))}
+              >
                 <TagChip lucide="utensils" label="饮食" tone="amber" size="sm" />
                 <Text className="mc-row-main">
                   {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
                   {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}
                   {m.diet.totalKcal != null ? ` · ≈${m.diet.totalKcal} kcal` : ""}
                 </Text>
-                <RowAction armed={delArmed === `diet:${m.id}`} onDelete={() => del(`diet:${m.id}`, () => deleteDiet(m.id))} />
               </View>
             ) : null}
           </View>

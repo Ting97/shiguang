@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { api } from "@/shared/api";
 import { RowAction } from "./row-action";
+import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { useHoverCapable } from "./use-hover-capable";
 import { combineHM } from "@/lib/bj-time"; // 北京口径版：本地 setHours 在海外设备会偏 8 小时（与日程页同源）
 import { dayPrefix, zhClock } from "./kit";
 import type { DelFn, RunFn } from "./types";
@@ -28,6 +30,8 @@ interface BlockRowsProps {
 
 /** ---- 日程块 ----：展示 + 行内编辑/删除 */
 export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps) {
+  const hoverOk = useHoverCapable();
+  const [menu, setMenu] = useState<RowMenuState | null>(null);
   const [editBlock, setEditBlock] = useState<EditBlockState | null>(null);
 
   return (
@@ -86,7 +90,26 @@ export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps)
             </span>
           </div>
         ) : (
-          <p key={b.id} className="group/row flex items-center gap-x-2 gap-y-0.5">
+          <p
+            key={b.id}
+            className="group/row flex items-center gap-x-2 gap-y-0.5"
+            onClick={(e) => {
+              if (hoverOk) return;
+              setMenu({
+                x: e.clientX,
+                y: e.clientY,
+                onEdit: () =>
+                  setEditBlock({
+                    id: b.id,
+                    title: b.title,
+                    start: zhClock(b.startAt),
+                    end: zhClock(b.endAt),
+                    activityId: activities.some((a) => a.id === b.activityId) ? b.activityId : activities[0]?.id ?? "",
+                  }),
+                onDelete: () => del(`block:${b.id}`, () => api(`/api/blocks/${b.id}`, "DELETE")),
+              });
+            }}
+          >
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
             <span className="truncate">
               {b.icon} {b.activityName} · {b.title}
@@ -109,11 +132,11 @@ export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps)
                 del(`block:${b.id}`, () =>
                   api(`/api/blocks/${b.id}`, "DELETE"))
               }
-              
             />
           </p>
         ),
       )}
+      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
     </>
   );
 }
