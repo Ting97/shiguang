@@ -19,6 +19,9 @@ export default defineConfig<"webpack5">(async (merge: Merge) => {
     copy: { patterns: [] },
     framework: "react",
     compiler: "webpack5",
+    // 关闭持久编译缓存（REQ-导航下移缩小期间发现）：本机文件系统上缓存失效不可靠，
+    // 曾三次出现「源码已改、产物仍旧」的幽灵构建，宁可每次全量编译（约 10s）。
+    cache: { enable: false },
     alias: {
       "@": path.resolve(__dirname, "..", "src"),
     },

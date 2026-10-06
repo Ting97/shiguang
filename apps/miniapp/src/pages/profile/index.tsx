@@ -1,5 +1,5 @@
 /**
- * 「我的」页（= web app/profile/page.tsx 移动端形态；PageShell 不传 active，导航无高亮）。
+ * 「我的」页（= web app/profile/page.tsx 移动端形态；导航下移后为底部 tab 第 6 项 active=profile）。
  * 结构逐块对齐 web：居中渐变大标题 → 账号资料卡（渐变圆头像 + 手机号/已验证/管理员徽标 +
  * 加入时间 + 昵称保存）→ 修改密码 → 会话安全（全端登出两步确认）→ 套餐与 AI 用量（30 天
  * 窗口 + 进度条 + 按模型明细）→ 导出我的数据。
@@ -8,12 +8,13 @@
  * - 「退出登录（仅本机）」：小程序导航栏无登出入口（nav-bar 已把登出收编到本页），web 在导航栏。
  * - 导出改为 downloadFile + shareFileMessage 转发文件（小程序无浏览器下载目录）。
  * - web 的「后台管理」入口（/admin）不迁移：小程序无后台页；管理员标识与不限量说明保留。
- * - 主题切换不做（nav-bar 右上角已有，README 词汇表约定不重复）。
+ * - 主题切换行（REQ-导航下移缩小）：原顶栏入口随导航改为底部 tab 后挪入本页资料卡。
  */
 import { useCallback, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import { useTheme } from "@/lib/theme";
 import { showToast } from "@/components/toast";
 import { logout, bindWechatSession } from "@/lib/api";
 import { API_BASE } from "@/lib/request";
@@ -49,6 +50,9 @@ export default function Profile() {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [busy, setBusy] = useState(false);
   const [bindingWx, setBindingWx] = useState(false);
+  // 外观主题三态循环（REQ-导航下移缩小：入口从顶栏挪入本页）
+  const { mode: themeMode, cycle: cycleTheme } = useTheme();
+  const themeName = themeMode === "dark" ? "深色" : themeMode === "light" ? "浅色" : "跟随系统";
   const [exporting, setExporting] = useState<"json" | "md" | null>(null);
   // 全端登出两步确认：首点进入待确认态，3 秒内再点执行（= web useArmConfirm("logout-all")）
   const [armed, setArmed] = useState(false);
@@ -189,7 +193,7 @@ export default function Profile() {
   const pct = quota && quota.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0;
 
   return (
-    <PageShell>
+    <PageShell active="profile">
       {/* = web h1 我的+个人设置 / p 个性化你的账号信息 */}
       <Text className="page-title text-gradient">
         我的<Text className="page-title-sub">个人设置</Text>
@@ -277,6 +281,17 @@ export default function Profile() {
               </Button>
             </View>
 
+            {/* 外观主题（REQ-导航下移缩小） */}
+            <View className="wx-bind-row">
+              <Text className="hint wx-bind-text">外观主题（当前：{themeName}）</Text>
+              <Button
+                className="btn-sky-tinted wx-bind-btn"
+                hoverClass="press"
+                onTap={cycleTheme}
+              >
+                切换
+              </Button>
+            </View>
             {/* 微信绑定（REQ-绑定已有账户）：把当前微信迁到本账号，之后微信一键登录即进本账号 */}
             <View className="wx-bind-row">
               <Text className="hint wx-bind-text">

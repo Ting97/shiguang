@@ -165,12 +165,12 @@ page {
     radial-gradient(ellipse 50% 35% at 12% 5%, var(--aurora-3), transparent 60%);
 }
 
-/* 页面内容容器：= mx-auto max-w-2xl px-5 pb-28 pt-5（手机端 max-w 不起作用，保留结构一致性） */
+/* 页面内容容器：= mx-auto max-w-2xl px-5 pt-5；底部避让吸底标签栏（96u+安全区）与悬浮钮 */
 .page-body {
   box-sizing: border-box;
   max-width: 1344px; /* 672px×2 */
   margin: 0 auto;
-  padding: 40px 40px 224px; /* 20/20/112 px */
+  padding: 40px 40px calc(176px + env(safe-area-inset-bottom));
 }
 
 /* hero 标题：= text-3xl font-semibold + text-gradient（30px） */
@@ -382,7 +382,7 @@ page {
   margin-left: -56px;
   width: 112px; /* 56px */
   height: 112px;
-  bottom: calc(40px + env(safe-area-inset-bottom)); /* bottom-5（web capture-button 1.25rem） */
+  bottom: calc(128px + env(safe-area-inset-bottom)); /* 悬浮于底部标签栏（96u）之上 */
   border-radius: 999px;
   background: var(--capture-btn);
   box-shadow: 0 12px 40px rgba(14, 165, 233, 0.45);
