@@ -11,6 +11,8 @@ import PublishSheet from "@/components/publish-sheet";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import { bjToday } from "@/lib/date";
+import { ListTodo } from "lucide-react";
+import { Dismissable } from "@/components/dismissable";
 import FeedSection from "./home/feed-section";
 import RemindersBanner from "./home/reminders-banner";
 import TodaySchedule from "./home/today-schedule";
@@ -78,6 +80,20 @@ export default function Home() {
 
   // 跳转后横幅闪烁强调（含相邻日切换），3s 后停止
   const [bannerFlash, setBannerFlash] = useState(false);
+
+  // 桌面端：今日行动收纳为右上角触发钮 + 弹出面板（lg 断点与布局类一致）
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      setIsDesktop(mq.matches);
+      if (!mq.matches) setActionsOpen(false);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const jumpToDate = useCallback((date: string | null) => {
     setAnchorDate(date);
@@ -218,13 +234,11 @@ export default function Home() {
         )}
 
         {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
-        {/* 桌面双列：左=动态流主列，右=今日行动侧栏（sticky）；移动端单列自然流（今日行动仍在顶部） */}
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-6 lg:items-start">
-          <aside className="lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1">
-            <ActionsToday notify={forwardMsg} />
-          </aside>
+        {/* 今日行动：移动端顶部内联；桌面端收纳为右上角触发钮 + 弹出面板（见下方） */}
+        <div className="lg:hidden">
+          <ActionsToday notify={forwardMsg} />
+        </div>
 
-          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
         {/* 动态流顶部锚点：发布后视口定位到这（新动态即列表首位） */}
         <div ref={feedTopRef} className="scroll-mt-24" aria-hidden />
 
@@ -284,8 +298,6 @@ export default function Home() {
 
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
-          </div>
-        </div>
 
         <footer className="mt-10 text-center text-badge text-ink-faint">
           拾光 · 钱·时间·人 · 源码仓库 github.com/Ting97/shiguang
@@ -313,6 +325,25 @@ export default function Home() {
         onClose={() => setSheetOpen(false)}
         notify={forwardMsg}
       />
+
+      {/* 桌面：右上角今日行动触发钮 + 弹出面板（点击展开/收起；点空白/Esc 关闭） */}
+      {isDesktop && (
+        <button
+          data-popover-trigger
+          onClick={() => setActionsOpen((v) => !v)}
+          className="fixed right-5 top-[4.25rem] z-40 flex items-center gap-1.5 rounded-full border border-line-soft bg-surface/90 px-3.5 py-2 text-xs font-medium text-ink-soft shadow-lg shadow-scrim/40 backdrop-blur transition hover:border-sky-500/50 hover:text-accent"
+          aria-expanded={actionsOpen}
+        >
+          <ListTodo size={15} aria-hidden /> 今日行动
+        </button>
+      )}
+      {isDesktop && actionsOpen && (
+        <div className="fixed right-5 top-[7.25rem] z-40 max-h-[72dvh] w-80 overflow-y-auto">
+          <Dismissable onClose={() => setActionsOpen(false)} className="rounded-2xl">
+            <ActionsToday notify={forwardMsg} />
+          </Dismissable>
+        </div>
+      )}
     </main>
   );
 }
