@@ -275,30 +275,35 @@ try {
   } else {
     await client.query("begin");
     await client.query(`delete from trade_reserve_banks where user_id = $1`, [userId]);
-    const CHUNK = 40;
-    for (let i = 0; i < mirrorRows.length; i += CHUNK) {
-      const slice = mirrorRows.slice(i, i + CHUNK);
-      const vals = [];
-      const params = [userId];
-      slice.forEach((r, j) => {
-        const b = j * 11;
-        vals.push(
-          `($1,$${b + 2}::date,$${b + 3},$${b + 4},$${b + 5},$${b + 6}::jsonb,$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11}::bigint,$${b + 12}::uuid[])`,
+    try {
+      const CHUNK = 40;
+      for (let i = 0; i < mirrorRows.length; i += CHUNK) {
+        const slice = mirrorRows.slice(i, i + CHUNK);
+        const vals = [];
+        const params = [userId];
+        slice.forEach((r, j) => {
+          const b = j * 11;
+          vals.push(
+            `($1,$${b + 2}::date,$${b + 3},$${b + 4},$${b + 5},$${b + 6}::jsonb,$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11}::bigint,$${b + 12}::uuid[])`,
+          );
+          params.push(`${r.ym}-01`, r.seq, r.bank, r.prios, JSON.stringify(r.parts), r.payDays, r.payCents, r.extraCents, r.needCents, r.savedCents, r.members);
+        });
+        await client.query(
+          `insert into trade_reserve_banks
+           (user_id, ym, seq, bank, prios, parts, pay_days, pay_cents, extra_cents, need_cents, saved_cents, members)
+           values ${vals.join(",")}
+           on conflict (user_id, ym, bank) do update set
+             seq = excluded.seq, prios = excluded.prios, parts = excluded.parts, pay_days = excluded.pay_days,
+             pay_cents = excluded.pay_cents, extra_cents = excluded.extra_cents, need_cents = excluded.need_cents,
+             saved_cents = excluded.saved_cents, members = excluded.members, synced_at = now()`,
+          params,
         );
-        params.push(r.ym, r.seq, r.bank, r.prios, r.parts, r.payDays, r.payCents, r.extraCents, r.needCents, r.savedCents, r.members);
-      });
-      await client.query(
-        `insert into trade_reserve_banks
-         (user_id, ym, seq, bank, prios, parts, pay_days, pay_cents, extra_cents, need_cents, saved_cents, members)
-         values ${vals.join(",")}
-         on conflict (user_id, ym, bank) do update set
-           seq = excluded.seq, prios = excluded.prios, parts = excluded.parts, pay_days = excluded.pay_days,
-           pay_cents = excluded.pay_cents, extra_cents = excluded.extra_cents, need_cents = excluded.need_cents,
-           saved_cents = excluded.saved_cents, members = excluded.members, synced_at = now()`,
-        params,
-      );
+      }
+      await client.query("commit");
+    } catch (e) {
+      await client.query("rollback").catch(() => {});
+      throw e;
     }
-    await client.query("commit");
     const oct10 = (allGroups.get("2026-10") ?? []).reduce((s, g) => s + toCents(g.need), 0);
     console.log(
       `[sync-debt] 备付镜像：${mirrorRows.length} 行（${RANGE_START}~${RANGE_END}）；2026-10 需还合计 ${oct10 / 100} 元`,
