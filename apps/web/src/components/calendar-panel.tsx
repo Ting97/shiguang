@@ -21,7 +21,7 @@ import { combineHM, zhTime } from "@/lib/bj-time";
 
 /** 日程页 · 日历子页：原 /calendar 页的四视图（日/周/月/年）+ AI 复盘，逻辑不变整体平移 */
 export default function CalendarPanel({ initialAnchor }: { initialAnchor?: string }) {
-  const [view, setView] = useState<"day" | "week" | "month" | "year">("day");
+  const [view, setView] = useState<"day" | "week" | "month" | "year">("week"); // 默认周视图（2026-10-04 用户偏好）：一周安排一屏可见
   const [anchor, setAnchor] = useState<string>(bjToday()); // 当前锚定日期（北京口径，海外设备的本地日会错 8 小时）
   // ?date= 直达锚定：参数在父层 useEffect 里才解析出来（晚于本组件首帧），定义后一次性采纳
   const anchoredRef = useRef(false);
