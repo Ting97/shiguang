@@ -164,11 +164,12 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
     </li>
   );
 
-  const progress = (
+  // data 为 null（首载/切月间隙）时不求值内层插值，避免 null 崩溃
+  const progress = data && (
     <div className="mt-3 border-t border-line-soft pt-3">
       <div className="flex items-center justify-between text-micro text-ink-mute">
         <span>
-          已备付 <span className="font-semibold tabular-nums text-success">{fmt(data!.checkedNeed)}</span> / {fmt(data!.totalNeed)}
+          已备付 <span className="font-semibold tabular-nums text-success">{fmt(data.checkedNeed)}</span> / {fmt(data.totalNeed)}
         </span>
         <span className="font-semibold tabular-nums">{pct}%</span>
       </div>
@@ -178,16 +179,16 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
     </div>
   );
 
-  const sourcesBlock = (data?.sources?.length ?? 0) > 0 && (
+  const sourcesBlock = data && (data.sources?.length ?? 0) > 0 && (
     <div className="mt-3 rounded-xl border border-line-soft bg-bg/40 p-3">
       <p className="text-micro text-ink-mute">
         储蓄账户（trade 同步，仅统计余额）
         <span className="ml-1.5 font-semibold tabular-nums text-ink">
-          {fmt((data!.sources ?? []).reduce((s, x) => s + x.plannedCents, 0))}
+          {fmt((data.sources ?? []).reduce((s, x) => s + x.plannedCents, 0))}
         </span>
       </p>
       <ul className="mt-2 flex flex-wrap gap-1.5">
-        {(data!.sources ?? []).map((s) => (
+        {(data.sources ?? []).map((s) => (
           <li
             key={s.name}
             className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/[0.06] px-2 py-0.5 text-badge text-ink-mute"
