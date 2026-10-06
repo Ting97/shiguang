@@ -645,7 +645,10 @@ export default function DebtPage() {
                         {r.extra > 0 ? ` + 到期本金 ${fmt(r.extra)}` : ""}
                       </Text>
                     </View>
-                    <Text className="res-need">{fmt(r.need)}</Text>
+                    <View className="res-need-wrap">
+                      {r.planned != null ? <Text className="res-trade-tag">trade</Text> : null}
+                      <Text className="res-need">{fmt(r.need)}</Text>
+                    </View>
                   </View>
                 ))}
 
@@ -691,6 +694,24 @@ export default function DebtPage() {
                     ))}
                   </View>
                 </View>
+
+                {/* 资金来源（trade 每月备付同步）：备付资金从哪里出 */}
+                {(reserve.sources?.length ?? 0) > 0 && (
+                  <View className="res-cover cell-bg">
+                    <Text className="res-cover-line">
+                      <Text className="dim">资金来源（trade 同步）</Text>
+                      <Text className="res-strong tabular"> {fmt((reserve.sources ?? []).reduce((s, x) => s + x.plannedCents, 0))}</Text>
+                    </Text>
+                    <View className="res-accs">
+                      {(reserve.sources ?? []).map((s) => (
+                        <View key={s.name} className="res-acc res-acc-on">
+                          <Text>{s.name}</Text>
+                          <Text className="res-acc-bal tabular">{fmt(s.plannedCents)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </>
             )}
           </View>

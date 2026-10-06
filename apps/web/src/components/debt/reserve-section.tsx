@@ -17,11 +17,14 @@ interface ReserveData {
     need: number;
     checked: boolean;
     liabilityIds: string[];
+    planned: number | null; // trade 同步的计划金额；null = 无 trade 计划（need 退回月供推算）
   }>;
   totalNeed: number;
   checkedNeed: number;
   savingsCents: number;
   coveragePct: number | null;
+  /** trade 同步的资金来源行（储蓄卡/公积金/工资等） */
+  sources?: Array<{ name: string; plannedCents: number; source: string }>;
 }
 
 /**
@@ -166,6 +169,9 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
                   月供 {fmt(r.pay)}{r.extra > 0 && ` + 到期本金 ${fmt(r.extra)}`}
                 </span>
                 <span className="font-semibold tabular-nums text-ink">{fmt(r.need)}</span>
+                {r.planned != null && (
+                  <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-badge text-accent" title="金额来自 trade 每月备付同步">trade</span>
+                )}
               </li>
             ))}
           </ul>
@@ -214,6 +220,27 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
               ))}
             </ul>
           </div>
+
+          {(data.sources?.length ?? 0) > 0 && (
+            <div className="mt-2 rounded-xl border border-line-soft bg-bg/40 p-3">
+              <p className="text-micro text-ink-mute">
+                资金来源（trade 同步）
+                <span className="ml-1.5 font-semibold tabular-nums text-ink">
+                  {fmt((data.sources ?? []).reduce((s, x) => s + x.plannedCents, 0))}
+                </span>
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {(data.sources ?? []).map((s) => (
+                  <li
+                    key={s.name}
+                    className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/[0.06] px-2 py-0.5 text-badge text-ink-mute"
+                  >
+                    {s.name} <span className="tabular-nums opacity-70">{fmt(s.plannedCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       )}
 

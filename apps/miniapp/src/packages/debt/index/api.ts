@@ -77,11 +77,14 @@ export interface ReserveData {
     need: number;
     checked: boolean;
     liabilityIds: string[];
+    planned: number | null; // trade 同步的计划金额；null = 无 trade 计划（need 退回月供推算）
   }[];
   totalNeed: number;
   checkedNeed: number;
   savingsCents: number;
   coveragePct: number | null;
+  /** trade 同步的资金来源行（储蓄卡/公积金/工资等） */
+  sources?: { name: string; plannedCents: number; source: string }[];
 }
 export interface AccRow {
   id: string;
@@ -124,9 +127,9 @@ export function loadReserve(ym: string) {
 export function setReserveCheck(ym: string, liabilityId: string, checked: boolean) {
   return request("/api/debts/reserve", { method: "PUT", body: { ym, liabilityId, checked } });
 }
-/** 一键备付 / 清空 */
+/** 一键备付 / 清空（路由校验 checked 必填：all 与 checked 同值） */
 export function setReserveAll(ym: string, all: boolean) {
-  return request("/api/debts/reserve", { method: "PUT", body: { ym, all } });
+  return request("/api/debts/reserve", { method: "PUT", body: { ym, all, checked: all } });
 }
 /** POST /api/debts —— 新建档案 {name,type,principalCents,balanceCents?,ratePct?,monthlyCents?,payDay?,dueDate?,priority?,note?} */
 export function createDebt(payload: Record<string, unknown>) {

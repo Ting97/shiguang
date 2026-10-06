@@ -274,6 +274,20 @@
   font-size: 20px;
   color: var(--danger);
 }
+.res-need-wrap {
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  flex-shrink: 0;
+}
+/* trade 每月备付同步徽标（= web bg-sky-500/15 text-accent） */
+.res-trade-tag {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.15); /* bg-sky-500/15 */
+  font-size: 20px;
+  color: var(--accent);
+}
 .res-need {
   flex-shrink: 0;
   font-weight: 600;
