@@ -6,11 +6,7 @@ import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { isValidYearMonth } from "@/server/platform/http/validate";
 import { assembleUserPrompt, getPrompt, getPromptBundle, PROMPT_KEYS, writeAuditRecord, type PromptKey } from "@/server/ai";
-import {
-  catListFromActivities,
-  listUserActivities,
-  listUserFinanceCats,
-} from "@/server/ai/user-vocab";
+import { catListFromActivities, listUserActivities, listUserFinanceCats } from "@/server/ai";
 import { listContactNames } from "@/server/timeline";
 import { loadProfileBlock } from "@/server/insight";
 import { buildReviewCtx, type ReviewContentKind as ReviewKind } from "@/server/insight";
