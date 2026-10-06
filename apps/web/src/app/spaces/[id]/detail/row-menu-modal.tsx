@@ -1,127 +1,34 @@
 "use client";
 
-import { createPortal } from "react-dom";
-import { Dismissable } from "@/components/dismissable";
+/** 空间详情的行操作菜单入口：统一走 components/todo 共享菜单（REQ-009 滚动），
+ * 菜单项与日程 todo-board 完全一致（此前缺 每日重复/⭐重要/☀️标记今日，现补齐）。 */
+import { TodoRowMenu } from "@/components/todo";
 import type { MenuRowState, Pos } from "./types";
 import type { TodoActions } from "./use-todo-actions";
 
-/** 行操作菜单卡片（自 detail.tsx 拆出）：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层） */
 export default function RowMenuModal(opts: {
   menuRow: MenuRowState;
   pos: Pos | null;
   actions: TodoActions;
 }) {
   const { menuRow, pos, actions } = opts;
-  const { busyId, setMenuRow, openNote, decompose, removeTodo, startEdit, setPickerRow, pendingCount } = actions;
-  return createPortal(
-    <Dismissable
+  const { busyId, setMenuRow, openNote, decompose, removeTodo, startEdit, setPickerRow, pendingCount, addAction } = actions;
+  const row = menuRow.todo;
+  return (
+    <TodoRowMenu
+      info={{ todo: row, isChild: menuRow.isChild, parentTitle: (row as { parent_title?: string | null }).parent_title ?? null }}
+      menuPos={pos}
       onClose={() => setMenuRow(null)}
-      className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
-      style={pos ? { top: pos.top, left: pos.left } : undefined}
-    >
-      <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
-      <p className="mb-1.5 truncate px-1.5 text-micro font-medium text-ink-dim">{menuRow.todo.title}</p>
-      <div className="space-y-0.5">
-        {menuRow.isChild ? (
-          <>
-            <button
-              onClick={() => { const c = menuRow.todo; setMenuRow(null); openNote(c); }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
-            >
-              <span className="w-5 shrink-0 text-center text-sm leading-none">✏️</span>
-              <span className="min-w-0 flex-1">编辑标题 / 描述</span>
-            </button>
-            {menuRow.todo.status !== "done" && (
-              <button
-                onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: true }); }}
-                disabled={busyId === menuRow.todo.id}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash disabled:opacity-40"
-              >
-                <span className="w-5 shrink-0 text-center text-sm leading-none">{busyId === menuRow.todo.id ? "⏳" : "✨"}</span>
-                <span className="min-w-0 flex-1">
-                  AI 细化为更小行动
-                  <span className="block truncate text-badge text-ink-faint">插入到该行动之后</span>
-                </span>
-              </button>
-            )}
-            <button
-              onClick={() => { setMenuRow(null); removeTodo(menuRow.todo.id, menuRow.todo.title); }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
-            >
-              <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
-              <span className="min-w-0 flex-1">删除行动</span>
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => { const t = menuRow.todo; setMenuRow(null); startEdit(t); }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
-            >
-              <span className="w-5 shrink-0 text-center text-sm leading-none">✏️</span>
-              <span className="min-w-0 flex-1">编辑标题与时间</span>
-            </button>
-            <button
-              onClick={() => { const t = menuRow.todo; setMenuRow(null); setPickerRow({ id: t.id, spaceId: t.space_id }); }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
-            >
-              <span className="w-5 shrink-0 text-center text-sm leading-none">🎯</span>
-              <span className="min-w-0 flex-1">关联空间</span>
-            </button>
-            {menuRow.todo.status !== "done" && (pendingCount(menuRow.todo) === 0 ? (
-              <button
-                onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: false }); }}
-                disabled={busyId === menuRow.todo.id}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash disabled:opacity-40"
-              >
-                <span className="w-5 shrink-0 text-center text-sm leading-none">{busyId === menuRow.todo.id ? "⏳" : "✨"}</span>
-                <span className="min-w-0 flex-1">
-                  AI 拆解为可执行的行动
-                  <span className="block truncate text-badge text-ink-faint">拆出 ≤10 个行动</span>
-                </span>
-              </button>
-            ) : (
-              /* 已有未完成行动：给出显式二选一（替代原 confirm「确定=重生成/取消=追加」的双语义） */
-              <>
-                <p className="px-2.5 pt-1.5 text-badge text-ink-faint">已有 {pendingCount(menuRow.todo)} 个未完成行动：</p>
-                <button
-                  onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: false }, "replace"); }}
-                  disabled={busyId === menuRow.todo.id}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash disabled:opacity-40"
-                >
-                  <span className="w-5 shrink-0 text-center text-sm leading-none">{busyId === menuRow.todo.id ? "⏳" : "✨"}</span>
-                  <span className="min-w-0 flex-1">
-                    重新生成
-                    <span className="block truncate text-badge text-ink-faint">清空未完成行动后重拆（已完成保留）</span>
-                  </span>
-                </button>
-                <button
-                  onClick={() => { setMenuRow(null); decompose({ id: menuRow.todo.id, title: menuRow.todo.title, isAction: false }, "append"); }}
-                  disabled={busyId === menuRow.todo.id}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash disabled:opacity-40"
-                >
-                  <span className="w-5 shrink-0 text-center text-sm leading-none">➕</span>
-                  <span className="min-w-0 flex-1">
-                    追加到末尾
-                    <span className="block truncate text-badge text-ink-faint">保留现有行动，新行动接在后面</span>
-                  </span>
-                </button>
-              </>
-            ))}
-            <button
-              onClick={() => { setMenuRow(null); removeTodo(menuRow.todo.id, menuRow.todo.title); }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
-            >
-              <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
-              <span className="min-w-0 flex-1">
-                删除 todo
-                <span className="block truncate text-badge text-ink-faint">其下行动一并删除</span>
-              </span>
-            </button>
-          </>
-        )}
-      </div>
-    </Dismissable>,
-    document.body,
+      actions={{
+        decomposingId: busyId,
+        decompose: (_t, isAction, mode) => decompose({ id: row.id, title: row.title, isAction }, mode),
+        remove: (_t) => removeTodo(row.id, row.title),
+        pendingCount: () => pendingCount(row),
+        startEdit: () => startEdit(row),
+        openNote: () => openNote(row),
+        pickSpace: () => setPickerRow({ id: row.id, spaceId: (row as { space_id?: string | null }).space_id ?? null }),
+        addAction: (t) => addAction(t),
+      }}
+    />
   );
 }

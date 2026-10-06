@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import TodoLogo from "./todo-logo";
 import { TodoCircle, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { Dismissable } from "./dismissable";
+import { TodoRowMenu } from "@/components/todo";
+import { confirmDialog } from "@/shared/ui/confirm";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
@@ -100,6 +102,58 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     }
   }
 
+  /* ---- 行操作菜单（REQ-009 滚动：与 todo-board/空间详情同一菜单） ---- */
+  const [menu, setMenu] = useState<{ info: { todo: TodayAction; isChild: boolean; parentTitle: string | null }; pos: { top: number; left: number } } | null>(null);
+  const [decomposingId, setDecomposingId] = useState<string | null>(null);
+
+  function openMenu(a: TodayAction, el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    setMenu({
+      info: { todo: a, isChild: a.kind === "action" || !!a.parent_todo_id, parentTitle: a.parent_title },
+      pos: { top: Math.min(rect.bottom + 6, window.innerHeight - 280), left: Math.max(8, rect.right - 228) },
+    });
+  }
+
+  /** 菜单项 patch（每日重复/重要/今日/恢复） */
+  async function patchTodo(id: string, body: Record<string, unknown>, okText?: string): Promise<boolean> {
+    try {
+      await api(`/api/todos/${id}`, "PATCH", body);
+      if (okText) notify({ ok: true, text: okText });
+      await load();
+      return true;
+    } catch (e) {
+      notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  }
+
+  /** AI 拆解/细化（父在清单内会带出行动；仅行动可见清单变化） */
+  async function decompose(a: { id: string; title: string }, _isAction: boolean) {
+    if (decomposingId) return;
+    setDecomposingId(a.id);
+    try {
+      const j = await api<{ actions?: unknown[] }>(`/api/todos/${a.id}/decompose`, "POST", {});
+      notify({ ok: true, text: `✨ AI 拆出 ${j.actions?.length ?? 0} 个行动` });
+      await load();
+    } catch (e) {
+      notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setDecomposingId(null);
+    }
+  }
+
+  /** 菜单删除：确认弹窗 → DELETE（行内两步确认保留） */
+  async function menuRemove(a: { id: string; title: string }, isChild: boolean) {
+    const ok = await confirmDialog({
+      title: isChild ? "删除行动" : "删除 todo",
+      message: isChild ? `「${a.title}」` : `「${a.title}」
+其下行动将一并删除。`,
+      confirmText: "删除",
+    });
+    if (!ok) return;
+    await removeAction(a as TodayAction);
+  }
+
   /** N6/N3：行内编辑（标题+截止），Enter 保存、点空白/Esc 取消 */
   function startEdit(a: TodayAction) {
     setEditingId(a.id);
@@ -149,6 +203,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             </span>
           )}
           {a.note && <span className="shrink-0 text-badge text-ink-faint" title="有描述">📄</span>}
+          <button
+            onClick={(e) => openMenu(a, e.currentTarget)}
+            aria-label="操作菜单"
+            className="tap-lg press ml-auto shrink-0 rounded p-1 text-ink-faint transition hover:bg-wash hover:text-ink"
+          >
+            ⋯
+          </button>
         </p>
         {(a.parent_title || tag) && (
           <p className="mt-0.5 flex items-center gap-1.5 text-micro text-ink-faint">
@@ -162,6 +223,20 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
 
   return (
     <section className="glass mb-5 rounded-2xl p-5" id="actions">
+      {menu && (
+        <TodoRowMenu
+          info={menu.info}
+          menuPos={menu.pos}
+          onClose={() => setMenu(null)}
+          actions={{
+            decomposingId,
+            patch: patchTodo,
+            decompose,
+            remove: menuRemove,
+            pendingCount: () => 0,
+          }}
+        />
+      )}
       {/* 标题行 */}
       <div className="mb-2 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
