@@ -12,7 +12,7 @@ export default function RowMenuModal(opts: {
   actions: TodoActions;
 }) {
   const { menuRow, pos, actions } = opts;
-  const { busyId, setMenuRow, openNote, decompose, removeTodo, startEdit, setPickerRow, pendingCount, addAction } = actions;
+  const { busyId, setMenuRow, openNote, decompose, removeTodo, startEdit, setPickerRow, pendingCount, addAction, patchTodo } = actions;
   const row = menuRow.todo;
   return (
     <TodoRowMenu
@@ -21,7 +21,7 @@ export default function RowMenuModal(opts: {
       onClose={() => setMenuRow(null)}
       actions={{
         decomposingId: busyId,
-        patch: patchTodo,
+        patch: (id, body, okText) => patchTodo(id, body, okText ?? "已保存"),
         decompose: (_t, isAction, mode) => decompose({ id: row.id, title: row.title, isAction }, mode),
         remove: (_t) => removeTodo(row.id, row.title),
         pendingCount: () => pendingCount(row),
