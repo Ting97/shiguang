@@ -416,7 +416,9 @@ export default function DebtPage() {
     if (resBusy || !reserve || reserve.items.length === 0) return;
     setResBusy(true);
     try {
-      await setReserveAll(ym, checked);
+      // ids 批量只作用于「仅拾光记录」行（trade 镜像行只读，不需要勾）
+      const ids = reserve.items.flatMap((r) => (r.liabilityIds?.length ? r.liabilityIds : [r.liabilityId]));
+      await setReserveAll(ym, ids, checked);
       await reloadReserve();
     } catch (e) {
       showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
@@ -625,88 +627,138 @@ export default function DebtPage() {
 
             {!reserve ? (
               <Text className="res-empty">加载中…</Text>
-            ) : reserve.items.length === 0 ? (
+            ) : !reserve.trade && reserve.items.length === 0 ? (
               <Text className="res-empty">本月没有进行中的负债应还</Text>
             ) : (
               <>
-                {reserve.items.map((r) => (
-                  <View key={r.liabilityId} className={`res-row ${r.checked ? "res-on" : ""}`} onTap={() => void toggleReserve(r, !r.checked)}>
-                    <View className="res-check">
-                      <LucideIcon name={r.checked ? "check_circle_2" : "circle"} size={13} color={r.checked ? "var(--success)" : "var(--ink-faint)"} />
-                    </View>
-                    <View className="res-mid">
-                      <Text className="res-name">
-                        {r.name}
-                        {r.payDays.length > 0 ? <Text className="hint-faint"> {r.payDays.join("/")} 日</Text> : null}
-                        {r.extra > 0 ? <Text className="res-due-tag">本月到期</Text> : null}
+                {reserve.trade && (
+                  <>
+                    {/* trade 备付镜像汇总（金额/状态与 trade 每月备付追踪页一致） */}
+                    <View className="res-sum">
+                      <Text className="res-trade-tag">trade 同步</Text>
+                      <Text className="hint-faint">
+                        需还 <Text className="res-strong tabular">{fmt(reserve.trade.needTotal)}</Text>
                       </Text>
-                      <Text className="hint-faint tabular">
-                        月供 {fmt(r.pay)}
-                        {r.extra > 0 ? ` + 到期本金 ${fmt(r.extra)}` : ""}
+                      <Text className="hint-faint">
+                        备付 <Text className="res-strong tabular">{fmt(reserve.trade.savedTotal)}</Text>
+                      </Text>
+                      <Text className={`res-strong ${reserve.trade.okCount === reserve.trade.bankCount ? "money-in" : "money-out"}`}>
+                        达标 {reserve.trade.okCount}/{reserve.trade.bankCount}
+                        {reserve.trade.okCount === reserve.trade.bankCount && reserve.trade.bankCount > 0 ? " ✓" : ""}
                       </Text>
                     </View>
-                    <View className="res-need-wrap">
-                      {r.planned != null ? <Text className="res-trade-tag">trade</Text> : null}
-                      <Text className="res-need">{fmt(r.need)}</Text>
-                    </View>
-                  </View>
-                ))}
-
-                {/* 已备付进度条 */}
-                <View className="res-prog">
-                  <View className="res-prog-line">
-                    <Text className="res-prog-label">
-                      已备付 <Text className="money-in res-strong tabular">{fmt(reserve.checkedNeed)}</Text> / {fmt(reserve.totalNeed)}
-                    </Text>
-                    <Text className="res-prog-pct tabular">{pct}%</Text>
-                  </View>
-                  <View className="bar-track bar-thin">
-                    <View className="bar-in bar-emerald-sky" style={{ width: `${pct}%` }} />
-                  </View>
-                </View>
-
-                {/* 储蓄覆盖：参与账户合计 vs 当月应还 */}
-                <View className="res-cover cell-bg">
-                  <Text className="res-cover-line">
-                    <Text className="dim">储蓄覆盖（</Text>
-                    {accounts.length === 0 ? <Text className="hint-faint">尚未勾选参与账户</Text> : null}
-                    <Text className="dim">）</Text>
-                    <Text className={`res-strong tabular ${gap >= 0 ? "money-in" : "money-out"}`}>{fmt(reserve.savingsCents)}</Text>
-                    <Text className="hint-faint"> vs 应还 {fmt(reserve.totalNeed)}</Text>
-                    {reserve.coveragePct != null && (
-                      <Text className={`res-strong ${reserve.coveragePct >= 100 ? "money-in" : "money-out"}`}> {reserve.coveragePct}%</Text>
-                    )}
-                    {gap < 0 && <Text className="money-out"> 缺口 {fmt(Math.abs(gap))}</Text>}
-                  </Text>
-                  <View className="res-accs">
-                    {accounts.map((a) => (
-                      <View
-                        key={a.id}
-                        className={`res-acc ${a.reserveTracked ? "res-acc-on" : ""}`}
-                        onTap={() => void toggleAccountReserve(a)}
-                      >
-                        <View className="ico-row">
-                          <LucideIcon name={a.reserveTracked ? "check_circle_2" : "circle"} size={12} color={a.reserveTracked ? "var(--success)" : "var(--ink-faint)"} />
-                          <Text> {a.name}</Text>
+                    {reserve.trade.banks.map((b) => (
+                      <View key={b.bank} className="res-row">
+                        <View className="res-mid">
+                          <Text className="res-name">
+                            {b.bank}
+                            {b.payDays && b.payDays !== "—" ? <Text className="hint-faint"> {b.payDays}</Text> : null}
+                          </Text>
+                          <Text className="hint-faint tabular">
+                            {b.prios}
+                            {b.parts.length > 1 ? ` · ${b.parts.map((p) => `${p.p} ${fmt(p.payCents)}（${p.payDay}）`).join("＋")}` : ""}
+                          </Text>
+                          <Text className="hint-faint tabular">
+                            月供 {fmt(b.payCents)}
+                            {b.extraCents > 0 ? ` + 到期 ${fmt(b.extraCents)}` : ""}
+                          </Text>
                         </View>
-                        <Text className="res-acc-bal tabular">{fmt(a.balanceCents)}</Text>
+                        <View className="res-right">
+                          <Text className="res-need">{fmt(b.needCents)}</Text>
+                          <Text className="hint-faint tabular">
+                            {b.savedCents != null ? <>备 {fmt(b.savedCents)}</> : "备未记录"}
+                          </Text>
+                          {b.status === "ok" ? (
+                            <Text className="res-st-ok">✓ 够还</Text>
+                          ) : b.status === "lack" ? (
+                            <Text className="res-st-lack">缺 {fmt(b.needCents - (b.savedCents ?? 0))}</Text>
+                          ) : null}
+                        </View>
                       </View>
                     ))}
-                  </View>
-                </View>
+                    {/* 储蓄账户（trade 同步，仅统计余额） */}
+                    {(reserve.sources?.length ?? 0) > 0 && (
+                      <View className="res-cover cell-bg">
+                        <Text className="res-cover-line">
+                          <Text className="dim">储蓄账户（trade 同步）</Text>
+                          <Text className="res-strong tabular"> {fmt((reserve.sources ?? []).reduce((s, x) => s + x.plannedCents, 0))}</Text>
+                        </Text>
+                        <View className="res-accs">
+                          {(reserve.sources ?? []).map((s) => (
+                            <View key={s.name} className="res-acc res-acc-on">
+                              <Text>{s.name}</Text>
+                              <Text className="res-acc-bal tabular">{fmt(s.plannedCents)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
+                {reserve.items.length > 0 && (
+                  <>
+                    {reserve.trade ? <Text className="res-extra-title">仅拾光记录（trade 未跟踪，点行勾选备付）</Text> : null}
+                    {reserve.items.map((r) => (
+                      <View key={r.liabilityId} className={`res-row ${r.checked ? "res-on" : ""}`} onTap={() => void toggleReserve(r, !r.checked)}>
+                        <View className="res-check">
+                          <LucideIcon name={r.checked ? "check_circle_2" : "circle"} size={13} color={r.checked ? "var(--success)" : "var(--ink-faint)"} />
+                        </View>
+                        <View className="res-mid">
+                          <Text className="res-name">
+                            {r.name}
+                            {r.payDays.length > 0 ? <Text className="hint-faint"> {r.payDays.join("/")} 日</Text> : null}
+                            {r.extra > 0 ? <Text className="res-due-tag">本月到期</Text> : null}
+                          </Text>
+                          <Text className="hint-faint tabular">
+                            月供 {fmt(r.pay)}
+                            {r.extra > 0 ? ` + 到期本金 ${fmt(r.extra)}` : ""}
+                          </Text>
+                        </View>
+                        <Text className="res-need">{fmt(r.need)}</Text>
+                      </View>
+                    ))}
 
-                {/* 资金来源（trade 每月备付同步）：备付资金从哪里出 */}
-                {(reserve.sources?.length ?? 0) > 0 && (
+                    {/* 已备付进度条 */}
+                    <View className="res-prog">
+                      <View className="res-prog-line">
+                        <Text className="res-prog-label">
+                          已备付 <Text className="money-in res-strong tabular">{fmt(reserve.checkedNeed)}</Text> / {fmt(reserve.totalNeed)}
+                        </Text>
+                        <Text className="res-prog-pct tabular">{pct}%</Text>
+                      </View>
+                      <View className="bar-track bar-thin">
+                        <View className="bar-in bar-emerald-sky" style={{ width: `${pct}%` }} />
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {/* 储蓄覆盖（无 trade 镜像的月份）：参与账户合计 vs 当月应还 */}
+                {!reserve.trade && (
                   <View className="res-cover cell-bg">
                     <Text className="res-cover-line">
-                      <Text className="dim">资金来源（trade 同步）</Text>
-                      <Text className="res-strong tabular"> {fmt((reserve.sources ?? []).reduce((s, x) => s + x.plannedCents, 0))}</Text>
+                      <Text className="dim">储蓄覆盖（</Text>
+                      {accounts.length === 0 ? <Text className="hint-faint">尚未勾选参与账户</Text> : null}
+                      <Text className="dim">）</Text>
+                      <Text className={`res-strong tabular ${gap >= 0 ? "money-in" : "money-out"}`}>{fmt(reserve.savingsCents)}</Text>
+                      <Text className="hint-faint"> vs 应还 {fmt(reserve.totalNeed)}</Text>
+                      {reserve.coveragePct != null && (
+                        <Text className={`res-strong ${reserve.coveragePct >= 100 ? "money-in" : "money-out"}`}> {reserve.coveragePct}%</Text>
+                      )}
+                      {gap < 0 && <Text className="money-out"> 缺口 {fmt(Math.abs(gap))}</Text>}
                     </Text>
                     <View className="res-accs">
-                      {(reserve.sources ?? []).map((s) => (
-                        <View key={s.name} className="res-acc res-acc-on">
-                          <Text>{s.name}</Text>
-                          <Text className="res-acc-bal tabular">{fmt(s.plannedCents)}</Text>
+                      {accounts.map((a) => (
+                        <View
+                          key={a.id}
+                          className={`res-acc ${a.reserveTracked ? "res-acc-on" : ""}`}
+                          onTap={() => void toggleAccountReserve(a)}
+                        >
+                          <View className="ico-row">
+                            <LucideIcon name={a.reserveTracked ? "check_circle_2" : "circle"} size={12} color={a.reserveTracked ? "var(--success)" : "var(--ink-faint)"} />
+                            <Text> {a.name}</Text>
+                          </View>
+                          <Text className="res-acc-bal tabular">{fmt(a.balanceCents)}</Text>
                         </View>
                       ))}
                     </View>

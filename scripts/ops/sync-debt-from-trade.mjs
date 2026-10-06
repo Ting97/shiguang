@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
- * trade → shiguang 负债余额定时同步（REQ-009 滚动，2026-10-04）。
+ * trade → shiguang 负债余额 + 每月备付镜像定时同步（REQ-009 滚动，2026-10-04/06）。
  *
- * 源：trade.ting97.cn 资产模块「资产负债记账」快照（asset_snapshots_v1，万元，
- *     经 dashboard :3030 /api/asset/store 暴露；用户在 trade 页面逐笔录入/修订）。
- * 目标：shiguang liabilities——账户 15091587905（USER_PHONE）名下、在 MAPPING 中登记的负债。
- * 语义：**只更新余额**（balance_cents = 快照万 × 1e6），不新增/删除/改月供利率——
- *      shiguang 侧该批负债视为 trade 只读镜像；映射外的编码每次运行时报告。
+ * 源：trade.ting97.cn 资产模块（本机 /opt/aitrade + dashboard :3030 /api/asset/store；
+ *     用户在 trade 页面逐笔录入/修订）。
+ * 目标：shiguang 账户 15091587905（USER_PHONE）。
+ * 语义：
+ *  1) 负债余额：asset_snapshots_v1 → liabilities.balance_cents（映射内逐笔，映射外自动建档）。
+ *  2) 备付镜像：读 /opt/aitrade/资产/{data.js,备付核心.js} 复刻 trade 的「需还矩阵」
+ *     （静态 RULES + asset_loans_config_v1 用户覆盖/自定义负债），按银行合并出每月
+ *     月供/到期本金/当月需还，连同 asset_repay_reserve_v1 的账户剩余逐月写入
+ *     trade_reserve_banks——备付页与 trade 逐行同源。
+ *  3) 储蓄账户：reserve 键 - 还款银行名（非 0）→ debt_reserve_sources。
+ *  4) 备付计划金额：reserve 银行行 → debt_reserve_checks.planned_cents（历史口径，保留）。
  *
  * 用法（服务器）：node sync-debt-from-trade.mjs [--dry]
  * cron 示例：10 6 * * *  （每日 06:10，见 scripts/ops/README.md）
@@ -21,8 +27,10 @@ const dry = process.argv.includes("--dry");
 
 // ---- 配置 ----
 const USER_PHONE = "15091587905";
+const TRADE_HOME = process.env.TRADE_HOME ?? "/opt/aitrade"; // trade 部署目录（需还矩阵源文件）
 const STORE_URL =
-  process.env.TRADE_STORE_URL ?? "http://127.0.0.1:3030/api/asset/store?keys=asset_snapshots_v1";
+  process.env.TRADE_STORE_URL ??
+  "http://127.0.0.1:3030/api/asset/store?keys=asset_snapshots_v1,asset_repay_reserve_v1,asset_loans_config_v1";
 // 映射外置：/opt/shiguangri_repo/scripts/trade-debt-mapping.json（code → 负债 uuid）
 // 自动建档的新条目会自动写回此文件；NAME_OVERRIDES：建档时的中文名（缺省 "trade <code>"，改名不影响绑定）
 const MAPPING_FILE = join(here, "trade-debt-mapping.json");
@@ -44,7 +52,18 @@ if (!res.ok) {
   process.exit(1);
 }
 const { items } = await res.json();
-const snapshots = JSON.parse(items.find((i) => i.key === "asset_snapshots_v1")?.v ?? "[]");
+const storeGet = (key, fallback) => {
+  const raw = items.find((i) => i.key === key)?.v;
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+};
+const snapshots = storeGet("asset_snapshots_v1", []);
+const reserve = storeGet("asset_repay_reserve_v1", {});
+const loanCfg = storeGet("asset_loans_config_v1", { overrides: {}, custom: [] });
 if (!snapshots.length) {
   console.error("[sync-debt] 快照为空，结束");
   process.exit(1);
@@ -127,90 +146,252 @@ for (const { code, liabilityId, balanceCents } of updates) {
   changed += 1;
 }
 
-// ---- 每月备付计划金额同步（asset_repay_reserve_v1 → debt_reserve_checks.planned_cents，
-// ---- 负债行逐笔对齐（未匹配自动建档）；资金来源行（储蓄卡/投机/公积金/工资等）→ debt_reserve_sources）----
-const SOURCE_RE = /储蓄卡|投机|公积金|工资|工资收|余额宝|零钱/;
-try {
-  const res2 = await fetch("http://127.0.0.1:3030/api/asset/store?keys=asset_repay_reserve_v1");
-  if (res2.ok) {
-    const j2 = await res2.json();
-    const reserve = JSON.parse(j2.items.find((i) => i.key === "asset_repay_reserve_v1")?.v ?? "{}");
-    let liabN = 0;
-    let srcN = 0;
-    const unmappedBanks = [];
-    for (const [ym, banks] of Object.entries(reserve)) {
-      for (const [bank, amount] of Object.entries(banks)) {
-        const cents = Math.round(Number(amount) * 100);
-        if (!Number.isFinite(cents)) continue;
-        if (cents === 0) {
-          // 0 元占位行不同步：trade 备付页存在同笔拆两行记法（如 华夏银行 0 + 华夏银行信用卡 1537.99 指同一笔分期），
-          // 同负债同月唯一约束下以真实月供行为准；0 行=无需备付，shiguang 不落行
-          console.log(`[sync-debt] 跳过 0 元行 ${ym} ${bank}`);
-          continue;
-        }
-        if (SOURCE_RE.test(bank)) {
-          // 资金来源行：非负债，独立表
-          await client.query(
-            `insert into debt_reserve_sources (user_id, ym, name, planned_cents, source)
-             values ($1, $2, $3, $4, 'trade')
-             on conflict (user_id, ym, name) do update set planned_cents = $4, source = 'trade'`,
-            [userId, `${ym}-01`, bank, cents],
-          );
-          srcN += 1;
-          continue;
-        }
-        // 负债行：编码表精确匹配（含 startsWith 兜底信用卡别名）
-        // 匹配优先级（华夏银行 vs 华夏银行信用卡 是两类负债，严禁 stem 吞行）：
-        // ① 备付专用键 R:<银行名>（此前自动建档记忆） ② 编码表精确名 ③ 用户同名负债 ④ 去信用卡后缀 ⑤ 自动建档
-        let liabilityId = MAPPING[`R:${bank}`];
-        let code = null;
-        if (!liabilityId) {
-          code = Object.keys(BANK_OF).find((c) => BANK_OF[c] === bank) ?? null;
-          liabilityId = code ? MAPPING[code] : null;
-        }
-        if (!liabilityId || liabilityId === "(dry)") {
-          const sameName = await client.query(
-            `select id from liabilities where user_id = $1 and name = $2 and status = 'active' limit 1`,
-            [userId, bank],
-          );
-          if (sameName.rows[0]) {
-            liabilityId = sameName.rows[0].id;
-          } else if (bank.endsWith("信用卡")) {
-            const stem = bank.slice(0, -3);
-            const stemCode = Object.keys(BANK_OF).find((c) => BANK_OF[c] === stem);
-            liabilityId = stemCode ? MAPPING[stemCode] : null;
-          }
-        }
-        if (!liabilityId || liabilityId === "(dry)") {
-          if (code) {
-            unmappedBanks.push(`${bank}(${code} 未绑定)`);
-            continue;
-          }
-          const r = await client.query(
-            `insert into liabilities (user_id, name, type, principal_cents, balance_cents, note)
-             values ($1, $2, 'credit_card', 0, 0, $3) returning id`,
-            [userId, bank, `trade:${bank} 备付同步托管（无余额，仅月度备付行）`],
-          );
-          liabilityId = r.rows[0].id;
-          MAPPING[`R:${bank}`] = liabilityId;
-          saveMapping();
-          console.log(`[sync-debt] 备付建档「${bank}」（仅备付行，余额 0）`);
-        }
-        await client.query(
-          `insert into debt_reserve_checks (user_id, ym, liability_id, planned_cents, source)
-           values ($1, $2, $3, $4, 'trade')
-           on conflict (user_id, ym, liability_id)
-           do update set planned_cents = $4, source = 'trade'`,
-          [userId, `${ym}-01`, liabilityId, cents],
-        );
-        liabN += 1;
-      }
+// ---- 每月备付镜像（trade_reserve_banks）：复刻 trade 备付核心.js 的需还矩阵，与该页逐行同源 ----
+// trade 三层口径：静态 RULES（备付核心.js）→ 用户月供覆盖（asset_loans_config_v1.overrides）
+// → 自定义负债（asset_loans_config_v1.custom，group 非 family 全部计入）。
+const RANGE_START = "2026-09"; // 与 trade FLOOR 对齐（cur 下限）
+const RANGE_END = "2033-09"; // 与 trade CAP 对齐
+const toCents = (v) => Math.round(Number(v) * 100);
+const nextYm = (ym) => {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+};
+
+function loadTradeMatrix() {
+  // data.js：纯数据 IIFE，挂 window.DB（沙箱执行，selfCheck 只用 console.assert）
+  const dataSrc = readFileSync(join(TRADE_HOME, "资产", "data.js"), "utf8");
+  const sandbox = {};
+  new Function("window", dataSrc)(sandbox);
+  const loans = (sandbox.DB?.loans ?? []).map((l) => ({
+    priority: l.priority,
+    bank: String(l.bank ?? ""),
+    payDay: l.payDay,
+    group: l.group,
+  }));
+  if (!loans.some((l) => l.priority === "A1")) throw new Error("data.js 解析异常（无 A1）");
+
+  // 备付核心.js：DOM 重度耦合，只提取 RULES 字面量求值（以「// 用户覆盖」注释为右边界）
+  const coreSrc = readFileSync(join(TRADE_HOME, "资产", "备付核心.js"), "utf8");
+  const m = coreSrc.match(/const RULES = (\{[\s\S]*?\n  \});/);
+  if (!m) throw new Error("备付核心.js 未找到 RULES 矩阵");
+  const rules = new Function(`return (${m[1]})`)();
+  if (!rules.A1 || !rules.D2) throw new Error("RULES 解析异常（缺 A1/D2）");
+
+  // 用户覆盖：月供覆盖按平值（删 steps），与备付核心.js 同逻辑
+  for (const [p, ov] of Object.entries(loanCfg.overrides ?? {})) {
+    if (rules[p] && ov?.monthly !== undefined && ov.monthly !== null && ov.monthly !== "") {
+      rules[p].monthly = Number(ov.monthly);
+      delete rules[p].steps;
     }
-    console.log(`[sync-debt] 备付同步：负债行 ${liabN} 条 + 资金来源 ${srcN} 条`);
-    if (unmappedBanks.length) console.warn(`[sync-debt] ⚠ 备付未匹配：${unmappedBanks.join("、")}`);
   }
+  // 自定义负债 → 追加贷款 + 规则
+  for (const l of loanCfg.custom ?? []) {
+    if (!l?.p) continue;
+    loans.push({ priority: l.p, bank: String(l.bank ?? ""), payDay: l.payDay, group: undefined });
+    rules[l.p] = { monthly: Number(l.monthlyVal) || 0, until: l.clearDate || "2033-08" };
+  }
+  return { loans, rules };
+}
+
+// —— 与 trade 备付核心.js 逐行同口径的矩阵计算（勿改语义）——
+const CAP_YM = "2033-09";
+function monthlyOf(rules, p, ym) {
+  const r = rules[p];
+  if (!r || ym > r.until || ym > CAP_YM) return { pay: 0, extra: 0 };
+  if (r.from && ym < r.from) return { pay: 0, extra: 0 };
+  let pay = r.monthly;
+  if (r.steps) {
+    pay = 0;
+    for (const [from, v] of r.steps) if (ym >= from) pay = v;
+  }
+  const extra = r.extras && r.extras[ym] ? r.extras[ym] : 0;
+  return { pay, extra };
+}
+const bankKey = (b) => (b === "农业银行信用卡" ? "农业银行" : b); // trade 同款合并（农行 C3+信用卡 D1 一行）
+function monthGroups(loans, rules, ym) {
+  const plan = loans
+    .filter((l) => l.group !== "family")
+    .map((l) => {
+      const { pay, extra } = monthlyOf(rules, l.priority, ym);
+      return { p: l.priority, bank: l.bank, payDay: l.payDay, pay, extra, need: pay + extra };
+    })
+    .filter((r) => r.need > 0);
+  const P2BANK = {};
+  loans.forEach((l) => {
+    P2BANK[l.priority] = bankKey(l.bank);
+  });
+  const order = [];
+  const map = {};
+  for (const r of plan) {
+    const k = P2BANK[r.p];
+    if (!map[k]) {
+      map[k] = { bank: k, parts: [], payDays: [] };
+      order.push(k);
+    }
+    map[k].parts.push(r);
+    if (r.payDay != null && !map[k].payDays.includes(String(r.payDay))) map[k].payDays.push(String(r.payDay));
+  }
+  return order.map((k) => {
+    const g = map[k];
+    g.pay = g.parts.reduce((s, r) => s + r.pay, 0);
+    g.extra = g.parts.reduce((s, r) => s + r.extra, 0);
+    g.need = g.pay + g.extra;
+    g.prios = g.parts.map((r) => r.p).join("＋");
+    return g;
+  });
+}
+
+try {
+  const { loans, rules } = loadTradeMatrix();
+  const allGroups = new Map(); // ym → groups（sources 归类复用）
+  const mirrorRows = []; // 与 trade 表同序（seq = 组序）
+  for (let ym = RANGE_START; ym <= RANGE_END; ym = nextYm(ym)) {
+    const groups = monthGroups(loans, rules, ym);
+    allGroups.set(ym, groups);
+    const monthData = reserve[ym] ?? {};
+    groups.forEach((g, seq) => {
+      const savedRaw = monthData[g.bank];
+      mirrorRows.push({
+        ym,
+        seq,
+        bank: g.bank,
+        prios: g.prios,
+        parts: g.parts.map((r) => ({ p: r.p, payCents: toCents(r.pay), extraCents: toCents(r.extra), payDay: String(r.payDay ?? "") })),
+        payDays: g.payDays.join("/"),
+        payCents: toCents(g.pay),
+        extraCents: toCents(g.extra),
+        needCents: toCents(g.need),
+        savedCents: savedRaw === undefined || savedRaw === null || savedRaw === "" ? null : toCents(savedRaw),
+        members: [...new Set(g.parts.map((r) => MAPPING[r.p]).filter((x) => x && x !== "(dry)"))],
+      });
+    });
+  }
+  if (dry) {
+    const oct = allGroups.get("2026-10") ?? [];
+    console.log(
+      `[sync-debt][dry] 镜像 ${mirrorRows.length} 行；2026-10: ` +
+        oct.map((g) => `${g.bank} ${toCents(g.need) / 100}`).join("、"),
+    );
+  } else {
+    await client.query("begin");
+    await client.query(`delete from trade_reserve_banks where user_id = $1`, [userId]);
+    const CHUNK = 40;
+    for (let i = 0; i < mirrorRows.length; i += CHUNK) {
+      const slice = mirrorRows.slice(i, i + CHUNK);
+      const vals = [];
+      const params = [userId];
+      slice.forEach((r, j) => {
+        const b = j * 11;
+        vals.push(
+          `($1,$${b + 2}::date,$${b + 3},$${b + 4},$${b + 5},$${b + 6}::jsonb,$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11}::bigint,$${b + 12}::uuid[])`,
+        );
+        params.push(r.ym, r.seq, r.bank, r.prios, r.parts, r.payDays, r.payCents, r.extraCents, r.needCents, r.savedCents, r.members);
+      });
+      await client.query(
+        `insert into trade_reserve_banks
+         (user_id, ym, seq, bank, prios, parts, pay_days, pay_cents, extra_cents, need_cents, saved_cents, members)
+         values ${vals.join(",")}
+         on conflict (user_id, ym, bank) do update set
+           seq = excluded.seq, prios = excluded.prios, parts = excluded.parts, pay_days = excluded.pay_days,
+           pay_cents = excluded.pay_cents, extra_cents = excluded.extra_cents, need_cents = excluded.need_cents,
+           saved_cents = excluded.saved_cents, members = excluded.members, synced_at = now()`,
+        params,
+      );
+    }
+    await client.query("commit");
+    const oct10 = (allGroups.get("2026-10") ?? []).reduce((s, g) => s + toCents(g.need), 0);
+    console.log(
+      `[sync-debt] 备付镜像：${mirrorRows.length} 行（${RANGE_START}~${RANGE_END}）；2026-10 需还合计 ${oct10 / 100} 元`,
+    );
+  }
+
+  // 储蓄账户（资金来源）：reserve 键 - 当月还款银行名（0 元占位行跳过）→ debt_reserve_sources
+  if (!dry) {
+    let srcN = 0;
+    for (const [ym, kv] of Object.entries(reserve)) {
+      const bankNames = new Set((allGroups.get(ym) ?? []).map((g) => g.bank));
+      const keep = [];
+      for (const [name, amount] of Object.entries(kv)) {
+        const cents = toCents(amount);
+        if (!Number.isFinite(cents)) continue;
+        if (bankNames.has(name) || cents === 0) continue;
+        await client.query(
+          `insert into debt_reserve_sources (user_id, ym, name, planned_cents, source)
+           values ($1, $2, $3, $4, 'trade')
+           on conflict (user_id, ym, name) do update set planned_cents = $4, source = 'trade'`,
+          [userId, `${ym}-01`, name, cents],
+        );
+        keep.push(name);
+        srcN += 1;
+      }
+      // 该月已不在 reserve 里的存量来源行清掉（trade 侧删除/清空后不残留）
+      await client.query(
+        `delete from debt_reserve_sources where user_id = $1 and ym = $2 and source = 'trade' and name <> all($3::text[])`,
+        [userId, `${ym}-01`, keep.length ? keep : ["__none__"]],
+      );
+    }
+    console.log(`[sync-debt] 储蓄账户（资金来源）：${srcN} 条`);
+  }
+
+  // ---- 备付计划金额 → debt_reserve_checks.planned_cents（历史口径保留；展示以 trade_reserve_banks 为准）----
+  let liabN = 0;
+  const unmappedBanks = [];
+  for (const [ym, banks] of Object.entries(reserve)) {
+    const bankNames = new Set((allGroups.get(ym) ?? []).map((g) => g.bank));
+    for (const [bank, amount] of Object.entries(banks)) {
+      const cents = toCents(amount);
+      if (!Number.isFinite(cents) || cents === 0 || !bankNames.has(bank)) continue; // 只处理还款银行行
+      // 编码表精确匹配（含 R: 备付专用键与信用卡后缀兜底；华夏银行 vs 华夏银行信用卡 严禁吞行）
+      let liabilityId = MAPPING[`R:${bank}`];
+      let code = null;
+      if (!liabilityId) {
+        code = Object.keys(BANK_OF).find((c) => BANK_OF[c] === bank) ?? null;
+        liabilityId = code ? MAPPING[code] : null;
+      }
+      if (!liabilityId || liabilityId === "(dry)") {
+        const sameName = await client.query(
+          `select id from liabilities where user_id = $1 and name = $2 and status = 'active' limit 1`,
+          [userId, bank],
+        );
+        if (sameName.rows[0]) {
+          liabilityId = sameName.rows[0].id;
+        } else if (bank.endsWith("信用卡")) {
+          const stem = bank.slice(0, -3);
+          const stemCode = Object.keys(BANK_OF).find((c) => BANK_OF[c] === stem);
+          liabilityId = stemCode ? MAPPING[stemCode] : null;
+        }
+      }
+      if (!liabilityId || liabilityId === "(dry)") {
+        if (code) {
+          unmappedBanks.push(`${bank}(${code} 未绑定)`);
+          continue;
+        }
+        if (dry) continue;
+        const r = await client.query(
+          `insert into liabilities (user_id, name, type, principal_cents, balance_cents, note)
+           values ($1, $2, 'credit_card', 0, 0, $3) returning id`,
+          [userId, bank, `trade:${bank} 备付同步托管（无余额，仅月度备付行）`],
+        );
+        liabilityId = r.rows[0].id;
+        MAPPING[`R:${bank}`] = liabilityId;
+        saveMapping();
+        console.log(`[sync-debt] 备付建档「${bank}」（仅备付行，余额 0）`);
+      }
+      if (liabilityId === "(dry)") continue;
+      await client.query(
+        `insert into debt_reserve_checks (user_id, ym, liability_id, planned_cents, source)
+         values ($1, $2, $3, $4, 'trade')
+         on conflict (user_id, ym, liability_id)
+         do update set planned_cents = $4, source = 'trade'`,
+        [userId, `${ym}-01`, liabilityId, cents],
+      );
+      liabN += 1;
+    }
+  }
+  console.log(`[sync-debt] 备付计划金额：负债行 ${liabN} 条`);
+  if (unmappedBanks.length) console.warn(`[sync-debt] ⚠ 备付未匹配：${unmappedBanks.join("、")}`);
 } catch (e) {
-  console.warn(`[sync-debt] 备付同步失败（不影响余额同步）：`, String(e).slice(0, 120));
+  console.warn(`[sync-debt] 备付镜像同步失败（不影响余额同步）：`, String(e).slice(0, 200));
 }
 
 if (created.length) {

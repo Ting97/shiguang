@@ -65,6 +65,19 @@ export interface DebtOverview {
   };
   hints: string[];
 }
+/** trade 备付镜像行（与 trade.ting97.cn「每月备付追踪」逐行同源） */
+export interface TradeBank {
+  bank: string;
+  prios: string;
+  parts: { p: string; payCents: number; extraCents: number; payDay: string }[];
+  payDays: string;
+  payCents: number;
+  extraCents: number;
+  needCents: number;
+  savedCents: number | null;
+  status: "ok" | "lack" | "none";
+  liabilityIds: string[];
+}
 /** GET /api/debts/reserve 返回（服务端按 name 合并同名负债；liabilityIds=合并组全部 id） */
 export interface ReserveData {
   ym: string;
@@ -77,14 +90,15 @@ export interface ReserveData {
     need: number;
     checked: boolean;
     liabilityIds: string[];
-    planned: number | null; // trade 同步的计划金额；null = 无 trade 计划（need 退回月供推算）
   }[];
   totalNeed: number;
   checkedNeed: number;
   savingsCents: number;
   coveragePct: number | null;
-  /** trade 同步的资金来源行（储蓄卡/公积金/工资等） */
+  /** trade 同步的储蓄账户行（仅统计余额） */
   sources?: { name: string; plannedCents: number; source: string }[];
+  /** trade 备付镜像；null = 该月无镜像（退回手写清单口径） */
+  trade?: { banks: TradeBank[]; needTotal: number; savedTotal: number; okCount: number; bankCount: number } | null;
 }
 export interface AccRow {
   id: string;
@@ -127,9 +141,9 @@ export function loadReserve(ym: string) {
 export function setReserveCheck(ym: string, liabilityId: string, checked: boolean) {
   return request("/api/debts/reserve", { method: "PUT", body: { ym, liabilityId, checked } });
 }
-/** 一键备付 / 清空（路由校验 checked 必填：all 与 checked 同值） */
-export function setReserveAll(ym: string, all: boolean) {
-  return request("/api/debts/reserve", { method: "PUT", body: { ym, all, checked: all } });
+/** 一键备付 / 清空（ids 批量只作用于「仅拾光记录」行；路由校验 checked 必填） */
+export function setReserveAll(ym: string, ids: string[], checked: boolean) {
+  return request("/api/debts/reserve", { method: "PUT", body: { ym, ids, checked } });
 }
 /** POST /api/debts —— 新建档案 {name,type,principalCents,balanceCents?,ratePct?,monthlyCents?,payDay?,dueDate?,priority?,note?} */
 export function createDebt(payload: Record<string, unknown>) {

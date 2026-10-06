@@ -18,11 +18,16 @@
 - 发布时 deploy.mjs 会在迁移前额外做一次 pg_dump 快照（`/opt/shiguangri_backups/db-*.dump`）
 - 保留 7 份；建议异地同步（如 `rclone copy /opt/shiguangri_backups remote:shiguang-backups`，未配置前属已知缺口）
 
-## trade → shiguang 负债同步（每日 06:10）
+## trade → shiguang 负债 + 备付镜像同步（每日 06:10）
 
-- `sync-debt-from-trade.mjs`：读 trade 资产模块快照（asset_snapshots_v1，你在「资产负债记账」页录入）按编码更新账户 15091587905 的负债余额（只改余额）；并同步每月备付计划金额到 debt_reserve_checks（source='trade'）
+- `sync-debt-from-trade.mjs` 四件事：
+  1. 负债余额：读 trade 资产模块快照（asset_snapshots_v1，你在「资产负债记账」页录入）按编码更新账户 15091587905 的负债余额（只改余额）
+  2. **备付镜像**：读 `/opt/aitrade/资产/{data.js,备付核心.js}` 复刻 trade「每月备付追踪」的需还矩阵（静态 RULES + asset_loans_config_v1 用户覆盖/自定义负债），按银行合并出每月月供/到期本金/当月需还，连同账户剩余写入 `trade_reserve_banks`（2026-09~2033-09 全量重建）——备付页与 trade 逐行同源
+  3. 储蓄账户：reserve 键 − 还款银行名（非 0）→ debt_reserve_sources
+  4. 备付计划金额：reserve 银行行 → debt_reserve_checks.planned_cents（历史口径保留）
+- **trade 侧改了需还矩阵（备付核心.js 的 RULES）后无需任何操作**：同步每日直接读服务器上的最新文件；TRADE_HOME 环境变量可覆盖 trade 目录
 - 编码→负债映射：`/opt/shiguangri_repo/scripts/trade-debt-mapping.json`（自动建档自学习写回；手工调整直接改此文件）
-- 未映射编码每次运行打印提醒；已建档负债：B3=中信银行信用卡、B4=招商银行信用卡B4、B5=中信银行信用卡B5、B6=招商银行信用卡B6、C5=工商银行C5、F1=网商银行F1、B1=华夏银行（名称来自 D:i	rade\资产\data.js 编码表）
+- 未映射编码每次运行打印提醒；已建档负债：B3=中信银行信用卡、B4=招商银行信用卡B4、B5=中信银行信用卡B5、B6=招商银行信用卡B6、C5=工商银行C5、F1=网商银行F1、B1=华夏银行（名称来自 D:\ai\trade\资产\data.js 编码表）
 - 手动跑：`cd /opt/shiguangri_repo && node scripts/sync-debt-from-trade.mjs`（--dry 预览）
 
 ## 恢复演练（每季度跑一次）

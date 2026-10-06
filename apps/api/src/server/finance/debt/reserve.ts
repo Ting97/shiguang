@@ -1,7 +1,8 @@
 /**
  * R3 每月备付追踪（REQ-005 FR-3.x）：
- * - reserveOverview：当月应还按账户名合并 + 勾选状态 + 储蓄覆盖；trade 同步的计划金额（planned_cents）优先于月供推算
- * - setReserveCheck / setReserveAll：单项与一键勾选（幂等 upsert / 删行）
+ * - reserveOverview：trade 备付镜像（trade_reserve_banks，与 trade 每月备付追踪页逐行同源）优先；
+ *   镜像月份的手写清单只剩「仅拾光记录」负债，无镜像的月份退回月供推算口径
+ * - setReserveCheck：单项 / ids 批量 / all 一键勾选（幂等 upsert / 删行）
  * - autoCheckAfterPayment：记还款后 ≥ 当月应还 → 自动勾选（可手动覆盖）
  */
 import { pool } from "@/server/platform/db";
@@ -16,7 +17,20 @@ export interface ReserveRow {
   extra: number; // 当月到期本金（分）
   need: number;
   checked: boolean;
-  planned: number | null; // trade 每月备付同步的计划金额（分）；null = 无 trade 计划
+}
+
+/** trade 备付镜像行（trade_reserve_banks，sync-debt-from-trade.mjs 每日重建；与 trade 每月备付追踪页逐行同源） */
+export interface TradeBankRow {
+  bank: string;
+  prios: string;
+  parts: Array<{ p: string; payCents: number; extraCents: number; payDay: string }>;
+  payDays: string;
+  payCents: number;
+  extraCents: number;
+  needCents: number;
+  savedCents: number | null;
+  status: "ok" | "lack" | "none";
+  liabilityIds: string[];
 }
 
 /** 北京时区当月首日（YYYY-MM-01） */
@@ -62,7 +76,6 @@ export async function reserveOverview(userId: string, ym: string) {
       extra: 0,
       need: 0,
       checked: false,
-      planned: null,
     };
     row.pay += pay;
     row.extra += extra;
@@ -70,33 +83,67 @@ export async function reserveOverview(userId: string, ym: string) {
     if (l.pay_day != null && !row.payDays.includes(Number(l.pay_day))) row.payDays.push(Number(l.pay_day));
     merged.set(l.name, row);
   }
-  const list = [...merged.values()];
 
-  const { rows: checks } = await pool.query(
-    `select liability_id, planned_cents from debt_reserve_checks where user_id = $1 and ym = $2`,
+  // trade 备付镜像（当月有数据才启用；无镜像的月份退回手写清单口径）
+  const { rows: bankRows } = await pool.query(
+    `select bank, prios, parts, pay_days, pay_cents, extra_cents, need_cents, saved_cents
+     from trade_reserve_banks where user_id = $1 and ym = $2 order by seq asc`,
     [userId, ymFirst],
   );
-  const checkMap = new Map(checks.map((r) => [String(r.liability_id), r]));
-  for (const row of list) {
+  const banks: TradeBankRow[] = bankRows.map((r) => {
+    const saved = r.saved_cents == null ? null : Number(r.saved_cents);
+    const need = Number(r.need_cents ?? 0);
+    return {
+      bank: String(r.bank),
+      prios: String(r.prios ?? ""),
+      parts: Array.isArray(r.parts)
+        ? (r.parts as Array<Record<string, unknown>>).map((p) => ({
+            p: String(p.p ?? ""),
+            payCents: Number(p.payCents ?? 0),
+            extraCents: Number(p.extraCents ?? 0),
+            payDay: String(p.payDay ?? ""),
+          }))
+        : [],
+      payDays: String(r.pay_days ?? ""),
+      payCents: Number(r.pay_cents ?? 0),
+      extraCents: Number(r.extra_cents ?? 0),
+      needCents: need,
+      savedCents: saved,
+      status: saved == null ? "none" : saved >= need ? "ok" : "lack",
+      liabilityIds: [],
+    };
+  });
+
+  const { rows: checks } = await pool.query(
+    `select liability_id from debt_reserve_checks where user_id = $1 and ym = $2`,
+    [userId, ymFirst],
+  );
+  const checkedSet = new Set(checks.map((r) => String(r.liability_id)));
+  for (const row of merged.values()) {
     // 合并行勾选 = 组内任一负债已勾选：autoCheckAfterPayment 落库的可能是组内非首笔
     // liabilityId，只认首笔会把已勾选显示成未勾、checkedNeed 漏计
     const group = liabilities.filter((l) => l.name === row.name);
-    row.checked = group.some((l) => checkMap.has(String(l.id)));
-    // trade 每月备付同步（scripts/ops/sync-debt-from-trade.mjs）落 planned_cents：
-    // 组内任一负债有 trade 计划 → 该合并行以 trade 计划合计为准（与 trade「每月备付追踪」页一致），月供仅作参考
-    if (group.some((l) => checkMap.get(String(l.id))?.planned_cents != null)) {
-      const planned = group.reduce((s, l) => s + Number(checkMap.get(String(l.id))?.planned_cents ?? 0), 0);
-      row.planned = planned;
-      row.need = planned;
-    }
+    row.checked = group.some((l) => checkedSet.has(String(l.id)));
   }
-  list.sort((a, b) => b.need - a.need);
 
   // 合并行勾选 = 该名称下任一负债已勾选；liabilityIds 供一键/单项落库
-  const items = list.map((row) => {
+  let items = [...merged.values()].map((row) => {
     const ids = liabilities.filter((l) => l.name === row.name).map((l) => l.id);
     return { ...row, liabilityIds: ids };
   });
+
+  if (banks.length > 0) {
+    // 镜像启用时：负债编码已被 trade 覆盖的（任意月份 members 并集，B3 等次月起还的编码也算覆盖）
+    // 从手写清单隐藏——避免与镜像行双重展示/重复计数；剩余「仅拾光记录」行只留真实未跟踪负债
+    const { rows: covRows } = await pool.query(
+      `select distinct unnest(members) as lid from trade_reserve_banks where user_id = $1`,
+      [userId],
+    );
+    const covered = new Set(covRows.map((r) => String(r.lid)));
+    items = items.filter((it) => !it.liabilityIds.every((id) => covered.has(id)) && it.need > 0);
+  }
+
+  items.sort((a, b) => b.need - a.need);
 
   const totalNeed = items.reduce((s, r) => s + r.need, 0);
   const checkedNeed = items.filter((r) => r.checked).reduce((s, r) => s + r.need, 0);
@@ -109,12 +156,15 @@ export async function reserveOverview(userId: string, ym: string) {
   );
   const savingsCents = Number(savingsRows[0]?.savings ?? 0);
 
-  // trade 同步的资金来源行（debt_reserve_sources：储蓄卡/公积金/工资等，备付资金从哪里出）
+  // trade 同步的储蓄账户行（debt_reserve_sources：仅统计余额，不计入还款达标，与 trade 同义）
   const { rows: sourceRows } = await pool.query(
     `select name, planned_cents, source from debt_reserve_sources
      where user_id = $1 and ym = $2 order by planned_cents desc nulls last, name asc`,
     [userId, ymFirst],
   );
+
+  const needTotal = banks.reduce((s, b) => s + b.needCents, 0);
+  const savedTotal = banks.reduce((s, b) => s + (b.savedCents ?? 0), 0);
 
   return {
     ym,
@@ -128,6 +178,15 @@ export async function reserveOverview(userId: string, ym: string) {
       plannedCents: Number(r.planned_cents ?? 0),
       source: String(r.source ?? "manual"),
     })),
+    trade: banks.length
+      ? {
+          banks,
+          needTotal,
+          savedTotal,
+          okCount: banks.filter((b) => b.status === "ok").length,
+          bankCount: banks.length,
+        }
+      : null,
   };
 }
 
@@ -140,9 +199,44 @@ function nextMonth(ymFirst: string): string {
 
 export async function setReserveCheck(
   userId: string,
-  body: { ym: string; liabilityId?: string; all?: boolean; checked: boolean },
+  body: { ym: string; liabilityId?: string; ids?: string[]; all?: boolean; checked: boolean },
 ) {
   const ymFirst = ymToFirst(body.ym);
+  if (Array.isArray(body.ids) && body.ids.length > 0) {
+    // 批量（前端一键备付/清空只作用于「仅拾光记录」行）；越权 id 直接拒绝
+    const unique = [...new Set(body.ids)];
+    const { rows } = await pool.query(
+      `select id from liabilities where id = any($1::uuid[]) and user_id = $2`,
+      [unique, userId],
+    );
+    if (rows.length !== unique.length) throw ApiError.notFound("存在不属于该账户的负债");
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      for (const r of rows) {
+        if (body.checked) {
+          await client.query(
+            `insert into debt_reserve_checks (user_id, ym, liability_id) values ($1,$2,$3)
+             on conflict (user_id, ym, liability_id) do nothing`,
+            [userId, ymFirst, r.id],
+          );
+        } else {
+          await client.query(`delete from debt_reserve_checks where user_id = $1 and ym = $2 and liability_id = $3`, [
+            userId,
+            ymFirst,
+            r.id,
+          ]);
+        }
+      }
+      await client.query("commit");
+      return { ok: true, count: rows.length };
+    } catch (e) {
+      await client.query("rollback").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
   if (body.all !== undefined) {
     const { rows } = await pool.query(
       `select id from liabilities where user_id = $1 and status = 'active'`,

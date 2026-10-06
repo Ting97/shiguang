@@ -15,18 +15,25 @@ export const GET = withModule("debt", async (req, { user }) => {
   return NextResponse.json(await reserveOverview(user.id, ym));
 });
 
-/** PUT /api/debts/reserve —— 勾选备付：{ym, liabilityId, checked} 单项 或 {ym, all, checked} 一键（FR-3.2） */
+/** PUT /api/debts/reserve —— 勾选备付：{ym, liabilityId, checked} 单项 / {ym, ids, checked} 批量 / {ym, all, checked} 一键（FR-3.2） */
 export const PUT = withModule("debt", async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     ym?: string;
     liabilityId?: string;
+    ids?: string[];
     all?: boolean;
     checked?: boolean;
   };
   if (!isValidYearMonth(body.ym)) throw new ApiError(400, "invalid_input", "ym 需为 YYYY-MM（月份 01-12）");
   if (typeof body.checked !== "boolean") throw new ApiError(400, "invalid_input", "checked 必填");
   if (body.liabilityId !== undefined) assertUuidParam(body.liabilityId, "liabilityId"); // 非法 uuid 落 SQL 会 22P02 → 500
+  if (body.ids !== undefined) {
+    if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== "string")) {
+      throw new ApiError(400, "invalid_input", "ids 需为字符串数组");
+    }
+    body.ids.forEach((id) => assertUuidParam(id, "ids"));
+  }
   return NextResponse.json(
-    await setReserveCheck(user.id, body as { ym: string; liabilityId?: string; all?: boolean; checked: boolean }),
+    await setReserveCheck(user.id, body as { ym: string; liabilityId?: string; ids?: string[]; all?: boolean; checked: boolean }),
   );
 });
