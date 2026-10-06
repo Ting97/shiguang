@@ -49,7 +49,9 @@
   min-width: 0;
 }
 .it-summary {
-  padding: 12px 24px;
+  height: 88px;
+  line-height: 88px;
+  padding: 0 24px;
   border-color: var(--line-strong);
   background: var(--surface);
   font-size: 28px;

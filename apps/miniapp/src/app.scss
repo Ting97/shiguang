@@ -273,6 +273,12 @@ page {
 .input-placeholder {
   color: var(--ink-faint);
 }
+/* Android 微信 input 原生层兜底：无显式高度时占位符/光标垂直错位被裁（截半字老 bug）。
+   元素级覆盖所有单行输入（含未挂 .input 的自定义类）；特殊尺寸由类选择器按优先级覆盖 */
+input {
+  height: 88px;
+  line-height: 88px;
+}
 
 /* ============ 空态 / 消息横幅 ============ */
 .empty-state {

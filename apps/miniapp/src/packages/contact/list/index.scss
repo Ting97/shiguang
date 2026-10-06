@@ -101,7 +101,9 @@
 .ct-search {
   width: 288px; /* w-36 */
   box-sizing: border-box;
-  padding: 12px 24px; /* px-3 py-1.5 */
+  height: 64px;
+  line-height: 64px;
+  padding: 0 24px; /* px-3（垂直尺寸显式高度） */
   border: 1px solid var(--line-soft);
   border-radius: 16px; /* rounded-lg */
   background: rgba(15, 23, 42, 0.6);

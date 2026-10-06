@@ -823,7 +823,9 @@
   color: var(--ink-mute);
 }
 .debt-form-input {
-  padding: 16px 24px; /* py-2 px-3 */
+  height: 88px;
+  line-height: 88px;
+  padding: 0 24px; /* px-3（垂直尺寸显式高度） */
   font-size: 28px;
   border-color: var(--line-strong);
   background: var(--surface);
@@ -841,7 +843,9 @@
 }
 .debt-form-pri-input {
   width: 128px; /* w-16 */
-  padding: 12px 16px;
+  height: 80px;
+  line-height: 80px;
+  padding: 0 16px;
   font-size: 28px;
   border-color: var(--line-strong);
   background: var(--surface);

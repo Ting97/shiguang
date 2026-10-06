@@ -201,7 +201,9 @@
 .sp-rename-input {
   flex: 1;
   min-width: 0;
-  padding: 8px 16px;
+  height: 72px;
+  line-height: 72px;
+  padding: 0 16px;
   font-size: 24px;
 }
 .sp-rename-ok {
