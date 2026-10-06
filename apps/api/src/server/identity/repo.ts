@@ -27,7 +27,7 @@ export const profilesRepo = {
     return pool.query(`update profiles set last_login_at = now() where id = $1`, [userId]);
   },
   info(userId: string) {
-    return pool.query(`select created_at, phone_verified from profiles where id = $1`, [userId]);
+    return pool.query(`select created_at, phone_verified, wechat_openid is not null as wechat_bound from profiles where id = $1`, [userId]);
   },
   hasPhoneAccount() {
     return pool.query(`select 1 from profiles where phone is not null limit 1`);

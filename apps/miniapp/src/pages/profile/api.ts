@@ -16,6 +16,7 @@ export interface Me {
   isAdmin: boolean;
   modules: string[];
   phoneVerified: boolean;
+  wechatBound: boolean;
   createdAt: string | null;
 }
 

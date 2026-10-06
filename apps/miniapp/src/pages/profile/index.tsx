@@ -15,7 +15,7 @@ import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
-import { logout } from "@/lib/api";
+import { logout, bindWechatSession } from "@/lib/api";
 import { API_BASE } from "@/lib/request";
 import { clearSessionToken, getSessionToken, toLogin } from "@/lib/session";
 import { fetchMeFull, updateProfile, logoutAll, loadPlan, type Me, type PlanQuota } from "./api";
@@ -48,6 +48,7 @@ export default function Profile() {
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [busy, setBusy] = useState(false);
+  const [bindingWx, setBindingWx] = useState(false);
   const [exporting, setExporting] = useState<"json" | "md" | null>(null);
   // 全端登出两步确认：首点进入待确认态，3 秒内再点执行（= web useArmConfirm("logout-all")）
   const [armed, setArmed] = useState(false);
@@ -89,6 +90,22 @@ export default function Profile() {
       showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** 绑定当前微信到本账号（REQ-绑定已有账户）：静默 wx.login 换 code；空壳回收/409 由服务端裁决 */
+  async function bindWechatNow() {
+    if (bindingWx) return;
+    setBindingWx(true);
+    try {
+      const { code } = await Taro.login();
+      const j = await bindWechatSession(code);
+      showToast({ type: "ok", text: j.already ? "✓ 当前微信已绑定本账号" : "✅ 绑定成功，下次可微信一键登录" });
+      loadMe();
+    } catch (e) {
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBindingWx(false);
     }
   }
 
@@ -258,6 +275,23 @@ export default function Profile() {
               >
                 保存
               </Button>
+            </View>
+
+            {/* 微信绑定（REQ-绑定已有账户）：把当前微信迁到本账号，之后微信一键登录即进本账号 */}
+            <View className="wx-bind-row">
+              <Text className="hint wx-bind-text">
+                {me.wechatBound === false ? "当前微信未绑定本账号" : "已绑定微信，可一键登录"}
+              </Text>
+              {me.wechatBound === false && (
+                <Button
+                  className={`btn-sky-tinted wx-bind-btn${bindingWx ? " disabled" : ""}`}
+                  hoverClass="press"
+                  disabled={bindingWx}
+                  onTap={bindWechatNow}
+                >
+                  {bindingWx ? "绑定中…" : "绑定当前微信"}
+                </Button>
+              )}
             </View>
           </View>
 

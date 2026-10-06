@@ -119,6 +119,7 @@ export async function me(user: {
     isAdmin: user.role === "admin",
     modules: await listUserModules(user.id, user.role),
     phoneVerified: rows[0]?.phone_verified ?? false,
+    wechatBound: rows[0]?.wechat_bound ?? false,
     createdAt: rows[0]?.created_at ?? null,
   };
 }

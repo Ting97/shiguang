@@ -2,6 +2,8 @@
  * 微信小程序登录/绑定：
  * - loginByWechat：jscode2session → openid 命中 wechat_openid 即建会话；未命中自动建号
  *   （免绑手机号，昵称取用户授权资料；REQ-游客/微信直登）
+ * - bindSessionByWechat：已登录账号凭 code 绑定当前微信（REQ-绑定已有账户）；openid
+ *   占用方为自动建号空壳时回收迁移，否则 409
  * - bindWechat：票据 + 手机号 + 短信验证码（purpose=bind）→ 绑定既有账号并建会话
  *   （登录流程不再强制绑定；票据流程保留给「微信号 ↔ 已有手机账号」互通场景）
  * 票据/验证码均为单次消费：验证码先核销（天然并发串行），票据 DELETE 认领兜底并发；
@@ -25,6 +27,70 @@ export interface WechatLoginInput {
 /** 默认昵称：微信用户 + 4 位随机（unique 兜底场景极小，见 23505 分支） */
 function fallbackNickname(): string {
   return `微信用户${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+/**
+ * 自动建号空壳判定：绑定迁移前检查既有绑定方是否「无任何业务数据」。
+ * 任一主业务表有数据即非空壳（保守：查询异常按非空壳处理，宁可拒绝迁移不可丢数据）。
+ */
+async function isBusinessEmpty(userId: string): Promise<boolean> {
+  try {
+    const { rows } = await pool.query(
+      `select (
+        (select count(*) from public.entries where user_id = $1)
+      + (select count(*) from public.transactions where user_id = $1)
+      + (select count(*) from public.todos where user_id = $1)
+      + (select count(*) from public.blocks where user_id = $1)
+      + (select count(*) from public.contacts where user_id = $1)
+      + (select count(*) from public.goal_spaces where user_id = $1)
+      + (select count(*) from public.space_reflections where user_id = $1)
+      )::int as n`,
+      [userId],
+    );
+    return rows[0].n === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 已登录账号绑定当前微信（REQ-绑定已有账户）：密码登录后凭 code 把 openid 迁移到本账号，
+ * 之后微信一键登录即进入本账号。openid 已被占用时仅当占用方为「无业务数据的自动建号
+ * 空壳」才回收迁移（治愈直登期产生的空号），否则 409。
+ */
+export async function bindSessionByWechat(input: {
+  code: string;
+  userId: string;
+  userAgent?: string | null;
+}) {
+  const { openid, unionid } = await jscode2session(input.code);
+  const { rows } = await pool.query(
+    `select id, nickname from profiles where wechat_openid = $1`,
+    [openid],
+  );
+  const owner = rows[0];
+  if (owner) {
+    if (owner.id === input.userId) return { ok: true as const, already: true as const };
+    if (!(await isBusinessEmpty(owner.id))) {
+      throw ApiError.conflict("该微信已绑定其他账号");
+    }
+    // 回收空壳：解绑后把 openid 迁到当前账号（空壳无数据可丢）
+    await pool.query(`update profiles set wechat_openid = null, wechat_unionid = null where id = $1`, [owner.id]);
+  }
+  try {
+    await pool.query(
+      `update profiles set wechat_openid = $1, wechat_unionid = coalesce($2, wechat_unionid), last_login_at = now()
+       where id = $3 returning id, nickname`,
+      [openid, unionid, input.userId],
+    );
+    return { ok: true as const };
+  } catch (e) {
+    // wechat_openid unique：并发绑定同 openid 到另一账号
+    if ((e as { code?: string }).code === "23505") {
+      throw ApiError.conflict("该微信已绑定其他账号");
+    }
+    throw e;
+  }
 }
 
 /** 授权昵称净化：去尖括号/压空白/限长——入库前最小防御 */

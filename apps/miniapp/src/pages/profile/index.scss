@@ -371,3 +371,24 @@
   width: 70%;
   margin: 0 auto;
 }
+
+/* ---- 微信绑定行（REQ-绑定已有账户） ---- */
+.wx-bind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line-soft);
+}
+.wx-bind-text {
+  flex: 1;
+  min-width: 0;
+}
+.wx-bind-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 24px;
+  font-size: 24px;
+}

@@ -13,6 +13,7 @@ export interface SessionUser {
   isAdmin?: boolean;
   modules?: string[];
   phoneVerified?: boolean;
+  wechatBound?: boolean;
 }
 
 /** 微信一键登录：服务端对未绑定 openid 自动建号（免绑手机号），始终返回 token */
@@ -21,6 +22,14 @@ export function wechatLogin(code: string, profile?: { nickname?: string }) {
     "/api/auth/wechat/login",
     { method: "POST", body: profile ? { code, profile } : { code }, noRedirect: true },
   );
+}
+
+/** 已登录账号绑定当前微信（REQ-绑定已有账户）：空壳回收/409 由服务端裁决 */
+export function bindWechatSession(code: string) {
+  return request<{ ok: true; already?: boolean }>("/api/auth/wechat/bind-session", {
+    method: "POST",
+    body: { code },
+  });
 }
 
 /** 微信绑定手机号（bindTicket + 短信验证码） */

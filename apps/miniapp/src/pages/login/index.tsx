@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { showToast, ToastHost } from "@/components/toast";
-import { wechatLogin } from "@/lib/api";
+import { wechatLogin, bindWechatSession } from "@/lib/api";
 import { enterGuest, exitGuest, getSessionToken, setSessionToken } from "@/lib/session";
 import { syncNativeBackground, useTheme } from "@/lib/theme";
 import { loginWithPassword, EMAIL_RE, PHONE_RE } from "./api";
@@ -23,6 +23,8 @@ export default function Login() {
   const [account, setAccount] = useState(""); // 手机号或邮箱（含 @ 自动识别）
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false); // 明文切换
+  // 密码登录成功后是否同时把当前微信绑到该账号（REQ-绑定已有账户）：默认开，可取消
+  const [bindWx, setBindWx] = useState(true);
   const [busy, setBusy] = useState(false);
   const [wxErr, setWxErr] = useState<string | null>(null);
 
@@ -90,7 +92,19 @@ export default function Login() {
     setBusy(true);
     try {
       await loginWithPassword(account.trim(), password);
-      // request 层已自动入库 token；进首页用 reLaunch 清栈
+      // request 层已自动入库 token；勾选了「同时绑定此微信」则静默绑定（失败不阻塞登录）
+      if (bindWx) {
+        try {
+          const { code } = await Taro.login();
+          const j = await bindWechatSession(code);
+          showToast({
+            type: "ok",
+            text: j.already ? "✓ 微信已绑定本账号" : "✅ 已绑定微信，下次可一键登录",
+          });
+        } catch {
+          showToast({ type: "err", text: "微信绑定未完成，可稍后在「我的」中绑定" });
+        }
+      }
       enterApp();
     } catch (e) {
       showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
@@ -165,6 +179,12 @@ export default function Login() {
                 hoverStayTime={80}
                 onTap={() => setShowPwd((v) => !v)}
               />
+            </View>
+
+            {/* 同时绑定此微信（REQ-绑定已有账户）：密码登录成功后静默迁移 openid */}
+            <View className="bind-check" hoverClass="press" hoverStayTime={80} onTap={() => setBindWx((v) => !v)}>
+              <View className={`check-box${bindWx ? " check-on" : ""}`} />
+              <Text className="bind-check-text">同时绑定此微信，以后可一键登录</Text>
             </View>
 
             <Button
