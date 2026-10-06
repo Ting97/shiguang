@@ -22,7 +22,7 @@
 
 - `sync-debt-from-trade.mjs`：读 trade 资产模块快照（asset_snapshots_v1，你在「资产负债记账」页录入）按编码更新账户 15091587905 的负债余额（只改余额）；并同步每月备付计划金额到 debt_reserve_checks（source='trade'）
 - 编码→负债映射：`/opt/shiguangri_repo/scripts/trade-debt-mapping.json`（自动建档自学习写回；手工调整直接改此文件）
-- 未映射编码每次运行打印提醒；B4/B5/B6/C5/F1 为自动建档占位名，请在界面改成真实名称
+- 未映射编码每次运行打印提醒；已建档负债：B3=中信银行信用卡、B4=招商银行信用卡B4、B5=中信银行信用卡B5、B6=招商银行信用卡B6、C5=工商银行C5、F1=网商银行F1、B1=华夏银行（名称来自 D:i	rade\资产\data.js 编码表）
 - 手动跑：`cd /opt/shiguangri_repo && node scripts/sync-debt-from-trade.mjs`（--dry 预览）
 
 ## 恢复演练（每季度跑一次）
