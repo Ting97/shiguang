@@ -80,7 +80,8 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   async function toggleAll(checked: boolean) {
     setBusy(true);
     try {
-      await api("/api/debts/reserve", "PUT", { ym, all: checked });
+      // checked 必传（路由校验强制）：一键备付=全勾，清空=全取消
+      await api("/api/debts/reserve", "PUT", { ym, all: checked, checked });
       await load();
       onChanged?.();
     } catch (e) {
