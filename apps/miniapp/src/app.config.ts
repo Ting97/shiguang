@@ -10,10 +10,12 @@ export default defineAppConfig({
   subPackages: [
     { root: "packages/space", pages: ["list/index", "detail/index"] },
     { root: "packages/contact", pages: ["list/index", "detail/index"] },
-    { root: "packages/debt", pages: ["index"] },
-    { root: "packages/review", pages: ["index"] },
-    { root: "packages/trading", pages: ["index"] },
-    { root: "packages/calendar", pages: ["index"] },
+    // 四个单页分包的注册路径必须与源码目录一致（index/index）：曾注册为 "index"，
+    // Taro 在分包根产出的 index.wxml 为 0 字节且缺 index.json → 页面加载即抛错无法打开
+    { root: "packages/debt", pages: ["index/index"] },
+    { root: "packages/review", pages: ["index/index"] },
+    { root: "packages/trading", pages: ["index/index"] },
+    { root: "packages/calendar", pages: ["index/index"] },
   ],
   // 微信系统深浅色跟随（REQ-009 9-A）：theme.json 由 design-tokens 生成，值随主题切换
   darkmode: true,

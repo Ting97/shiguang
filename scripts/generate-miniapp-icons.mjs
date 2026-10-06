@@ -54,8 +54,10 @@ function toKebabNode(name) {
       return `<${tag} ${a}/>`;
     })
     .join("");
-  // data URI：# 必须转义；单引号包裹外层
-  const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${data.size} ${data.size}' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${inner}</svg>`.replace(/#/g, "%23");
+  // data URI：整体百分号编码（WXSS 的 mask-image 解析器不容忍裸 < > " 空格，开发者工具尤甚；
+  // # 也一并覆盖）。前缀保留明文，正文 encodeURIComponent 最稳。
+  const raw = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${data.size} ${data.size}' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${inner}</svg>`;
+  const svg = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(raw);
   return svg;
 }
 

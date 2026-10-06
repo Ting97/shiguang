@@ -240,7 +240,7 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
 
   /** 完整复盘页路由（小程序独有：packages/calendar 完整页） */
   function openFullReview(kind: "day" | "week" | "month" | "year", period: string) {
-    Taro.navigateTo({ url: `/packages/calendar/index?kind=${kind}&period=${period}` });
+    Taro.navigateTo({ url: `/packages/calendar/index/index?kind=${kind}&period=${period}` });
   }
 
   return (
