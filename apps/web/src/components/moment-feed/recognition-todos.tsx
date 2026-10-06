@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
+import { ClipboardList } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
@@ -88,7 +89,7 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
           </div>
         ) : (
           <p key={td.id} className="group/row flex items-center gap-x-2">
-            <TagChip icon="📋" label="todo" tone="sky" size="sm" className="shrink-0" />
+            <TagChip icon={<ClipboardList size={12} />} label="todo" tone="sky" size="sm" className="shrink-0" />
             <span className="truncate">{td.title}</span>
             <span className="shrink-0 text-ink-mute">
               {todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}

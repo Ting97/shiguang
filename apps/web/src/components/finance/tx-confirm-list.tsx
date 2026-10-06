@@ -1,6 +1,7 @@
 /** 财务页草稿确认区（004 4-G 自 page.tsx 拆出）：待确认流水 + 单笔/全部确认（流水不入账，确认即计入报表） */
 "use client";
 
+import { Download, Zap } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import type { Tx } from "./kit";
 import { TxRow } from "./display";
@@ -28,15 +29,15 @@ export function DraftConfirmSection({
     <section id="draft-area" className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-warn">
-          <TagChip icon="📥" label="待确认流水" tone="amber" />
+          <TagChip icon={<Download size={12} />} label="待确认流水" tone="amber" />
           <span className="text-xs font-normal text-warn/60">来自动态识别 · 确认后计入报表</span>
         </h2>
         <button
           disabled={confirmBusy}
           onClick={() => void onConfirmAll()}
-          className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-warn transition hover:bg-amber-500/20 disabled:opacity-40"
+          className="flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-warn transition hover:bg-amber-500/20 disabled:opacity-40"
         >
-          {confirmBusy ? "确认中…" : "⚡ 全部确认"}
+          <Zap size={12} aria-hidden /> {confirmBusy ? "确认中…" : "全部确认"}
         </button>
       </div>
       <ul className="space-y-2">

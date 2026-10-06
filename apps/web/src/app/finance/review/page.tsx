@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BarChart3, Bot, CreditCard, Handshake, Puzzle } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
@@ -237,7 +238,7 @@ export default function FinanceReviewPage() {
             {/* 周内日趋势 */}
             {period === "week" && (
               <section className="glass mb-4 rounded-2xl p-5">
-                <p className="mb-3"><TagChip icon="📊" label="日趋势" tone="sky" /></p>
+                <p className="mb-3"><TagChip icon={<BarChart3 size={12} />} label="日趋势" tone="sky" /></p>
                 <div className="flex items-end justify-between gap-2">
                   {stats.daily.map((d) => (
                     <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
@@ -266,7 +267,7 @@ export default function FinanceReviewPage() {
             {/* 分类占比 */}
             {stats.byCategory.length > 0 && (
               <section className="glass mb-4 rounded-2xl p-5">
-                <p className="mb-3"><TagChip icon="🧩" label="支出分类" tone="rose" /></p>
+                <p className="mb-3"><TagChip icon={<Puzzle size={12} />} label="支出分类" tone="rose" /></p>
                 <div className="flex h-2.5 w-full overflow-hidden rounded-full">
                   {stats.byCategory.map((s) => (
                     <div
@@ -295,7 +296,7 @@ export default function FinanceReviewPage() {
             <section className="mb-4 grid gap-4 sm:grid-cols-2">
               {stats.byAccount.length > 0 && (
                 <div className="glass rounded-2xl p-5">
-                  <p className="mb-3"><TagChip icon="💳" label="账户分布" tone="sky" /></p>
+                  <p className="mb-3"><TagChip icon={<CreditCard size={12} />} label="账户分布" tone="sky" /></p>
                   <ul className="space-y-1.5">
                     {stats.byAccount.map((a) => (
                       <li key={a.name} className="flex items-center gap-2 text-xs">
@@ -310,7 +311,7 @@ export default function FinanceReviewPage() {
               )}
               {stats.topCounterparties.length > 0 && (
                 <div className="glass rounded-2xl p-5">
-                  <p className="mb-3"><TagChip icon="🤝" label="Top 对方" tone="violet" /></p>
+                  <p className="mb-3"><TagChip icon={<Handshake size={12} />} label="Top 对方" tone="violet" /></p>
                   <ul className="space-y-1.5">
                     {stats.topCounterparties.map((p) => (
                       <li key={p.name} className="flex items-center gap-2 text-xs">
@@ -328,7 +329,7 @@ export default function FinanceReviewPage() {
             {period === "week" && (
               <section className="glass mb-4 rounded-2xl p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <TagChip icon="🤖" label="AI 交易周报" tone="emerald" />
+                  <TagChip icon={<Bot size={12} />} label="AI 交易周报" tone="emerald" />
                   <span className="flex items-center gap-2">
                     {reviewMeta && reviewForThisWeek && (
                       <span className="text-badge text-ink-faint">

@@ -1,6 +1,7 @@
 "use client";
 
 import type { Activity, FeedMoment } from "@/lib/types";
+import { Trash2, Users, Utensils } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
@@ -38,7 +39,7 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
       {/* ---- 人物 ---- */}
       {m.people.length > 0 && (
         <p className="group/row flex items-center gap-x-2 text-ink-mute">
-          <TagChip icon="👥" label={m.people.map((p) => p.name).join("、")} tone="sky" size="sm" />
+          <TagChip icon={<Users size={12} />} label={m.people.map((p) => p.name).join("、")} tone="sky" size="sm" />
           <RowAction
             armed={delArmed === `people:${m.id}`}
             onDelete={() =>
@@ -52,7 +53,7 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
       {/* ---- 饮食 ---- */}
       {m.diet && (
         <p className="group/row flex items-center gap-x-2 text-ink-mute">
-          <TagChip icon="🍽" label="饮食" tone="amber" size="sm" className="shrink-0" />
+          <TagChip icon={<Utensils size={12} />} label="饮食" tone="amber" size="sm" className="shrink-0" />
           <span className="min-w-0 flex-1 truncate">
             {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
             {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}
@@ -66,9 +67,9 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
               })
             }
             title={delArmed === `diet:${m.id}` ? "3 秒内再点确认删除" : "删除饮食记录"}
-            className={`row-actions-hidden hidden shrink-0 rounded px-1 text-xs group-hover/row:block ${delArmed === `diet:${m.id}` ? "bg-rose-500/15 font-medium text-danger" : "text-ink-dim hover:text-danger"}`}
+            className={`row-actions-hidden hidden shrink-0 rounded px-1 py-0.5 text-[10px] font-medium leading-none group-hover/row:block ${delArmed === `diet:${m.id}` ? "bg-rose-500/15 text-danger" : "text-ink-dim hover:text-danger"}`}
           >
-            {delArmed === `diet:${m.id}` ? "确认删除?" : "🗑"}
+            {delArmed === `diet:${m.id}` ? "确认删除?" : <Trash2 size={12} className="mx-auto" />}
           </button>
         </p>
       )}

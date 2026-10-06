@@ -1,5 +1,6 @@
 "use client";
 
+import { Compass } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import { MODE_META } from "./kit";
 import type { EngineMode } from "./types";
@@ -16,7 +17,7 @@ export default function EngineModeCard({ mode: engineMode, envDefault: engineEnv
   return (
     <div className="glass mb-4 rounded-2xl p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold text-ink">🧭 调用引擎模式</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Compass size={14} className="text-accent" aria-hidden /> 调用引擎模式</h3>
         <TagChip label="Jev 影子观察期" tone="amber" size="sm" />
         <span className="flex-1" />
         <span className="text-badge text-ink-faint">服务器 env 默认：{MODE_META[engineEnvDefault].label}</span>

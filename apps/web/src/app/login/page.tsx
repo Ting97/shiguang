@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Check, Eye, EyeOff, X } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 
@@ -249,8 +249,16 @@ export default function LoginPage() {
                     className={`${inputCls} pr-11`}
                   />
                   {password2 && (
-                    <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${password2 === password ? "text-success" : "text-danger"}`}>
-                      {password2 === password ? "✓ 一致" : "✗ 不一致"}
+                    <span className={`absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-0.5 text-xs ${password2 === password ? "text-success" : "text-danger"}`}>
+                      {password2 === password ? (
+                        <>
+                          <Check size={12} aria-hidden /> 一致
+                        </>
+                      ) : (
+                        <>
+                          <X size={12} aria-hidden /> 不一致
+                        </>
+                      )}
                     </span>
                   )}
                 </div>

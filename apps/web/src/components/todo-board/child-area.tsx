@@ -7,7 +7,7 @@ import { TodoCircle, dueTag } from "../todo-bits";
 import { ActionNotePanel } from "./action-note-panel";
 import type { SubtaskCtl } from "./types";
 import type { ActionNote } from "./use-action-note";
-import { Repeat } from "lucide-react";
+import { Ellipsis, FileText, Repeat } from "lucide-react";
 
 /** 行动（子任务）区（拆分自 todo-board，行为零变化；最多一层）：详情面板 ↔ 展示行 + 添加输入行 + 空态/已完成提示 */
 export function ChildArea({
@@ -44,8 +44,8 @@ export function ChildArea({
                   {c.title}
                 </span>
                 {c.note && (
-                  <span className="shrink-0 text-badge text-ink-faint" title="有点击查看详情">
-                    📄
+                  <span className="shrink-0 text-ink-faint" title="有点击查看详情">
+                    <FileText size={11} aria-hidden />
                   </span>
                 )}
                 {c.repeat_daily && (
@@ -62,7 +62,7 @@ export function ChildArea({
                   title="更多操作"
                   className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover/child:block"
                 >
-                  ⋯
+                  <Ellipsis size={14} className="inline align-[-2px]" />
                 </button>
               </div>
             )}

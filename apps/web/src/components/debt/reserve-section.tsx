@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Wrench } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { bjToday, fmt } from "./kit";
 
@@ -110,13 +111,13 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   return (
     <section className="glass mb-4 rounded-2xl p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          🧰 每月备付
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+          <Wrench size={14} className="text-warn" aria-hidden /> 每月备付
         </h2>
         <div className="flex items-center gap-2 text-xs">
-          <button onClick={() => shiftMonth(-1)} className="rounded-lg border border-line-soft px-2 py-1 text-ink-mute hover:text-ink">‹</button>
+          <button onClick={() => shiftMonth(-1)} aria-label="上一月" className="rounded-lg border border-line-soft px-2 py-1 text-ink-mute hover:text-ink"><ChevronLeft size={12} /></button>
           <span className="font-medium tabular-nums text-ink">{ym.slice(0, 4)}年{Number(ym.slice(5))}月</span>
-          <button onClick={() => shiftMonth(1)} className="rounded-lg border border-line-soft px-2 py-1 text-ink-mute hover:text-ink">›</button>
+          <button onClick={() => shiftMonth(1)} aria-label="下一月" className="rounded-lg border border-line-soft px-2 py-1 text-ink-mute hover:text-ink"><ChevronRight size={12} /></button>
           <button
             onClick={() => void toggleAll(true)}
             disabled={busy || !data || data.items.length === 0}

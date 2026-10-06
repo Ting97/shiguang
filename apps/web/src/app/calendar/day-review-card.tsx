@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Lightbulb, Sparkles } from "lucide-react";
 import { useCachedReview } from "./use-cached-review";
 import { TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
@@ -35,7 +36,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-mute"><TagChip icon="✨" label="AI 日小结" tone="violet" size="sm" />{(generatedAt && review) && <span className="ml-2 text-badge font-normal text-ink-faint">生成于 {new Date(new Date(generatedAt).getTime() + 8 * 3600_000).toISOString().slice(5, 16).replace("T", " ")}</span>}</h3>
+        <h3 className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-mute"><TagChip icon={<Sparkles size={12} />} label="AI 日小结" tone="violet" size="sm" />{(generatedAt && review) && <span className="ml-2 text-badge font-normal text-ink-faint">生成于 {new Date(new Date(generatedAt).getTime() + 8 * 3600_000).toISOString().slice(5, 16).replace("T", " ")}</span>}</h3>
         <button
           onClick={generate}
           disabled={busy || !hasRecords}
@@ -61,7 +62,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
           {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.suggestions.map((sg) => (
-                <li key={sg} className="flex gap-1.5 text-micro text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 text-micro leading-none text-ai">💡</span><span>{sg}</span></li>
+                <li key={sg} className="flex gap-1.5 text-micro text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 leading-none text-ai"><Lightbulb size={10} aria-hidden /></span><span>{sg}</span></li>
               ))}
             </ul>
           )}

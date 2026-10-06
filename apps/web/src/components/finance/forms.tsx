@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Archive } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import { TX_CATEGORIES } from "@/lib/finance";
 import type { Account, Tx } from "./kit";
@@ -225,9 +226,9 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                     setRowErr((prev) => ({ ...prev, [a.id]: ce instanceof Error ? ce.message : "归档失败" }));
                   }
                 }}
-                className={`row-actions-hidden hidden text-xs group-hover:block ${armArchive.armedId === a.id ? "font-medium text-danger" : "text-ink-dim hover:text-danger"}`}
+                className={`row-actions-hidden hidden group-hover:block ${armArchive.armedId === a.id ? "text-[10px] font-medium leading-none text-danger" : "text-ink-dim hover:text-danger"}`}
               >
-                {armArchive.armedId === a.id ? "确认归档?" : "🗑"}
+                {armArchive.armedId === a.id ? "确认归档?" : <Archive size={12} />}
               </button>
             </div>
             {rowErr[a.id] && <p className="mt-1 text-micro text-danger">{rowErr[a.id]}</p>}

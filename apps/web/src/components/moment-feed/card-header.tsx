@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useRef } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { PencilLine, Trash2 } from "lucide-react";
+import { Ellipsis, Mic, PencilLine, Trash2, TriangleAlert } from "lucide-react";
 import type { FeedMoment } from "@/lib/types";
 import { TagChip } from "../tag-chip";
 import { Dismissable } from "../dismissable";
@@ -64,10 +64,10 @@ export function CardHeader({
           </span>
         </Link>
       )}
-      {m.source === "voice" && <TagChip icon="🎙" label="语音" tone="slate" size="sm" title="语音输入" />}
+      {m.source === "voice" && <TagChip icon={<Mic size={12} />} label="语音" tone="slate" size="sm" title="语音输入" />}
       {(Object.values(m.recognitions ?? {}) as { engine?: string | null }[]).some((v) => v.engine === "rules") && (
         <TagChip
-          icon="⚠"
+          icon={<TriangleAlert size={12} />}
           label="离线识别"
           tone="amber"
           size="sm"
@@ -101,9 +101,9 @@ export function CardHeader({
                 setMenuOpen(false);
               }}
               title="更多操作"
-              className="row-actions-hidden hidden rounded px-1.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
+              className="row-actions-hidden hidden rounded px-1.5 leading-none text-ink-dim transition hover:text-ink group-hover:block"
             >
-              ⋯
+              <Ellipsis size={14} />
             </button>
             {actionsOpen &&
               createPortal(

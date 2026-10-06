@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { Sparkles } from "lucide-react";
 import { FilterChip, TagChip } from "@/components/tag-chip";
 import type { PromptItem } from "./types";
 
@@ -61,9 +62,9 @@ export default function SystemPromptSection({
         <button
           onClick={onOptimize}
           disabled={optimizing}
-          className="whitespace-nowrap rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-ai transition hover:bg-purple-500/20 disabled:opacity-50"
+          className="flex items-center gap-1 whitespace-nowrap rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-ai transition hover:bg-purple-500/20 disabled:opacity-50"
         >
-          {optimizing ? "优化中…" : "✨ AI 优化"}
+          <Sparkles size={12} aria-hidden /> {optimizing ? "优化中…" : "AI 优化"}
         </button>
       </div>
 
@@ -71,7 +72,7 @@ export default function SystemPromptSection({
       {suggestion !== null && (
         <div className="mb-3 rounded-xl border border-purple-500/30 bg-purple-500/[0.06] p-3">
           <p className="mb-2 flex items-center gap-2 text-xs font-medium text-ai">
-            <TagChip icon="✨" label="AI 优化建议" tone="violet" size="sm" />
+            <TagChip icon={<Sparkles size={12} />} label="AI 优化建议" tone="violet" size="sm" />
             <span className="font-normal text-ink-dim">采纳后仅填入编辑器，检查无误再手动保存</span>
             <span className="flex-1" />
             <button

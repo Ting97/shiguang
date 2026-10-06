@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ClipboardList, Network } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Skeleton from "@/components/skeleton";
@@ -50,6 +51,12 @@ function relTime(iso: string): string {
   const d = new Date(t + 8 * 3600_000);
   return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
 }
+
+/** 列表/图谱视图切换图标（lucide 线性图标） */
+const VIEW_ICON: Record<"list" | "graph", React.ReactNode> = {
+  list: <ClipboardList size={12} />,
+  graph: <Network size={12} />,
+};
 
 export default function ContactsPage() {
   const router = useRouter();
@@ -109,15 +116,15 @@ export default function ContactsPage() {
           {/* 列表 | 图谱 视图切换 */}
           <div className="mt-4 inline-flex rounded-full border border-line-soft bg-surface/70 p-1 text-xs">
             {([
-              ["list", "📋", "列表"],
-              ["graph", "🕸", "图谱"],
-            ] as const).map(([v, icon, label]) => (
+              ["list", "列表"],
+              ["graph", "图谱"],
+            ] as const).map(([v, label]) => (
               <FilterChip
                 key={v}
                 variant="pill"
                 active={view === v}
                 onClick={() => setView(v)}
-                icon={<span className="text-xs leading-none">{icon}</span>}
+                icon={VIEW_ICON[v]}
                 label={label}
               />
             ))}

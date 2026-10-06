@@ -8,7 +8,7 @@ import { TodoRowMenu } from "@/components/todo";
 import { confirmDialog } from "@/shared/ui/confirm";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
-import { Repeat } from "lucide-react";
+import { ArrowRight, Check, Ellipsis, FileText, Repeat, RotateCcw } from "lucide-react";
 
 /**
  * 首页「今日行动清单」（REQ-001 R3 + REQ-002 N6）：
@@ -198,13 +198,17 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
               <Repeat size={11} aria-hidden /> {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}
             </span>
           )}
-          {a.note && <span className="shrink-0 text-badge text-ink-faint" title="有描述">📄</span>}
+          {a.note && (
+            <span className="shrink-0 text-ink-faint" title="有描述">
+              <FileText size={11} aria-hidden />
+            </span>
+          )}
           <button
             onClick={(e) => openMenu(a, e.currentTarget)}
             aria-label="操作菜单"
             className="tap-lg press ml-auto shrink-0 rounded p-1 text-ink-faint transition hover:bg-wash hover:text-ink"
           >
-            ⋯
+            <Ellipsis size={14} />
           </button>
         </p>
         {(a.parent_title || tag) && (
@@ -245,8 +249,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             </span>
           )}
         </h2>
-        <a href="/schedule?tab=todo" className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium text-accent transition hover:bg-sky-500/10">
-          规划 →
+        <a href="/schedule?tab=todo" className="flex shrink-0 items-center gap-0.5 rounded-lg px-2.5 py-1 text-xs font-medium text-accent transition hover:bg-sky-500/10">
+          规划 <ArrowRight size={12} aria-hidden />
         </a>
       </div>
 
@@ -344,7 +348,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                   <ul className="mt-1.5 space-y-1">
                     {done.map((a) => (
                       <li key={a.id} className="group flex items-center gap-3 rounded-lg px-2 py-1">
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-micro text-white">✓</span>
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/80 text-white"><Check size={11} strokeWidth={3} /></span>
                         <span className="min-w-0 flex-1 truncate text-xs text-ink-dim line-through">{a.title}</span>
                         {a.repeat_daily && a.repeat_done_count > 0 && (
                           <span className="shrink-0 text-badge text-success">×{a.repeat_done_count}</span>
@@ -353,9 +357,9 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                           onClick={() => toggleDone(a)}
                           disabled={busyId === a.id}
                           title="恢复为未完成"
-                          className="row-actions hidden shrink-0 rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-warn group-hover:block disabled:opacity-50"
+                          className="row-actions hidden shrink-0 rounded px-1.5 py-0.5 text-ink-mute hover:bg-soft hover:text-warn group-hover:block disabled:opacity-50"
                         >
-                          ↩️
+                          <RotateCcw size={12} />
                         </button>
                       </li>
                     ))}

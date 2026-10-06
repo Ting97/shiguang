@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import IconPicker from "@/components/icon-picker";
 import type { Activity } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
@@ -187,17 +188,18 @@ export default function ActivityPanel() {
               <span className="row-actions hidden gap-1 group-hover:flex">
                 <button
                   onClick={() => setEditing({ id: a.id, name: a.name, icon: a.icon, color: a.color, defaultMin: a.default_min ?? 30 })}
-                  className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
+                  className="rounded px-1.5 py-0.5 text-ink-mute hover:bg-soft hover:text-accent"
+                  title="编辑分类"
                 >
-                  ✏️
+                  <Pencil size={12} />
                 </button>
                 {!a.is_preset && (
                   <button
                     onClick={() => onDeleteClick(a)}
-                    className={`rounded px-1.5 py-0.5 text-xs hover:bg-soft ${armDeleteId === a.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:text-danger"}`}
+                    className={`flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none hover:bg-soft ${armDeleteId === a.id ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:text-danger"}`}
                     title="删除分类（3 秒内再点确认）"
                   >
-                    {armDeleteId === a.id ? "确认删除?" : "🗑"}
+                    {armDeleteId === a.id ? "确认删除?" : <Trash2 size={12} />}
                   </button>
                 )}
               </span>

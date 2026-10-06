@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BarChart3, Landmark, Target, TrendingUp } from "lucide-react";
 import { usePathname } from "next/navigation";
 import SubNav, { type SubNavItem } from "./sub-nav";
 import { api } from "@/shared/api";
@@ -24,10 +25,10 @@ export default function FinanceTabs() {
   const has = (m: string) => modules?.includes(m) ?? false;
 
   const items: SubNavItem[] = [
-    { key: "/finance", label: "概览", icon: "📊", href: "/finance" },
-    ...(has("debt") ? [{ key: "/finance/debt", label: "负债", icon: "🏦", href: "/finance/debt" }] : []),
-    ...(has("trade_review") ? [{ key: "/finance/review", label: "收支复盘", icon: "📈", href: "/finance/review" }] : []),
-    ...(has("trading") ? [{ key: "/finance/trading", label: "交易", icon: "🎯", href: "/finance/trading" }] : []),
+    { key: "/finance", label: "概览", icon: <BarChart3 size={12} />, href: "/finance" },
+    ...(has("debt") ? [{ key: "/finance/debt", label: "负债", icon: <Landmark size={12} />, href: "/finance/debt" }] : []),
+    ...(has("trade_review") ? [{ key: "/finance/review", label: "收支复盘", icon: <TrendingUp size={12} />, href: "/finance/review" }] : []),
+    ...(has("trading") ? [{ key: "/finance/trading", label: "交易", icon: <Target size={12} />, href: "/finance/trading" }] : []),
   ];
 
   return <SubNav className="mb-5" ariaLabel="财务二级导航" items={items} value={pathname} />;

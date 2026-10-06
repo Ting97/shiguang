@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FeedMoment } from "@/lib/types";
 import { TX_CATEGORIES } from "@/lib/finance";
+import { Coins } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
@@ -93,7 +94,7 @@ export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
         ) : (
           <p key={x.id} className="group/row flex items-center gap-x-2 text-ink-mute">
             <TagChip
-              icon="💰"
+              icon={<Coins size={12} />}
               label={`${x.direction === "out" ? "支出" : "收入"} ${yuan(x.amountCents)}`}
               tone={x.direction === "out" ? "rose" : "emerald"}
               size="sm"

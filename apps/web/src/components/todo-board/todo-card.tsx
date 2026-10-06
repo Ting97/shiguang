@@ -1,6 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
+import { ChevronDown, Ellipsis } from "lucide-react";
 import type { Activity, Space, TodoItem, TodoRow } from "@/lib/types";
 import { Dismissable } from "../dismissable";
 import { TodoCircle, childProgress, dueTag } from "../todo-bits";
@@ -121,7 +122,7 @@ export function TodoCard({
               title="更多操作"
               className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
             >
-              ⋯
+              <Ellipsis size={14} className="inline align-[-2px]" />
             </button>
             {(t.children.length > 0) && (
                 <button
@@ -129,7 +130,7 @@ export function TodoCard({
                 title={open ? "收起行动" : "展开行动"}
                 className={`tap-lg shrink-0 text-badge text-ink-mute transition-transform duration-200 ${open ? "rotate-180" : ""}`}
               >
-                ▼
+                <ChevronDown size={12} />
               </button>
             )}
           </div>

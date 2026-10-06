@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Bot, Calculator } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import { TagChip } from "@/components/tag-chip";
 import { api, ApiClientError } from "@/shared/api";
@@ -104,7 +105,7 @@ export default function DigestSection({ accountId }: { accountId: string }) {
       {/* 统计卡（规则统计，常显） */}
       <section className="glass mb-4 rounded-2xl p-5">
         <p className="mb-3 flex items-center gap-2">
-          <TagChip icon="🧮" label="统计" tone="amber" />
+          <TagChip icon={<Calculator size={12} />} label="统计" tone="amber" />
           {st && (
             <span className="text-badge text-ink-faint">
               {st.totalTrades} 笔 · 净 {fmtUsd(st.totalNet)}
@@ -201,7 +202,7 @@ export default function DigestSection({ accountId }: { accountId: string }) {
       <section className="glass mb-4 rounded-2xl p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <TagChip icon="🤖" label="AI 复盘" tone="emerald" />
+            <TagChip icon={<Bot size={12} />} label="AI 复盘" tone="emerald" />
             {review?.kind === "fallback" && (
               <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-badge font-medium text-warn">已降级</span>
             )}

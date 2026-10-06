@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Download, FileText, X } from "lucide-react";
 import { api } from "@/shared/api";
 import { fmt } from "./kit";
 
@@ -102,8 +103,8 @@ export default function DebtImportDrawer({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-ink">📥 从 trade 导入负债</h2>
-          <button onClick={onClose} className="text-ink-mute hover:text-ink">✕</button>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Download size={14} aria-hidden /> 从 trade 导入负债</h2>
+          <button onClick={onClose} aria-label="关闭" className="p-1 text-ink-mute hover:text-ink"><X size={14} /></button>
         </div>
 
         {!rows && (
@@ -126,9 +127,9 @@ export default function DebtImportDrawer({
             />
             <button
               onClick={() => fileRef.current?.click()}
-              className="mb-2 rounded-lg border border-line-soft px-3 py-1.5 text-xs text-ink-mute hover:text-accent"
+              className="mb-2 flex items-center gap-1 rounded-lg border border-line-soft px-3 py-1.5 text-xs text-ink-mute hover:text-accent"
             >
-              📄 选择 JSON 文件{fileName && `：${fileName}`}
+              <FileText size={12} aria-hidden /> 选择 JSON 文件{fileName && `：${fileName}`}
             </button>
             <textarea
               value={jsonText}

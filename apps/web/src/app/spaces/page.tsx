@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { createPortal } from "react-dom";
+import { Archive, Ellipsis, Hourglass, Pencil, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Dismissable } from "@/components/dismissable";
 import { Modal } from "@/components/ui/modal";
@@ -228,7 +229,12 @@ export default function SpacesPage() {
             </span>
                       <p className="mt-0.5 text-micro text-ink-dim">
                         {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
-                        {s.target_date && ` · ⏳ ${bjDay(s.target_date).slice(5)}`}
+                        {s.target_date && (
+                          <span className="whitespace-nowrap">
+                            {" · "}
+                            <Hourglass size={10} className="inline align-[-1px]" aria-hidden /> {bjDay(s.target_date).slice(5)}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <button
@@ -240,9 +246,9 @@ export default function SpacesPage() {
                         setCardMenu(s);
                       }}
                       title="更多操作"
-                      className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-sm leading-none text-ink-dim transition hover:text-ink group-hover:block"
+                      className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 leading-none text-ink-dim transition hover:text-ink group-hover:block"
                     >
-                      ⋯
+                      <Ellipsis size={14} />
                     </button>
                   </div>
                   {s.description && <p className="mt-2 line-clamp-2 text-xs text-ink-mute">{s.description}</p>}
@@ -401,14 +407,14 @@ export default function SpacesPage() {
                   onClick={() => { const s = cardMenu; setCardMenu(null); openEdit(s); }}
                   className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
                 >
-                  <span className="w-5 shrink-0 text-center text-sm leading-none">✏️</span>
+                  <span className="flex w-5 shrink-0 justify-center"><Pencil size={14} /></span>
                   <span className="min-w-0 flex-1">编辑空间</span>
                 </button>
                 <button
                   onClick={() => { const s = cardMenu; setCardMenu(null); void setStatus(s, "archived"); }}
                   className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-warn transition hover:bg-wash"
                 >
-                  <span className="w-5 shrink-0 text-center text-sm leading-none">📦</span>
+                  <span className="flex w-5 shrink-0 justify-center"><Archive size={14} /></span>
                   <span className="min-w-0 flex-1">归档空间</span>
                 </button>
                 <button
@@ -420,7 +426,7 @@ export default function SpacesPage() {
                   }}
                   className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10 ${armDelete.armedId === cardMenu.id ? "bg-rose-500/10 font-medium" : ""}`}
                 >
-                  <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
+                  <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>
                   <span className="min-w-0 flex-1">{armDelete.armedId === cardMenu.id ? "确认删除？（3 秒内再点）" : "删除空间"}</span>
                 </button>
               </div>
@@ -429,7 +435,7 @@ export default function SpacesPage() {
           )}
 
         <footer className="mt-10 text-center">
-          <TagChip icon="🎯" label="拾光 · 目标空间" tone="violet" size="sm" />
+          <TagChip icon={<Target size={12} />} label="拾光 · 目标空间" tone="violet" size="sm" />
         </footer>
       </div>
     </main>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { BarChart3, Bot, Lightbulb, Megaphone } from "lucide-react";
 import { api } from "@/shared/api";
 import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
@@ -61,9 +62,9 @@ export default function AdminPage() {
                 </span>
               </h1>
               <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
-                <FilterChip variant="pill" active={tab === "ai"} onClick={() => setTab("ai")} label="🤖 AI 管理" />
-                <FilterChip variant="pill" active={tab === "marketing"} onClick={() => setTab("marketing")} label="📣 营销管理" />
-                <FilterChip variant="pill" active={tab === "data"} onClick={() => setTab("data")} label="📊 数据" />
+                <FilterChip variant="pill" active={tab === "ai"} onClick={() => setTab("ai")} icon={<Bot size={12} />} label="AI 管理" />
+                <FilterChip variant="pill" active={tab === "marketing"} onClick={() => setTab("marketing")} icon={<Megaphone size={12} />} label="营销管理" />
+                <FilterChip variant="pill" active={tab === "data"} onClick={() => setTab("data")} icon={<BarChart3 size={12} />} label="数据" />
               </div>
             </div>
 
@@ -81,7 +82,7 @@ export default function AdminPage() {
             ) : tab === "ai" ? (
               <section className="glass rounded-2xl p-5">
                 <p className="mb-4 flex items-center gap-1.5 text-micro text-ink-dim">
-                  <TagChip icon="💡" label="保存即生效" tone="amber" size="sm" />
+                  <TagChip icon={<Lightbulb size={12} />} label="保存即生效" tone="amber" size="sm" />
                   改坏可回滚版本历史或秒切代码默认；AI 优化只出建议稿，采纳后仍需手动保存
                 </p>
                 <AdminAiPanel notify={notify} />

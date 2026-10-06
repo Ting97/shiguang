@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { Check, ChevronRight, Puzzle } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import { PARTITION_META, type DatasetSpec } from "@/components/admin-data-panel/types";
 import { USER_DATA_CAP } from "./use-admin-user-data";
@@ -63,8 +64,8 @@ export default function UserDataSection({
         }}
         className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left"
       >
-        <span className={`text-badge text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
-        <span className="text-xs font-medium text-ink">🧩 个性化注入</span>
+        <span className={`text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}><ChevronRight size={12} /></span>
+        <span className="flex items-center gap-1 text-xs font-medium text-ink"><Puzzle size={12} className="text-ai" aria-hidden /> 个性化注入</span>
         {userDataDraft.length > 0 && <TagChip label={`${userDataDraft.length}/5 数据集`} tone="violet" size="sm" />}
         {userDataDirty && <TagChip label="注入配置未保存" tone="amber" size="sm" />}
         <span className="flex-1" />
@@ -90,7 +91,7 @@ export default function UserDataSection({
                     disabled={isCategory || full}
                     onClick={() => toggleDataset(d.key)}
                     title={isCategory ? "类别型数据集为维度表，不参与个性化注入" : full ? "最多选择 5 个数据集" : d.desc}
-                    className={`rounded-full px-2.5 py-1 text-micro transition ${
+                    className={`flex items-center gap-0.5 rounded-full px-2.5 py-1 text-micro transition ${
                       on
                         ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-sm"
                         : isCategory
@@ -100,7 +101,7 @@ export default function UserDataSection({
                             : "border border-line-soft bg-surface/60 text-ink-mute hover:border-sky-500/50 hover:text-ink"
                     }`}
                   >
-                    {on ? "✓ " : ""}
+                    {on && <Check size={11} aria-hidden />}
                     {d.name}
                     <span className="ml-1 font-mono text-micro opacity-70">{d.key}</span>
                   </button>

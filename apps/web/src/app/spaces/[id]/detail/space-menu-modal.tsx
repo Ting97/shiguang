@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { Archive, Trash2, Upload } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import type { Dispatch, SetStateAction } from "react";
 import type { Space } from "@/lib/types";
@@ -29,7 +30,7 @@ export default function SpaceMenuModal(opts: {
             onClick={() => setStatus("active")}
             className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
           >
-            <span className="w-5 shrink-0 text-center text-sm leading-none">📤</span>
+            <span className="flex w-5 shrink-0 justify-center"><Upload size={14} /></span>
             <span className="min-w-0 flex-1">恢复空间</span>
           </button>
         ) : (
@@ -37,7 +38,7 @@ export default function SpaceMenuModal(opts: {
             onClick={() => setStatus("archived")}
             className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-warn transition hover:bg-wash"
           >
-            <span className="w-5 shrink-0 text-center text-sm leading-none">📦</span>
+            <span className="flex w-5 shrink-0 justify-center"><Archive size={14} /></span>
             <span className="min-w-0 flex-1">归档空间</span>
           </button>
         )}
@@ -45,7 +46,7 @@ export default function SpaceMenuModal(opts: {
           onClick={() => { setSpaceMenu(false); void removeSpace(); }}
           className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
         >
-          <span className="w-5 shrink-0 text-center text-sm leading-none">🗑</span>
+          <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>
           <span className="min-w-0 flex-1">删除空间</span>
         </button>
       </div>

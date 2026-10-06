@@ -5,6 +5,7 @@
  * TodoRowMenu 是唯一权威菜单：日程 todo-board、空间详情、今日行动等入口共用；
  * 各入口经适配器传入 handlers，缺失的 handler 对应菜单项自动隐藏。
  */
+import { Hourglass } from "lucide-react";
 
 export interface TodoMenuTarget {
   id: string;
@@ -80,7 +81,7 @@ export function MenuItem({ closeMenu, icon, label, hint, extra, danger, active, 
               : "text-ink hover:bg-wash"
       }`}
     >
-      <span className="w-5 shrink-0 text-center text-sm leading-none">{busy ? "⏳" : icon}</span>
+      <span className="w-5 shrink-0 text-center text-sm leading-none">{busy ? <Hourglass size={14} className="inline animate-pulse" /> : icon}</span>
       <span className="min-w-0 flex-1">
         {label}
         {hint && <span className="block truncate text-badge text-ink-faint">{hint}</span>}

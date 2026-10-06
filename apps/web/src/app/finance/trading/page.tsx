@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, Hourglass, Settings, Target, Zap } from "lucide-react";
 import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
 import Skeleton from "@/components/skeleton";
@@ -141,7 +142,7 @@ export default function TradingPage() {
             {/* 账号切换 + 汇总卡 + 导入入口 */}
             <section className="glass mb-4 rounded-2xl p-5">
               <div className="flex flex-wrap items-center gap-2">
-                <TagChip icon="🎯" label="交易账号" tone="sky" />
+                <TagChip icon={<Target size={12} />} label="交易账号" tone="sky" />
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                   {accounts.map((a) => (
                     <FilterChip
@@ -159,24 +160,25 @@ export default function TradingPage() {
                   onClick={quickSync}
                   disabled={quickSyncing}
                   title="对每把已绑定的 Bitget 密钥各同步近 30 天平仓数据"
-                  className="rounded-xl bg-amber-500/90 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-500 disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-xl bg-amber-500/90 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-500 disabled:opacity-50"
                 >
-                  {quickSyncing ? "⏳ 同步中…" : "⚡ 一键同步"}
+                  {quickSyncing ? <Hourglass size={12} className="animate-pulse" aria-hidden /> : <Zap size={12} aria-hidden />}
+                  {quickSyncing ? "同步中…" : "一键同步"}
                 </button>
                 <button
                   onClick={() => setBitgetOpen(true)}
                   title="绑定 Bitget 只读 API / 自定义时间范围同步"
-                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
+                  className="flex items-center rounded-xl border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-warn transition hover:bg-amber-500/20"
                 >
-                  ⚙
+                  <Settings size={12} aria-label="同步设置" />
                 </button>
                 {isPc && (
                   <button
                     onClick={() => setImporting(true)}
                     title="上传 MT5 ReportHistory 或 CSV"
-                    className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20"
+                    className="flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20"
                   >
-                    📥 导入报表
+                    <Download size={12} aria-hidden /> 导入报表
                   </button>
                 )}
               </div>

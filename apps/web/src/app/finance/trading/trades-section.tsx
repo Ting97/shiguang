@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, ClipboardList } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import { FilterChip, TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
@@ -97,7 +98,7 @@ export default function TradesSection({ accountId }: { accountId: string }) {
   return (
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
-        <TagChip icon="📋" label="逐笔明细" tone="violet" />
+        <TagChip icon={<ClipboardList size={12} />} label="逐笔明细" tone="violet" />
         {data && <span className="text-badge text-ink-faint">共 {data.total} 笔</span>}
       </p>
 
@@ -175,9 +176,9 @@ export default function TradesSection({ accountId }: { accountId: string }) {
             <button
               disabled={page <= 1 || busy}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50 disabled:opacity-30"
+              className="flex items-center gap-0.5 rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50 disabled:opacity-30"
             >
-              ← 上一页
+              <ArrowLeft size={11} aria-hidden /> 上一页
             </button>
             <span className="tabular-nums text-ink-faint">
               第 {data.page} / {totalPages} 页{busy ? " · 加载中…" : ""}
@@ -185,9 +186,9 @@ export default function TradesSection({ accountId }: { accountId: string }) {
             <button
               disabled={page >= totalPages || busy}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50 disabled:opacity-30"
+              className="flex items-center gap-0.5 rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 transition hover:border-sky-500/50 disabled:opacity-30"
             >
-              下一页 →
+              下一页 <ArrowRight size={11} aria-hidden />
             </button>
           </div>
         </>

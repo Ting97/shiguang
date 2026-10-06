@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, ImageOff, X } from "lucide-react";
 import type { FeedImage } from "@/lib/types";
 
 /**
@@ -19,7 +20,9 @@ export function ImageGrid({ images, onOpen }: { images: FeedImage[]; onOpen?: (i
       className={`group relative overflow-hidden rounded-xl bg-elevated ${cls}`}
     >
       {failed.has(img.id) ? (
-        <span className="flex h-full w-full items-center justify-center text-badge text-ink-faint">🖼 加载失败</span>
+        <span className="flex h-full w-full items-center justify-center gap-1 text-badge text-ink-faint">
+          <ImageOff size={12} aria-hidden /> 加载失败
+        </span>
       ) : (
         <img
           src={`/api/files/${img.storageKey}`}
@@ -132,17 +135,17 @@ export function ImageLightbox({
         <>
           <button
             onClick={(e) => { e.stopPropagation(); go(-1); }}
-            className="tap-lg press absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-lg text-white backdrop-blur transition hover:bg-white/20"
+            className="tap-lg press absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-white backdrop-blur transition hover:bg-white/20"
             aria-label="上一张"
           >
-            ‹
+            <ChevronLeft size={18} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); go(1); }}
-            className="tap-lg press absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-lg text-white backdrop-blur transition hover:bg-white/20"
+            className="tap-lg press absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-4 text-white backdrop-blur transition hover:bg-white/20"
             aria-label="下一张"
           >
-            ›
+            <ChevronRight size={18} />
           </button>
           <span className="absolute bottom-5 rounded-full bg-black/50 px-3 py-1 text-xs tabular-nums text-white">
             {cur + 1} / {images.length}
@@ -154,7 +157,7 @@ export function ImageLightbox({
         className="tap-lg absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
         aria-label="关闭"
       >
-        ✕
+        <X size={16} />
       </button>
     </div>
   );

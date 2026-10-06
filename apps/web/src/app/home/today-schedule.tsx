@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import DayTimeline from "@/components/day-timeline";
 import DayDonut from "@/components/day-donut";
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
+import { Clock, Pencil, Plus, Trash2, Utensils } from "lucide-react";
 import { TagChip, FilterChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
@@ -155,12 +156,12 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
       <div className="mb-3 flex flex-wrap items-center justify-between gap-y-1">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
           <span className="inline-flex items-center gap-1">
-            🕐 今日日程{" "}
+            <Clock size={14} className="text-accent" aria-hidden /> 今日日程{" "}
             <span className="whitespace-nowrap text-xs font-normal text-ink-dim">
               {blocks.length} 段 · 共 {zhDuration(blocks.reduce((s, b) => s + b.duration_min, 0))}
             </span>
           </span>
-          {todayKcal > 0 && <TagChip icon="🍽" label={`今日 ≈${todayKcal} kcal`} tone="amber" size="sm" className="whitespace-nowrap" />}
+          {todayKcal > 0 && <TagChip icon={<Utensils size={12} />} label={`今日 ≈${todayKcal} kcal`} tone="amber" size="sm" className="whitespace-nowrap" />}
         </h2>
         <div className="flex shrink-0 rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs">
           <FilterChip variant="pill" active={view === "timeline"} onClick={() => setView("timeline")} label="时间轴" />
@@ -198,9 +199,9 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
           <div className="mb-2 flex justify-end">
             <button
               onClick={() => setListDraft(nextFreeSlot())}
-              className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-accent transition hover:border-sky-500/50"
+              className="flex items-center gap-1 rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-xs text-accent transition hover:border-sky-500/50"
             >
-              ＋ 新增日程
+              <Plus size={12} aria-hidden /> 新增日程
             </button>
           </div>
           {blocks.length === 0 && (
@@ -275,16 +276,16 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
                     <button
                       onClick={() => startEdit(b)}
                       title="修改"
-                      className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent"
+                      className="rounded px-1.5 py-0.5 text-ink-mute hover:bg-soft hover:text-accent"
                     >
-                      ✏️
+                      <Pencil size={12} />
                     </button>
                     <button
                       onClick={() => removeBlock(b)}
                       title={armDelete.armedId === b.id ? "3 秒内再点确认删除" : "删除"}
-                      className={`rounded px-1.5 py-0.5 text-xs ${armDelete.armedId === b.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+                      className={`flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ${armDelete.armedId === b.id ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
                     >
-                      {armDelete.armedId === b.id ? "确认删除?" : "🗑"}
+                      {armDelete.armedId === b.id ? "确认删除?" : <Trash2 size={12} />}
                     </button>
                   </span>
                 </li>

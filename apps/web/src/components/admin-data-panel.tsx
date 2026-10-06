@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FolderOpen, Search, Tags } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { TagChip } from "@/components/tag-chip";
 import CategoryGroups from "./admin-data-panel/category-groups";
@@ -69,7 +70,7 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
       {/* 区块 1：类别清单 */}
       <section className="glass rounded-2xl p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
-          <TagChip icon="🏷️" label="类别清单" tone="sky" />
+          <TagChip icon={<Tags size={12} />} label="类别清单" tone="sky" />
           <span className="text-badge font-normal text-ink-faint">AI 识别可用类别全域（活动分类 / 目标空间为 DB 实时，其余为共享包枚举）</span>
         </h2>
         <div className="mt-3">
@@ -93,7 +94,7 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
       {/* 区块 2：数据目录 */}
       <section className="glass rounded-2xl p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
-          <TagChip icon="🗂️" label="数据目录" tone="violet" />
+          <TagChip icon={<FolderOpen size={12} />} label="数据目录" tone="violet" />
           <span className="text-badge font-normal text-ink-faint">个性化注入 / 注入项可引用的全部数据集注册表（列白名单 + 分区）</span>
         </h2>
         <div className="mt-3">
@@ -117,7 +118,7 @@ export default function AdminDataPanel({ notify }: { notify: (text: string, ok?:
       {/* 区块 3：在线试查 */}
       <section className="glass rounded-2xl p-5">
         <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
-          <TagChip icon="🔎" label="在线试查" tone="emerald" />
+          <TagChip icon={<Search size={12} />} label="在线试查" tone="emerald" />
           <span className="text-badge font-normal text-ink-faint">只读白名单查询（强制时间窗 ≤92 天；仅行为型 / AI 衍生可查）</span>
         </h2>
         <div className="mt-3">

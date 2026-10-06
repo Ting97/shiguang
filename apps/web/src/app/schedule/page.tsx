@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CalendarDays, Tags } from "lucide-react";
 import CalendarPanel from "@/components/calendar-panel";
 import TodoBoard from "@/components/todo-board";
 import ActivityPanel from "@/components/activity-panel";
@@ -14,9 +15,9 @@ import SubNav from "@/components/sub-nav";
 
 type Tab = "calendar" | "todo" | "categories";
 const TABS: [Tab, string][] = [
-  ["calendar", "📅 日历"],
+  ["calendar", "日历"],
   ["todo", "todo"],
-  ["categories", "🏷️ 分类"],
+  ["categories", "分类"],
 ];
 
 export default function SchedulePage() {
@@ -56,7 +57,14 @@ export default function SchedulePage() {
             items={TABS.map(([v, label]) => ({
               key: v,
               label,
-              icon: v === "todo" ? <TodoLogo size={15} onGradient={tab === v} /> : undefined,
+              icon:
+                v === "todo" ? (
+                  <TodoLogo size={15} onGradient={tab === v} />
+                ) : v === "calendar" ? (
+                  <CalendarDays size={12} />
+                ) : (
+                  <Tags size={12} />
+                ),
             }))}
           />
         </header>

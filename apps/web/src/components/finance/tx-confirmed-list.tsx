@@ -2,6 +2,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { Receipt } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import { TagChip } from "@/components/tag-chip";
 import type { Tx } from "./kit";
@@ -27,7 +28,7 @@ export function ConfirmedTxSection({
   return (
     <section className="glass rounded-2xl p-5">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
-        <TagChip icon="🧾" label="流水" tone="slate" />
+        <TagChip icon={<Receipt size={12} />} label="流水" tone="slate" />
         <span className="text-xs font-normal text-ink-dim">{txs.length} 笔</span>
       </h2>
       {txs.length === 0 && (

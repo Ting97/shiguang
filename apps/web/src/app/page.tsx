@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react";
 import ActionsToday from "@/components/actions-today";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
@@ -186,28 +187,28 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => jumpToDate(shiftYmd(anchorDate, -1))}
-                className="btn-ghost press rounded-lg px-2 py-1"
+                className="btn-ghost press flex items-center gap-0.5 rounded-lg px-2 py-1"
                 title="前一天"
               >
-                ← 前一天
+                <ArrowLeft size={11} aria-hidden /> 前一天
               </button>
               <span className="tabular-nums font-medium">{zhYmd(anchorDate)}</span>
               <button
                 type="button"
                 onClick={() => jumpToDate(shiftYmd(anchorDate, +1) > bjToday() ? null : shiftYmd(anchorDate, +1))}
-                className="btn-ghost press rounded-lg px-2 py-1"
+                className="btn-ghost press flex items-center gap-0.5 rounded-lg px-2 py-1"
                 title="后一天（越过今天回到最新）"
               >
-                后一天 →
+                后一天 <ArrowRight size={11} aria-hidden />
               </button>
             </div>
             <span className="min-w-0 truncate text-ink-mute">列表从这天的最后一条往前展示；搜索/筛选会回到最新</span>
             <button
               type="button"
               onClick={() => jumpToDate(null)}
-              className="btn-ghost press shrink-0 rounded-lg px-2.5 py-1 font-medium"
+              className="btn-ghost press flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-medium"
             >
-              ↩ 回到最新
+              <RotateCcw size={11} aria-hidden /> 回到最新
             </button>
           </div>
         )}

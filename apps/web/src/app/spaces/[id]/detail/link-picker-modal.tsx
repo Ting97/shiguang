@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { Circle, Star } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import { dueTag } from "@/components/todo-bits";
 import type { TodoItem } from "@/lib/types";
@@ -45,7 +46,7 @@ export default function LinkPickerModal(opts: {
                     onClick={() => void linkExisting(t.id)}
                     className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
                   >
-                    <span className="w-5 shrink-0 text-center text-sm leading-none">{t.is_important ? "⭐" : "○"}</span>
+                    <span className="flex w-5 shrink-0 justify-center text-sm leading-none">{t.is_important ? <Star size={13} className="text-warn" /> : <Circle size={13} className="text-ink-faint" />}</span>
                     <span className="min-w-0 flex-1 truncate" title={t.title}>
                       {t.kind === "action" && (
                         <span className="mr-1 inline-flex items-center rounded bg-slate-500/15 px-1 py-0.5 align-middle text-badge text-ink-dim">

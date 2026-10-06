@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import BillImport from "@/components/bill-import";
 import FinanceTabs from "@/components/finance-tabs";
@@ -141,16 +142,16 @@ export default function FinancePage() {
         {/* 月份导航 + 记一笔（窄屏自动换行，避免按钮溢出） */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="上一月" className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">‹</button>
+            <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="上一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronLeft size={13} /></button>
             <span className="min-w-24 text-center text-sm font-semibold text-ink tabular-nums">{monthTitle(month)}</span>
-            <button onClick={() => setMonth(shiftMonth(month, 1))} aria-label="下一月" className="rounded-lg border border-line-soft bg-surface/60 px-3 py-1.5 text-sm transition hover:border-sky-500/50">›</button>
+            <button onClick={() => setMonth(shiftMonth(month, 1))} aria-label="下一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronRight size={13} /></button>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button onClick={() => setImporting(true)} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-sky-500/20">
-              📥 导入账单
+            <button onClick={() => setImporting(true)} className="flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-sky-500/20">
+              <Download size={13} aria-hidden /> 导入账单
             </button>
-            <button onClick={() => setAdding(true)} className="btn-primary whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
-              ＋ 记一笔
+            <button onClick={() => setAdding(true)} className="btn-primary flex items-center gap-1 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
+              <Plus size={13} aria-hidden /> 记一笔
             </button>
           </div>
         </div>
@@ -167,8 +168,11 @@ export default function FinancePage() {
 
         {/* 草稿提醒 */}
         {drafts.length > 0 && (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-warn">
-            📥 有 <span className="font-bold">{drafts.length}</span> 笔动态识别的流水待确认
+          <div className="mb-4 flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-warn">
+            <Download size={13} className="shrink-0" aria-hidden />
+            <span>
+              有 <span className="font-bold">{drafts.length}</span> 笔动态识别的流水待确认
+            </span>
             <button onClick={() => document.getElementById("draft-area")?.scrollIntoView({ behavior: "smooth" })} className="ml-2 underline underline-offset-2 hover:text-warn">
               去确认
             </button>

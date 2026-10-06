@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { Sprout, X } from "lucide-react";
 import MomentFeed from "@/components/moment-feed";
 import { FilterChip } from "@/components/tag-chip";
 import type { Activity, FeedMoment, Space } from "@/lib/types";
@@ -46,7 +47,7 @@ export default function FeedSection({
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          🌱 我的动态
+          <Sprout size={14} className="text-success" aria-hidden /> 我的动态
           {/* 日期跳转（2026-10-04）：选某天 → 列表定位到那天的动态（从当天最后一条往前） */}
           <input
             type="date"
@@ -80,9 +81,9 @@ export default function FeedSection({
             <button
               onClick={() => setSearchInput("")}
               title="清除搜索"
-              className="tap-lg absolute right-2 top-1/2 -translate-y-1/2 text-xs text-ink-dim hover:text-ink"
+              className="tap-lg absolute right-2 top-1/2 -translate-y-1/2 text-ink-dim hover:text-ink"
             >
-              ✕
+              <X size={12} aria-label="清除搜索" />
             </button>
           )}
         </div>

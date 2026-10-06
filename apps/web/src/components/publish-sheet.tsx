@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Camera, ImagePlus, RefreshCw, X } from "lucide-react";
 import { uploadImages } from "@/lib/image";
 import { useDismiss } from "./dismissable";
 
@@ -175,7 +176,7 @@ export default function PublishSheet({
             aria-label="关闭"
             className="rounded-full p-1 text-ink-dim hover:bg-white/5 hover:text-ink"
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
         <textarea
@@ -213,9 +214,9 @@ export default function PublishSheet({
                   <button
                     type="button"
                     onClick={() => void retryUpload()}
-                    className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs text-white"
+                    className="absolute inset-0 flex items-center justify-center gap-0.5 bg-black/50 text-xs text-white"
                   >
-                    ↻ 重试
+                    <RefreshCw size={11} aria-hidden /> 重试
                   </button>
                 ) : (
                   <button
@@ -226,10 +227,10 @@ export default function PublishSheet({
                         return prev.filter((_, idx) => idx !== i);
                       })
                     }
-                    className="tap-lg absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-micro text-white"
+                    className="tap-lg absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white"
                     aria-label="移除"
                   >
-                    ✕
+                    <X size={10} />
                   </button>
                 )}
                 {img.status === "uploading" && (
@@ -245,9 +246,9 @@ export default function PublishSheet({
           <div className="flex items-center gap-2">
             <label
               title="从相册选择（最多 9 张）"
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-line-soft bg-surface/60 text-base transition active:border-sky-500/60"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-line-soft bg-surface/60 text-ink-dim transition active:border-sky-500/60"
             >
-              🖼
+              <ImagePlus size={16} aria-hidden />
               <input
                 ref={galleryRef}
                 type="file"
@@ -263,9 +264,9 @@ export default function PublishSheet({
             {canCapture && (
               <label
                 title="拍照"
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-line-soft bg-surface/60 text-base transition active:border-sky-500/60"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-line-soft bg-surface/60 text-ink-dim transition active:border-sky-500/60"
               >
-                📷
+                <Camera size={16} aria-hidden />
                 <input
                   ref={cameraRef}
                   type="file"

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AlarmClock, Bell, Cake, Check, ClipboardList, Heart, Sun, X } from "lucide-react";
 import type { ReminderItem } from "@/lib/reminders";
 import { todayStr } from "@/lib/date";
 import { TagChip } from "./tag-chip";
@@ -40,7 +41,7 @@ export default function Reminders({
       className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-warn"
     >
       <div className="flex items-center gap-2">
-        <TagChip icon="🔔" label="提醒" tone="amber" className="shrink-0" />
+        <TagChip icon={<Bell size={12} />} label="提醒" tone="amber" className="shrink-0" />
         <span className="flex-1" />
         <button
           onClick={() => {
@@ -48,16 +49,16 @@ export default function Reminders({
             setDismissed(true);
           }}
           title="今天不再展示"
-          className="rounded px-1.5 py-0.5 text-micro text-warn/70 transition hover:bg-amber-500/15 hover:text-warn"
+          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-micro text-warn/70 transition hover:bg-amber-500/15 hover:text-warn"
         >
-          知道了 ✕
+          知道了 <X size={11} aria-hidden />
         </button>
       </div>
       <ul className="mt-1.5 space-y-1">
         {items.map((it) => (
           <li key={it.key} className="flex items-start gap-1.5 leading-relaxed">
-            <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/15 text-badge leading-none">
-              {it.kind === "birthday" ? "🎂" : it.kind === "anniversary" ? "💞" : it.overdue ? "⏰" : "📋"}
+            <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/15 leading-none">
+              {it.kind === "birthday" ? <Cake size={12} /> : it.kind === "anniversary" ? <Heart size={12} /> : it.overdue ? <AlarmClock size={12} /> : <ClipboardList size={12} />}
             </span>
             {it.contactId ? (
               <Link
@@ -77,9 +78,17 @@ export default function Reminders({
                     onClick={() => markToday(it)}
                     disabled={marked.has(it.todoId!)}
                     title="加入今日 todo（跨零点自动失效）"
-                    className="mt-px shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 px-2.5 py-1 text-micro text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
+                    className="mt-px flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-amber-500/40 px-2.5 py-1 text-micro text-warn transition hover:bg-amber-500/20 disabled:opacity-50"
                   >
-                    {marked.has(it.todoId!) ? "已加入 ✓" : "☀️ 今日"}
+                    {marked.has(it.todoId!) ? (
+                      <>
+                        已加入 <Check size={11} aria-hidden />
+                      </>
+                    ) : (
+                      <>
+                        <Sun size={11} aria-hidden /> 今日
+                      </>
+                    )}
                   </button>
                 )}
               </>

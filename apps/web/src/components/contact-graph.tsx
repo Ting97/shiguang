@@ -8,6 +8,7 @@
  *      名字 label 描边衬底（不被连线穿过）、缩放 <0.6 隐藏、中心光晕、贝塞尔边+热度透明度、hover 高亮
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { buildStarGraph, type GraphContact, type GraphNode } from "@/lib/graph";
 
 type Override = Map<string, { x: number; y: number }>;
@@ -361,17 +362,17 @@ export default function ContactGraph({
         {/* 缩放控制按钮 */}
         <div className="absolute right-2 top-2 flex flex-col gap-1">
           {[
-            { label: "＋", title: "放大", fn: () => zoomBy(1.25) },
-            { label: "−", title: "缩小", fn: () => zoomBy(1 / 1.25) },
-            { label: "⟲", title: "复位视图", fn: resetView },
+            { icon: <Plus size={14} />, title: "放大", fn: () => zoomBy(1.25) },
+            { icon: <Minus size={14} />, title: "缩小", fn: () => zoomBy(1 / 1.25) },
+            { icon: <RotateCcw size={14} />, title: "复位视图", fn: resetView },
           ].map((b) => (
             <button
               key={b.title}
               title={b.title}
               onClick={b.fn}
-              className="tap-lg press h-8 w-8 rounded-lg border border-line-soft bg-surface/85 text-xs text-ink-soft shadow-sm transition hover:border-sky-500/50 hover:text-accent"
+              className="tap-lg press flex h-8 w-8 items-center justify-center rounded-lg border border-line-soft bg-surface/85 text-ink-soft shadow-sm transition hover:border-sky-500/50 hover:text-accent"
             >
-              {b.label}
+              {b.icon}
             </button>
           ))}
         </div>

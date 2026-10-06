@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ArrowLeft, Download, FileText, X } from "lucide-react";
 import { TX_CATEGORIES, yuan } from "@/lib/finance";
 import { api } from "@/shared/api";
 import { useDismiss } from "./dismissable";
@@ -118,8 +119,8 @@ export default function BillImport({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
       <div ref={ref} className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
-          <TagChip icon="📥" label="导入支付宝/微信账单" tone="amber" className="text-sm" />
-          <button onClick={onClose} className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
+          <TagChip icon={<Download size={13} />} label="导入支付宝/微信账单" tone="amber" className="text-sm" />
+          <button onClick={onClose} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
         </div>
 
         {result ? (
@@ -147,7 +148,7 @@ export default function BillImport({
             >
               {fileName ? (
                 <span className="inline-flex max-w-full items-center gap-1">
-                  <TagChip icon="📄" label={fileName} tone="slate" className="max-w-[70%]" />
+                  <TagChip icon={<FileText size={12} />} label={fileName} tone="slate" className="max-w-[70%]" />
                   <span className="text-xs text-ink-dim">点击更换</span>
                 </span>
               ) : (
@@ -243,9 +244,9 @@ export default function BillImport({
             <div className="flex justify-between gap-2">
               <button
                 onClick={() => { setPreview(null); setError(null); }}
-                className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft"
+                className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft"
               >
-                ← 重新选择
+                <ArrowLeft size={12} aria-hidden /> 重新选择
               </button>
               <button
                 disabled={busy || preview.importable === 0}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Archive, ChevronRight, Gem, Wrench } from "lucide-react";
 import { api } from "@/shared/api";
 import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
@@ -239,7 +240,7 @@ export default function ProfilePage() {
 
             {/* 套餐与 AI 用量（M3 商业化） */}
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon="💎" label="套餐与 AI 用量" tone="violet" /></h2>
+              <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon={<Gem size={12} />} label="套餐与 AI 用量" tone="violet" /></h2>
               {quota ? (
                 <>
                   <p className="mt-1 text-xs text-ink-dim">
@@ -295,19 +296,19 @@ export default function ProfilePage() {
                   href="/admin"
                   className="mt-4 flex items-center gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-3 transition hover:bg-sky-500/20"
                 >
-                  <span className="text-lg">🛠</span>
+                  <span className="flex h-6 w-6 items-center justify-center text-accent"><Wrench size={16} aria-hidden /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-semibold text-accent">后台管理</span>
                     <span className="block text-micro text-ink-dim">AI prompt 调优 · 邀请与套餐 · Token 消耗</span>
                   </span>
-                  <span className="text-ink-mute">→</span>
+                  <ChevronRight size={14} className="text-ink-mute" aria-hidden />
                 </a>
               )}
             </section>
 
             {/* 数据导出（docs/06 P8）：个人数据可携带 */}
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon="📦" label="导出我的数据" tone="slate" /></h2>
+              <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon={<Archive size={12} />} label="导出我的数据" tone="slate" /></h2>
               <p className="mt-1 text-xs text-ink-dim">全量备份包含动态、日程、todo、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
               <div className="mt-3 flex gap-2">
                 <a

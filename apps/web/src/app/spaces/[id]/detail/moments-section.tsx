@@ -1,5 +1,6 @@
 "use client";
 
+import { Link2, Sprout } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import type { FeedMoment } from "@/lib/types";
 import type { MomentLinkActions } from "./use-moment-link";
@@ -21,13 +22,13 @@ export default function MomentsSection(opts: {
   return (
     <section className="glass rounded-2xl p-5">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
-        <TagChip icon="🌱" label="相关动态" tone="emerald" />
+        <TagChip icon={<Sprout size={12} />} label="相关动态" tone="emerald" />
         <span className="text-xs font-normal text-ink-dim">{moments.length} 条</span>
         <button
           onClick={openMomentLink}
-          className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-micro font-normal text-ink-mute transition hover:border-emerald-500/50 hover:text-accent"
+          className="ml-auto flex items-center gap-1 rounded-lg border border-line-soft px-2.5 py-1 text-micro font-normal text-ink-mute transition hover:border-emerald-500/50 hover:text-accent"
         >
-          🔗 关联动态
+          <Link2 size={12} aria-hidden /> 关联动态
         </button>
       </h2>
       {moments.length === 0 ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import { Ban } from "lucide-react";
 import { useDismiss } from "./dismissable";
 
 /**
@@ -81,7 +82,7 @@ export default function SpacePicker({
             onClick={onRemove}
             className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10 disabled:opacity-40"
           >
-            <span className="w-6 shrink-0 text-center text-sm leading-none">🚫</span>
+            <span className="flex w-6 shrink-0 justify-center"><Ban size={14} /></span>
             移除关联
           </button>
         )}

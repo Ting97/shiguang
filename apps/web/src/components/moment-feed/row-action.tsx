@@ -1,5 +1,7 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
+
 /** 行内小操作按钮（编辑/删除），悬停显示；删除为两步确认（armed 时按钮变「确认删除?」） */
 export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "删除", armed = false }: {
   onEdit?: () => void;
@@ -15,18 +17,18 @@ export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "
         <button
           onClick={onEdit}
           title={editTitle}
-          className="tap-lg press rounded px-1 py-0.5 text-micro text-ink-dim hover:text-accent"
+          className="tap-lg press rounded px-1 py-0.5 text-ink-dim hover:text-accent"
         >
-          ✏️
+          <Pencil size={12} />
         </button>
       )}
       {onDelete && (
         <button
           onClick={onDelete}
           title={armed ? "3 秒内再点确认删除" : delTitle}
-          className={`tap-lg press rounded px-1 py-0.5 text-micro ${armed ? "bg-rose-500/15 font-medium text-danger" : "text-ink-dim hover:text-danger"}`}
+          className={`tap-lg press flex items-center rounded px-1 py-0.5 text-[10px] font-medium leading-none ${armed ? "bg-rose-500/15 text-danger" : "text-ink-dim hover:text-danger"}`}
         >
-          {armed ? "确认删除?" : "🗑"}
+          {armed ? "确认删除?" : <Trash2 size={12} />}
         </button>
       )}
     </span>

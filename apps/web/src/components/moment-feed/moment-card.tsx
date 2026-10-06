@@ -7,6 +7,7 @@ import { TagChip } from "../tag-chip";
 import { ImageGrid, ImageLightbox } from "../image-grid";
 import EntryMenu from "../entry-menu";
 import { createPortal } from "react-dom";
+import { ArrowRight, Bot, ClipboardList, Clock, NotebookPen, Sparkles, TriangleAlert, X } from "lucide-react";
 import { api } from "@/shared/api";
 import { useCardActions } from "./use-card-actions";
 import { CardHeader } from "./card-header";
@@ -38,12 +39,12 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
   const emoji = moodEmoji(m.mood);
   const intent: IntentTag =
     m.todos.length > 0
-      ? { icon: "📋", label: "todo", tone: "sky" as const }
+      ? { icon: <ClipboardList size={14} />, label: "todo", tone: "sky" as const }
       : m.blocks.length > 0
-        ? { icon: "🕒", label: "日程", tone: "sky" as const }
+        ? { icon: <Clock size={14} />, label: "日程", tone: "sky" as const }
         : m.mood
-          ? { icon: "✨", label: "心情", tone: "violet" as const }
-          : { icon: "📝", label: "动态", tone: "slate" as const };
+          ? { icon: <Sparkles size={14} />, label: "心情", tone: "violet" as const }
+          : { icon: <NotebookPen size={14} />, label: "动态", tone: "slate" as const };
 
   // 卡内操作反馈 + 提交逻辑（识别/手动添加/删除），由 useCardActions 提供
   const { busyDomain, run, recognizeDomain, manualAdd, del, delArmed } = useCardActions(m, onRefresh);
@@ -88,7 +89,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
   return (
     <article className="glass glass-hover group relative mt-0 flex min-w-0 flex-1 gap-3 rounded-2xl p-4 transition-transform duration-200 hover:-translate-y-0.5">
       {/* 头像位：心情 emoji（无心情时用意图图标） */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-elevated/80 text-xl">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-elevated/80 text-xl text-ink-dim">
         {m.mood ? emoji : intent.icon}
       </div>
 
@@ -156,12 +157,12 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
         {!m.analyzed_at &&
           (m.recognize_state === "timeout" ? (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-faint">
-              <TagChip icon="🤖" label="识别未完成" tone="slate" size="sm" className="shrink-0" />
+              <TagChip icon={<Bot size={12} />} label="识别未完成" tone="slate" size="sm" className="shrink-0" />
               <span className="min-w-0 truncate">AI 当时未返回结果 · 点击原文可重新识别</span>
             </p>
           ) : (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-accent/80">
-              <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" className="shrink-0" />
+              <TagChip icon={<Bot size={12} />} label="AI 识别中" tone="violet" size="sm" className="shrink-0" />
               <span className="min-w-0 truncate">正在提取 日程 / 关系 / todo / 收支 / 心情 / 饮食…</span>
             </p>
           ))}
@@ -172,14 +173,15 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
           !m.recognitions.schedule.reasonDismissed &&
           (m.recognitions.schedule.reason?.includes("已有日程") || m.recognitions.schedule.reason?.includes("时间冲突")) && (
             <div className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-micro text-warn/90">
-              <span className="min-w-0 flex-1">⚠️ 未生成日程：{m.recognitions.schedule.reason}</span>
+              <TriangleAlert size={12} className="mt-0.5 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1">未生成日程：{m.recognitions.schedule.reason}</span>
               {/* 就地给出处理入口：跳日程页对应日（按记录时刻的北京日期，跨天冲突需自行翻页） */}
               <a
                 href={`/schedule?date=${bjYmd(m.created_at)}`}
-                className="shrink-0 whitespace-nowrap font-medium text-warn underline decoration-warn/40 underline-offset-2 transition hover:decoration-warn"
+                className="flex shrink-0 items-center gap-0.5 whitespace-nowrap font-medium text-warn underline decoration-warn/40 underline-offset-2 transition hover:decoration-warn"
                 title="打开日程页调整时间"
               >
-                去调整 →
+                去调整 <ArrowRight size={11} aria-hidden />
               </a>
               <button
                 onClick={() =>
@@ -191,7 +193,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
                 title="不再显示此提示"
                 className="shrink-0 rounded px-1 text-warn/60 transition hover:text-warn"
               >
-                ✕
+                <X size={12} aria-label="关闭" />
               </button>
             </div>
           )}

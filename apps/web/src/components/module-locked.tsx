@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+
 /** 模块未开通态（REQ-003 3-F）：直连未授权路由时的兜底展示（API 层已 403） */
 export default function ModuleLocked({ title, desc }: { title: string; desc: string }) {
   return (
@@ -9,9 +11,9 @@ export default function ModuleLocked({ title, desc }: { title: string; desc: str
       <p className="mt-2 text-xs leading-relaxed text-ink-dim">{desc}</p>
       <a
         href="/finance"
-        className="mt-5 inline-block rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-accent transition hover:bg-sky-500/20"
+        className="mt-5 inline-flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-accent transition hover:bg-sky-500/20"
       >
-        ← 返回财务概览
+        <ArrowLeft size={12} aria-hidden /> 返回财务概览
       </a>
     </div>
   );

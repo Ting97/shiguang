@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { PenLine } from "lucide-react";
 import SpaceReflections from "@/components/space-reflections";
 import type { Msg } from "./types";
 import type { ReflectionActions } from "./use-reflection";
@@ -19,9 +20,9 @@ export default function ReflectionSection(opts: {
       <div className="mb-3 flex justify-end">
         <button
           onClick={openNew}
-          className="btn-primary rounded-xl px-4 py-2 text-sm font-medium"
+          className="btn-primary flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium"
         >
-          ✍️ 写感悟
+          <PenLine size={14} aria-hidden /> 写感悟
         </button>
       </div>
       <SpaceReflections

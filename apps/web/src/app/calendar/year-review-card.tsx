@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Lightbulb, Sparkles } from "lucide-react";
 import { useCachedReview } from "./use-cached-review";
 import { TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
@@ -39,7 +40,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
     <div className="glass mt-4 rounded-2xl p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink-soft">
-          <TagChip icon="✨" label="AI 年报" tone="violet" size="sm" />
+          <TagChip icon={<Sparkles size={12} />} label="AI 年报" tone="violet" size="sm" />
           <span className="ml-2 text-micro font-normal text-ink-dim">{year} 年</span>
         </h2>
         <button
@@ -75,7 +76,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
           {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
               {shown.suggestions.map((sg) => (
-                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 text-micro leading-none text-ai">💡</span><span>{sg}</span></li>
+                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 leading-none text-ai"><Lightbulb size={10} aria-hidden /></span><span>{sg}</span></li>
               ))}
             </ul>
           )}

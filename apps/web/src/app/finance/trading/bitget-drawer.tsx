@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { X, Zap } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 
@@ -114,8 +115,8 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">⚡ Bitget 同步</h3>
-          <button onClick={onClose} className="rounded px-2 py-1 text-ink-dim hover:text-ink">✕</button>
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Zap size={14} className="text-warn" aria-hidden /> Bitget 同步</h3>
+          <button onClick={onClose} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
         </div>
 
         {/* 第一步：密钥（可绑多把——主账号/子账号各一把，备注名区分） */}

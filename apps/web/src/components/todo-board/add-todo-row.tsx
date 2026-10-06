@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { Star, Sun } from "lucide-react";
 import type { Activity, Space } from "@/lib/types";
 import type { Draft, View } from "./types";
 
@@ -66,7 +67,7 @@ export function AddTodoRow({
               draft.important ? "bg-amber-500/20 text-warn" : "border border-line-soft text-ink-mute hover:text-ink"
             }`}
           >
-            ⭐ 重要
+            <Star size={14} className="inline align-[-2px]" /> 重要
           </button>
           <button
             onClick={() => setDraft({ ...draft, today: !draft.today })}
@@ -75,7 +76,7 @@ export function AddTodoRow({
               draft.today || view === "today" ? "bg-sky-500/20 text-accent" : "border border-line-soft text-ink-mute hover:text-ink"
             }`}
           >
-            ☀️ 今日
+            <Sun size={14} className="inline align-[-2px]" /> 今日
           </button>
           <input
             type="datetime-local"

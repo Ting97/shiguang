@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Coins, Download, Hourglass, Landmark, Lightbulb, Pencil, Plus, Target, Trash2 } from "lucide-react";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
@@ -182,7 +183,10 @@ export default function DebtPage() {
               {ov.hints.length > 0 && (
                 <ul className="mt-3 space-y-1 border-t border-line-soft pt-3">
                   {ov.hints.map((h, i) => (
-                    <li key={i} className="text-micro text-warn">💡 {h}</li>
+                    <li key={i} className="flex items-start gap-1 text-micro text-warn">
+                      <Lightbulb size={11} className="mt-px shrink-0" aria-hidden />
+                      <span>{h}</span>
+                    </li>
                   ))}
                 </ul>
               )}
@@ -195,7 +199,7 @@ export default function DebtPage() {
             {ov.wall.length > 0 && (
               <section className="mb-4 rounded-2xl border border-line-soft bg-surface/50 p-5">
                 <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
-                  <TagChip icon="⏳" label="到期墙" tone="amber" />
+                  <TagChip icon={<Hourglass size={12} />} label="到期墙" tone="amber" />
                   <span className="text-xs font-normal text-ink-dim">未来 6 个月内到期</span>
                 </h2>
                 <ul className="space-y-2">
@@ -224,19 +228,19 @@ export default function DebtPage() {
             <section className="glass mb-4 rounded-2xl p-5">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-                  <TagChip icon="🏦" label="负债档案" tone="rose" />
+                  <TagChip icon={<Landmark size={12} />} label="负债档案" tone="rose" />
                   <span className="text-xs font-normal text-ink-dim">{active.length} 笔进行中</span>
                 </h2>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setImporting(true)}
                     title="从 trade.ting97.cn 导出的 JSON 导入"
-                    className="rounded-xl border border-line-soft px-3 py-1.5 text-xs text-ink-mute transition hover:text-accent"
+                    className="flex items-center gap-1 rounded-xl border border-line-soft px-3 py-1.5 text-xs text-ink-mute transition hover:text-accent"
                   >
-                    📥 导入
+                    <Download size={12} aria-hidden /> 导入
                   </button>
-                  <button onClick={() => setEditing("new")} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
-                    ＋ 新建档案
+                  <button onClick={() => setEditing("new")} className="flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
+                    <Plus size={12} aria-hidden /> 新建档案
                   </button>
                 </div>
               </div>
@@ -258,8 +262,8 @@ export default function DebtPage() {
                       </span>
                       <span className="text-sm font-semibold tabular-nums text-danger">{fmt(d.balance_cents)}</span>
                       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
-                        <button onClick={() => setPaying(d)} title="记还款" className="rounded px-1.5 py-0.5 text-xs text-success hover:bg-soft">💰</button>
-                        <button onClick={() => setEditing(d)} title="编辑" className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent">✏️</button>
+                        <button onClick={() => setPaying(d)} title="记还款" className="rounded px-1.5 py-0.5 text-success hover:bg-soft"><Coins size={13} /></button>
+                        <button onClick={() => setEditing(d)} title="编辑" className="rounded px-1.5 py-0.5 text-ink-mute hover:bg-soft hover:text-accent"><Pencil size={13} /></button>
                         <button
                           title={armArchive.armedId === d.id ? "3 秒内再点确认归档" : "归档（不再统计，可随时恢复）"}
                           onClick={async () => {
@@ -272,9 +276,9 @@ export default function DebtPage() {
                               toast(e instanceof Error ? e.message : String(e), "err");
                             }
                           }}
-                          className={`rounded px-1.5 py-0.5 text-xs ${armArchive.armedId === d.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+                          className={`flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ${armArchive.armedId === d.id ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
                         >
-                          {armArchive.armedId === d.id ? "确认归档?" : "🗑"}
+                          {armArchive.armedId === d.id ? "确认归档?" : <Trash2 size={13} />}
                         </button>
                       </span>
                     </div>
@@ -305,8 +309,8 @@ export default function DebtPage() {
 
               {settled.length > 0 && (
                 <div className="mt-3 border-t border-line-soft pt-3">
-                  <button onClick={() => setShowCleared((v) => !v)} className="text-xs text-ink-mute hover:text-accent">
-                    {showCleared ? "▾" : "▸"} 已结清 / 已归档（{settled.length}）
+                  <button onClick={() => setShowCleared((v) => !v)} className="flex items-center gap-0.5 text-xs text-ink-mute hover:text-accent">
+                    {showCleared ? <ChevronDown size={12} /> : <ChevronRight size={12} />} 已结清 / 已归档（{settled.length}）
                   </button>
                   {showCleared && (
                     <ul className="mt-2 space-y-1.5">
@@ -342,7 +346,7 @@ export default function DebtPage() {
             {/* 策略模拟 */}
             <section className="glass mb-4 rounded-2xl p-5">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
-                <TagChip icon="🎯" label="清债策略模拟" tone="violet" />
+                <TagChip icon={<Target size={12} />} label="清债策略模拟" tone="violet" />
               </h2>
               <div className="flex flex-wrap items-center gap-3 text-xs text-ink-mute">
                 <span>每月额外还款</span>

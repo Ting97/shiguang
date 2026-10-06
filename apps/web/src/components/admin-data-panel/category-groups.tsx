@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import type { CategoryGroup } from "./types";
 
@@ -30,7 +31,7 @@ export default function CategoryGroups({ groups }: { groups: CategoryGroup[] }) 
               title={on ? "点击折叠" : "点击展开"}
               className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left"
             >
-              <span className={`text-badge text-ink-faint transition-transform ${on ? "rotate-90" : ""}`}>▶</span>
+              <span className={`text-ink-faint transition-transform ${on ? "rotate-90" : ""}`}><ChevronRight size={12} /></span>
               <span className="text-xs font-medium text-ink">{g.name}</span>
               <TagChip label={g.domain} tone="slate" size="sm" />
               <span className="min-w-0 flex-1 truncate text-badge text-ink-faint" title={g.items.source}>

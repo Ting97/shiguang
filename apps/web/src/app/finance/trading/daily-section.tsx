@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Calendar } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import { TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
@@ -62,7 +63,7 @@ export default function DailySection({ accountId }: { accountId: string }) {
   return (
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
-        <TagChip icon="📅" label={mode === "week" ? "每周盈亏" : "每日盈亏"} tone="sky" />
+        <TagChip icon={<Calendar size={12} />} label={mode === "week" ? "每周盈亏" : "每日盈亏"} tone="sky" />
         <span className="text-badge text-ink-faint">{filtered ? `${fromSel || "…"} ~ ${toSel || "今天"}` : "按北京时区切日"}</span>
         <span className="ml-auto flex overflow-hidden rounded-lg border border-line-strong text-badge">
           <button

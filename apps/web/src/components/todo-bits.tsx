@@ -1,6 +1,7 @@
 "use client";
 
 import type { TodoRow } from "@/lib/types";
+import { Check } from "lucide-react";
 import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
 
 /** 待办共用小件：勾选圆圈 + 时间标签 + 日期工具（todo-board / actions-today 共用） */
@@ -59,7 +60,7 @@ export function TodoCircle({
           : "border-slate-500 text-transparent hover:border-sky-400 hover:text-accent/60"
       }`}
     >
-      ✓
+      <Check size={size === "sm" ? 12 : 14} strokeWidth={3} />
     </button>
   );
 }

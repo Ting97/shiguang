@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, Cake, Calendar, Clock, Coins, Heart, Pencil, Pin, Plus, Sparkles, Trash2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Skeleton from "@/components/skeleton";
@@ -177,7 +178,7 @@ export function ContactDetailPage() {
       <div className="mx-auto max-w-2xl px-5 py-8">
 
         <Link href="/contacts" className="mb-4 inline-flex items-center gap-1 text-xs text-ink-dim transition hover:text-accent">
-          ← 返回人际
+          <ArrowLeft size={12} aria-hidden /> 返回人际
         </Link>
 
         {/* 档案头卡 */}
@@ -201,7 +202,7 @@ export function ContactDetailPage() {
                 {bd && (
                   <>
                     <TagChip
-                      icon="🎂"
+                      icon={<Cake size={12} />}
                       label={`生日 ${bd.date}${bd.lunar && bd.nextSolar ? `（${bd.nextSolar}）` : ""}`}
                       tone="rose"
                       size="sm"
@@ -215,24 +216,24 @@ export function ContactDetailPage() {
                 )}
                 {contact.anniversary && (() => {
                   const [, m, d] = contact.anniversary.split("-");
-                  return <TagChip icon="💞" label={`纪念日 ${Number(m)}月${Number(d)}日`} tone="rose" size="sm" />;
+                  return <TagChip icon={<Heart size={12} />} label={`纪念日 ${Number(m)}月${Number(d)}日`} tone="rose" size="sm" />;
                 })()}
-                <TagChip icon="📅" label={`${timeline.length} 次往来`} tone="sky" size="sm" />
+                <TagChip icon={<Calendar size={12} />} label={`${timeline.length} 次往来`} tone="sky" size="sm" />
                 {money.length > 0 && (
-                  <TagChip icon="💰" label={`收 ¥${yuan(giftIn)} / 送 ¥${yuan(giftOut)}`} tone="rose" size="sm" className="tabular-nums" />
+                  <TagChip icon={<Coins size={12} />} label={`收 ¥${yuan(giftIn)} / 送 ¥${yuan(giftOut)}`} tone="rose" size="sm" className="tabular-nums" />
                 )}
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
-              <button onClick={() => setEditing(true)} title="编辑档案" className="rounded px-2 py-1 text-xs text-ink-mute hover:bg-soft hover:text-accent">
-                ✏️
+              <button onClick={() => setEditing(true)} title="编辑档案" className="rounded px-2 py-1 text-ink-mute hover:bg-soft hover:text-accent">
+                <Pencil size={13} />
               </button>
               <button
                 onClick={removeContact}
                 title={armDelete.armedId ? "3 秒内再点确认删除（往来时间线将一并删除，动态与流水不受影响）" : "删除联系人"}
-                className={`rounded px-2 py-1 text-xs ${armDelete.armedId ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+                className={`flex items-center rounded px-2 py-1 text-[10px] font-medium leading-none ${armDelete.armedId ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
               >
-                {armDelete.armedId ? "确认删除?" : "🗑"}
+                {armDelete.armedId ? "确认删除?" : <Trash2 size={13} />}
               </button>
             </div>
           </div>
@@ -259,10 +260,11 @@ export function ContactDetailPage() {
         {/* AI 交往画像（W10）：基于往来记录提炼喜好/忌讳/重要事实 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink-soft">
-              ✨ AI 交往画像
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+              <Sparkles size={14} className="text-ai" aria-hidden />
+              AI 交往画像
               {contact.ai_profile_at && (
-                <span className="ml-2 text-micro font-normal text-ink-dim">提炼于 {bjMDHM(contact.ai_profile_at)}</span>
+                <span className="text-micro font-normal text-ink-dim">提炼于 {bjMDHM(contact.ai_profile_at)}</span>
               )}
             </h2>
             <button
@@ -284,7 +286,7 @@ export function ContactDetailPage() {
               <p className="text-sm leading-relaxed text-ink">{contact.ai_profile.summary}</p>
               {contact.ai_profile.likes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-micro text-success/80">💚 喜欢</span>
+                  <span className="flex items-center gap-0.5 text-micro text-success/80"><Heart size={11} aria-hidden /> 喜欢</span>
                   {contact.ai_profile.likes.map((x) => (
                     <span key={x} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-micro text-success">{x}</span>
                   ))}
@@ -292,7 +294,7 @@ export function ContactDetailPage() {
               )}
               {contact.ai_profile.dislikes.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-micro text-danger/80">⚠️ 忌讳</span>
+                  <span className="flex items-center gap-0.5 text-micro text-danger/80"><TriangleAlert size={11} aria-hidden /> 忌讳</span>
                   {contact.ai_profile.dislikes.map((x) => (
                     <span key={x} className="rounded-full bg-rose-500/10 px-2 py-0.5 text-micro text-danger">{x}</span>
                   ))}
@@ -300,7 +302,7 @@ export function ContactDetailPage() {
               )}
               {contact.ai_profile.facts.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-micro text-accent/80">📌 记住</span>
+                  <span className="flex items-center gap-0.5 text-micro text-accent/80"><Pin size={11} aria-hidden /> 记住</span>
                   {contact.ai_profile.facts.map((x) => (
                     <span key={x} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-micro text-accent">{x}</span>
                   ))}
@@ -313,12 +315,13 @@ export function ContactDetailPage() {
         {/* 一起经历过的事 */}
         <section className="glass mb-4 rounded-2xl p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink-soft">
-              🕐 一起经历过的事
-              <span className="ml-2 text-xs font-normal text-ink-dim">来自动态识别 + 手动补记</span>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+              <Clock size={14} className="text-accent" aria-hidden />
+              一起经历过的事
+              <span className="text-xs font-normal text-ink-dim">来自动态识别 + 手动补记</span>
             </h2>
-            <button onClick={() => setAdding(true)} className="whitespace-nowrap rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
-              ＋ 补一笔往来
+            <button onClick={() => setAdding(true)} className="flex items-center gap-1 whitespace-nowrap rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
+              <Plus size={12} aria-hidden /> 补一笔往来
             </button>
           </div>
           {timeline.length === 0 ? (
@@ -363,7 +366,7 @@ export function ContactDetailPage() {
         {money.length > 0 && (
           <section className="glass rounded-2xl p-5">
             <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
-              <TagChip icon="💰" label="关联人情账" tone="rose" />
+              <TagChip icon={<Coins size={12} />} label="关联人情账" tone="rose" />
               <span className="text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 ¥{yuan(giftIn - giftOut)}</span>
             </h2>
             <ul className="space-y-1">

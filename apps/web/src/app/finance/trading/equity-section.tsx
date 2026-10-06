@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TrendingUp } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import { TagChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
@@ -57,7 +58,7 @@ export default function EquitySection({ accountId }: { accountId: string }) {
   return (
     <section className="glass mb-4 rounded-2xl p-5">
       <p className="mb-3 flex items-center gap-2">
-        <TagChip icon="📈" label="权益曲线 · 累计净盈亏" tone="emerald" />
+        <TagChip icon={<TrendingUp size={12} />} label="权益曲线 · 累计净盈亏" tone="emerald" />
         <span className="text-badge text-ink-faint">日粒度 · 峰值与回撤服务端预计算</span>
       </p>
       {!data ? (

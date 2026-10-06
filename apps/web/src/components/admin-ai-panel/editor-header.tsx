@@ -1,5 +1,6 @@
 "use client";
 
+import { Circle, Pause } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import { zhTime } from "./kit";
 import type { PromptItem } from "./types";
@@ -24,11 +25,11 @@ export default function EditorHeader({ sel, dirty, saving, draft, onSave, onReve
       <h3 className="text-sm font-semibold text-ink">{sel.title}</h3>
       <TagChip label={sel.key} tone="slate" size="sm" />
       {sel.overridden ? (
-        <TagChip icon="🟢" label="DB 覆盖" tone="emerald" size="sm" title={`更新于 ${zhTime(sel.updatedAt)}`} />
+        <TagChip icon={<Circle size={10} className="fill-current" />} label="DB 覆盖" tone="emerald" size="sm" title={`更新于 ${zhTime(sel.updatedAt)}`} />
       ) : (
         <TagChip label="代码默认" tone="sky" size="sm" />
       )}
-      {!sel.enabled && <TagChip icon="⏸" label="已停用·用默认" tone="amber" size="sm" />}
+      {!sel.enabled && <TagChip icon={<Pause size={11} />} label="已停用·用默认" tone="amber" size="sm" />}
       <span className="flex-1" />
       {dirty && <TagChip label="未保存" tone="amber" size="sm" />}
       <button

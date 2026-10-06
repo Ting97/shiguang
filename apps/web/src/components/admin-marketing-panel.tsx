@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Landmark, TrendingUp, User } from "lucide-react";
 import { api } from "@/shared/api";
 import InvitesPanel from "./invites-panel";
 import { TagChip } from "./tag-chip";
@@ -92,10 +93,10 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
       {/* 用户套餐管理 */}
       <section className="glass rounded-2xl p-5">
         <h2 className="text-sm font-semibold text-ink-soft">
-          <TagChip icon="👤" label="用户套餐与模块授权" tone="sky" />
+          <TagChip icon={<User size={12} />} label="用户套餐与模块授权" tone="sky" />
         </h2>
         <p className="mt-1.5 text-badge text-ink-faint">
-          🏦负债 / 📈复盘 = 模块授权（点按钮切换，即时生效）；授权后用户财务页出现对应 tab
+          负债 / 收支复盘 = 模块授权（点按钮切换，即时生效）；授权后用户财务页出现对应 tab
         </p>
         {usersErr ? (
           <div className="mt-2 text-xs">
@@ -124,13 +125,22 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                       key={m}
                       onClick={() => toggleModule(u.id, m, !on)}
                       title={on ? "点击撤销授权" : "点击授权该模块"}
-                      className={`rounded-full px-2.5 py-1 text-micro transition ${
+                      className={`flex items-center gap-0.5 rounded-full px-2.5 py-1 text-micro transition ${
                         on
                           ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-sm"
                           : "border border-line-soft bg-surface/60 text-ink-faint hover:border-sky-500/50 hover:text-ink-soft"
                       }`}
                     >
-                      {m === "debt" ? "🏦负债" : "📈收支复盘"} {on ? "✓" : ""}
+                      {m === "debt" ? (
+                        <>
+                          <Landmark size={11} aria-hidden /> 负债
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp size={11} aria-hidden /> 收支复盘
+                        </>
+                      )}
+                      {on && <Check size={11} aria-hidden />}
                     </button>
                   );
                 })}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { NotebookPen, Pencil, Trash2 } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 
@@ -113,7 +114,7 @@ export default function SpaceReflections({
     <section className="glass rounded-2xl p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <span className="text-base">📝</span> 感悟
+          <NotebookPen size={15} className="text-accent" aria-hidden /> 感悟
           <span className="text-xs font-normal text-ink-dim">{total} 篇</span>
         </h2>
       </div>
@@ -155,16 +156,16 @@ export default function SpaceReflections({
                           onEdit({ id: it.id, content: full ?? "" })
                         }
                         title="编辑（打开时拉取全文）"
-                        className="row-actions-hidden hidden rounded px-1.5 py-0.5 text-xs text-ink-mute hover:text-accent group-hover:block"
+                        className="row-actions-hidden hidden rounded px-1.5 py-0.5 text-ink-mute hover:text-accent group-hover:block"
                       >
-                        ✏️
+                        <Pencil size={12} />
                       </button>
                       <button
                         onClick={() => void remove(it)}
                         title={armDelete.armedId === it.id ? "3 秒内再点确认删除" : "删除"}
-                        className={`row-actions-hidden hidden rounded px-1.5 py-0.5 text-xs group-hover:block ${armDelete.armedId === it.id ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:text-danger"}`}
+                        className={`row-actions-hidden hidden rounded px-1.5 py-0.5 group-hover:block ${armDelete.armedId === it.id ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:text-danger"}`}
                       >
-                        {armDelete.armedId === it.id ? "确认删除?" : "🗑"}
+                        {armDelete.armedId === it.id ? <span className="text-[10px] font-medium leading-none">确认删除?</span> : <Trash2 size={12} />}
                       </button>
                     </span>
                   </div>

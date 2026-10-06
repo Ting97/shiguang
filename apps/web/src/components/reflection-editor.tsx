@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { useDismiss } from "./dismissable";
 
 /**
@@ -63,7 +64,7 @@ export default function ReflectionEditor({
       >
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-ink">{initialRef.current ? "编辑感悟" : "写感悟"}</h3>
-          <button onClick={cancel} className="rounded px-2 py-1 text-ink-dim hover:text-ink">✕</button>
+          <button onClick={cancel} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
         </div>
         <textarea
           ref={taRef}

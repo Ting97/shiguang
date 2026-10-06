@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BarChart3, Check, Megaphone } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 
 /**
@@ -144,7 +145,7 @@ export default function InvitesPanel() {
   if (state === "loading") {
     return (
       <section className="glass mb-5 rounded-2xl p-5">
-        <h2 className="text-sm font-semibold text-ink-soft">📣 邀请管理</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Megaphone size={14} className="text-warn" aria-hidden /> 邀请管理</h2>
         <p className="mt-2 py-4 text-center text-xs text-ink-dim">加载中…</p>
       </section>
     );
@@ -152,7 +153,7 @@ export default function InvitesPanel() {
   if (state === "error") {
     return (
       <section className="glass mb-5 rounded-2xl p-5">
-        <h2 className="text-sm font-semibold text-ink-soft">📣 邀请管理</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Megaphone size={14} className="text-warn" aria-hidden /> 邀请管理</h2>
         <div className="mt-2 py-4 text-center">
           <p className="text-xs text-danger">加载失败：{loadErr}</p>
           <button
@@ -171,7 +172,7 @@ export default function InvitesPanel() {
   if (state === "forbidden") {
     return (
       <section className="glass mb-5 rounded-2xl p-5">
-        <h2 className="text-sm font-semibold text-ink-soft">📣 邀请管理</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Megaphone size={14} className="text-warn" aria-hidden /> 邀请管理</h2>
         <p className="mt-2 text-xs text-ink-mute">仅管理员（初始化账号）可管理邀请码</p>
       </section>
     );
@@ -179,16 +180,17 @@ export default function InvitesPanel() {
 
   return (
     <section className="glass mb-5 rounded-2xl p-5">
-      <h2 className="text-sm font-semibold text-ink-soft">📣 邀请管理</h2>
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Megaphone size={14} className="text-warn" aria-hidden /> 邀请管理</h2>
       <p className="mt-1 text-xs text-ink-dim">
         新用户凭邀请码注册（一码一人）；生成后把码发给对方，对方在登录页点「凭邀请码注册」
       </p>
 
       {/* Token 消耗（管理员视角：自己 + 被邀请人） */}
       <div className="mt-4 border-t border-line-soft pt-3">
-        <p className="text-xs font-medium text-ink-soft">
-          📊 Token 消耗
-          <span className="ml-1.5 text-micro font-normal text-ink-dim">识别 · 复盘 · 语音全阶段</span>
+        <p className="flex items-center gap-1 text-xs font-medium text-ink-soft">
+          <BarChart3 size={12} className="text-accent" aria-hidden />
+          Token 消耗
+          <span className="text-micro font-normal text-ink-dim">识别 · 复盘 · 语音全阶段</span>
         </p>
 
         {!usage ? (
@@ -321,9 +323,15 @@ export default function InvitesPanel() {
                   {usable && (
                     <button
                       onClick={() => copy(i.code)}
-                      className="shrink-0 rounded px-2 py-0.5 text-micro text-accent transition hover:bg-wash"
+                      className="flex shrink-0 items-center gap-0.5 rounded px-2 py-0.5 text-micro text-accent transition hover:bg-wash"
                     >
-                      {copied === i.code ? "✓ 已复制" : "复制"}
+                      {copied === i.code ? (
+                        <>
+                          <Check size={11} aria-hidden /> 已复制
+                        </>
+                      ) : (
+                        "复制"
+                      )}
                     </button>
                   )}
                 </li>

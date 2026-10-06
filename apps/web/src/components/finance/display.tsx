@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Pencil, Trash2, TrendingUp } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 
 // REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
@@ -41,22 +42,22 @@ function TxRow({ tx: t, onConfirm, onEdit, onDelete, delArmed = false }: { tx: T
       )}
       <span className="row-actions hidden shrink-0 gap-1 group-hover:flex">
         {onConfirm && (
-          <button onClick={onConfirm} title="确认记录" className="rounded px-1.5 py-0.5 text-xs text-warn hover:bg-soft">
-            ✓
+          <button onClick={onConfirm} title="确认记录" className="rounded px-1.5 py-0.5 text-warn hover:bg-soft">
+            <Check size={12} />
           </button>
         )}
         {onEdit && (
-          <button onClick={onEdit} title="修改" className="rounded px-1.5 py-0.5 text-xs text-ink-mute hover:bg-soft hover:text-accent">
-            ✏️
+          <button onClick={onEdit} title="修改" className="rounded px-1.5 py-0.5 text-ink-mute hover:bg-soft hover:text-accent">
+            <Pencil size={12} />
           </button>
         )}
         {onDelete && (
           <button
             onClick={onDelete}
             title={delArmed ? "3 秒内再点确认删除" : "删除"}
-            className={`rounded px-1.5 py-0.5 text-xs ${delArmed ? "bg-rose-500/15 font-medium text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+            className={`flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ${delArmed ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
           >
-            {delArmed ? "确认删除?" : "🗑"}
+            {delArmed ? "确认删除?" : <Trash2 size={12} />}
           </button>
         )}
       </span>
@@ -72,7 +73,7 @@ export function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
       <p className="mb-2 flex items-center gap-1.5 text-micro text-ink-mute">
-        <TagChip icon="📈" label="储蓄率 · 近 6 个月" tone="emerald" />
+        <TagChip icon={<TrendingUp size={12} />} label="储蓄率 · 近 6 个月" tone="emerald" />
       </p>
       <div className="flex items-end justify-between gap-2">
         {trend.map((t, i) => {

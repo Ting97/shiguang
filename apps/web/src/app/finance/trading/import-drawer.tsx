@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ArrowLeft, Download, FileText, KeyRound, X } from "lucide-react";
 import { MT5_TZ_LABEL, parseMt5File, type Mt5Source, type TradeRow } from "@/lib/mt5-parse";
 import { api } from "@/shared/api";
 import { useDismiss } from "@/components/dismissable";
@@ -96,8 +97,8 @@ export default function TradingImportDrawer({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
       <div ref={ref} className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
-          <TagChip icon="📥" label="导入 MT5 交易报表" tone="sky" className="text-sm" />
-          <button onClick={onClose} aria-label="关闭" className="rounded px-2 text-ink-dim hover:text-ink">✕</button>
+          <TagChip icon={<Download size={13} />} label="导入 MT5 交易报表" tone="sky" className="text-sm" />
+          <button onClick={onClose} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
         </div>
 
         {result ? (
@@ -126,7 +127,7 @@ export default function TradingImportDrawer({
                 "解析中…"
               ) : fileLabel ? (
                 <span className="inline-flex max-w-full items-center gap-1">
-                  <TagChip icon="📄" label={fileLabel} tone="slate" className="max-w-[70%]" />
+                  <TagChip icon={<FileText size={12} />} label={fileLabel} tone="slate" className="max-w-[70%]" />
                   <span className="text-xs text-ink-dim">点击更换</span>
                 </span>
               ) : (
@@ -147,7 +148,7 @@ export default function TradingImportDrawer({
         ) : !preview ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-xl border border-line bg-bg/50 px-3 py-2.5 text-xs text-ink-mute">
-              <TagChip icon="📄" label={rawName} tone="slate" className="max-w-[60%]" />
+              <TagChip icon={<FileText size={12} />} label={rawName} tone="slate" className="max-w-[60%]" />
               <span>
                 解析到 <b className="text-accent">{parsed.rows.length}</b> 笔平仓 ·{" "}
                 {parsed.source === "mt5_xlsx" ? "xlsx 报表" : "CSV"}
@@ -177,9 +178,9 @@ export default function TradingImportDrawer({
             <div className="flex justify-between gap-2">
               <button
                 onClick={() => { setParsed(null); setFileLabel(null); setRawName(""); setError(null); }}
-                className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft"
+                className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft"
               >
-                ← 重新选择
+                <ArrowLeft size={12} aria-hidden /> 重新选择
               </button>
               <button
                 disabled={busy || !login.trim()}
@@ -193,7 +194,7 @@ export default function TradingImportDrawer({
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-xl border border-line bg-bg/50 px-3 py-2.5 text-xs text-ink-mute">
-              <TagChip icon="🔑" label={login} tone="sky" />
+              <TagChip icon={<KeyRound size={12} />} label={login} tone="sky" />
               <span>
                 共 {preview.rowsTotal} 笔 · 新增 <b className="text-accent">{preview.rowsNew}</b>
                 {preview.rowsDup > 0 && <span className="text-warn"> · 重复跳过 {preview.rowsDup}</span>}
@@ -225,8 +226,8 @@ export default function TradingImportDrawer({
             <p className="text-badge text-ink-faint">{MT5_TZ_LABEL}；重复以「账号 + Ticket」判重，可放心重复导入。</p>
             {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger">{error}</p>}
             <div className="flex justify-between gap-2">
-              <button onClick={() => setPreview(null)} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
-                ← 返回修改
+              <button onClick={() => setPreview(null)} className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">
+                <ArrowLeft size={12} aria-hidden /> 返回修改
               </button>
               <button
                 disabled={busy || preview.rowsNew === 0}

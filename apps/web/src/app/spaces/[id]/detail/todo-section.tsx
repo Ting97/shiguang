@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { Check, ChevronRight, ClipboardList, Link2, RotateCcw } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 import { childProgress } from "@/components/todo-bits";
 import type { Activity, TodoItem } from "@/lib/types";
@@ -22,13 +23,13 @@ export default function TodoSection(opts: {
   return (
     <section className="glass mb-4 rounded-2xl p-5">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
-        <TagChip icon="📋" label="TODO·行动" tone="sky" />
+        <TagChip icon={<ClipboardList size={12} />} label="TODO·行动" tone="sky" />
         <span className="text-xs font-normal text-ink-dim">{todos.length} 条</span>
         <button
           onClick={() => void openLinkPicker()}
-          className="ml-auto rounded-lg border border-line-soft px-2.5 py-1 text-micro font-normal text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
+          className="ml-auto flex items-center gap-1 rounded-lg border border-line-soft px-2.5 py-1 text-micro font-normal text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
         >
-          🔗 关联已有
+          <Link2 size={12} aria-hidden /> 关联已有
         </button>
       </h2>
       {/* 添加 todo */}
@@ -59,13 +60,14 @@ export default function TodoSection(opts: {
       {/* 已完成（默认收起，可展开查看/恢复） */}
       {doneTodos.length > 0 && (
         <details className="group mt-3 border-t border-line-soft pt-2">
-          <summary className="cursor-pointer select-none list-none text-micro text-ink-faint transition hover:text-ink-mute">
-            ✓ 已完成（{doneTodos.length}）<span className="ml-1 inline-block transition-transform group-open:rotate-90">▸</span>
+          <summary className="flex cursor-pointer select-none list-none items-center gap-1 text-micro text-ink-faint transition hover:text-ink-mute">
+            <Check size={11} className="text-success" aria-hidden /> 已完成（{doneTodos.length}）
+            <span className="inline-block transition-transform group-open:rotate-90"><ChevronRight size={10} /></span>
           </summary>
           <ul className="mt-1.5 space-y-0.5">
             {doneTodos.map((t) => (
               <li key={t.id} className="group flex items-center gap-2 rounded-lg px-1.5 py-1 text-xs transition hover:bg-elevated/60">
-                <span className="shrink-0 text-success">✓</span>
+                <span className="shrink-0 text-success"><Check size={12} strokeWidth={3} /></span>
                 <span className="min-w-0 flex-1 truncate text-ink-faint line-through" title={t.title}>
                   {t.title}
                 </span>
@@ -78,9 +80,9 @@ export default function TodoSection(opts: {
                 <button
                   onClick={() => patchTodo(t.id, { undone: true }, `↩️「${t.title}」已恢复`)}
                   title="恢复为未完成"
-                  className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-micro text-ink-dim transition hover:text-accent group-hover:block"
+                  className="row-actions-hidden hidden shrink-0 rounded px-1.5 py-0.5 text-ink-dim transition hover:text-accent group-hover:block"
                 >
-                  ↩️
+                  <RotateCcw size={11} />
                 </button>
               </li>
             ))}

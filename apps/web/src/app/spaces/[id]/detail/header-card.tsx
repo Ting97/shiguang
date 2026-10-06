@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
+import { ArrowLeft, Ellipsis, Hourglass, Plus } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import InlineRename from "@/components/inline-rename";
 import type { Space } from "@/lib/types";
@@ -98,12 +99,14 @@ export default function SpaceHeaderCard(opts: {
                 title={space.target_date ? "点击调整目标到期时间" : "设置目标到期时间"}
               >
                 {space.target_date ? (
-                  <span className={bjDate(space.target_date) < bjToday() ? "text-danger" : undefined}>
-                    ⏳ {bjDate(space.target_date)}
+                  <span className={`inline-flex items-center gap-1 ${bjDate(space.target_date) < bjToday() ? "text-danger" : ""}`}>
+                    <Hourglass size={11} aria-hidden /> {bjDate(space.target_date)}
                     {bjDate(space.target_date) < bjToday() && " 已过期"}
                   </span>
                 ) : (
-                  <span className="text-ink-faint">＋ 设目标</span>
+                  <span className="inline-flex items-center gap-0.5 text-ink-faint">
+                    <Plus size={11} aria-hidden /> 设目标
+                  </span>
                 )}
               </button>
             )}
@@ -111,8 +114,8 @@ export default function SpaceHeaderCard(opts: {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Link href="/spaces" className="rounded px-2 py-1 text-xs text-ink-mute transition hover:bg-soft hover:text-accent">
-            ← 列表
+          <Link href="/spaces" className="flex items-center gap-0.5 rounded px-2 py-1 text-xs text-ink-mute transition hover:bg-soft hover:text-accent">
+            <ArrowLeft size={12} aria-hidden /> 列表
           </Link>
           <button
             onClick={(e) => {
@@ -121,9 +124,9 @@ export default function SpaceHeaderCard(opts: {
               setSpaceMenu(true);
             }}
             title="更多操作"
-            className="rounded px-2 py-1 text-base leading-none text-ink-dim transition hover:bg-soft hover:text-ink"
+            className="rounded px-2 py-1 leading-none text-ink-dim transition hover:bg-soft hover:text-ink"
           >
-            ⋯
+            <Ellipsis size={14} />
           </button>
         </div>
       </div>

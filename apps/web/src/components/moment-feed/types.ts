@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 
 /**
@@ -28,7 +29,8 @@ export type DelFn = (key: string, fn: () => Promise<unknown>) => void;
 
 /** 卡片头部意图标签（todo/日程/心情/动态） */
 export interface IntentTag {
-  icon: string;
+  /** 图标：lucide 线性图标（线性图标体系） */
+  icon: ReactNode;
   label: string;
   tone: "sky" | "violet" | "slate";
 }

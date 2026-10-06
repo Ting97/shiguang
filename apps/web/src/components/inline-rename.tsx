@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 import { useDismiss } from "./dismissable";
 
 /**
@@ -73,9 +74,9 @@ export default function InlineRename({
             setTimeout(() => inputRef.current?.focus(), 50);
           }}
           title="重命名"
-          className="row-actions-hidden hidden shrink-0 rounded px-1 text-micro text-ink-mute transition hover:text-accent group-hover/rename:block"
+          className="row-actions-hidden hidden shrink-0 rounded px-1 text-ink-mute transition hover:text-accent group-hover/rename:block"
         >
-          ✏️
+          <Pencil size={11} />
         </button>
       </span>
     );

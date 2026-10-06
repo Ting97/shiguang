@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { LogOut } from "lucide-react";
 import ThemeToggle from "./theme-toggle";
 import { useSession } from "@/shared/session";
 
@@ -72,9 +73,10 @@ export default function Nav() {
             <button
               onClick={logout}
               title="退出登录"
-              className="rounded-full px-2 py-1.5 transition hover:bg-wash hover:text-danger sm:py-1"
+              aria-label="退出登录"
+              className="flex items-center rounded-full px-2 py-1.5 text-ink-mute transition hover:bg-wash hover:text-danger sm:py-1"
             >
-              ⎋
+              <LogOut size={13} />
             </button>
           </span>
         )}
