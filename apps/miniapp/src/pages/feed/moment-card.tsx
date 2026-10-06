@@ -240,7 +240,12 @@ export default function MomentCard({
     <View className="mc glass glass-p4">
       {/* 头像位：心情 emoji（无心情时用意图图标），bg-elevated 圆底 */}
       <View className="mc-avatar">
-        <Text>{m.mood ? moodEmoji(m.mood) : intent.icon}</Text>
+        {m.mood ? (
+          <Text>{moodEmoji(m.mood)}</Text>
+        ) : (
+          /* 无心情条目渲染意图图标本体（真机 bug 修复：曾把图标名当文字渲染） */
+          <LucideIcon name={intent.icon} size={20} color="var(--ink-dim)" />
+        )}
       </View>
 
       <View className="mc-main">
