@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Input, Picker } from "@tarojs/components";
 import { createBlock as apiCreateBlock, deleteBlock as apiDeleteBlock, patchBlock as apiPatchBlock, type Activity, type TodayBlock } from "./api";
 import { showToast } from "@/components/toast";
+import Taro from "@tarojs/taro";
+import { rowMenu } from "../../lib/row-menu";
 import { TagChip } from "./chip";
 import LucideIcon from "../../components/lucide-icon";
 import { bjClock, bjToday, combineHM, zhDuration } from "./kit";
@@ -53,7 +55,6 @@ export default function TodaySchedule({
   const [saving, setSaving] = useState(false);
   // 行内编辑（列表视图）与删除两步确认
   const [editing, setEditing] = useState<{ id: string; title: string; start: string; end: string; activityId: string } | null>(null);
-  const [armedId, setArmedId] = useState<string | null>(null);
 
   const totalMin = blocks.reduce((s, b) => s + (b.duration_min ?? 0), 0);
 
@@ -157,13 +158,14 @@ export default function TodaySchedule({
     }
   }
 
-  async function removeBlock(b: TodayBlock) {
-    if (armedId !== b.id) {
-      setArmedId(b.id);
-      setTimeout(() => setArmedId((cur) => (cur === b.id ? null : cur)), 3000);
-      return;
-    }
-    setArmedId(null);
+  /** 点行菜单里的删除：模态二次确认后执行 */
+  async function confirmRemoveBlock(b: TodayBlock) {
+    const c = await Taro.showModal({
+      title: "删除确认",
+      content: `确定删除日程「${b.title}」？删除后不可恢复。`,
+      confirmColor: "#f43f5e",
+    });
+    if (!c.confirm) return;
     try {
       await apiDeleteBlock(b.id);
       showToast({ type: "ok", text: `🗑 已删除「${b.title}」` });
@@ -388,7 +390,17 @@ export default function TodaySchedule({
                   </View>
                 </View>
               ) : (
-                <View key={b.id} className="ts-row">
+                <View
+                  key={b.id}
+                  className="ts-row"
+                  onClick={() =>
+                    void rowMenu(
+                      "日程",
+                      () => setEditing({ id: b.id, title: b.title, start: bjClock(b.start_at), end: bjClock(b.end_at), activityId: b.activity_id }),
+                      () => void confirmRemoveBlock(b),
+                    )
+                  }
+                >
                   <View className="ts-row-dot" style={{ backgroundColor: b.color }} />
                   <Text className="ts-row-time">
                     {bjClock(b.start_at)}–{bjClock(b.end_at)}
@@ -396,17 +408,6 @@ export default function TodaySchedule({
                   <Text className="ts-row-icon">{b.icon}</Text>
                   <Text className="ts-row-title">{b.title}</Text>
                   <Text className="ts-row-dur">{b.duration_min} 分钟</Text>
-                  <View className="row-actions">
-                    <View
-                      className="row-action-btn"
-                      onClick={() => setEditing({ id: b.id, title: b.title, start: bjClock(b.start_at), end: bjClock(b.end_at), activityId: b.activity_id })}
-                    >
-                      <LucideIcon name="pencil" size={11} color="var(--accent)" />
-                    </View>
-                    <View className={`row-action-btn${armedId === b.id ? " row-action-armed" : ""}`} onClick={() => void removeBlock(b)}>
-                      {armedId === b.id ? "确认删除?" : <LucideIcon name="trash_2" size={11} color="var(--danger)" />}
-                    </View>
-                  </View>
                 </View>
               ),
             )}

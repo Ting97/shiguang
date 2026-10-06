@@ -10,6 +10,7 @@ import { View, Text, Input, Picker } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { showToast } from "@/components/toast";
 import { createTodo, deleteTodo, loadTodayActions, patchTodo, type TodayActionRow } from "./api";
+import { rowMenu } from "../../lib/row-menu";
 import LucideIcon from "../../components/lucide-icon";
 import { bjInputToIso, dueTag, isoToBjInput } from "./kit";
 
@@ -33,17 +34,9 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
   const [editTime, setEditTime] = useState("09:00");
   const [editSaving, setEditSaving] = useState(false);
   // 删除两步确认（3 秒超时自动复位，= web useArmConfirm）
-  const [armedId, setArmedId] = useState<string | null>(null);
-  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 「今日已完成」折叠（web 用 <details>，小程序用状态开关）
   const [showDone, setShowDone] = useState(false);
 
-  useEffect(
-    () => () => {
-      if (armTimer.current) clearTimeout(armTimer.current);
-    },
-    [],
-  );
 
   const load = useCallback(async () => {
     try {
@@ -104,15 +97,14 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
     }
   }
 
-  async function removeAction(a: TodayActionRow) {
-    if (armedId !== a.id) {
-      // 首点进入待确认态，3 秒内再点同一行才真正删（= web armDelete.arm）
-      setArmedId(a.id);
-      if (armTimer.current) clearTimeout(armTimer.current);
-      armTimer.current = setTimeout(() => setArmedId(null), 3000);
-      return;
-    }
-    setArmedId(null);
+  /** 点行菜单里的删除：模态二次确认后执行（= 全端统一防误触语义） */
+  async function confirmRemoveAction(a: TodayActionRow) {
+    const c = await Taro.showModal({
+      title: "删除确认",
+      content: `确定删除行动「${a.title}」？删除后不可恢复。`,
+      confirmColor: "#f43f5e",
+    });
+    if (!c.confirm) return;
     try {
       await deleteTodo(a.id);
       showToast({ type: "ok", text: "🗑 行动已删除" });
@@ -245,7 +237,10 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
                       >
                         <LucideIcon name="check" size={12} color="currentColor" />
                       </View>
-                      <View className="at-main">
+                      <View
+                        className="at-main"
+                        onClick={() => void rowMenu("行动", () => startEdit(a), () => void confirmRemoveAction(a))}
+                      >
                         <View className="at-line">
                           <Text className="at-row-title">{a.title}</Text>
                           {!a.parent_title ? <Text className="at-tag">行动</Text> : null}
@@ -267,14 +262,6 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
                             {tag ? <Text style={{ color: tag.color }}>{tag.text}</Text> : null}
                           </View>
                         ) : null}
-                      </View>
-                      <View className="row-actions">
-                        <View className="row-action-btn" onClick={() => startEdit(a)}>
-                          <LucideIcon name="pencil" size={11} color="var(--accent)" />
-                        </View>
-                        <View className={`row-action-btn${armedId === a.id ? " row-action-armed" : ""}`} onClick={() => void removeAction(a)}>
-                          {armedId === a.id ? "确认删除?" : <LucideIcon name="trash_2" size={11} color="var(--danger)" />}
-                        </View>
                       </View>
                     </View>
                   );

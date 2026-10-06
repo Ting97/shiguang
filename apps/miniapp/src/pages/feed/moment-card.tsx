@@ -39,30 +39,9 @@ import { TagChip, type Tone } from "./chip";
 import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 import EntryMenu from "./entry-menu";
 import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
+import { rowMenu } from "../../lib/row-menu";
 import "./moment-card.scss";
 
-/**
- * 识别产物行操作菜单（全端统一交互：编辑/删除图标默认隐藏，点行弹出）。
- * 编辑有入口才给项；删除走模态二次确认（等价原行内两步删除的防误触语义）。
- */
-async function rowMenu(label: string, onEdit: (() => void) | null, onDelete: () => void) {
-  try {
-    const items = onEdit ? ["✏️ 编辑", "🗑 删除"] : ["🗑 删除"];
-    const r = await Taro.showActionSheet({ itemList: items });
-    if (onEdit && r.tapIndex === 0) {
-      onEdit();
-      return;
-    }
-    const c = await Taro.showModal({
-      title: "删除确认",
-      content: `确定删除这条${label}？删除后不可恢复。`,
-      confirmColor: "#f43f5e",
-    });
-    if (c.confirm) onDelete();
-  } catch {
-    /* 用户取消 ActionSheet */
-  }
-}
 
 export default function MomentCard({
   m,
