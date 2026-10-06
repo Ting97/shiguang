@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import LucideIcon, { type LucideIconName } from "../lucide-icon";
 import "./index.scss";
 
 export type ToastType = "ok" | "err" | "info";
@@ -43,7 +44,7 @@ export function showToast(t: ToastPayload) {
   listeners.forEach((l) => l(item));
 }
 
-const ICON: Record<ToastType, string> = { ok: "✓", err: "✕", info: "ℹ" };
+const ICON: Record<ToastType, LucideIconName> = { ok: "check_circle_2", err: "x", info: "info" };
 
 export function ToastHost() {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -78,7 +79,13 @@ export function ToastHost() {
           onClick={() => dismiss(t.id)}
           className={`gtoast gtoast-${t.type} ${t.leaving ? "gtoast-leave" : "gtoast-enter"}`}
         >
-          <Text className="gtoast-icon">{ICON[t.type]}</Text>
+          <View className="gtoast-icon">
+            <LucideIcon
+              name={ICON[t.type]}
+              size={12}
+              color={t.type === "ok" ? "var(--success)" : t.type === "err" ? "var(--danger)" : "var(--accent)"}
+            />
+          </View>
           <Text className="gtoast-text">{t.text}</Text>
         </View>
       ))}

@@ -10,6 +10,7 @@ import { View, Text, ScrollView, Input, Picker } from "@tarojs/components";
 import { createBlock as apiCreateBlock, deleteBlock as apiDeleteBlock, patchBlock as apiPatchBlock, type Activity, type TodayBlock } from "./api";
 import { showToast } from "@/components/toast";
 import { TagChip } from "./chip";
+import LucideIcon from "../../components/lucide-icon";
 import { bjClock, bjToday, combineHM, zhDuration } from "./kit";
 
 /** web 0.75px/分钟 → 750 稿 1.5 单位/分钟；一天高 2160，容器高 960（= web 1080px/480px） */
@@ -222,13 +223,16 @@ export default function TodaySchedule({
     <View className="ts glass glass-p5">
       <View className="ts-head">
         <View className="ts-head-left">
-          <Text className="ts-title">
-            🕐 今日日程{" "}
-            <Text className="ts-sub">
-              {blocks.length} 段 · 共 {zhDuration(totalMin)}
+          <View className="ico-row">
+            <LucideIcon name="clock" size={14} color="var(--accent)" />
+            <Text className="ts-title">
+              今日日程{" "}
+              <Text className="ts-sub">
+                {blocks.length} 段 · 共 {zhDuration(totalMin)}
+              </Text>
             </Text>
-          </Text>
-          {todayKcal > 0 ? <TagChip icon="🍽" label={`今日 ≈${todayKcal} kcal`} tone="amber" size="sm" /> : null}
+          </View>
+          {todayKcal > 0 ? <TagChip lucide="utensils" label={`今日 ≈${todayKcal} kcal`} tone="amber" size="sm" /> : null}
         </View>
         {/* 视图切换：pill-nav + pill/pill_active 全局类（= web FilterChip variant=pill 组） */}
         <View className="pill-nav">
@@ -393,15 +397,15 @@ export default function TodaySchedule({
                   <Text className="ts-row-title">{b.title}</Text>
                   <Text className="ts-row-dur">{b.duration_min} 分钟</Text>
                   <View className="row-actions">
-                    <Text
+                    <View
                       className="row-action-btn"
                       onClick={() => setEditing({ id: b.id, title: b.title, start: bjClock(b.start_at), end: bjClock(b.end_at), activityId: b.activity_id })}
                     >
-                      ✏️
-                    </Text>
-                    <Text className={`row-action-btn${armedId === b.id ? " row-action-armed" : ""}`} onClick={() => void removeBlock(b)}>
-                      {armedId === b.id ? "确认删除?" : "🗑"}
-                    </Text>
+                      <LucideIcon name="pencil" size={11} color="var(--accent)" />
+                    </View>
+                    <View className={`row-action-btn${armedId === b.id ? " row-action-armed" : ""}`} onClick={() => void removeBlock(b)}>
+                      {armedId === b.id ? "确认删除?" : <LucideIcon name="trash_2" size={11} color="var(--danger)" />}
+                    </View>
                   </View>
                 </View>
               ),

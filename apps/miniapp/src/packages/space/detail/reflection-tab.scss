@@ -22,6 +22,8 @@
   margin-bottom: 24px; /* mb-3 */
 }
 .rf-title {
+  display: flex;
+  align-items: center;
   font-size: 28px; /* text-sm */
   font-weight: 600;
   color: var(--ink-soft);
@@ -59,6 +61,8 @@
   gap: 8px;
 }
 .rf-op {
+  display: flex;
+  align-items: center;
   padding: 4px 12px;
   font-size: 24px;
   color: var(--ink-mute);
@@ -145,6 +149,8 @@
   color: var(--ink);
 }
 .rf-editor-close {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
   font-size: 28px;
   color: var(--ink-dim);

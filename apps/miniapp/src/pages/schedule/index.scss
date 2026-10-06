@@ -946,6 +946,8 @@ page {
   color: var(--ink-mute);
 }
 .todo-more {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 4px 12px; /* px-1.5 py-0.5 */
   font-size: 28px; /* text-sm */
@@ -956,6 +958,8 @@ page {
   font-size: 24px;
 }
 .todo-caret {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 20px; /* text-[10px] */
   color: var(--ink-mute);
@@ -1105,6 +1109,8 @@ page {
   text-decoration: line-through;
 }
 .child-note-mark {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 20px;
   color: var(--ink-faint);
@@ -1139,6 +1145,8 @@ page {
   color: var(--ink);
 }
 .child-add-close {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   color: var(--ink-mute);
   padding: 8px 16px;
@@ -1210,6 +1218,9 @@ page {
   opacity: 0.4;
 }
 .rm-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 40px; /* w-5 */
   text-align: center;
   font-size: 28px; /* text-sm */
@@ -1501,6 +1512,8 @@ page {
   font-variant-numeric: tabular-nums;
 }
 .ap-action {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px 12px;
   font-size: 24px;

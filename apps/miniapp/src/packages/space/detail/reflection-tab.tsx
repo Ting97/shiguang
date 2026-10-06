@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, Textarea, Button } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import {
   addReflection,
   deleteReflection,
@@ -153,14 +154,18 @@ export default function ReflectionTab(opts: {
     <View>
       {/* 写感悟入口（web 靠右 btn-primary） */}
       <View className="rf-entry">
-        <Button className="btn-reset btn-primary rf-entry-btn" hoverClass="press" onClick={openNew}>
-          ✍️ 写感悟
+        <Button className="btn-reset btn-primary rf-entry-btn ico-row" hoverClass="press" onClick={openNew}>
+          <LucideIcon name="notebook_pen" size={13} color="currentColor" />
+          <Text>写感悟</Text>
         </Button>
       </View>
 
       <View className="glass glass-p5 rf-section">
         <View className="rf-head">
-          <Text className="rf-title">📝 感悟</Text>
+          <View className="rf-title ico-row">
+            <LucideIcon name="notebook_pen" size={13} color="var(--accent)" />
+            <Text>感悟</Text>
+          </View>
           <Text className="rf-count">{total} 篇</Text>
         </View>
 
@@ -188,13 +193,15 @@ export default function ReflectionTab(opts: {
                         {it.edited ? " · 已编辑" : ""}
                       </Text>
                       <View className="rf-item-ops">
-                        <Text className="rf-op" onClick={() => void openEdit(it)}>✏️</Text>
-                        <Text
+                        <View className="rf-op" onClick={() => void openEdit(it)}>
+                          <LucideIcon name="pencil" size={11} color="var(--accent)" />
+                        </View>
+                        <View
                           className={`rf-op del ${armDelete.armedId === it.id ? "armed" : ""}`}
                           onClick={() => void remove(it)}
                         >
-                          {armDelete.armedId === it.id ? "确认删除?" : "🗑"}
-                        </Text>
+                          {armDelete.armedId === it.id ? "确认删除?" : <LucideIcon name="trash_2" size={11} color="var(--danger)" />}
+                        </View>
                       </View>
                     </View>
                     <Text
@@ -231,7 +238,9 @@ export default function ReflectionTab(opts: {
         <View className="sheet rf-editor safe-bottom">
           <View className="rf-editor-head">
             <Text className="rf-editor-title">{editing?.initial ? "编辑感悟" : "写感悟"}</Text>
-            <Text className="rf-editor-close" onClick={cancelEditor}>✕</Text>
+            <View className="rf-editor-close" onClick={cancelEditor}>
+              <LucideIcon name="x" size={14} color="var(--ink-dim)" />
+            </View>
           </View>
           <Textarea
             className="rf-editor-input"

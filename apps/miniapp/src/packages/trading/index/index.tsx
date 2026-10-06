@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Button, Picker, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { fetchMe } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import { ApiError } from "@/lib/request";
@@ -77,12 +78,12 @@ export function FinTabs({ modules }: { modules: string[] | null }) {
   );
 }
 
-export function Chip({ icon, label, tone }: { icon: string; label: string; tone: string }) {
+export function Chip({ icon, label, tone }: { icon: LucideIconName; label: string; tone: string }) {
   return (
-    <Text className={`chip chip-${tone}`}>
-      {icon ? `${icon} ` : ""}
-      {label}
-    </Text>
+    <View className={`chip chip-${tone}`}>
+      {icon ? <LucideIcon name={icon} size={12} color="currentColor" /> : null}
+      <Text>{label}</Text>
+    </View>
   );
 }
 
@@ -101,7 +102,9 @@ export function FinSkeleton({ rows = 4 }: { rows?: number }) {
 function ModuleLocked({ title, desc }: { title: string; desc: string }) {
   return (
     <View className="locked-card glass">
-      <Text className="locked-icon">🔒</Text>
+      <View className="locked-icon">
+        <LucideIcon name="key_round" size={24} color="var(--warn)" />
+      </View>
       <Text className="locked-title">{title}未开通</Text>
       <Text className="locked-desc">{desc}</Text>
       <View className="btn-sky-tinted locked-back" hoverClass="press" onTap={() => Taro.redirectTo({ url: "/pages/finance/index" })}>
@@ -217,7 +220,7 @@ function DailySection({ accountId }: { accountId: string }) {
   return (
     <View className="glass glass-p5 trade-card">
       <View className="sec-head">
-        <Chip icon="📅" label={mode === "week" ? "每周盈亏" : "每日盈亏"} tone="sky" />
+        <Chip icon="calendar" label={mode === "week" ? "每周盈亏" : "每日盈亏"} tone="sky" />
         <Text className="sec-sub">{filtered ? `${fromSel || "…"} ~ ${toSel || "今天"}` : "按北京时区切日"}</Text>
         {/* 日/周分段（= web ml-auto 分段钮：选中 sky/15 底 + sky 字） */}
         <View className="seg">
@@ -455,7 +458,7 @@ function EquitySection({ accountId }: { accountId: string }) {
   return (
     <View className="glass glass-p5 trade-card">
       <View className="sec-head">
-        <Chip icon="📈" label="权益曲线 · 累计净盈亏" tone="emerald" />
+        <Chip icon="trending_up" label="权益曲线 · 累计净盈亏" tone="emerald" />
         <Text className="sec-sub">日粒度 · 峰值与回撤服务端预计算</Text>
       </View>
       {!data ? (
@@ -618,7 +621,7 @@ function TradesSection({ accountId }: { accountId: string }) {
   return (
     <View className="glass glass-p5 trade-card">
       <View className="sec-head">
-        <Chip icon="📋" label="逐笔明细" tone="violet" />
+        <Chip icon="list_todo" label="逐笔明细" tone="violet" />
         {data && <Text className="sec-sub">共 {data.total} 笔</Text>}
       </View>
 
@@ -793,7 +796,7 @@ function DigestSection({ accountId }: { accountId: string }) {
       {/* 统计卡（规则统计，常显） */}
       <View className="glass glass-p5 trade-card">
         <View className="sec-head">
-          <Chip icon="🧮" label="统计" tone="amber" />
+          <Chip icon="bar_chart_3" label="统计" tone="amber" />
           {st && (
             <Text className="sec-sub">
               {st.totalTrades} 笔 · 净 {fmtUsd(st.totalNet)}
@@ -880,7 +883,7 @@ function DigestSection({ accountId }: { accountId: string }) {
       <View className="glass glass-p5 trade-card">
         <View className="ai-head">
           <View className="ai-head-l">
-            <Chip icon="🤖" label="AI 复盘" tone="emerald" />
+            <Chip icon="sparkles" label="AI 复盘" tone="emerald" />
             {review?.kind === "fallback" && <Text className="fallback-badge">已降级</Text>}
             {review?.kind === "ai" && (
               <Text className="hint-faint">
@@ -1067,7 +1070,7 @@ export default function TradingPage() {
           {/* 账号切换 + 汇总卡 + 同步入口 */}
           <View className="glass glass-p5 trade-card">
             <View className="acc-row">
-              <Chip icon="🎯" label="交易账号" tone="sky" />
+              <Chip icon="target" label="交易账号" tone="sky" />
               <View className="acc-chips">
                 {accounts.map((a) => (
                   <View
@@ -1075,22 +1078,29 @@ export default function TradingPage() {
                     className={`tf-chip ${a.id === activeId ? "tf-chip-on" : ""}`}
                     onTap={() => setActiveId(a.id)}
                   >
-                    {a.source === "bitget" ? "⚡" : ""}
-                    {a.nickname ? `${a.login} · ${a.nickname}` : a.login}
+                    {a.source === "bitget" ? <LucideIcon name="zap" size={10} color="currentColor" /> : null}
+                    <Text>{a.nickname ? `${a.login} · ${a.nickname}` : a.login}</Text>
                   </View>
                 ))}
                 {accounts.length === 0 && <Text className="sec-empty-inline">暂无账号</Text>}
               </View>
               {/* 一键同步全端开放（= web 注释口径）；⚙ 绑定抽屉表单重，提示走 web */}
               <View className={`sync-btn ${quickSyncing ? "disabled" : ""}`} hoverClass="press" onTap={() => void quickSync()}>
-                {quickSyncing ? "⏳ 同步中…" : "⚡ 一键同步"}
+                {quickSyncing ? (
+                  "同步中…"
+                ) : (
+                  <View className="ico-row">
+                    <LucideIcon name="zap" size={12} color="currentColor" />
+                    <Text>一键同步</Text>
+                  </View>
+                )}
               </View>
               <View
                 className="cfg-btn"
                 hoverClass="press"
                 onTap={() => setQuickMsg({ ok: false, text: "Bitget 密钥绑定/自定义同步请使用 web 端" })}
               >
-                ⚙
+                <LucideIcon name="settings" size={14} color="currentColor" />
               </View>
             </View>
 

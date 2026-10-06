@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { bjToday, fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -82,12 +83,12 @@ export function FinTabs({ modules }: { modules: string[] | null }) {
   );
 }
 
-export function Chip({ icon, label, tone }: { icon: string; label: string; tone: string }) {
+export function Chip({ icon, label, tone }: { icon: LucideIconName; label: string; tone: string }) {
   return (
-    <Text className={`chip chip-${tone}`}>
-      {icon ? `${icon} ` : ""}
-      {label}
-    </Text>
+    <View className={`chip chip-${tone}`}>
+      {icon ? <LucideIcon name={icon} size={12} color="currentColor" /> : null}
+      <Text>{label}</Text>
+    </View>
   );
 }
 
@@ -106,7 +107,9 @@ export function FinSkeleton({ rows = 3 }: { rows?: number }) {
 function ModuleLocked({ title, desc }: { title: string; desc: string }) {
   return (
     <View className="locked-card glass">
-      <Text className="locked-icon">🔒</Text>
+      <View className="locked-icon">
+        <LucideIcon name="key_round" size={24} color="var(--warn)" />
+      </View>
       <Text className="locked-title">{title}未开通</Text>
       <Text className="locked-desc">{desc}</Text>
       <View className="btn-sky-tinted locked-back" hoverClass="press" onTap={() => Taro.redirectTo({ url: "/pages/finance/index" })}>
@@ -352,7 +355,7 @@ export default function ReviewPage() {
           {period === "week" && stats.daily.length > 0 && (
             <View className="glass glass-p5 rev-card">
               <View className="rev-card-head">
-                <Chip icon="📊" label="日趋势" tone="sky" />
+                <Chip icon="bar_chart_3" label="日趋势" tone="sky" />
               </View>
               <View className="dtrend">
                 {stats.daily.map((d) => (
@@ -381,7 +384,7 @@ export default function ReviewPage() {
           {stats.byCategory.length > 0 && (
             <View className="glass glass-p5 rev-card">
               <View className="rev-card-head">
-                <Chip icon="🧩" label="支出分类" tone="rose" />
+                <Chip icon="clipboard_list" label="支出分类" tone="rose" />
               </View>
               <View className="cat-bar">
                 {stats.byCategory.map((s) => (
@@ -409,7 +412,7 @@ export default function ReviewPage() {
               {stats.byAccount.length > 0 && (
                 <View className="glass glass-p5 rev-card rev-pair-card">
                   <View className="rev-card-head">
-                    <Chip icon="💳" label="账户分布" tone="sky" />
+                    <Chip icon="credit_card" label="账户分布" tone="sky" />
                   </View>
                   {stats.byAccount.map((a) => (
                     <View key={a.name} className="rev-line">
@@ -424,7 +427,7 @@ export default function ReviewPage() {
               {stats.topCounterparties.length > 0 && (
                 <View className="glass glass-p5 rev-card rev-pair-card">
                   <View className="rev-card-head">
-                    <Chip icon="🤝" label="Top 对方" tone="violet" />
+                    <Chip icon="users" label="Top 对方" tone="violet" />
                   </View>
                   {stats.topCounterparties.map((p) => (
                     <View key={p.name} className="rev-line">
@@ -443,7 +446,7 @@ export default function ReviewPage() {
             <View className="glass glass-p5 rev-card">
               <View className="ai-head">
                 <View className="ai-head-l">
-                  <Chip icon="🤖" label="AI 交易周报" tone="emerald" />
+                  <Chip icon="sparkles" label="AI 交易周报" tone="emerald" />
                   {meta && reviewForThisWeek && (
                     <Text className="hint-faint">
                       {meta.cached ? "缓存" : "已生成"} · {bjMD(meta.generatedAt ?? "")}

@@ -7,6 +7,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
+import LucideIcon from "@/components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
@@ -93,10 +94,12 @@ export default function ContactListPage() {
         {/* 列表 | 图谱 视图切换（= FilterChip variant=pill 容器） */}
         <View className="pill-nav ct-view-switch">
           <View className={`ct-pill ${view === "list" ? "pill-active" : ""}`} onClick={() => setView("list")}>
-            <Text>📋 列表</Text>
+            <LucideIcon name="list_todo" size={13} color={view === "list" ? "#fff" : "var(--ink-mute)"} />
+            <Text>列表</Text>
           </View>
           <View className={`ct-pill ${view === "graph" ? "pill-active" : ""}`} onClick={() => setView("graph")}>
-            <Text>🕸 图谱</Text>
+            <LucideIcon name="network" size={13} color={view === "graph" ? "#fff" : "var(--ink-mute)"} />
+            <Text>图谱</Text>
           </View>
         </View>
       </View>

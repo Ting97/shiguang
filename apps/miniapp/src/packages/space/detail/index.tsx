@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
@@ -251,7 +252,9 @@ export default function SpaceDetailPage() {
                 void setStatus("active");
               }}
             >
-              <Text className="dt-menu-icon">📤</Text>
+              <View className="dt-menu-icon">
+                <LucideIcon name="send" size={14} color="var(--ink-mute)" />
+              </View>
               <Text className="dt-menu-text">恢复空间</Text>
             </View>
           ) : (
@@ -262,7 +265,9 @@ export default function SpaceDetailPage() {
                 void setStatus("archived");
               }}
             >
-              <Text className="dt-menu-icon">📦</Text>
+              <View className="dt-menu-icon">
+                <LucideIcon name="download" size={14} color="var(--warn)" />
+              </View>
               <Text className="dt-menu-text">归档空间</Text>
             </View>
           )}
@@ -279,7 +284,9 @@ export default function SpaceDetailPage() {
               void removeSpace();
             }}
           >
-            <Text className="dt-menu-icon">🗑</Text>
+            <View className="dt-menu-icon">
+                <LucideIcon name="trash_2" size={14} color="var(--danger)" />
+              </View>
             <Text className="dt-menu-text">{armDelete ? "确认删除？（3 秒内再点）" : "删除空间"}</Text>
           </View>
         </View>

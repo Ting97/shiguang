@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import Taro from "@tarojs/taro";
 import {
   createTodo,
@@ -266,7 +267,7 @@ export default function TodoSection(opts: {
   function renderCircle(done: boolean, size: "md" | "sm", onTap: () => void, disabled?: boolean) {
     return (
       <View className={`ts-circle ${size} ${done ? "done" : ""}`} onClick={disabled ? undefined : onTap}>
-        <Text>✓</Text>
+        <LucideIcon name="check" size={done ? (size === "sm" ? 9 : 12) : 12} color="currentColor" />
       </View>
     );
   }
@@ -322,22 +323,31 @@ export default function TodoSection(opts: {
               {cp && <Text className="ts-childnum">{cp.n}/{cp.m}</Text>}
               {tag && <Text className={`ts-due ${dueCls(tag.tone)}`}>{tag.text}</Text>}
               {!done && (
-                <Text
-                  className="ts-ai"
+                <View
+                  className="ts-ai ico-row"
                   onClick={() => {
                     if (busyId === t.id) return;
                     if (pendingCount(t) > 0) setMenuRow({ todo: t, isChild: false }); // 已有未完成行动 → 菜单给显式选择
                     else void decompose({ id: t.id, title: t.title, isAction: false });
                   }}
                 >
-                  {busyId === t.id ? "✨…" : "✨ 拆解"}
-                </Text>
+                  {busyId === t.id ? (
+                    <Text>拆解中…</Text>
+                  ) : (
+                    <>
+                      <LucideIcon name="sparkles" size={11} color="var(--ai)" />
+                      <Text>拆解</Text>
+                    </>
+                  )}
+                </View>
               )}
-              <Text className="ts-more" onClick={() => setMenuRow({ todo: t, isChild: false })}>⋯</Text>
+              <View className="ts-more" onClick={() => setMenuRow({ todo: t, isChild: false })}>
+                <LucideIcon name="ellipsis" size={13} color="var(--ink-dim)" />
+              </View>
               {(t.children.length > 0 || !done) && (
-                <Text className={`ts-arrow ${open ? "open" : ""}`} onClick={() => setExpanded((s) => { const n = new Set(s); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; })}>
-                  ▼
-                </Text>
+                <View className={`ts-arrow ${open ? "open" : ""}`} onClick={() => setExpanded((s) => { const n = new Set(s); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; })}>
+                  <LucideIcon name="chevron_down" size={10} color="var(--ink-mute)" />
+                </View>
               )}
             </View>
             {/* 行动子列表（= web ml-8 border-l 区域） */}
@@ -352,10 +362,19 @@ export default function TodoSection(opts: {
                         {c.title}
                       </Text>
                       {c.repeat_daily && (
-                        <Text className="ts-repeat">{c.repeat_done_count > 0 ? `🔁 ×${c.repeat_done_count}` : "🔁 每日"}</Text>
+                        <View className="ts-repeat ico-row">
+                          <LucideIcon name="repeat" size={10} color="currentColor" />
+                          <Text>{c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : "每日"}</Text>
+                        </View>
                       )}
-                      {!!c.note && <Text className="ts-note-flag">📄</Text>}
-                      <Text className="ts-more" onClick={() => setMenuRow({ todo: c, isChild: true })}>⋯</Text>
+                      {!!c.note && (
+                        <View className="ts-note-flag">
+                          <LucideIcon name="file_text" size={10} color="var(--ink-dim)" />
+                        </View>
+                      )}
+                      <View className="ts-more" onClick={() => setMenuRow({ todo: c, isChild: true })}>
+                        <LucideIcon name="ellipsis" size={12} color="var(--ink-dim)" />
+                      </View>
                     </View>
                   );
                 })}
@@ -434,9 +453,15 @@ export default function TodoSection(opts: {
     <View className="glass glass-p5 ts-section">
       {/* 区头（= TagChip 📋 TODO·行动 + 计数 + 关联已有入口） */}
       <View className="ts-head">
-        <Text className="ts-chip sky">📋 TODO·行动</Text>
+        <View className="ts-chip sky ico-row">
+          <LucideIcon name="list_todo" size={11} color="currentColor" />
+          <Text>TODO·行动</Text>
+        </View>
         <Text className="ts-count">{todos.length} 条</Text>
-        <Text className="ts-link-btn" onClick={() => void openLinkPicker()}>🔗 关联已有</Text>
+        <View className="ts-link-btn ico-row" onClick={() => void openLinkPicker()}>
+          <LucideIcon name="link_2" size={11} color="var(--accent)" />
+          <Text>关联已有</Text>
+        </View>
       </View>
       {/* 添加 todo（虚线框输入） */}
       <View className="ts-add">
@@ -464,19 +489,25 @@ export default function TodoSection(opts: {
       {/* 已完成（默认收起，可展开查看/恢复） */}
       {doneTodos.length > 0 && (
         <View className="ts-done">
-          <Text className="ts-done-summary" onClick={() => setShowDone((v) => !v)}>
-            {showDone ? "▾" : "▸"} ✓ 已完成（{doneTodos.length}）
-          </Text>
+          <View className="ts-done-summary ico-row" onClick={() => setShowDone((v) => !v)}>
+            <LucideIcon name={showDone ? "chevron_down" : "chevron_right"} size={11} color="var(--ink-dim)" />
+            <LucideIcon name="check" size={11} color="var(--success)" />
+            <Text>已完成（{doneTodos.length}）</Text>
+          </View>
           {showDone &&
             doneTodos.map((t) => {
               const cp = childProgress(t.children);
               return (
                 <View key={t.id} className="ts-done-row">
-                  <Text className="ts-done-check">✓</Text>
+                  <View className="ts-done-check">
+                    <LucideIcon name="check" size={9} color="#fff" />
+                  </View>
                   <Text className="ts-done-title">{t.title}</Text>
                   {cp && <Text className="ts-childnum">{cp.n}/{cp.m}</Text>}
                   {!!t.done_at && <Text className="ts-done-at">{bjDate(t.done_at).slice(5)} 完成</Text>}
-                  <Text className="ts-done-restore" onClick={() => void patch(t.id, { undone: true }, `↩️「${t.title}」已恢复`)}>↩️</Text>
+                  <View className="ts-done-restore" onClick={() => void patch(t.id, { undone: true }, `↩️「${t.title}」已恢复`)}>
+                    <LucideIcon name="rotate_ccw" size={12} color="var(--ink-dim)" />
+                  </View>
                 </View>
               );
             })}
@@ -499,7 +530,9 @@ export default function TodoSection(opts: {
                   openNote(c);
                 }}
               >
-                <Text className="ts-menu-icon">✏️</Text>
+                <View className="ts-menu-icon">
+                  <LucideIcon name="pencil" size={13} color="var(--accent)" />
+                </View>
                 <Text className="ts-menu-text">编辑标题 / 描述</Text>
               </View>
               {menuRow.todo.status !== "done" && (
@@ -511,7 +544,9 @@ export default function TodoSection(opts: {
                     void decompose({ id: c.id, title: c.title, isAction: true });
                   }}
                 >
-                  <Text className="ts-menu-icon">✨</Text>
+                  <View className="ts-menu-icon">
+                  <LucideIcon name="sparkles" size={13} color="var(--ai)" />
+                </View>
                   <View className="ts-menu-text">
                     <Text>AI 细化为更小行动</Text>
                     <Text className="ts-menu-sub">插入到该行动之后</Text>
@@ -526,7 +561,9 @@ export default function TodoSection(opts: {
                   void removeTodo(c);
                 }}
               >
-                <Text className="ts-menu-icon">🗑</Text>
+                <View className="ts-menu-icon">
+                  <LucideIcon name="trash_2" size={13} color="var(--danger)" />
+                </View>
                 <Text className="ts-menu-text">删除行动</Text>
               </View>
             </>
@@ -540,7 +577,9 @@ export default function TodoSection(opts: {
                   startEdit(t);
                 }}
               >
-                <Text className="ts-menu-icon">✏️</Text>
+                <View className="ts-menu-icon">
+                  <LucideIcon name="pencil" size={13} color="var(--accent)" />
+                </View>
                 <Text className="ts-menu-text">编辑标题与时间</Text>
               </View>
               <View
@@ -551,7 +590,9 @@ export default function TodoSection(opts: {
                   setPickerRow(t);
                 }}
               >
-                <Text className="ts-menu-icon">🎯</Text>
+                <View className="ts-menu-icon">
+                  <LucideIcon name="target" size={13} color="var(--accent)" />
+                </View>
                 <Text className="ts-menu-text">关联空间</Text>
               </View>
               {menuRow.todo.status !== "done" && pendingCount(menuRow.todo) === 0 ? (
@@ -563,7 +604,9 @@ export default function TodoSection(opts: {
                     void decompose({ id: t.id, title: t.title, isAction: false });
                   }}
                 >
-                  <Text className="ts-menu-icon">✨</Text>
+                  <View className="ts-menu-icon">
+                  <LucideIcon name="sparkles" size={13} color="var(--ai)" />
+                </View>
                   <View className="ts-menu-text">
                     <Text>AI 拆解为可执行的行动</Text>
                     <Text className="ts-menu-sub">拆出 ≤10 个行动</Text>
@@ -581,7 +624,9 @@ export default function TodoSection(opts: {
                       void decompose({ id: t.id, title: t.title, isAction: false }, "replace");
                     }}
                   >
-                    <Text className="ts-menu-icon">✨</Text>
+                    <View className="ts-menu-icon">
+                  <LucideIcon name="sparkles" size={13} color="var(--ai)" />
+                </View>
                     <View className="ts-menu-text">
                       <Text>重新生成</Text>
                       <Text className="ts-menu-sub">清空未完成行动后重拆（已完成保留）</Text>
@@ -595,7 +640,9 @@ export default function TodoSection(opts: {
                       void decompose({ id: t.id, title: t.title, isAction: false }, "append");
                     }}
                   >
-                    <Text className="ts-menu-icon">➕</Text>
+                    <View className="ts-menu-icon">
+                  <LucideIcon name="plus" size={13} color="var(--ink-mute)" />
+                </View>
                     <View className="ts-menu-text">
                       <Text>追加到末尾</Text>
                       <Text className="ts-menu-sub">保留现有行动，新行动接在后面</Text>
@@ -611,7 +658,9 @@ export default function TodoSection(opts: {
                   void removeTodo(t);
                 }}
               >
-                <Text className="ts-menu-icon">🗑</Text>
+                <View className="ts-menu-icon">
+                  <LucideIcon name="trash_2" size={13} color="var(--danger)" />
+                </View>
                 <View className="ts-menu-text">
                   <Text>删除 todo</Text>
                   <Text className="ts-menu-sub">其下行动一并删除</Text>
@@ -642,7 +691,9 @@ export default function TodoSection(opts: {
               const tag = dueTag(t.due_at);
               return (
                 <View key={t.id} className="ts-pick-item" onClick={() => void linkExisting(t.id)}>
-                  <Text className="ts-pick-star">{t.is_important ? "⭐" : "○"}</Text>
+                  <View className="ts-pick-star">
+                    <LucideIcon name={t.is_important ? "star" : "circle"} size={11} color={t.is_important ? "var(--warn)" : "var(--ink-faint)"} />
+                  </View>
                   <Text className="ts-pick-name">
                     {t.kind === "action" ? "行动 " : ""}{t.title}
                   </Text>

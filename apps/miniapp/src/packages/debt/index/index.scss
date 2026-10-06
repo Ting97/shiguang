@@ -168,7 +168,9 @@
   padding-top: 24px;
 }
 .debt-hint {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 22px;
   color: var(--warn);
   margin-bottom: 8px;
@@ -184,6 +186,8 @@
   margin-bottom: 24px;
 }
 .res-title {
+  display: flex;
+  align-items: center;
   font-size: 28px; /* text-sm */
   font-weight: 600;
   color: var(--ink-soft);
@@ -243,6 +247,8 @@
   background: rgba(16, 185, 129, 0.06);
 }
 .res-check {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 32px; /* size-4 checkbox 的近似形 */
   color: #10b981;
@@ -434,6 +440,9 @@
 }
 /* = rounded-xl border-line-soft px-3 py-1.5 text-xs（描边次级钮） */
 .import-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px 24px;
   border: 1px solid var(--line-soft);
   border-radius: 24px;
@@ -500,6 +509,8 @@
   gap: 8px;
 }
 .debt-op {
+  display: flex;
+  align-items: center;
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 24px;
@@ -669,7 +680,9 @@
   text-align: center;
 }
 .locked-icon {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 80px; /* text-4xl */
 }
 .locked-title {
@@ -712,6 +725,8 @@
   color: var(--ink);
 }
 .sheet-close {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
   color: var(--ink-dim);
 }

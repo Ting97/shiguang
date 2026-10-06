@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
@@ -224,8 +225,12 @@ export default function SpaceListPage() {
                           focus
                           onInput={(e) => setRenameDraft(e.detail.value)}
                         />
-                        <Text className="sp-rename-ok" onClick={() => void saveRename(s)}>✓</Text>
-                        <Text className="sp-rename-cancel" onClick={() => setRenamingId(null)}>✕</Text>
+                        <View className="sp-rename-ok" onClick={() => void saveRename(s)}>
+                          <LucideIcon name="check" size={16} color="var(--accent)" />
+                        </View>
+                        <View className="sp-rename-cancel" onClick={() => setRenamingId(null)}>
+                          <LucideIcon name="x" size={14} color="var(--ink-mute)" />
+                        </View>
                       </View>
                     ) : (
                       <View
@@ -237,7 +242,9 @@ export default function SpaceListPage() {
                         }}
                       >
                         <Text className="sp-name">{s.name}</Text>
-                        <Text className="sp-name-pen">✏️</Text>
+                        <View className="sp-name-pen">
+                          <LucideIcon name="pencil" size={11} color="var(--ink-dim)" />
+                        </View>
                       </View>
                     )}
                     <Text className="sp-meta">
@@ -276,9 +283,10 @@ export default function SpaceListPage() {
       {/* 归档区（= web <details> 折叠）：恢复 / 两步删除 */}
       {archived.length > 0 && (
         <View className="sp-archived">
-          <Text className="sp-archived-summary" onClick={() => setShowArchived((v) => !v)}>
-            {showArchived ? "▾" : "▸"} 归档空间（{archived.length}）
-          </Text>
+          <View className="sp-archived-summary ico-row" onClick={() => setShowArchived((v) => !v)}>
+            <LucideIcon name={showArchived ? "chevron_down" : "chevron_right"} size={11} color="var(--ink-dim)" />
+            <Text>归档空间（{archived.length}）</Text>
+          </View>
           {showArchived &&
             archived.map((s) => (
               <View key={s.id} className="sp-arch-row">
@@ -358,7 +366,9 @@ export default function SpaceListPage() {
                   </View>
                 </Picker>
                 {!!editing.startedAt && (
-                  <Text className="sp-date-clear" onClick={() => setEditing({ ...editing, startedAt: "" })}>✕</Text>
+                  <View className="sp-date-clear" onClick={() => setEditing({ ...editing, startedAt: "" })}>
+                    <LucideIcon name="x" size={12} color="var(--ink-mute)" />
+                  </View>
                 )}
               </View>
             </View>
@@ -375,7 +385,9 @@ export default function SpaceListPage() {
                   </View>
                 </Picker>
                 {!!editing.targetDate && (
-                  <Text className="sp-date-clear" onClick={() => setEditing({ ...editing, targetDate: "" })}>✕</Text>
+                  <View className="sp-date-clear" onClick={() => setEditing({ ...editing, targetDate: "" })}>
+                    <LucideIcon name="x" size={12} color="var(--ink-mute)" />
+                  </View>
                 )}
               </View>
             </View>
@@ -412,7 +424,9 @@ export default function SpaceListPage() {
               openEdit(s);
             }}
           >
-            <Text className="sp-menu-icon">✏️</Text>
+            <View className="sp-menu-icon">
+            <LucideIcon name="pencil" size={14} color="var(--accent)" />
+          </View>
             <Text className="sp-menu-text">编辑空间</Text>
           </View>
           <View
@@ -423,14 +437,18 @@ export default function SpaceListPage() {
               void setStatus(s, "archived");
             }}
           >
-            <Text className="sp-menu-icon">📦</Text>
+            <View className="sp-menu-icon">
+            <LucideIcon name="download" size={14} color="var(--warn)" />
+          </View>
             <Text className="sp-menu-text">归档空间</Text>
           </View>
           <View
             className={`sp-menu-item danger ${armDelete.armedId === cardMenu.id ? "armed" : ""}`}
             onClick={() => void remove(cardMenu)}
           >
-            <Text className="sp-menu-icon">🗑</Text>
+            <View className="sp-menu-icon">
+            <LucideIcon name="trash_2" size={14} color="var(--danger)" />
+          </View>
             <Text className="sp-menu-text">
               {armDelete.armedId === cardMenu.id ? "确认删除？（3 秒内再点）" : "删除空间"}
             </Text>

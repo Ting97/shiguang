@@ -11,6 +11,7 @@ import { useRef, useState } from "react";
 import { View, Text, Input, Button, Picker, Slider } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -79,12 +80,12 @@ export function FinTabs({ modules }: { modules: string[] | null }) {
 /* ---------- TagChip（= web tag-chip.tsx） ---------- */
 
 type Tone = "sky" | "emerald" | "amber" | "rose" | "violet" | "slate";
-export function Chip({ icon, label, tone }: { icon: string; label: string; tone: Tone }) {
+export function Chip({ icon, label, tone }: { icon: LucideIconName; label: string; tone: Tone }) {
   return (
-    <Text className={`chip chip-${tone}`}>
-      {icon ? `${icon} ` : ""}
-      {label}
-    </Text>
+    <View className={`chip chip-${tone}`}>
+      {icon ? <LucideIcon name={icon} size={12} color="currentColor" /> : null}
+      <Text>{label}</Text>
+    </View>
   );
 }
 
@@ -105,7 +106,9 @@ export function FinSkeleton({ rows = 4 }: { rows?: number }) {
 function ModuleLocked({ title, desc }: { title: string; desc: string }) {
   return (
     <View className="locked-card glass">
-      <Text className="locked-icon">🔒</Text>
+      <View className="locked-icon">
+            <LucideIcon name="key_round" size={24} color="var(--warn)" />
+          </View>
       <Text className="locked-title">{title}未开通</Text>
       <Text className="locked-desc">{desc}</Text>
       <View className="btn-sky-tinted locked-back" hoverClass="press" onTap={() => Taro.redirectTo({ url: "/pages/finance/index" })}>
@@ -576,9 +579,10 @@ export default function DebtPage() {
               {ov!.hints.length > 0 && (
                 <View className="debt-hints">
                   {ov!.hints.map((h, i) => (
-                    <Text key={i} className="debt-hint">
-                      💡 {h}
-                    </Text>
+                    <View key={i} className="debt-hint ico-row">
+                      <LucideIcon name="zap" size={11} color="var(--warn)" />
+                      <Text>{h}</Text>
+                    </View>
                   ))}
                 </View>
               )}
@@ -588,7 +592,10 @@ export default function DebtPage() {
           {/* 每月备付（= web reserve-section.tsx） */}
           <View className="glass glass-p5 debt-card">
             <View className="res-head">
-              <Text className="res-title">🧰 每月备付</Text>
+              <View className="res-title ico-row">
+                <LucideIcon name="clipboard_list" size={13} color="var(--accent)" />
+                <Text>每月备付</Text>
+              </View>
               <View className="res-ops">
                 <View className="nav-btn nav-btn-sm" hoverClass="press" onTap={() => shiftReserveMonth(-1)}>
                   ‹
@@ -624,7 +631,9 @@ export default function DebtPage() {
               <>
                 {reserve.items.map((r) => (
                   <View key={r.liabilityId} className={`res-row ${r.checked ? "res-on" : ""}`} onTap={() => void toggleReserve(r, !r.checked)}>
-                    <Text className="res-check">{r.checked ? "☑" : "☐"}</Text>
+                    <View className="res-check">
+                      <LucideIcon name={r.checked ? "check_circle_2" : "circle"} size={13} color={r.checked ? "var(--success)" : "var(--ink-faint)"} />
+                    </View>
                     <View className="res-mid">
                       <Text className="res-name">
                         {r.name}
@@ -673,7 +682,10 @@ export default function DebtPage() {
                         className={`res-acc ${a.reserveTracked ? "res-acc-on" : ""}`}
                         onTap={() => void toggleAccountReserve(a)}
                       >
-                        <Text>{a.reserveTracked ? "☑" : "☐"} {a.name}</Text>
+                        <View className="ico-row">
+                          <LucideIcon name={a.reserveTracked ? "check_circle_2" : "circle"} size={12} color={a.reserveTracked ? "var(--success)" : "var(--ink-faint)"} />
+                          <Text> {a.name}</Text>
+                        </View>
                         <Text className="res-acc-bal tabular">{fmt(a.balanceCents)}</Text>
                       </View>
                     ))}
@@ -709,16 +721,18 @@ export default function DebtPage() {
           <View className="glass glass-p5 debt-card">
             <View className="list-head">
               <View className="list-head-l">
-                <Chip icon="🏦" label="负债档案" tone="rose" />
+                <Chip icon="landmark" label="负债档案" tone="rose" />
                 <Text className="list-head-sub">{active.length} 笔进行中</Text>
               </View>
               <View className="list-head-ops">
                 {/* web 是客户端解析 JSON 的 DebtImportDrawer；小程序无文件读取能力，仅提示走 web（需求约定） */}
-                <View className="import-btn" hoverClass="press" onTap={() => showToast({ type: "info", text: "JSON 导入请使用 web 端" })}>
-                  📥 导入
+                <View className="import-btn ico-row" hoverClass="press" onTap={() => showToast({ type: "info", text: "JSON 导入请使用 web 端" })}>
+                  <LucideIcon name="download" size={12} color="currentColor" />
+                  <Text>导入</Text>
                 </View>
-                <View className="new-btn" hoverClass="press" onTap={() => setEditing("new")}>
-                  ＋ 新建档案
+                <View className="new-btn ico-row" hoverClass="press" onTap={() => setEditing("new")}>
+                  <LucideIcon name="plus" size={12} color="currentColor" />
+                  <Text>新建档案</Text>
                 </View>
               </View>
             </View>
@@ -738,13 +752,13 @@ export default function DebtPage() {
                   <Text className="debt-row-bal money-out">{fmt(d.balance_cents)}</Text>
                   <View className="debt-row-ops">
                     <View className="debt-op debt-op-pay" onTap={() => d.status === "active" && setPaying(d)}>
-                      💰
+                      <LucideIcon name="wallet" size={12} color="currentColor" />
                     </View>
                     <View className="debt-op" onTap={() => setEditing(d)}>
-                      ✏️
+                      <LucideIcon name="pencil" size={12} color="var(--accent)" />
                     </View>
                     <View className={`debt-op ${armId === d.id ? "debt-op-armed" : ""}`} onTap={() => void armArchive(d)}>
-                      {armId === d.id ? "确认归档?" : "🗑"}
+                      {armId === d.id ? "确认归档?" : <LucideIcon name="trash_2" size={12} color="var(--danger)" />}
                     </View>
                   </View>
                 </View>
@@ -812,7 +826,7 @@ export default function DebtPage() {
           {/* 策略模拟（= glass rounded-2xl p-5） */}
           <View className="glass glass-p5 debt-card">
             <View className="sim-head">
-              <Chip icon="🎯" label="清债策略模拟" tone="violet" />
+              <Chip icon="target" label="清债策略模拟" tone="violet" />
             </View>
             <View className="sim-ctrl">
               <Text className="sim-label">每月额外还款</Text>
@@ -868,7 +882,7 @@ export default function DebtPage() {
           <View className="sheet-head">
             <Text className="sheet-title">{editing === "new" ? "新建负债档案" : "编辑负债档案"}</Text>
             <View className="sheet-close" onTap={() => setEditing(null)}>
-              ✕
+              <LucideIcon name="x" size={14} color="currentColor" />
             </View>
           </View>
           <DebtForm
@@ -892,7 +906,7 @@ export default function DebtPage() {
           <View className="sheet-head">
             <Text className="sheet-title">还款 · {paying.name}</Text>
             <View className="sheet-close" onTap={() => setPaying(null)}>
-              ✕
+              <LucideIcon name="x" size={14} color="currentColor" />
             </View>
           </View>
           <PaymentForm

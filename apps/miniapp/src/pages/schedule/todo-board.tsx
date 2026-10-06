@@ -27,13 +27,14 @@ import {
 } from "./api";
 import { ApiError } from "@/lib/request";
 import { showToast } from "@/components/toast";
+import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 
-/** 智能列表定义（= web kit.VIEWS） */
-const VIEWS: [TodoView, string][] = [
-  ["today", "☀️ 今日"],
-  ["important", "⭐ 重要"],
-  ["all", "📋 全部"],
-  ["done", "✓ 已完成"],
+/** 智能列表定义（= web kit.VIEWS；图标 = lucide 对应） */
+const VIEWS: [TodoView, string, LucideIconName][] = [
+  ["today", "今日", "sun"],
+  ["important", "重要", "star"],
+  ["all", "全部", "list_todo"],
+  ["done", "已完成", "check"],
 ];
 
 /** 各视图空态文案（= web kit.EMPTY_TEXT） */
@@ -268,7 +269,7 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
       {/* 移动端：横滑 chips（= web lg:hidden 的 ViewBar，右缘渐隐由 scss mask 实现） */}
       <ScrollView className="todo-chips" scrollX enhanced showScrollbar={false}>
         <View className="todo-chips-track">
-          {VIEWS.map(([v, label]) => (
+          {VIEWS.map(([v, label, icon]) => (
             <View
               key={v}
               className={`tb-chip ${view === v ? "active" : ""}`}
@@ -276,6 +277,7 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
               hoverStayTime={80}
               onTap={() => setView(v)}
             >
+              <LucideIcon name={icon} size={13} color={view === v ? "#fff" : "var(--ink-mute)"} />
               <Text>{label}</Text>
               <Text className="tb-chip-count">{counts[v] ?? 0}</Text>
             </View>
@@ -311,16 +313,18 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
               {draftOpen && (
                 <View className="add-extra">
                   <View
-                    className={`add-toggle ${draft.important ? "star" : ""}`}
+                    className={`add-toggle ico-row ${draft.important ? "star" : ""}`}
                     onTap={() => setDraft({ ...draft, important: !draft.important })}
                   >
-                    ⭐ 重要
+                    <LucideIcon name="star" size={12} color="currentColor" />
+                    <Text>重要</Text>
                   </View>
                   <View
-                    className={`add-toggle ${draft.today || view === "today" ? "sun" : ""}`}
+                    className={`add-toggle ico-row ${draft.today || view === "today" ? "sun" : ""}`}
                     onTap={() => setDraft({ ...draft, today: !draft.today })}
                   >
-                    ☀️ 今日
+                    <LucideIcon name="sun" size={12} color="currentColor" />
+                    <Text>今日</Text>
                   </View>
                   <Picker mode="date" value={draft.dueDate} onChange={(e) => setDraft({ ...draft, dueDate: e.detail.value })}>
                     <View className="te-picker">
@@ -336,7 +340,7 @@ export default function TodoBoard({ refreshTick = 0 }: { refreshTick?: number })
                   )}
                   {draft.dueDate && (
                     <View className="te-clear" onTap={() => setDraft({ ...draft, dueDate: "", dueTime: "" })}>
-                      ✕
+                      <LucideIcon name="x" size={12} color="currentColor" />
                     </View>
                   )}
                   <Picker

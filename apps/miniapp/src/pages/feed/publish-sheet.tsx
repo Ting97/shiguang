@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Textarea, Image } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import LucideIcon from "../../components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { uploadWithRetry } from "./api";
 
@@ -199,9 +200,9 @@ export default function PublishSheet({
       <View className="sheet ps-sheet">
         <View className="ps-head">
           <Text className="ps-title">记录此刻</Text>
-          <Text className="ps-close" onClick={cancel}>
-            ✕
-          </Text>
+          <View className="ps-close" onClick={cancel}>
+            <LucideIcon name="x" size={16} color="var(--ink-dim)" />
+          </View>
         </View>
         <Textarea
           className="ps-input"
@@ -225,7 +226,7 @@ export default function PublishSheet({
                 <Image className="ps-pic-img" src={p.path} mode="aspectFill" />
                 {p.status === "ready" ? (
                   <View className="ps-pic-del" onTap={() => removePic(i)}>
-                    <Text>✕</Text>
+                    <LucideIcon name="x" size={11} color="#fff" />
                   </View>
                 ) : null}
                 {p.status === "uploading" ? (
@@ -247,10 +248,10 @@ export default function PublishSheet({
         <View className="ps-foot">
           <View className="ps-tools">
             <View className="ps-tool" hoverClass="press" hoverStayTime={80} onTap={() => void addImages("album")}>
-              <Text>🖼</Text>
+              <LucideIcon name="image_plus" size={15} color="var(--ink-soft)" />
             </View>
             <View className="ps-tool" hoverClass="press" hoverStayTime={80} onTap={() => void addImages("camera")}>
-              <Text>📷</Text>
+              <LucideIcon name="camera" size={15} color="var(--ink-soft)" />
             </View>
             <Text className="ps-hint">发布后 AI 自动识别</Text>
           </View>

@@ -5,6 +5,7 @@
  */
 import { useState } from "react";
 import { View, Text, Input, Button, Picker } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import { addInteraction } from "./api";
 import { TYPE_EMOJI, INTERACTION_TYPES } from "../shared";
 import "./interaction-modal.scss";
@@ -60,7 +61,9 @@ export default function InteractionModal(opts: {
       <View className="sheet it-sheet safe-bottom">
         <View className="it-head">
           <Text className="it-title">补一笔往来 · {contactName}</Text>
-          <Text className="it-close" onClick={onClose}>✕</Text>
+          <View className="it-close" onClick={onClose}>
+            <LucideIcon name="x" size={14} color="var(--ink-dim)" />
+          </View>
         </View>
         <View className="it-form">
           <View className="it-row">

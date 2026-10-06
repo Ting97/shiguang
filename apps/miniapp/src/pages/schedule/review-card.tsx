@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { View, Text } from "@tarojs/components";
+import LucideIcon from "../../components/lucide-icon";
 import { generateReview, loadCachedReview, type ReviewBody, type ReviewKind } from "./api";
 
 /** 生成时间 → 北京时间 MM-DD HH:MM（web: +8h 后 slice(5,16)） */
@@ -108,7 +109,10 @@ export default function ReviewCard({
         <View className="rc-head">
           {/* = web TagChip tone=violet size=sm「AI 日小结」 */}
           <View className="rc-title-row">
-            <Text className="chip chip-violet chip-sm">✨ {KIND_LABEL[kind]}</Text>
+            <View className="chip chip-violet chip-sm ico-row">
+            <LucideIcon name="sparkles" size={11} color="currentColor" />
+            <Text>{KIND_LABEL[kind]}</Text>
+          </View>
             {generatedAt && review && <Text className="rc-stamp">生成于 {bjStamp(generatedAt)}</Text>}
           </View>
           <View
@@ -134,7 +138,7 @@ export default function ReviewCard({
             {suggestions.length > 0 &&
               suggestions.map((s, i) => (
                 <View key={`s${i}`} className="rc-line">
-                  <Text className="rc-tip">💡</Text>
+                  <View className="rc-tip"><LucideIcon name="zap" size={12} color="var(--warn)" /></View>
                   <Text className="rc-item accent-text">{s}</Text>
                 </View>
               ))}
@@ -154,7 +158,10 @@ export default function ReviewCard({
     <View className="glass glass-p5 rc rc-card">
       <View className="rc-head">
         <View className="rc-title-row">
-          <Text className="chip chip-violet">✨ {KIND_LABEL[kind]}</Text>
+          <View className="chip chip-violet ico-row">
+          <LucideIcon name="sparkles" size={11} color="currentColor" />
+          <Text>{KIND_LABEL[kind]}</Text>
+        </View>
           <Text className="rc-period dim-soft">{subLabel ?? period}</Text>
         </View>
         <View
@@ -186,7 +193,7 @@ export default function ReviewCard({
           {suggestions.length > 0 &&
             suggestions.map((s, i) => (
               <View key={`s${i}`} className="rc-line">
-                <Text className="rc-tip">💡</Text>
+                <View className="rc-tip"><LucideIcon name="zap" size={12} color="var(--warn)" /></View>
                 <Text className="rc-item accent-text">{s}</Text>
               </View>
             ))}

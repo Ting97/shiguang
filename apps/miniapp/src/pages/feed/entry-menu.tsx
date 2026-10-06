@@ -6,21 +6,22 @@
  */
 import { useState } from "react";
 import { View, Text, Input, Picker, ScrollView } from "@tarojs/components";
+import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 import type { Activity, FeedMomentFull } from "./api";
 import { loadActiveSpaces, type SpaceRow } from "./api";
 import { bjInputToIso, COMMON_MOODS, MEALS, PEOPLE_TYPES, TX_CATEGORIES } from "./kit";
 
-/** 六域定义（icon 用 emoji 代替 lucide，语义不变） */
-const SIX = [
-  { key: "schedule", icon: "🕒", label: "日程", hint: "做了什么事" },
-  { key: "todo", icon: "📋", label: "todo", hint: "之后要做" },
-  { key: "finance", icon: "💰", label: "收支", hint: "花了 / 收入" },
-  { key: "mood", icon: "😊", label: "心情", hint: "此刻情绪" },
-  { key: "people", icon: "👥", label: "关系", hint: "和谁在一起" },
-  { key: "diet", icon: "🍽", label: "饮食", hint: "吃了什么" },
+/** 六域定义（= web entry-menu SIX：Clock/ListTodo/Wallet/Smile/Users/Utensils 的 lucide 对应） */
+const SIX: ReadonlyArray<{ key: SixKey; icon: LucideIconName; label: string; hint: string }> = [
+  { key: "schedule", icon: "clock", label: "日程", hint: "做了什么事" },
+  { key: "todo", icon: "list_todo", label: "todo", hint: "之后要做" },
+  { key: "finance", icon: "wallet", label: "收支", hint: "花了 / 收入" },
+  { key: "mood", icon: "smile", label: "心情", hint: "此刻情绪" },
+  { key: "people", icon: "users", label: "关系", hint: "和谁在一起" },
+  { key: "diet", icon: "utensils", label: "饮食", hint: "吃了什么" },
 ] as const;
 
-type SixKey = (typeof SIX)[number]["key"];
+type SixKey = "schedule" | "todo" | "finance" | "mood" | "people" | "diet";
 
 export default function EntryMenu({
   m,
@@ -218,10 +219,13 @@ export default function EntryMenu({
           {/* 移动端拖拽指示条 */}
           <View className="em-grip" />
           <View className="em-head">
-            <Text className="em-title">✨ 识别与补充</Text>
-            <Text className="em-close" onClick={onClose}>
-              ✕
-            </Text>
+            <View className="em-head-title">
+              <LucideIcon name="sparkles" size={13} color="var(--ai)" />
+              <Text className="em-title">识别与补充</Text>
+            </View>
+            <View className="em-close" onClick={onClose}>
+              <LucideIcon name="x" size={13} color="var(--ink-dim)" />
+            </View>
           </View>
 
           <View className="em-list">
@@ -240,7 +244,7 @@ export default function EntryMenu({
                       }}
                     >
                       <View className={`em-disc${applied ? " em-disc-applied" : ""}`}>
-                        <Text>{icon}</Text>
+                        <LucideIcon name={icon} size={13} color={applied ? "var(--accent)" : "var(--ink-mute)"} />
                       </View>
                       <View className="em-item-text">
                         <Text className="em-item-label">{label}</Text>
@@ -249,13 +253,13 @@ export default function EntryMenu({
                       {busyDomain === key ? (
                         <Text className="em-busy">识别中…</Text>
                       ) : applied ? (
-                        <Text className="em-applied">✓</Text>
+                        <LucideIcon name="check" size={13} color="var(--success)" />
                       ) : null}
                     </View>
                     {/* ✏️ = 展开手动表单 */}
-                    <Text className={`em-pencil${isManual ? " em-pencil-on" : ""}`} onClick={() => setManualDomain(isManual ? null : key)}>
-                      ✏️
-                    </Text>
+                    <View className={`em-pencil${isManual ? " em-pencil-on" : ""}`} onClick={() => setManualDomain(isManual ? null : key)}>
+                      <LucideIcon name="pencil" size={13} color={isManual ? "var(--accent)" : "var(--ink-mute)"} />
+                    </View>
                   </View>
                   {isManual ? <View className="em-manual">{manualForm(key)}</View> : null}
                 </View>
@@ -284,7 +288,7 @@ export default function EntryMenu({
                   >
                     <Text>{s.icon}</Text>
                     <Text className="em-space-name">{s.name}</Text>
-                    {m.space?.id === s.id ? <Text className="em-applied">✓</Text> : null}
+                    {m.space?.id === s.id ? <LucideIcon name="check" size={13} color="var(--success)" /> : null}
                   </View>
                 ))}
                 {m.space ? (

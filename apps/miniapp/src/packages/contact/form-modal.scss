@@ -20,6 +20,8 @@
   color: var(--ink);
 }
 .cf-close {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
   color: var(--ink-dim);
 }
@@ -58,6 +60,8 @@
   font-size: 26px;
 }
 .cf-anniv-clear {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px;
   color: var(--ink-dim);

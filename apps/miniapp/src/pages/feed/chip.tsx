@@ -4,6 +4,7 @@
  * 这里按 web TONE_* 映射给内联 style（tinted 底色 rgba 固定、字色走主题令牌，深浅主题自适应）。
  */
 import { View, Text } from "@tarojs/components";
+import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 
 export type Tone = "sky" | "emerald" | "amber" | "rose" | "violet" | "slate";
 
@@ -25,21 +26,27 @@ const TONE_TEXT: Record<Tone, string> = {
   slate: "var(--ink-mute)",
 };
 
-/** 展示型标签：icon(emoji) + 文本，rounded-lg tinted 底；size sm=卡片头小标签（= web TagChip） */
+/** 展示型标签：icon(emoji) / lucide(lucide 图标名) + 文本，rounded-lg tinted 底；size sm=卡片头小标签（= web TagChip） */
 export function TagChip(props: {
   icon?: string;
+  /** lucide 风格图标（REQ-009 换标）：传 lucide 图标名时优先于 emoji icon 渲染 */
+  lucide?: LucideIconName;
   label: string;
   tone?: Tone;
   size?: "sm" | "md";
   maxWidth?: boolean;
 }) {
-  const { icon, label, tone = "slate", size = "md", maxWidth } = props;
+  const { icon, lucide, label, tone = "slate", size = "md", maxWidth } = props;
   return (
     <View
       className={`tag-chip tag-chip-${size}${maxWidth ? " tag-chip-max" : ""}`}
       style={{ backgroundColor: TONE_BG[tone], color: TONE_TEXT[tone] }}
     >
-      {icon ? <Text className="tag-chip-icon">{icon}</Text> : null}
+      {lucide ? (
+        <LucideIcon name={lucide} size={11} color={TONE_TEXT[tone]} />
+      ) : icon ? (
+        <Text className="tag-chip-icon">{icon}</Text>
+      ) : null}
       <Text className="tag-chip-label">{label}</Text>
     </View>
   );

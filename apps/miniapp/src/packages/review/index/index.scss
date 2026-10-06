@@ -393,7 +393,9 @@
   text-align: center;
 }
 .locked-icon {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 80px;
 }
 .locked-title {

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { getSessionToken } from "@/lib/session";
 import CalendarPanel from "./calendar-panel";
 import TodoBoard from "./todo-board";
@@ -15,10 +16,11 @@ import ActivityPanel from "./activity-panel";
 import "./index.scss";
 
 type Tab = "calendar" | "todo" | "categories";
-const TABS: [Tab, string][] = [
-  ["calendar", "📅 日历"],
-  ["todo", "todo"],
-  ["categories", "🏷️ 分类"],
+/** tab 图标 = lucide 对应（🏷️ 分类缺 tag 图标，就近用 clipboard_list） */
+const TABS: [Tab, string, LucideIconName | null][] = [
+  ["calendar", "日历", "calendar_days"],
+  ["todo", "todo", null], // todo 用 CSS 圆环 logo（= web TodoLogo），不配图标
+  ["categories", "分类", "clipboard_list"],
 ];
 
 export default function Schedule() {
@@ -75,7 +77,7 @@ export default function Schedule() {
         <Text className="hero-sub">时间去了哪、todo 推进如何 —— 日历 · 看板 · 分类</Text>
         {/* = web SubNav：pill-nav 容器 + pill（激活渐变底）；todo tab 用 CSS 圆环替代 TodoLogo SVG */}
         <View className="pill-nav sched-nav">
-          {TABS.map(([v, label]) => (
+          {TABS.map(([v, label, icon]) => (
             <View
               key={v}
               className={`pill sched-pill ${tab === v ? "pill-active" : ""}`}
@@ -83,7 +85,11 @@ export default function Schedule() {
               hoverStayTime={80}
               onTap={() => setTab(v)}
             >
-              {v === "todo" && <View className={`todo-logo ${tab === v ? "on" : ""}`} />}
+              {v === "todo" ? (
+                <View className={`todo-logo ${tab === v ? "on" : ""}`} />
+              ) : icon ? (
+                <LucideIcon name={icon} size={13} color={tab === v ? "#fff" : "var(--ink-mute)"} />
+              ) : null}
               <Text>{label}</Text>
             </View>
           ))}

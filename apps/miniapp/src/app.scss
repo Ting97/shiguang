@@ -447,3 +447,14 @@ page {
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
+
+/* lucide mask 图标基类（components/lucide-icon 的渲染前提：background-color: currentColor + display） */
+@import "./components/lucide-icon/index.scss";
+
+/* lucide 图标与相邻文字的对齐工具行（REQ-009 换标通用） */
+.ico-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}

@@ -9,6 +9,7 @@ import Taro from "@tarojs/taro";
 import { showToast } from "@/components/toast";
 import { patchTodo } from "./api";
 import { TagChip } from "./chip";
+import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 import { bjToday, type ReminderItem } from "./kit";
 
 const DISMISS_KEY = "shiguang_reminders_dismissed";
@@ -62,7 +63,7 @@ export default function RemindersBanner({
     // = web section.rounded-xl.border-amber-500/30.bg-amber-500/10.px-3.py-2.5.text-xs
     <View className="rb">
       <View className="rb-head">
-        <TagChip icon="🔔" label="提醒" tone="amber" />
+        <TagChip lucide="bell" label="提醒" tone="amber" />
         <View className="rb-spacer" />
         <Text className="rb-dismiss" onClick={dismissToday}>
           知道了 ✕
@@ -71,12 +72,25 @@ export default function RemindersBanner({
       <View className="rb-list">
         {items.map((it) => (
           <View key={it.key} className="rb-item">
-            <Text className="rb-icon">{it.kind === "birthday" ? "🎂" : it.kind === "anniversary" ? "💞" : it.overdue ? "⏰" : "📋"}</Text>
+            <View className="rb-icon">
+              <LucideIcon
+                name={(it.kind === "birthday" ? "cake" : it.kind === "anniversary" ? "heart" : it.overdue ? "alarm_clock" : "list_todo") as LucideIconName}
+                size={11}
+                color="var(--warn)"
+              />
+            </View>
             <Text className={`rb-label${it.overdue ? " rb-overdue" : ""}`}>{it.label}</Text>
             {it.todoId ? (
-              <Text className={`rb-mark${marked.has(it.todoId) ? " rb-marked" : ""}`} onClick={() => void markToday(it)}>
-                {marked.has(it.todoId) ? "已加入 ✓" : "☀️ 今日"}
-              </Text>
+              <View className={`rb-mark ico-row${marked.has(it.todoId) ? " rb-marked" : ""}`} onClick={() => void markToday(it)}>
+                {marked.has(it.todoId) ? (
+                  <Text>已加入 ✓</Text>
+                ) : (
+                  <>
+                    <LucideIcon name="sun" size={11} color="var(--warn)" />
+                    <Text>今日</Text>
+                  </>
+                )}
+              </View>
             ) : null}
           </View>
         ))}

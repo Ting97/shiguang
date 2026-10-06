@@ -4,6 +4,7 @@
  * 底部「移除关联」（未关联时隐藏）。
  */
 import { Text, View } from "@tarojs/components";
+import LucideIcon from "../../components/lucide-icon";
 import type { Space } from "./api";
 
 export default function SpacePicker({
@@ -64,7 +65,9 @@ export default function SpacePicker({
 
           {currentId && (
             <View className="rm-item danger" hoverClass="press" hoverStayTime={80} onTap={onRemove}>
-              <Text className="rm-item-icon">🚫</Text>
+              <View className="rm-item-icon">
+                <LucideIcon name="x" size={14} color="var(--danger)" />
+              </View>
               <Text className="rm-item-label">移除关联</Text>
             </View>
           )}

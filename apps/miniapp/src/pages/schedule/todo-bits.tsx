@@ -3,6 +3,7 @@
  * dueTag 返回语义键（over/today/future/days），配色由 scss 类给出（web 是 tailwind 类）。
  */
 import { Text, View } from "@tarojs/components";
+import LucideIcon from "../../components/lucide-icon";
 import type { TodoRow } from "./api";
 import { bjInputToIso, isoToBjInput } from "./date";
 /** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时） */
@@ -41,7 +42,7 @@ export function TodoCircle({
       hoverStayTime={80}
       onTap={onTap}
     >
-      <Text>✓</Text>
+      <LucideIcon name="check" size={12} color="currentColor" />
     </View>
   );
 }

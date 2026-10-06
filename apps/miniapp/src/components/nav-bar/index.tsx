@@ -9,15 +9,16 @@
 import { ScrollView, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useMemo, useState } from "react";
+import LucideIcon, { type LucideIconName } from "../lucide-icon";
 import { useTheme } from "../../lib/theme";
 import "./index.scss";
 
 const ITEMS = [
-  { key: "feed", label: "动态", path: "/pages/feed/index" },
-  { key: "spaces", label: "目标", path: "/packages/space/list/index" },
-  { key: "schedule", label: "日程", path: "/pages/schedule/index" },
-  { key: "contacts", label: "人际", path: "/packages/contact/list/index" },
-  { key: "finance", label: "财务", path: "/pages/finance/index" },
+  { key: "feed", label: "动态", icon: "list_todo", path: "/pages/feed/index" },
+  { key: "spaces", label: "目标", icon: "trending_up", path: "/packages/space/list/index" },
+  { key: "schedule", label: "日程", icon: "calendar", path: "/pages/schedule/index" },
+  { key: "contacts", label: "人际", icon: "users", path: "/packages/contact/list/index" },
+  { key: "finance", label: "财务", icon: "wallet", path: "/pages/finance/index" },
 ] as const;
 
 export type NavKey = (typeof ITEMS)[number]["key"];
@@ -70,6 +71,7 @@ export default function NavBar({ active }: { active?: NavKey }) {
                 hoverStayTime={80}
                 onTap={() => go(it)}
               >
+                <LucideIcon name={it.icon} size={14} color={active === it.key ? "#fff" : "var(--ink-mute)"} />
                 {it.label}
               </View>
             ))}
@@ -77,7 +79,9 @@ export default function NavBar({ active }: { active?: NavKey }) {
         </ScrollView>
         <View className="nav-actions">
           <View className="nav-icon" hoverClass="press" hoverStayTime={80} onTap={() => cycle()}>{themeIcon}</View>
-          <View className="nav-icon" hoverClass="press" hoverStayTime={80} onTap={() => Taro.redirectTo({ url: "/pages/profile/index" })}>👤</View>
+          <View className="nav-icon" hoverClass="press" hoverStayTime={80} onTap={() => Taro.redirectTo({ url: "/pages/profile/index" })}>
+            <LucideIcon name="user" size={15} color="var(--ink-mute)" />
+          </View>
         </View>
       </View>
     </View>

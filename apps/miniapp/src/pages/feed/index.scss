@@ -206,6 +206,8 @@
   color: var(--success);
 }
 .at-note-icon {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 20px;
   opacity: 0.8;
@@ -288,6 +290,9 @@
   padding-top: 16px;
 }
 .at-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 24px;
   color: var(--ink-dim);
 }
@@ -328,6 +333,8 @@
   color: var(--success);
 }
 .at-restore {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 24px;
 }
@@ -566,14 +573,15 @@
   line-height: 1.625;
 }
 .rb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 40px;
   height: 40px;
   border-radius: 8px;
   background: rgba(245, 158, 11, 0.15);
   font-size: 20px;
-  line-height: 40px;
-  text-align: center;
 }
 .rb-label {
   flex: 1;
@@ -959,6 +967,11 @@
   justify-content: space-between;
   margin-bottom: 16px;
 }
+.em-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .em-title {
   font-size: 24px;
   font-weight: 600;
@@ -1183,6 +1196,8 @@
   color: var(--ink-soft);
 }
 .ps-close {
+  display: flex;
+  align-items: center;
   padding: 8px;
   font-size: 32px;
   color: var(--ink-dim);

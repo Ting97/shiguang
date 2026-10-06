@@ -125,6 +125,9 @@
   font-weight: 500;
 }
 .dt-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 40px;
   text-align: center;

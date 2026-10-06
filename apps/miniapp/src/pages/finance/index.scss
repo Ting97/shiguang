@@ -559,6 +559,8 @@
   gap: 8px; /* gap-1 */
 }
 .tx-op {
+  display: flex;
+  align-items: center;
   padding: 4px 12px; /* px-1.5 py-0.5 */
   border-radius: 8px;
   font-size: 24px; /* text-xs */
@@ -607,6 +609,8 @@
   color: var(--ink);
 }
 .sheet-close {
+  display: flex;
+  align-items: center;
   padding: 8px 16px; /* px-2 py-1 */
   color: var(--ink-dim);
 }
@@ -759,6 +763,8 @@
   color: var(--ink);
 }
 .acc-mgr-del {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 24px; /* text-xs */
   color: var(--ink-dim);

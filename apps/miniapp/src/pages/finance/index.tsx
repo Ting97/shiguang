@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Input, Button, Picker } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { confirmTx, bjMonth, fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -46,10 +47,10 @@ import "./index.scss";
 /* ---------- 二级 pill 导航（= web finance-tabs.tsx + sub-nav.tsx） ---------- */
 
 const TABS = [
-  { key: "finance", label: "📊 概览", path: "/pages/finance/index", module: null },
-  { key: "debt", label: "🏦 负债", path: "/packages/debt/index/index", module: "debt" },
-  { key: "review", label: "📈 收支复盘", path: "/packages/review/index/index", module: "trade_review" },
-  { key: "trading", label: "🎯 交易", path: "/packages/trading/index/index", module: "trading" },
+  { key: "finance", label: "概览", icon: "bar_chart_3", path: "/pages/finance/index", module: null },
+  { key: "debt", label: "负债", icon: "landmark", path: "/packages/debt/index/index", module: "debt" },
+  { key: "review", label: "收支复盘", icon: "trending_up", path: "/packages/review/index/index", module: "trade_review" },
+  { key: "trading", label: "交易", icon: "target", path: "/packages/trading/index/index", module: "trading" },
 ] as const;
 
 /** 负债/复盘/交易按 me.modules 条件渲染；主区块间 redirectTo（等价 tab，栈恒 1） */
@@ -68,7 +69,8 @@ export function FinTabs({ modules }: { modules: string[] | null }) {
               hoverStayTime={80}
               onTap={() => !current && Taro.redirectTo({ url: t.path })}
             >
-              {t.label}
+              <LucideIcon name={t.icon} size={13} color={current ? "#fff" : "var(--ink-mute)"} />
+              <Text>{t.label}</Text>
             </View>
           );
         })}
@@ -80,12 +82,12 @@ export function FinTabs({ modules }: { modules: string[] | null }) {
 /* ---------- TagChip（= web tag-chip.tsx TagChip：语义色 tinted 底 + 同色系文字） ---------- */
 
 type Tone = "sky" | "emerald" | "amber" | "rose" | "violet" | "slate";
-export function Chip({ icon, label, tone }: { icon: string; label: string; tone: Tone }) {
+export function Chip({ icon, label, tone }: { icon: LucideIconName; label: string; tone: Tone }) {
   return (
-    <Text className={`chip chip-${tone}`}>
-      {icon ? `${icon} ` : ""}
-      {label}
-    </Text>
+    <View className={`chip chip-${tone}`}>
+      {icon ? <LucideIcon name={icon} size={12} color="currentColor" /> : null}
+      <Text>{label}</Text>
+    </View>
   );
 }
 
@@ -137,14 +139,14 @@ function TxRow({
       <View className="tx-ops">
         {onConfirm && (
           <View className="tx-op tx-op-confirm" onTap={onConfirm}>
-            ✓
+            <LucideIcon name="check" size={12} color="currentColor" />
           </View>
         )}
         <View className="tx-op" onTap={onEdit}>
-          ✏️
+          <LucideIcon name="pencil" size={12} color="var(--accent)" />
         </View>
         <View className={`tx-op ${delArmed ? "tx-op-armed" : ""}`} onTap={onDelete}>
-          {delArmed ? "确认删除?" : "🗑"}
+          {delArmed ? "确认删除?" : <LucideIcon name="trash_2" size={12} color="var(--danger)" />}
         </View>
       </View>
     </>
@@ -463,7 +465,7 @@ function AccountManager({
               placeholderClass="input-placeholder"
             />
             <View className={`acc-mgr-del ${armId === a.id ? "acc-mgr-del-armed" : ""}`} onTap={() => void armArchive(a)}>
-              {armId === a.id ? "确认归档?" : "🗑"}
+              {armId === a.id ? "确认归档?" : <LucideIcon name="trash_2" size={12} color="currentColor" />}
             </View>
           </View>
           {rowErr[a.id] ? <Text className="txform-err">{rowErr[a.id]}</Text> : null}
@@ -548,7 +550,7 @@ function SavingsTrend({ trend }: { trend: FinOverview["trend"] }) {
   return (
     <View className="ov-sec">
       <View className="ov-sec-head">
-        <Chip icon="📈" label="储蓄率 · 近 6 个月" tone="emerald" />
+        <Chip icon="trending_up" label="储蓄率 · 近 6 个月" tone="emerald" />
       </View>
       <View className="trend-row">
         {trend.map((t, i) => {
@@ -718,14 +720,16 @@ export default function Finance() {
         <View className="fin-toolbar-acts">
           {/* web 是客户端解析 CSV 的 BillImport 弹层；小程序无 FileReader/GBK 能力，仅提示走 web（需求约定） */}
           <View
-            className="btn-sky-tinted fin-btn-import"
+            className="btn-sky-tinted fin-btn-import ico-row"
             hoverClass="press"
             onTap={() => showToast({ type: "info", text: "CSV 导入请使用 web 端" })}
           >
-            📥 导入账单
+            <LucideIcon name="download" size={13} color="currentColor" />
+            <Text>导入账单</Text>
           </View>
-          <Button className="btn-primary fin-btn-add" hoverClass="press" onClick={() => setAdding(true)}>
-            ＋ 记一笔
+          <Button className="btn-primary fin-btn-add ico-row" hoverClass="press" onClick={() => setAdding(true)}>
+            <LucideIcon name="plus" size={13} color="currentColor" />
+            <Text>记一笔</Text>
           </Button>
         </View>
       </View>
@@ -756,9 +760,12 @@ export default function Finance() {
           {/* 草稿提醒条 */}
           {drafts.length > 0 && (
             <View className="draft-strip">
-              <Text className="draft-strip-text">
-                📥 有 <Text className="draft-strip-n">{drafts.length}</Text> 笔动态识别的流水待确认
-              </Text>
+              <View className="draft-strip-text ico-row">
+                <LucideIcon name="download" size={12} color="var(--warn)" />
+                <Text>
+                  有 <Text className="draft-strip-n">{drafts.length}</Text> 笔动态识别的流水待确认
+                </Text>
+              </View>
               <View className="draft-strip-go" onTap={scrollToDraft}>
                 去确认
               </View>
@@ -862,7 +869,7 @@ export default function Finance() {
           <View className="glass glass-p5 fin-card">
             <View className="fin-card-head">
               <View className="fin-card-head-l">
-                <Chip icon="💳" label="账户" tone="sky" />
+                <Chip icon="credit_card" label="账户" tone="sky" />
                 <Text className="fin-card-sum">合计 {fmtMoney((ov.accounts ?? []).reduce((s, a) => s + Number(a.balanceCents), 0))}</Text>
               </View>
               <View className="fin-card-manage" onTap={() => setManagingAccount(true)}>
@@ -892,7 +899,7 @@ export default function Finance() {
             <View className="draft-area" id="draft-area">
               <View className="draft-head">
                 <View className="draft-head-l">
-                  <Chip icon="📥" label="待确认流水" tone="amber" />
+                  <Chip icon="download" label="待确认流水" tone="amber" />
                   <Text className="draft-head-sub">来自动态识别 · 确认后计入报表</Text>
                 </View>
                 <Button
@@ -901,7 +908,14 @@ export default function Finance() {
                   hoverClass="press"
                   onClick={() => void confirmAll()}
                 >
-                  {confirmBusy ? "确认中…" : "⚡ 全部确认"}
+                  {confirmBusy ? (
+                    "确认中…"
+                  ) : (
+                    <View className="ico-row">
+                      <LucideIcon name="zap" size={12} color="currentColor" />
+                      <Text>全部确认</Text>
+                    </View>
+                  )}
                 </Button>
               </View>
               {drafts.map((t) => (
@@ -922,7 +936,7 @@ export default function Finance() {
           <View className="glass glass-p5 fin-card fin-card-last">
             <View className="fin-card-head">
               <View className="fin-card-head-l">
-                <Chip icon="🧾" label="流水" tone="slate" />
+                <Chip icon="receipt" label="流水" tone="slate" />
                 <Text className="fin-card-sum">{confirmed.length} 笔</Text>
               </View>
             </View>
@@ -949,7 +963,7 @@ export default function Finance() {
           <View className="sheet-head">
             <Text className="sheet-title">记一笔</Text>
             <View className="sheet-close" onTap={() => setAdding(false)}>
-              ✕
+              <LucideIcon name="x" size={14} color="currentColor" />
             </View>
           </View>
           <TxForm
@@ -975,7 +989,7 @@ export default function Finance() {
           <View className="sheet-head">
             <Text className="sheet-title">修改流水</Text>
             <View className="sheet-close" onTap={() => setEditing(null)}>
-              ✕
+              <LucideIcon name="x" size={14} color="currentColor" />
             </View>
           </View>
           <TxForm
@@ -1001,7 +1015,7 @@ export default function Finance() {
           <View className="sheet-head">
             <Text className="sheet-title">账户管理</Text>
             <View className="sheet-close" onTap={() => setManagingAccount(false)}>
-              ✕
+              <LucideIcon name="x" size={14} color="currentColor" />
             </View>
           </View>
           <AccountManager

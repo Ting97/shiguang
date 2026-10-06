@@ -10,6 +10,7 @@ import { View, Text, Input, Picker } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { showToast } from "@/components/toast";
 import { createTodo, deleteTodo, loadTodayActions, patchTodo, type TodayActionRow } from "./api";
+import LucideIcon from "../../components/lucide-icon";
 import { bjInputToIso, dueTag, isoToBjInput } from "./kit";
 
 /** 到期/截止 → 北京墙上串两段（微信 Picker 无 datetime-local，date+time 双 Picker 承载） */
@@ -157,7 +158,7 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
       <View className="at-head">
         <View className="at-head-left">
           <View className="at-logo">
-            <Text>✓</Text>
+            <LucideIcon name="list_todo" size={10} color="currentColor" />
           </View>
           <Text className="at-title">今日行动</Text>
           {(actions?.length ?? 0) > 0 ? (
@@ -242,14 +243,23 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
                         hoverStayTime={80}
                         onClick={() => void toggleDone(a)}
                       >
-                        <Text>✓</Text>
+                        <LucideIcon name="check" size={12} color="currentColor" />
                       </View>
                       <View className="at-main">
                         <View className="at-line">
                           <Text className="at-row-title">{a.title}</Text>
                           {!a.parent_title ? <Text className="at-tag">行动</Text> : null}
-                          {a.repeat_daily ? <Text className="at-tag at-tag-repeat">🔁 {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}</Text> : null}
-                          {a.note ? <Text className="at-note-icon">📄</Text> : null}
+                          {a.repeat_daily ? (
+                            <View className="at-tag at-tag-repeat ico-row">
+                              <LucideIcon name="repeat" size={10} color="currentColor" />
+                              <Text>{a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : "每日"}</Text>
+                            </View>
+                          ) : null}
+                          {a.note ? (
+                            <View className="at-note-icon">
+                              <LucideIcon name="file_text" size={10} color="var(--ink-dim)" />
+                            </View>
+                          ) : null}
                         </View>
                         {a.parent_title || tag ? (
                           <View className="at-sub">
@@ -259,12 +269,12 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
                         ) : null}
                       </View>
                       <View className="row-actions">
-                        <Text className="row-action-btn" onClick={() => startEdit(a)}>
-                          ✏️
-                        </Text>
-                        <Text className={`row-action-btn${armedId === a.id ? " row-action-armed" : ""}`} onClick={() => void removeAction(a)}>
-                          {armedId === a.id ? "确认删除?" : "🗑"}
-                        </Text>
+                        <View className="row-action-btn" onClick={() => startEdit(a)}>
+                          <LucideIcon name="pencil" size={11} color="var(--accent)" />
+                        </View>
+                        <View className={`row-action-btn${armedId === a.id ? " row-action-armed" : ""}`} onClick={() => void removeAction(a)}>
+                          {armedId === a.id ? "确认删除?" : <LucideIcon name="trash_2" size={11} color="var(--danger)" />}
+                        </View>
                       </View>
                     </View>
                   );
@@ -274,21 +284,22 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
               {/* 今日已完成（可恢复） */}
               {done.length > 0 ? (
                 <View className="at-done">
-                  <Text className="at-done-toggle" onClick={() => setShowDone((v) => !v)}>
-                    {showDone ? "▾" : "▸"} 今日已完成 {done.length} 项（可恢复）
-                  </Text>
+                  <View className="at-done-toggle ico-row" onClick={() => setShowDone((v) => !v)}>
+                    <LucideIcon name={showDone ? "chevron_down" : "chevron_right"} size={12} color="var(--ink-dim)" />
+                    <Text>今日已完成 {done.length} 项（可恢复）</Text>
+                  </View>
                   {showDone ? (
                     <View className="at-done-list">
                       {done.map((a) => (
                         <View key={a.id} className="at-done-row">
                           <View className="at-done-check">
-                            <Text>✓</Text>
+                            <LucideIcon name="check" size={9} color="#fff" />
                           </View>
                           <Text className="at-done-title">{a.title}</Text>
                           {a.repeat_daily && a.repeat_done_count > 0 ? <Text className="at-done-repeat">×{a.repeat_done_count}</Text> : null}
-                          <Text className="at-restore" onClick={() => void toggleDone(a)}>
-                            ↩️
-                          </Text>
+                          <View className="at-restore" onClick={() => void toggleDone(a)}>
+                            <LucideIcon name="rotate_ccw" size={12} color="var(--ink-dim)" />
+                          </View>
                         </View>
                       ))}
                     </View>

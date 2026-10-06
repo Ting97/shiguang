@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import { linkMoment, loadUnlinkedFeed, type SpaceMoment } from "./api";
 import { bjStamp } from "../shared";
 import { showToast } from "@/components/toast";
@@ -80,9 +81,15 @@ export default function MomentsTab(opts: {
   return (
     <View className="glass glass-p5 mm-section">
       <View className="mm-head">
-        <Text className="mm-chip">🌱 相关动态</Text>
+        <View className="mm-chip ico-row">
+          <LucideIcon name="sprout" size={11} color="var(--success)" />
+          <Text>相关动态</Text>
+        </View>
         <Text className="mm-count">{moments.length} 条</Text>
-        <Text className="mm-link-btn" onClick={openPool}>🔗 关联动态</Text>
+        <View className="mm-link-btn ico-row" onClick={openPool}>
+          <LucideIcon name="link_2" size={11} color="var(--accent)" />
+          <Text>关联动态</Text>
+        </View>
       </View>
       {moments.length === 0 ? (
         <Text className="mm-empty">

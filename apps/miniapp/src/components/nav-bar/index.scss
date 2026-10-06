@@ -37,7 +37,10 @@
   gap: 8px; /* gap-1 */
 }
 .nav-pill {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px; /* 图标与文字间距 */
   flex-shrink: 0;
   white-space: nowrap;
   text-align: center;

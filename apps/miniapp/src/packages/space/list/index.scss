@@ -139,6 +139,8 @@
   color: var(--ink);
 }
 .sp-name-pen {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 20px;
   color: var(--ink-dim);
@@ -203,12 +205,16 @@
   font-size: 28px;
 }
 .sp-rename-ok {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px;
   color: var(--accent);
   font-size: 28px;
 }
 .sp-rename-cancel {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px;
   color: var(--ink-mute);
@@ -220,6 +226,8 @@
   margin-top: 48px; /* mt-6 */
 }
 .sp-archived-summary {
+  display: flex;
+  align-items: center;
   font-size: 24px; /* text-xs */
   color: var(--ink-dim);
 }
@@ -354,6 +362,8 @@
   color: var(--ink);
 }
 .sp-date-clear {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px;
   color: var(--ink-dim);
@@ -417,6 +427,9 @@
   font-weight: 500;
 }
 .sp-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 40px; /* w-5 */
   text-align: center;

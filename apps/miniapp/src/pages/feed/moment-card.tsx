@@ -35,7 +35,8 @@ import {
   type FeedTodo,
   type FeedTx,
 } from "./api";
-import { TagChip } from "./chip";
+import { TagChip, type Tone } from "./chip";
+import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 import EntryMenu from "./entry-menu";
 import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import "./moment-card.scss";
@@ -46,14 +47,18 @@ function RowAction(props: { onEdit?: () => void; onDelete?: () => void; armed: b
   return (
     <View className="row-actions">
       {onEdit ? (
-        <Text className="row-action-btn row-action-edit" onClick={onEdit}>
-          ✏️
-        </Text>
+        <View className="row-action-btn row-action-edit" onClick={onEdit}>
+          <LucideIcon name="pencil" size={11} color="var(--accent)" />
+        </View>
       ) : null}
       {onDelete ? (
-        <Text className={`row-action-btn${armed ? " row-action-armed" : ""}`} onClick={onDelete}>
-          {armed ? "确认删除?" : "🗑"}
-        </Text>
+        <View className={`row-action-btn${armed ? " row-action-armed" : ""}`} onClick={onDelete}>
+          {armed ? (
+            "确认删除?"
+          ) : (
+            <LucideIcon name="trash_2" size={11} color="var(--danger)" />
+          )}
+        </View>
       ) : null}
     </View>
   );
@@ -88,13 +93,13 @@ export default function MomentCard({
   const recs = m.recognitions ?? {};
 
   /** 头部意图标签：todo > 日程 > 心情 > 动态（= web intent 推导） */
-  const intent = todos.length > 0
-    ? { icon: "📋", label: "todo", tone: "sky" as const }
+  const intent: { icon: LucideIconName; label: string; tone: Tone } = todos.length > 0
+    ? { icon: "list_todo", label: "todo", tone: "sky" }
     : blocks.length > 0
-      ? { icon: "🕒", label: "日程", tone: "sky" as const }
+      ? { icon: "clock", label: "日程", tone: "sky" }
       : m.mood
-        ? { icon: "✨", label: "心情", tone: "violet" as const }
-        : { icon: "📝", label: "动态", tone: "slate" as const };
+        ? { icon: "sparkles", label: "心情", tone: "violet" }
+        : { icon: "notebook_pen", label: "动态", tone: "slate" };
 
   const isLongText = (m.raw_text ?? "").length > 150;
 
@@ -241,7 +246,7 @@ export default function MomentCard({
       <View className="mc-main">
         {/* = web CardHeader：意图标签 + 空间徽标 + 语音/离线标记 + 两步删除 */}
         <View className="mc-head">
-          <TagChip icon={intent.icon} label={intent.label} tone={intent.tone} size="sm" maxWidth />
+          <TagChip lucide={intent.icon} label={intent.label} tone={intent.tone} size="sm" maxWidth />
           {m.space ? (
             <View
               className="mc-space-badge"
@@ -252,9 +257,9 @@ export default function MomentCard({
               <Text className="mc-space-name">{m.space.name}</Text>
             </View>
           ) : null}
-          {m.source === "voice" ? <TagChip icon="🎙" label="语音" tone="slate" size="sm" /> : null}
+          {m.source === "voice" ? <TagChip lucide="mic" label="语音" tone="slate" size="sm" /> : null}
           {Object.values(recs).some((v) => v?.engine === "rules") ? (
-            <TagChip icon="⚠" label="离线识别" tone="amber" size="sm" />
+            <TagChip lucide="triangle_alert" label="离线识别" tone="amber" size="sm" />
           ) : null}
           <View className="mc-head-spacer" />
           {confirming ? (
@@ -327,12 +332,12 @@ export default function MomentCard({
         {!m.analyzed_at &&
           (m.recognize_state === "timeout" ? (
             <View className="mc-recog-state">
-              <TagChip icon="🤖" label="识别未完成" tone="slate" size="sm" />
+              <TagChip lucide="sparkles" label="识别未完成" tone="slate" size="sm" />
               <Text className="mc-recog-state-text">AI 当时未返回结果 · 点击原文可重新识别</Text>
             </View>
           ) : (
             <View className="mc-recog-state mc-recog-state-live">
-              <TagChip icon="🤖" label="AI 识别中" tone="violet" size="sm" />
+              <TagChip lucide="sparkles" label="AI 识别中" tone="violet" size="sm" />
               <Text className="mc-recog-state-text">正在提取 日程 / 关系 / todo / 收支 / 心情 / 饮食…</Text>
             </View>
           ))}
@@ -340,16 +345,19 @@ export default function MomentCard({
         {/* 日程冲突降级条（= web amber 警示条）：去调整 + 就地关闭 */}
         {showConflict ? (
           <View className="mc-conflict">
-            <Text className="mc-conflict-text">⚠️ 未生成日程：{scheduleRec?.reason}</Text>
+            <View className="mc-conflict-text ico-row">
+              <LucideIcon name="triangle_alert" size={12} color="var(--warn)" />
+              <Text>未生成日程：{scheduleRec?.reason}</Text>
+            </View>
             <Text
               className="mc-conflict-go"
               onClick={() => Taro.redirectTo({ url: `/pages/schedule/index?date=${bjDateKey(m.created_at)}` })}
             >
               去调整 →
             </Text>
-            <Text className="mc-conflict-x" onClick={() => run(async () => { await dismissConflict(m.id); return "已关闭，不再提示"; })}>
-              ✕
-            </Text>
+            <View className="mc-conflict-x" onClick={() => run(async () => { await dismissConflict(m.id); return "已关闭，不再提示"; })}>
+              <LucideIcon name="x" size={12} color="var(--ink-dim)" />
+            </View>
           </View>
         ) : null}
 
@@ -535,7 +543,7 @@ export default function MomentCard({
                 </View>
               ) : (
                 <View key={td.id} className="mc-row">
-                  <TagChip icon="📋" label="todo" tone="sky" size="sm" />
+                  <TagChip lucide="list_todo" label="todo" tone="sky" size="sm" />
                   <Text className="mc-row-main">{td.title}</Text>
                   <Text className="mc-row-time">{todoTimeLabel(td.startAt, td.dueAt) ?? "未定时间"}</Text>
                   {td.status === "done" ? <Text className="mc-row-done">已完成</Text> : null}
@@ -615,7 +623,7 @@ export default function MomentCard({
               ) : (
                 <View key={x.id} className="mc-row">
                   <TagChip
-                    icon="💰"
+                    lucide="coins"
                     label={`${x.direction === "out" ? "支出" : "收入"} ${yuanCents(x.amountCents)}`}
                     tone={x.direction === "out" ? "rose" : "emerald"}
                     size="sm"
@@ -644,7 +652,7 @@ export default function MomentCard({
             {/* ---- 人物（= web people 行：👥 chip + 两步删除） ---- */}
             {people.length > 0 ? (
               <View className="mc-row">
-                <TagChip icon="👥" label={people.map((p) => p.name).join("、")} tone="sky" size="sm" maxWidth />
+                <TagChip lucide="users" label={people.map((p) => p.name).join("、")} tone="sky" size="sm" maxWidth />
                 <RowAction
                   armed={delArmed === `people:${m.id}`}
                   onDelete={() =>
@@ -659,7 +667,7 @@ export default function MomentCard({
             {/* ---- 饮食（= web diet 行：餐次 · 菜品 + kcal + 两步删除） ---- */}
             {m.diet ? (
               <View className="mc-row">
-                <TagChip icon="🍽" label="饮食" tone="amber" size="sm" />
+                <TagChip lucide="utensils" label="饮食" tone="amber" size="sm" />
                 <Text className="mc-row-main">
                   {m.diet.meal !== "未知" ? `${m.diet.meal} · ` : ""}
                   {(m.diet.items ?? []).map((i) => `${i.name}${i.amount ?? ""}`).join(" + ")}

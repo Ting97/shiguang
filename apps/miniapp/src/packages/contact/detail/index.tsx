@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
+import LucideIcon from "@/components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
@@ -201,7 +202,10 @@ export default function ContactDetailPage() {
             <View className="cd-facts">
               {bd && (
                 <>
-                  <Text className={`chip cd-chip tone-rose`}>🎂 生日 {bd.date}</Text>
+                  <View className={`chip cd-chip tone-rose ico-row`}>
+                  <LucideIcon name="cake" size={11} color="currentColor" />
+                  <Text>生日 {bd.date}</Text>
+                </View>
                   {bd.countdown != null && (
                     <Text className="cd-bd-count">
                       · {bd.countdown === 0 ? "今天生日" : bd.countdown === 1 ? "明天生日" : `${bd.countdown} 天后生日`}
@@ -210,24 +214,35 @@ export default function ContactDetailPage() {
                 </>
               )}
               {!!contact.anniversary && (
-                <Text className="chip cd-chip tone-rose">
-                  💞 纪念日 {Number(String(contact.anniversary).slice(5, 7))}月{Number(String(contact.anniversary).slice(8, 10))}日
-                </Text>
+                <View className="chip cd-chip tone-rose ico-row">
+                  <LucideIcon name="heart" size={11} color="currentColor" />
+                  <Text>
+                    纪念日 {Number(String(contact.anniversary).slice(5, 7))}月{Number(String(contact.anniversary).slice(8, 10))}日
+                  </Text>
+                </View>
               )}
-              <Text className="chip cd-chip tone-sky">📅 {timeline.length} 次往来</Text>
+              <View className="chip cd-chip tone-sky ico-row">
+                <LucideIcon name="calendar_days" size={11} color="currentColor" />
+                <Text>{timeline.length} 次往来</Text>
+              </View>
               {money.length > 0 && (
-                <Text className="chip cd-chip tone-rose">💰 收 ¥{yuan(giftIn)} / 送 ¥{yuan(giftOut)}</Text>
+                <View className="chip cd-chip tone-rose ico-row">
+                  <LucideIcon name="coins" size={11} color="currentColor" />
+                  <Text>收 ¥{yuan(giftIn)} / 送 ¥{yuan(giftOut)}</Text>
+                </View>
               )}
             </View>
           </View>
           <View className="cd-ops">
-            <Text className="cd-op" onClick={() => setEditing(true)}>✏️</Text>
-            <Text
+            <View className="cd-op" onClick={() => setEditing(true)}>
+              <LucideIcon name="pencil" size={12} color="var(--accent)" />
+            </View>
+            <View
               className={`cd-op del ${armDelete.armedId ? "armed" : ""}`}
               onClick={() => void removeContact()}
             >
-              {armDelete.armedId ? "确认删除?" : "🗑"}
-            </Text>
+              {armDelete.armedId ? "确认删除?" : <LucideIcon name="trash_2" size={12} color="var(--danger)" />}
+            </View>
           </View>
         </View>
         {/* 亲密度（渐变进度条 from-sky-500 to-pink-400） */}
@@ -246,10 +261,13 @@ export default function ContactDetailPage() {
       {/* AI 交往画像卡 */}
       <View className="glass glass-p5 cd-card">
         <View className="cd-sec-head">
-          <Text className="cd-sec-title">
-            ✨ AI 交往画像
-            {!!contact.ai_profile_at && <Text className="cd-sec-sub"> 提炼于 {bjMDHM(contact.ai_profile_at)}</Text>}
-          </Text>
+          <View className="cd-sec-title ico-row">
+            <LucideIcon name="sparkles" size={13} color="var(--ai)" />
+            <Text>
+              AI 交往画像
+              {!!contact.ai_profile_at && <Text className="cd-sec-sub"> 提炼于 {bjMDHM(contact.ai_profile_at)}</Text>}
+            </Text>
+          </View>
           <Button
             className={`btn-reset btn-purple-tinted cd-profile-btn ${profiling ? "disabled" : ""}`}
             hoverClass="press"
@@ -272,7 +290,10 @@ export default function ContactDetailPage() {
             <Text className="cd-profile-summary">{profile.summary}</Text>
             {!!profile.likes?.length && (
               <View className="cd-profile-row">
-                <Text className="cd-profile-label ok">💚 喜欢</Text>
+                <View className="cd-profile-label ok ico-row">
+                  <LucideIcon name="heart" size={11} color="var(--success)" />
+                  <Text>喜欢</Text>
+                </View>
                 {profile.likes.map((x) => (
                   <Text key={x} className="chip cd-mini ok">{x}</Text>
                 ))}
@@ -280,7 +301,10 @@ export default function ContactDetailPage() {
             )}
             {!!profile.dislikes?.length && (
               <View className="cd-profile-row">
-                <Text className="cd-profile-label bad">⚠️ 忌讳</Text>
+                <View className="cd-profile-label bad ico-row">
+                  <LucideIcon name="triangle_alert" size={11} color="var(--danger)" />
+                  <Text>忌讳</Text>
+                </View>
                 {profile.dislikes.map((x) => (
                   <Text key={x} className="chip cd-mini bad">{x}</Text>
                 ))}
@@ -288,7 +312,10 @@ export default function ContactDetailPage() {
             )}
             {!!profile.facts?.length && (
               <View className="cd-profile-row">
-                <Text className="cd-profile-label acc">📌 记住</Text>
+                <View className="cd-profile-label acc ico-row">
+                  <LucideIcon name="star" size={11} color="var(--warn)" />
+                  <Text>记住</Text>
+                </View>
                 {profile.facts.map((x) => (
                   <Text key={x} className="chip cd-mini acc">{x}</Text>
                 ))}
@@ -301,10 +328,13 @@ export default function ContactDetailPage() {
       {/* 一起经历过的事（往来时间线） */}
       <View className="glass glass-p5 cd-card">
         <View className="cd-sec-head">
-          <Text className="cd-sec-title">
-            🕐 一起经历过的事
-            <Text className="cd-sec-sub"> 来自动态识别 + 手动补记</Text>
-          </Text>
+          <View className="cd-sec-title ico-row">
+            <LucideIcon name="clock" size={13} color="var(--accent)" />
+            <Text>
+              一起经历过的事
+              <Text className="cd-sec-sub"> 来自动态识别 + 手动补记</Text>
+            </Text>
+          </View>
           <Button className="btn-reset btn-sky-tinted cd-add-btn" hoverClass="press" onClick={() => setAdding(true)}>
             ＋ 补一笔往来
           </Button>
@@ -349,7 +379,10 @@ export default function ContactDetailPage() {
       {money.length > 0 && (
         <View className="glass glass-p5 cd-card">
           <View className="cd-money-head">
-            <Text className="chip cd-chip tone-rose">💰 关联人情账</Text>
+            <View className="chip cd-chip tone-rose ico-row">
+              <LucideIcon name="wallet" size={11} color="currentColor" />
+              <Text>关联人情账</Text>
+            </View>
             <Text className="cd-money-sub">流水中「对方」为 TA 的人情往来 · 净额 ¥{yuan(giftIn - giftOut)}</Text>
           </View>
           <View className="cd-money-list">

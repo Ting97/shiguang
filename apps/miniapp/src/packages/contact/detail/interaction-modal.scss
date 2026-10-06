@@ -20,6 +20,8 @@
   white-space: nowrap;
 }
 .it-close {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px 16px;
   color: var(--ink-dim);

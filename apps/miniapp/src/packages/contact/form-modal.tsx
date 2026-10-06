@@ -6,6 +6,7 @@
  */
 import { useState } from "react";
 import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
+import LucideIcon from "../../components/lucide-icon";
 import { request } from "@/lib/request";
 import type { ContactRow } from "./shared";
 import {
@@ -84,7 +85,9 @@ export default function ContactFormModal(opts: {
       <View className="sheet cf-sheet safe-bottom">
         <View className="cf-head">
           <Text className="cf-title">{initial ? "编辑联系人" : "新建联系人"}</Text>
-          <Text className="cf-close" onClick={onClose}>✕</Text>
+          <View className="cf-close" onClick={onClose}>
+            <LucideIcon name="x" size={14} color="var(--ink-dim)" />
+          </View>
         </View>
         <View className="cf-form">
           {/* 姓名 + 备注名（= web 双 input 行） */}
@@ -121,7 +124,9 @@ export default function ContactFormModal(opts: {
                 <View className="input cf-input pick"><Text>{anniversary || "纪念日"}</Text></View>
               </Picker>
               {!!anniversary && (
-                <Text className="cf-anniv-clear" onClick={() => setAnniversary("")}>✕</Text>
+                <View className="cf-anniv-clear" onClick={() => setAnniversary("")}>
+                  <LucideIcon name="x" size={12} color="var(--ink-mute)" />
+                </View>
               )}
             </View>
           </View>
@@ -141,7 +146,9 @@ export default function ContactFormModal(opts: {
                   <Picker mode="date" value={birthday || "2000-01-01"} onChange={(e) => setBirthday(e.detail.value)}>
                     <View className="input cf-input pick"><Text>{birthday || "生日（阳历）"}</Text></View>
                   </Picker>
-                  {!!birthday && <Text className="cf-anniv-clear" onClick={() => setBirthday("")}>✕</Text>}
+                  {!!birthday && <View className="cf-anniv-clear" onClick={() => setBirthday("")}>
+                  <LucideIcon name="x" size={12} color="var(--ink-mute)" />
+                </View>}
                 </View>
               ) : (
                 <View className="cf-bday lunar">

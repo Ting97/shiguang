@@ -19,6 +19,7 @@ import { logout } from "@/lib/api";
 import { API_BASE } from "@/lib/request";
 import { clearSessionToken, getSessionToken, toLogin } from "@/lib/session";
 import { fetchMeFull, updateProfile, logoutAll, loadPlan, type Me, type PlanQuota } from "./api";
+import LucideIcon from "@/components/lucide-icon";
 import "./index.scss";
 
 /** 分包模块开通状态 → 展示名（未知 key 原样展示兜底） */
@@ -309,8 +310,8 @@ export default function Profile() {
           <View className="glass glass-p5 sec">
             <View className="sec-head">
               {/* = TagChip md（icon + label，violet 语义色） */}
-              <View className="tag-chip tag-violet">
-                <Text className="tag-icon">💎</Text>
+              <View className="tag-chip tag-violet ico-row">
+                <LucideIcon name="gem" size={13} color="var(--ai)" />
                 <Text>套餐与 AI 用量</Text>
               </View>
             </View>
@@ -371,8 +372,8 @@ export default function Profile() {
           {/* ---- 导出我的数据 = web section.glass（docs/06 P8 个人数据可携带） ---- */}
           <View className="glass glass-p5 sec">
             <View className="sec-head">
-              <View className="tag-chip tag-slate">
-                <Text className="tag-icon">📦</Text>
+              <View className="tag-chip tag-slate ico-row">
+                <LucideIcon name="download" size={13} color="var(--ink-mute)" />
                 <Text>导出我的数据</Text>
               </View>
             </View>

@@ -160,6 +160,8 @@
   opacity: 0.85;
 }
 .ts-more {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 4px 8px;
   font-size: 30px;
@@ -167,6 +169,8 @@
   color: var(--ink-dim);
 }
 .ts-arrow {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 8px;
   font-size: 20px;
@@ -204,6 +208,9 @@
   text-decoration: line-through;
 }
 .ts-repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
   padding: 2px 12px;
   border-radius: 16px;
@@ -212,6 +219,8 @@
   color: var(--success);
 }
 .ts-note-flag {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 20px;
 }
@@ -384,8 +393,15 @@
   border-radius: 16px;
 }
 .ts-done-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  color: var(--success);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(5, 150, 105, 0.8);
+  color: #fff;
   font-size: 24px;
 }
 .ts-done-title {
@@ -404,6 +420,8 @@
   color: var(--ink-faint);
 }
 .ts-done-restore {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
   padding: 4px 8px;
   font-size: 22px;
@@ -448,6 +466,9 @@
   color: var(--danger);
 }
 .ts-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 40px;
   text-align: center;
@@ -509,6 +530,9 @@
   color: var(--ink);
 }
 .ts-pick-star {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 40px;
   text-align: center;

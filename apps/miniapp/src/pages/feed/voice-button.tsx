@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import LucideIcon from "../../components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { transcribeAudio } from "@/lib/api";
 import "./voice-button.scss";
@@ -292,7 +293,7 @@ export default function CaptureButton({
         onTouchEnd={onTouchEnd}
         onTouchCancel={onTouchCancel}
       >
-        <Text className="fab-icon">{phase === "transcribing" ? "" : "🎙"}</Text>
+        <View className="fab-icon">{phase === "transcribing" ? null : <LucideIcon name="mic" size={26} color="#fff" />}</View>
         {phase === "transcribing" ? <View className="fab-spin" /> : null}
       </View>
 

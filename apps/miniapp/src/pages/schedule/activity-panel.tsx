@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Input, Text, View } from "@tarojs/components";
+import LucideIcon from "../../components/lucide-icon";
 import IconPicker from "./icon-picker";
 import { createActivity, deleteActivity, loadActivities, patchActivity, type Activity } from "./api";
 import { ApiError } from "@/lib/request";
@@ -209,14 +210,14 @@ export default function ActivityPanel({ refreshTick = 0 }: { refreshTick?: numbe
                 className="ap-action"
                 onTap={() => setEditing({ id: a.id, name: a.name, icon: a.icon, color: a.color, defaultMin: a.default_min ?? 30 })}
               >
-                ✏️
+                <LucideIcon name="pencil" size={11} color="var(--accent)" />
               </View>
               {!a.is_preset && (
                 <View
                   className={`ap-action ${armDeleteId === a.id ? "armed" : ""}`}
                   onTap={() => onDeleteClick(a)}
                 >
-                  {armDeleteId === a.id ? "确认删除?" : "🗑"}
+                  {armDeleteId === a.id ? "确认删除?" : <LucideIcon name="trash_2" size={11} color="var(--danger)" />}
                 </View>
               )}
             </View>

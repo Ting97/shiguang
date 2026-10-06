@@ -5,6 +5,7 @@
  */
 import { useState } from "react";
 import { View, Text, Input, Button, Picker } from "@tarojs/components";
+import LucideIcon from "../../../components/lucide-icon";
 import Taro from "@tarojs/taro";
 import type { SpaceRow } from "../shared";
 import { bjDate, bjToday, daysOf } from "../shared";
@@ -59,8 +60,12 @@ export default function HeaderCard(opts: {
                 focus
                 onInput={(e) => setNameDraft(e.detail.value)}
               />
-              <Text className="hd-rename-ok" onClick={() => void saveRename()}>✓</Text>
-              <Text className="hd-rename-cancel" onClick={() => setRenaming(false)}>✕</Text>
+              <View className="hd-rename-ok" onClick={() => void saveRename()}>
+                <LucideIcon name="check" size={16} color="var(--accent)" />
+              </View>
+              <View className="hd-rename-cancel" onClick={() => setRenaming(false)}>
+                <LucideIcon name="x" size={14} color="var(--ink-mute)" />
+              </View>
             </View>
           ) : (
             <View
@@ -71,7 +76,9 @@ export default function HeaderCard(opts: {
               }}
             >
               <Text className="hd-name">{space.name}</Text>
-              <Text className="hd-name-pen">✏️</Text>
+              <View className="hd-name-pen">
+                <LucideIcon name="pencil" size={11} color="var(--ink-dim)" />
+              </View>
             </View>
           )}
           {!!space.description && <Text className="hd-desc">{space.description}</Text>}
@@ -134,7 +141,9 @@ export default function HeaderCard(opts: {
           >
             ‹ 返回
           </Text>
-          <Text className="hd-more" onClick={onOpenMenu}>⋯</Text>
+          <View className="hd-more" onClick={onOpenMenu}>
+            <LucideIcon name="ellipsis" size={14} color="var(--ink-dim)" />
+          </View>
         </View>
       </View>
       {/* 进度概览：todo（空间主色）/ 行动（emerald）双条 */}

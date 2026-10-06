@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Input, Picker, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh, useReachBottom, useShareAppMessage } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import LucideIcon from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { parseText } from "@/lib/api";
 import { request } from "@/lib/request";
@@ -302,16 +303,19 @@ export default function Feed() {
       {/* = web FeedSection：计数 + 搜索框 + 空间过滤 chips + MomentFeed */}
       <View className="fs">
         <View className="fs-head">
-          <Text className="fs-title">
-            🌱 我的动态{" "}
-            <Text className="fs-count">
+          <View className="ico-row">
+            <LucideIcon name="sprout" size={14} color="var(--success)" />
+            <Text className="fs-title">
+              我的动态{" "}
+              <Text className="fs-count">
               {query
                 ? `找到 ${feedTotal} 条`
                 : feedTotal > 0
                   ? `共 ${feedTotal} 条${feedTotal > moments.length ? ` · 已显示 ${moments.length} 条` : " · 点内容可修正识别"}`
                   : ""}
+              </Text>
             </Text>
-          </Text>
+          </View>
           {/* 日期跳转（= web）：选某天 → 列表定位到那天最后一条往前；横幅提供相邻日切换 */}
           <Picker
             mode="date"
@@ -319,8 +323,9 @@ export default function Feed() {
             end={bjToday()}
             onChange={(e) => jumpToDate(e.detail.value || null)}
           >
-            <View className={`fs-date-chip${anchorDate ? " fs-date-chip-on" : ""}`}>
-              <Text>📅 {anchorDate ? zhDay(anchorDate) : "跳到某天"}</Text>
+            <View className={`fs-date-chip ico-row${anchorDate ? " fs-date-chip-on" : ""}`}>
+              <LucideIcon name="calendar_days" size={12} color={anchorDate ? "var(--accent)" : "var(--ink-soft)"} />
+              <Text>{anchorDate ? zhDay(anchorDate) : "跳到某天"}</Text>
             </View>
           </Picker>
           <View className="fs-search">
@@ -333,9 +338,9 @@ export default function Feed() {
               onInput={(e) => setSearchInput(e.detail.value)}
             />
             {searchInput ? (
-              <Text className="fs-search-clear" onClick={() => setSearchInput("")}>
-                ✕
-              </Text>
+              <View className="fs-search-clear" onClick={() => setSearchInput("")}>
+                <LucideIcon name="x" size={12} color="var(--ink-dim)" />
+              </View>
             ) : null}
           </View>
         </View>

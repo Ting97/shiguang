@@ -1,0 +1,6 @@
+/* lucide mask 图标基类（颜色 = 本组件 color → currentColor） */
+.lucide-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+}

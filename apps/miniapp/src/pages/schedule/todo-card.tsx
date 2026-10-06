@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Input, Picker, Text, Textarea, View } from "@tarojs/components";
+import LucideIcon from "../../components/lucide-icon";
 import type { Activity, Space, TodoItem, TodoRow } from "./api";
 import { childProgress, dueTag, joinDue, splitDue, TodoCircle } from "./todo-bits";
 import { showToast } from "@/components/toast";
@@ -160,7 +161,7 @@ export default function TodoCard({
             )}
             {edit.dueDate && (
               <View className="te-clear" onTap={() => setEdit({ ...edit, dueDate: "", dueTime: "" })}>
-                ✕
+                <LucideIcon name="x" size={12} color="currentColor" />
               </View>
             )}
             <Picker
@@ -204,11 +205,11 @@ export default function TodoCard({
             )}
             {tag && <Text className={`todo-due tone-${tag.tone}`}>{tag.text}</Text>}
             <View className="todo-more" onTap={() => onOpenMenu(t, false)}>
-              ⋯
+              <LucideIcon name="ellipsis" size={14} color="var(--ink-dim)" />
             </View>
             {t.children.length > 0 && (
               <View className={`todo-caret ${open ? "open" : ""}`} onTap={() => onToggleExpand(t.id)}>
-                ▼
+                <LucideIcon name="chevron_down" size={10} color="var(--ink-mute)" />
               </View>
             )}
           </View>
@@ -255,10 +256,13 @@ export default function TodoCard({
                           )}
                           {/* 🔁 每日重复：完成后次日 06:00 自动恢复未完成并累积次数 */}
                           <View
-                            className={`np-repeat ${note.repeat ? "on" : ""}`}
+                            className={`np-repeat ico-row ${note.repeat ? "on" : ""}`}
                             onTap={() => setNote({ ...note, repeat: !note.repeat })}
                           >
-                            🔁 每日{note.repeat && note.doneCount > 0 ? ` · 已完成 ×${note.doneCount}` : ""}
+                            <LucideIcon name="repeat" size={12} color="currentColor" />
+                            <Text>
+                              每日{note.repeat && note.doneCount > 0 ? ` · 已完成 ×${note.doneCount}` : ""}
+                            </Text>
                           </View>
                         </View>
                         <View className="te-actions">
@@ -279,15 +283,20 @@ export default function TodoCard({
                         <View className={`child-title ${cDone ? "done" : ""}`} onTap={() => openNoteFor(c)}>
                           {c.title}
                         </View>
-                        {c.note && <Text className="child-note-mark">📄</Text>}
+                        {c.note && (
+                          <View className="child-note-mark">
+                            <LucideIcon name="file_text" size={10} color="var(--ink-dim)" />
+                          </View>
+                        )}
                         {c.repeat_daily && (
-                          <Text className="child-repeat">
-                            🔁 {c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : ""}
-                          </Text>
+                          <View className="child-repeat ico-row">
+                            <LucideIcon name="repeat" size={10} color="currentColor" />
+                            <Text>{c.repeat_done_count > 0 ? `×${c.repeat_done_count}` : ""}</Text>
+                          </View>
                         )}
                         {ctag && <Text className={`todo-due sm tone-${ctag.tone}`}>{ctag.text}</Text>}
                         <View className="todo-more sm" onTap={() => onOpenMenu(c, true, t.title)}>
-                          ⋯
+                          <LucideIcon name="ellipsis" size={12} color="var(--ink-dim)" />
                         </View>
                       </View>
                     )}
@@ -313,7 +322,7 @@ export default function TodoCard({
                     }}
                   />
                   <View className="child-add-close" onTap={() => sub.close()}>
-                    ✕
+                    <LucideIcon name="x" size={12} color="var(--ink-mute)" />
                   </View>
                 </View>
               )}
