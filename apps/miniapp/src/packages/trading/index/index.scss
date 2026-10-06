@@ -217,6 +217,7 @@
   text-align: center;
   font-size: 28px; /* text-sm */
   color: var(--ink-dim);
+  padding: 64px;
 }
 
 /* ---------- 区块头（= mb-3 flex items-center gap-2） ---------- */
@@ -399,7 +400,7 @@
   flex: 1;
   min-width: 0;
   text-align: center;
-  font-size: 18px; /* text-[9px] */
+  font-size: 20px; /* text-[9px] */
   color: var(--ink-faint);
 }
 /* 权益图 */
@@ -440,7 +441,7 @@
   display: block;
   margin-top: 16px; /* mt-2 */
   text-align: center;
-  font-size: 18px; /* text-[9px] */
+  font-size: 22px; /* text-[9px] */
   color: var(--ink-faint);
 }
 .chart-sky {
@@ -504,7 +505,7 @@
 }
 /* 固定列宽（= web w-10/w-16/w-20/w-28/w-14/w-20…） */
 .tw-40 {
-  width: 40px;
+  width: 80px;
   flex-shrink: 0;
   text-align: right;
 }
@@ -514,16 +515,16 @@
   text-align: center;
 }
 .tw-64 {
-  width: 64px;
+  width: 128px;
   flex-shrink: 0;
   text-align: right;
 }
 .tw-80 {
-  width: 80px; /* w-20 */
+  width: 160px; /* w-20 */
   flex-shrink: 0;
 }
 .tw-112 {
-  width: 112px; /* w-28 */
+  width: 224px; /* w-28 */
   flex-shrink: 0;
   text-align: right;
 }

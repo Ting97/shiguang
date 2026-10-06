@@ -188,6 +188,9 @@
   padding-left: 24px; /* pl-3 */
   border-left: 1px solid var(--line-soft);
 }
+.ts-child + .ts-child {
+  margin-top: 4px; /* space-y-0.5 */
+}
 .ts-child {
   display: flex;
   align-items: center;
@@ -301,7 +304,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--surface);
-  font-size: 24px;
+  font-size: 28px;
   color: var(--ink);
 }
 .ts-note-repeat {
@@ -346,7 +349,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--surface);
-  font-size: 24px;
+  font-size: 28px;
   color: var(--ink);
 }
 .ts-edit-clear {

@@ -311,7 +311,7 @@ page {
   right: 8px; /* right-1 */
   background: #f43f5e;
   color: #fff;
-  font-size: 18px; /* text-[9px] */
+  font-size: 22px; /* text-[9px] */
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 6px;
@@ -491,12 +491,12 @@ page {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 18px; /* text-[9px] */
+  font-size: 22px; /* text-[9px] */
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
 .month-none {
-  font-size: 18px;
+  font-size: 22px;
   color: var(--ink-faint);
 }
 /* 迷你结构环（conic-gradient 圆 + 同心圆打孔；孔底用 --bg 近似格底） */
@@ -538,7 +538,7 @@ page {
   padding: 2px 0; /* py-[1px] 近似 */
 }
 .year-month-label {
-  font-size: 18px; /* text-[9px] */
+  font-size: 22px; /* text-[9px] */
   line-height: 22px; /* 与格子同高对齐 */
   color: var(--ink-faint);
   white-space: nowrap;
@@ -1005,7 +1005,7 @@ page {
   background: var(--surface);
   border-radius: 12px;
   padding: 8px 16px;
-  font-size: 24px;
+  font-size: 28px;
   color: var(--ink);
 }
 .te-picker.sm {
@@ -1458,7 +1458,7 @@ page {
   background: var(--surface);
   border-radius: 12px;
   padding: 8px 16px;
-  font-size: 24px;
+  font-size: 28px;
   color: var(--ink);
   text-align: right;
 }
@@ -1503,7 +1503,7 @@ page {
   border-radius: 8px;
   background: var(--elevated);
   color: var(--ink-dim);
-  font-size: 18px; /* text-[9px] */
+  font-size: 22px; /* text-[9px] */
   vertical-align: middle;
 }
 .ap-min {

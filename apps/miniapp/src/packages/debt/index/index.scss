@@ -32,7 +32,7 @@
 }
 .nav-btn {
   padding: 12px 24px;
-  font-size: 28px;
+  font-size: 24px;
   border: 1px solid var(--line-soft);
   border-radius: 16px;
   background: var(--input-bg);
@@ -650,6 +650,7 @@
 .sim-run {
   padding: 12px 24px; /* px-3 py-1.5 */
   font-size: 22px; /* text-[11px] */
+  border-radius: 16px;
 }
 .sim-result {
   margin-top: 32px; /* mt-4 */
@@ -868,6 +869,7 @@
 .form-save {
   padding: 12px 40px;
   font-size: 24px;
+  border-radius: 16px;
 }
 /* 还款表单 */
 .pay-info {

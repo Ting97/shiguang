@@ -96,7 +96,7 @@
   text-align: center;
 }
 .fin-loadfail-text {
-  font-size: 24px; /* text-xs */
+  font-size: 28px; /* text-xs */
   color: var(--danger);
 }
 .fin-loadfail-btn {
@@ -260,7 +260,7 @@
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.6); /* ring-1 ring-sky-400/60 */
 }
 .trend-month {
-  font-size: 18px; /* text-[9px] */
+  font-size: 22px; /* text-[9px] */
 }
 
 /* ---------- 预算进度条 ---------- */
@@ -399,7 +399,7 @@
   margin: 0 auto 8px; /* mx-auto mb-1 */
   border-radius: 999px;
   background: rgba(14, 165, 233, 0.15); /* bg-sky-500/15 */
-  font-size: 28px;
+  font-size: 32px;
   line-height: 1;
 }
 .acc-name {
@@ -563,7 +563,7 @@
   align-items: center;
   padding: 4px 12px; /* px-1.5 py-0.5 */
   border-radius: 8px;
-  font-size: 24px; /* text-xs */
+  font-size: 20px; /* text-xs */
   color: var(--ink-mute);
 }
 .tx-op-confirm {
