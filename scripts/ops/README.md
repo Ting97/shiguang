@@ -18,6 +18,13 @@
 - 发布时 deploy.mjs 会在迁移前额外做一次 pg_dump 快照（`/opt/shiguangri_backups/db-*.dump`）
 - 保留 7 份；建议异地同步（如 `rclone copy /opt/shiguangri_backups remote:shiguang-backups`，未配置前属已知缺口）
 
+## trade → shiguang 负债同步（每日 06:10）
+
+- `sync-debt-from-trade.mjs`：读 trade 资产模块快照（asset_snapshots_v1，你在「资产负债记账」页录入）按编码更新账户 15091587905 的负债余额（只改余额）；并同步每月备付计划金额到 debt_reserve_checks（source='trade'）
+- 编码→负债映射：`/opt/shiguangri_repo/scripts/trade-debt-mapping.json`（自动建档自学习写回；手工调整直接改此文件）
+- 未映射编码每次运行打印提醒；B4/B5/B6/C5/F1 为自动建档占位名，请在界面改成真实名称
+- 手动跑：`cd /opt/shiguangri_repo && node scripts/sync-debt-from-trade.mjs`（--dry 预览）
+
 ## 恢复演练（每季度跑一次）
 
 ```bash
