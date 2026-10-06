@@ -35,7 +35,7 @@ try {
 }
 const saveMapping = () => writeFileSync(MAPPING_FILE, JSON.stringify(MAPPING, null, 2));
 // trade data.js 贷款清单：编码 → 银行名（备付表按银行名记账）
-const BANK_OF = { A1: "徽商银行", A2: "宁波银行", A3: "交通银行", A4: "中信银行", B1: "信用卡", B2: "江苏银行", C1: "招商银行", C2: "工商银行", C3: "农业银行", C4: "工商银行", D1: "农业银行信用卡", D2: "建设银行", D3: "徽商银行", E1: "家人" };
+const BANK_OF = { A1: "徽商银行", A2: "宁波银行", A3: "交通银行", A4: "中信银行", B1: "华夏银行", B2: "江苏银行", C1: "招商银行", C2: "工商银行", C3: "农业银行", C4: "工商银行", D1: "农业银行信用卡", D2: "建设银行", D3: "徽商银行", E1: "家人" };
 
 // ---- 拉取最新快照 ----
 const res = await fetch(STORE_URL);
@@ -127,29 +127,87 @@ for (const { code, liabilityId, balanceCents } of updates) {
   changed += 1;
 }
 
-// ---- 每月备付计划金额同步（asset_repay_reserve_v1 → debt_reserve_checks.planned_cents，trade 为准）----
+// ---- 每月备付计划金额同步（asset_repay_reserve_v1 → debt_reserve_checks.planned_cents，
+// ---- 负债行逐笔对齐（未匹配自动建档）；资金来源行（储蓄卡/投机/公积金/工资等）→ debt_reserve_sources）----
+const SOURCE_RE = /储蓄卡|投机|公积金|工资|工资收|余额宝|零钱/;
 try {
   const res2 = await fetch("http://127.0.0.1:3030/api/asset/store?keys=asset_repay_reserve_v1");
   if (res2.ok) {
     const j2 = await res2.json();
     const reserve = JSON.parse(j2.items.find((i) => i.key === "asset_repay_reserve_v1")?.v ?? "{}");
-    let reserveN = 0;
+    let liabN = 0;
+    let srcN = 0;
+    const unmappedBanks = [];
     for (const [ym, banks] of Object.entries(reserve)) {
       for (const [bank, amount] of Object.entries(banks)) {
-        const code = Object.keys(BANK_OF).find((c) => BANK_OF[c] === bank || bank.startsWith(BANK_OF[c]));
-        const liabilityId = code ? MAPPING[code] : null;
-        if (!liabilityId || liabilityId === "(dry)" || !Number.isFinite(Number(amount))) continue;
+        const cents = Math.round(Number(amount) * 100);
+        if (!Number.isFinite(cents)) continue;
+        if (cents === 0) {
+          // 0 元占位行不同步：trade 备付页存在同笔拆两行记法（如 华夏银行 0 + 华夏银行信用卡 1537.99 指同一笔分期），
+          // 同负债同月唯一约束下以真实月供行为准；0 行=无需备付，shiguang 不落行
+          console.log(`[sync-debt] 跳过 0 元行 ${ym} ${bank}`);
+          continue;
+        }
+        if (SOURCE_RE.test(bank)) {
+          // 资金来源行：非负债，独立表
+          await client.query(
+            `insert into debt_reserve_sources (user_id, ym, name, planned_cents, source)
+             values ($1, $2, $3, $4, 'trade')
+             on conflict (user_id, ym, name) do update set planned_cents = $4, source = 'trade'`,
+            [userId, `${ym}-01`, bank, cents],
+          );
+          srcN += 1;
+          continue;
+        }
+        // 负债行：编码表精确匹配（含 startsWith 兜底信用卡别名）
+        // 匹配优先级（华夏银行 vs 华夏银行信用卡 是两类负债，严禁 stem 吞行）：
+        // ① 备付专用键 R:<银行名>（此前自动建档记忆） ② 编码表精确名 ③ 用户同名负债 ④ 去信用卡后缀 ⑤ 自动建档
+        let liabilityId = MAPPING[`R:${bank}`];
+        let code = null;
+        if (!liabilityId) {
+          code = Object.keys(BANK_OF).find((c) => BANK_OF[c] === bank) ?? null;
+          liabilityId = code ? MAPPING[code] : null;
+        }
+        if (!liabilityId || liabilityId === "(dry)") {
+          const sameName = await client.query(
+            `select id from liabilities where user_id = $1 and name = $2 and status = 'active' limit 1`,
+            [userId, bank],
+          );
+          if (sameName.rows[0]) {
+            liabilityId = sameName.rows[0].id;
+          } else if (bank.endsWith("信用卡")) {
+            const stem = bank.slice(0, -3);
+            const stemCode = Object.keys(BANK_OF).find((c) => BANK_OF[c] === stem);
+            liabilityId = stemCode ? MAPPING[stemCode] : null;
+          }
+        }
+        if (!liabilityId || liabilityId === "(dry)") {
+          if (code) {
+            unmappedBanks.push(`${bank}(${code} 未绑定)`);
+            continue;
+          }
+          const r = await client.query(
+            `insert into liabilities (user_id, name, type, principal_cents, balance_cents, note)
+             values ($1, $2, 'credit_card', 0, 0, $3) returning id`,
+            [userId, bank, `trade:${bank} 备付同步托管（无余额，仅月度备付行）`],
+          );
+          liabilityId = r.rows[0].id;
+          MAPPING[`R:${bank}`] = liabilityId;
+          saveMapping();
+          console.log(`[sync-debt] 备付建档「${bank}」（仅备付行，余额 0）`);
+        }
         await client.query(
           `insert into debt_reserve_checks (user_id, ym, liability_id, planned_cents, source)
            values ($1, $2, $3, $4, 'trade')
            on conflict (user_id, ym, liability_id)
            do update set planned_cents = $4, source = 'trade'`,
-          [userId, `${ym}-01`, liabilityId, Math.round(Number(amount) * 100)],
+          [userId, `${ym}-01`, liabilityId, cents],
         );
-        reserveN += 1;
+        liabN += 1;
       }
     }
-    console.log(`[sync-debt] 备付计划金额同步 ${reserveN} 条`);
+    console.log(`[sync-debt] 备付同步：负债行 ${liabN} 条 + 资金来源 ${srcN} 条`);
+    if (unmappedBanks.length) console.warn(`[sync-debt] ⚠ 备付未匹配：${unmappedBanks.join("、")}`);
   }
 } catch (e) {
   console.warn(`[sync-debt] 备付同步失败（不影响余额同步）：`, String(e).slice(0, 120));
