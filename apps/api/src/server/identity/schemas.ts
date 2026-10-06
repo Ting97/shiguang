@@ -41,6 +41,12 @@ export const setupSchema = z.object({
 export const wechatLoginSchema = z.object({
   // wx.login 返回的 code（5 分钟有效、单次消费），微信侧实际更短，这里只拦畸形
   code: z.string().min(1).max(512),
+  // 用户在授权弹窗里同意的资料（可选）：昵称用于自动建号；拒绝授权则用默认昵称
+  profile: z
+    .object({
+      nickname: z.string().trim().min(1).max(30).optional(),
+    })
+    .optional(),
 });
 
 export const wechatBindSchema = z.object({

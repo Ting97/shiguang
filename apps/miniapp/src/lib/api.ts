@@ -15,11 +15,11 @@ export interface SessionUser {
   phoneVerified?: boolean;
 }
 
-/** 微信一键登录：bound=false 时返回 bindTicket 走绑定页 */
-export function wechatLogin(code: string) {
-  return request<{ ok: true; bound: boolean; token?: string; bindTicket?: string; expiresIn?: number; user?: { id: string; nickname: string } }>(
+/** 微信一键登录：服务端对未绑定 openid 自动建号（免绑手机号），始终返回 token */
+export function wechatLogin(code: string, profile?: { nickname?: string }) {
+  return request<{ ok: true; bound: boolean; created?: boolean; token?: string; user?: { id: string; nickname: string } }>(
     "/api/auth/wechat/login",
-    { method: "POST", body: { code }, noRedirect: true },
+    { method: "POST", body: profile ? { code, profile } : { code }, noRedirect: true },
   );
 }
 

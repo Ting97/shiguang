@@ -40,3 +40,32 @@ export function toLogin() {
   clearSessionToken();
   Taro.reLaunch({ url: "/pages/login/index" });
 }
+
+/* ---------- 游客模式（REQ-游客浏览）：无 token 只读浏览，不清除直到主动登录 ---------- */
+
+const GUEST_KEY = "shiguang_guest";
+
+export function isGuest(): boolean {
+  try {
+    return Taro.getStorageSync(GUEST_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function enterGuest() {
+  try {
+    Taro.setStorageSync(GUEST_KEY, "1");
+  } catch {
+    /* storage 异常静默：本会话内存态丢失只影响下次启动 */
+  }
+}
+
+/** 登录成功时清除游客标记（三处登录入口共用） */
+export function exitGuest() {
+  try {
+    Taro.removeStorageSync(GUEST_KEY);
+  } catch {
+    /* 已不存在 */
+  }
+}

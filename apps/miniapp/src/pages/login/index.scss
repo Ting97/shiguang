@@ -1,8 +1,9 @@
 /**
  * 登录页私有样式（换算：web 1px = 本文件 2 单位）。
- * 全局类由 app.scss 提供：app-bg/theme-light(页面自挂)、glass/glass-p5、btn-primary、
+ * 全局类由 app.scss 提供：app-bg/theme-light(页面自挂)、glass/glass-p5、btn-primary/btn-ghost、
  * input/input-placeholder、text-gradient、hint、press。本文件只写页面私有布局与
- * web 同款组件的精确形态（pill 切换、验证码钮、眼睛图标、分隔线）。
+ * web 同款组件的精确形态（眼睛图标、分隔线、游客入口）。
+ * REQ-登录页可用性：输入框加高（min-height 96 单位 = 48px），填报舒适、占位文字清晰。
  */
 
 /* = web main.flex.min-h-screen.items-center.justify-center.px-5（NAVLESS 整页居中）。
@@ -11,7 +12,9 @@
    自然回落为顶对齐，不丢内容。 */
 .login-screen {
   display: flex;
+  min-height: 100vh;
   padding: env(safe-area-inset-top) 40px env(safe-area-inset-bottom);
+  box-sizing: border-box;
 }
 
 /* = web div.w-full.max-w-sm（384px；手机宽下等价满宽减页边距） */
@@ -47,6 +50,16 @@
   margin-top: 8px; /* mt-1 */
 }
 
+/* ---- 微信一键登录钮下的授权说明（hint 居中变体） ---- */
+.wx-btn {
+  width: 100%;
+}
+.wx-hint {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+}
+
 /* ---- 微信特有分隔线：微信一键登录与 web 表单之间 ---- */
 .alt-divider {
   display: flex;
@@ -67,65 +80,17 @@
   color: var(--ink-dim);
 }
 
-/* ---- 登录方式 pill 切换（= web rounded-full border-line-soft bg-bg/50 p-0.5 text-xs） ---- */
-.mode-switch {
-  display: flex;
-  margin-bottom: 32px; /* mb-4 */
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  background: rgba(2, 6, 23, 0.5); /* bg-bg/50 */
-  padding: 4px; /* p-0.5 */
-  font-size: 24px; /* text-xs */
-}
-.theme-light .mode-switch {
-  background: rgba(241, 245, 249, 0.5);
-}
-/* = web flex-1 rounded-full px-3 py-1.5；激活 bg-gradient-to-r sky→indigo 白字 */
-.mode-pill {
-  flex: 1;
-  border-radius: 999px;
-  padding: 12px 24px;
-  text-align: center;
-  color: var(--ink-mute);
-}
-.mode-pill-active {
-  background: linear-gradient(90deg, #0ea5e9, #6366f1);
-  color: #fff;
-  font-weight: 500; /* font-medium */
-}
-
 /* ---- 输入组（= web space-y-3） ---- */
 .fields {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
-
-/* 验证码行（= web flex gap-2；钮 bg-elevated/70 描边 accent 字） */
-.code-row {
-  display: flex;
-  gap: 16px;
-}
-.code-input {
-  flex: 1;
-  min-width: 0;
-}
-.code-btn {
-  flex-shrink: 0;
-  margin: 0; /* 清 Button 默认外边 */
-  border: 1px solid var(--line-soft);
-  border-radius: 24px; /* rounded-xl */
-  background: rgba(30, 41, 59, 0.7); /* bg-elevated/70 */
-  padding: 0 24px; /* px-3（高度随 flex stretch 对齐输入框） */
-  font-size: 24px; /* text-xs */
-  color: var(--accent);
-  line-height: inherit;
-}
-.theme-light .code-btn {
-  background: rgba(241, 245, 249, 0.7);
-}
-.code-btn.disabled {
-  opacity: 0.4; /* disabled:opacity-40 */
+/* REQ-登录页可用性：输入框加高——48px 高 + 加大纵向内边距，字与占位清晰 */
+.fields .input {
+  min-height: 96px;
+  padding: 26px 32px;
+  font-size: 32px;
 }
 
 /* 密码行（= web relative；input pr-11 给眼睛图标让位） */
@@ -161,7 +126,7 @@
   line-height: inherit;
 }
 
-/* ---- 反馈文案（= web mt-3 text-xs text-success/danger 的纯色小字，非横幅） ---- */
+/* ---- 反馈文案（= web mt-3 text-xs text-danger 的纯色小字，非横幅） ---- */
 .msg {
   display: block;
   margin-top: 24px;
@@ -171,13 +136,21 @@
 .msg-err {
   color: var(--danger);
 }
-.wx-hint {
+
+/* ---- 游客入口（卡外 ghost 钮 + 说明行） ---- */
+.guest-btn {
+  width: 100%;
+  margin-top: 32px;
+  padding: 24px 0;
+  font-size: 28px;
+}
+.guest-hint {
   display: block;
   margin-top: 12px;
   text-align: center;
 }
 
-/* ---- 卡内注册引导（= web mt-4 text-center text-[11px]；小程序改为网页版引导纯文案） ---- */
+/* ---- 卡内引导（= web mt-4 text-center text-[11px]） ---- */
 .reg-hint {
   display: block;
   margin-top: 32px;

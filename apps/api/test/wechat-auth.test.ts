@@ -1,7 +1,9 @@
 /**
- * 微信登录/绑定回归（docs/15 第 1 批）：
- * loginByWechat 通道降级 503 / openid 命中建会话 / 未绑定签发票据；
- * bindWechat 全流程（直插 sms_codes 验证码）/ 票据过期与单次消费 / 23505 冲突。
+ * 微信登录/绑定回归：
+ * loginByWechat 通道降级 503 / openid 命中建会话（未命中现为自动建号——jscode2session
+ * 需真实微信网络，进程内不可直调，自动建号路径由开发者工具真机链路验证）；
+ * bindWechat 全流程（直插 sms_codes 验证码）/ 票据过期与单次消费 / 23505 冲突
+ * （票据不再由 loginByWechat 签发，保留给「微信号 ↔ 已有手机账号」互通场景）。
  * 与 identity-fixes 同约定：SHIGUANGRI_TEST_DB 显式指定才动库（不可达整组 skip）；
  * 测试数据 wx2226/1382226xx 前缀幂等清理，可并发重跑。
  * 注意：成功路径末尾 createSession 依赖 Next 请求作用域（cookies()），进程内直调

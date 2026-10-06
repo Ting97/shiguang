@@ -179,7 +179,20 @@ export default function Profile() {
       </Text>
       <Text className="hint page-sub">个性化你的账号信息</Text>
 
-      {!me ? (
+      {/* 游客态：无 token 只读浏览（REQ-游客浏览）——渲染登录引导卡，不进账号分区 */}
+      {!getSessionToken() ? (
+        <View className="glass glass-p5 sec guest-card">
+          <Text className="guest-title">游客浏览中</Text>
+          <Text className="hint guest-sub">登录后才能记录与查看属于自己的动态、日程与财务</Text>
+          <Button
+            className="btn-primary guest-login-btn"
+            hoverClass="press"
+            onTap={() => Taro.reLaunch({ url: "/pages/login/index" })}
+          >
+            微信一键登录
+          </Button>
+        </View>
+      ) : !me ? (
         meErr ? (
           <View className="state-center">
             <Text className="state-err">加载失败：{meErr}</Text>

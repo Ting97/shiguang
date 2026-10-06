@@ -7,7 +7,7 @@
  * 上传走 upload<T>（wx.uploadFile，multipart 字段 file）。
  */
 import Taro from "@tarojs/taro";
-import { getSessionToken, setSessionToken, toLogin } from "./session";
+import { getSessionToken, setSessionToken, toLogin, isGuest } from "./session";
 
 export const API_BASE: string = TARO_APP_API_BASE;
 
@@ -52,7 +52,8 @@ export async function request<T = unknown>(path: string, opts: Options = {}): Pr
     return data;
   }
   if (status === 401) {
-    if (!opts.noRedirect) toLogin();
+    // 游客模式不强跳登录：token 过期/无权访问只抛错，页面自显空态或登录引导
+    if (!opts.noRedirect && !isGuest()) toLogin();
     throw new ApiError(data?.error || "未登录", 401);
   }
   throw new ApiError(data?.error || `请求失败（${status}）`, status);
@@ -81,8 +82,9 @@ export function upload<T = unknown>(path: string, filePath: string, extra?: Reco
           postProcessToken(data);
           resolve(data);
         } else if (res.statusCode === 401) {
-          toLogin();
-          reject(new ApiError(data?.error || "未登录", 401));
+          // 游客模式同 request：只抛错不强跳（上传只发生在有 token 的写操作，此处兜底）
+          if (!isGuest()) toLogin();
+          reject(new ApiError(data?.error || "未登录", res.statusCode));
         } else {
           reject(new ApiError(data?.error || `上传失败（${res.statusCode}）`, res.statusCode));
         }

@@ -1,23 +1,58 @@
 /**
- * 微信小程序登录/绑定（docs/15 第 1 批）：
- * - loginByWechat：jscode2session → openid 命中 wechat_openid 即建会话；未命中签发一次性绑定票据（5 分钟）
- * - bindWechat：票据 + 手机号 + 短信验证码（purpose=bind）→ 绑定并建会话
+ * 微信小程序登录/绑定：
+ * - loginByWechat：jscode2session → openid 命中 wechat_openid 即建会话；未命中自动建号
+ *   （免绑手机号，昵称取用户授权资料；REQ-游客/微信直登）
+ * - bindWechat：票据 + 手机号 + 短信验证码（purpose=bind）→ 绑定既有账号并建会话
+ *   （登录流程不再强制绑定；票据流程保留给「微信号 ↔ 已有手机账号」互通场景）
  * 票据/验证码均为单次消费：验证码先核销（天然并发串行），票据 DELETE 认领兜底并发；
  * 票据库只存 sha256（与会话 token/验证码同口径）。
  */
 import { pool } from "@/server/platform/db";
-import { jscode2session } from "@/server/platform/wechat";
+import { jscode2session, enforceUgcText } from "@/server/platform/wechat";
 import { ApiError } from "@/server/platform/http/errors";
 import { createSession } from "@/server/identity/auth";
-import { generateSessionToken, hashToken, isValidPhone } from "@/server/identity/auth-crypto";
+import { hashToken, isValidPhone } from "@/server/identity/auth-crypto";
 import { verifySmsCode } from "@/server/identity/sms";
+import { PRESET_ACTIVITIES } from "@/server/time/seed";
 
 export interface WechatLoginInput {
   code: string;
+  /** 用户授权弹窗里同意的资料（可选）：昵称用于自动建号 */
+  profile?: { nickname?: string };
   userAgent?: string | null;
 }
 
-/** 一键登录：已绑定直接发会话；未绑定发绑定票据（前端引导短信验证码绑定） */
+/** 默认昵称：微信用户 + 4 位随机（unique 兜底场景极小，见 23505 分支） */
+function fallbackNickname(): string {
+  return `微信用户${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+/** 授权昵称净化：去尖括号/压空白/限长——入库前最小防御 */
+function sanitizeNickname(raw: string | undefined): string {
+  const cleaned = (raw ?? "")
+    .replace(/[<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 20);
+  return cleaned || fallbackNickname();
+}
+
+/** 登录路径共用：最后登录时间 + 发会话（老用户与并发首登兜底共用） */
+async function issueSessionFor(
+  user: { id: string; nickname: string; status: string },
+  unionid: string | null,
+  userAgent?: string | null,
+) {
+  if (user.status !== "active") throw new ApiError(403, "forbidden", "账号已被禁用");
+  await pool.query(
+    `update profiles set last_login_at = now()${unionid ? ", wechat_unionid = coalesce(wechat_unionid, $2)" : ""} where id = $1`,
+    unionid ? [user.id, unionid] : [user.id],
+  );
+  const token = await createSession(user.id, userAgent ?? "miniapp");
+  return { ok: true as const, bound: true as const, token, user: { id: user.id, nickname: user.nickname } };
+}
+
+/** 一键登录：命中 wechat_openid 直接发会话；未命中自动建号（免绑手机号，直登体验） */
 export async function loginByWechat(input: WechatLoginInput) {
   const { openid, unionid } = await jscode2session(input.code);
   const { rows } = await pool.query(
@@ -25,25 +60,70 @@ export async function loginByWechat(input: WechatLoginInput) {
     [openid],
   );
   const user = rows[0];
-  if (user) {
-    if (user.status !== "active") throw new ApiError(403, "forbidden", "账号已被禁用");
-    await pool.query(
-      `update profiles set last_login_at = now()${unionid ? ", wechat_unionid = coalesce(wechat_unionid, $2)" : ""} where id = $1`,
-      unionid ? [user.id, unionid] : [user.id],
+  if (user) return issueSessionFor(user, unionid, input.userAgent);
+
+  // 未命中 → 自动建号：昵称取用户授权资料（拒绝授权用默认昵称，可后改）；
+  // 播种九大预设分类与 web 注册同口径，保证开箱即用。事务保证「建号+播种」原子（4-F P1 同范式）。
+  const nickname = sanitizeNickname(input.profile?.nickname);
+  const client = await pool.connect();
+  let created: { id: string; nickname: string };
+  try {
+    await client.query("begin");
+    const inserted = await client.query(
+      `insert into profiles (nickname, wechat_openid, wechat_unionid, phone_verified, last_login_at)
+       values ($1, $2, $3, false, now()) returning id, nickname`,
+      [nickname, openid, unionid],
     );
-    const token = await createSession(user.id, input.userAgent ?? "miniapp");
-    return { ok: true as const, bound: true as const, token, user: { id: user.id, nickname: user.nickname } };
+    created = inserted.rows[0];
+    for (const a of PRESET_ACTIVITIES) {
+      await client.query(
+        `insert into activities (id, user_id, name, icon, color, default_min, sort_order, is_preset)
+         values ($1, $2, $3, $4, $5, $6, $7, true)
+         on conflict (id, user_id) do nothing`,
+        [a.id, created.id, a.name, a.icon, a.color, a.defaultMin, a.sortOrder],
+      );
+    }
+    await client.query("commit");
+  } catch (e) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // 连接已不可用：释放即可
+    }
+    // wechat_openid unique：并发首登另一请求已建号 → 按 openid 重查走登录路径
+    if ((e as { code?: string }).code === "23505") {
+      const again = await pool.query(`select id, nickname, status from profiles where wechat_openid = $1`, [openid]);
+      if (again.rows[0]) return issueSessionFor(again.rows[0], unionid, input.userAgent);
+    }
+    throw e;
+  } finally {
+    client.release();
   }
 
-  // 未绑定：签发一次性票据（惰性清理过期行防膨胀）
-  await pool.query(`delete from wechat_bind_tickets where expires_at < now()`, []);
-  const ticket = generateSessionToken();
-  await pool.query(
-    `insert into wechat_bind_tickets (ticket_hash, openid, unionid, expires_at)
-     values ($1, $2, $3, now() + interval '5 minutes')`,
-    [hashToken(ticket), openid, unionid],
-  );
-  return { ok: true as const, bound: false as const, bindTicket: ticket, expiresIn: 300 };
+  // 昵称过一道内容安全（msgSecCheck 降级放行的同口径不适用——这里必须放行登录，
+  // 被拒则换默认昵称，不因昵称卡住进入）
+  try {
+    await enforceUgcText(created.id, created.nickname);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      const fixed = await pool.query(`update profiles set nickname = $2 where id = $1 returning nickname`, [
+        created.id,
+        fallbackNickname(),
+      ]);
+      created = { id: created.id, nickname: fixed.rows[0].nickname };
+    } else {
+      throw e;
+    }
+  }
+
+  const token = await createSession(created.id, input.userAgent ?? "miniapp");
+  return {
+    ok: true as const,
+    bound: true as const,
+    created: true as const,
+    token,
+    user: { id: created.id, nickname: created.nickname },
+  };
 }
 
 export interface WechatBindInput {

@@ -16,7 +16,7 @@ import LucideIcon from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { parseText } from "@/lib/api";
 import { request } from "@/lib/request";
-import { getSessionToken } from "@/lib/session";
+import { getSessionToken, isGuest } from "@/lib/session";
 import { loadActiveSpaces, loadFeedPage, loadToday, type Activity, type FeedMomentFull, type SpaceRow, type TodayBlock } from "./api";
 import { FilterChip } from "./chip";
 import MomentCard from "./moment-card";
@@ -286,6 +286,21 @@ export default function Feed() {
 
       {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
       <RemindersBanner items={reminderItems} load={loadVoid} />
+
+      {/* 游客欢迎卡：无 token 只读浏览（REQ-游客浏览），展示价值主张 + 登录转化入口 */}
+      {!getSessionToken() ? (
+        <View className="glass glass-p4 guest-cta">
+          <Text className="guest-cta-title">{isGuest() ? "游客模式 · 只读浏览" : "欢迎来到拾光"}</Text>
+          <Text className="hint guest-cta-sub">
+            {isGuest()
+              ? "正在以游客身份浏览示例页面；登录后才能记录自己的动态、日程与财务。"
+              : "一句话记录花钱、待办、日程、心情——AI 帮你同时记进四本账。"}
+          </Text>
+          <View className="btn-primary guest-cta-btn" hoverClass="press" hoverStayTime={80} onTap={() => Taro.reLaunch({ url: "/pages/login/index" })}>
+            <Text className="guest-cta-btn-text">微信一键登录</Text>
+          </View>
+        </View>
+      ) : null}
 
       {/* 取数失败态：给出重试入口，避免失败后整页静默空态（= web loadErr 卡） */}
       {loadErr ? (

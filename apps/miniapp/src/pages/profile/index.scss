@@ -350,3 +350,24 @@
 .about .hint {
   display: block;
 }
+
+/* ---- 游客态登录引导卡（REQ-游客浏览） ---- */
+.guest-card {
+  text-align: center;
+}
+.guest-title {
+  display: block;
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.guest-sub {
+  display: block;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.guest-login-btn {
+  width: 70%;
+  margin: 0 auto;
+}

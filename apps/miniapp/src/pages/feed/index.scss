@@ -1375,3 +1375,34 @@
   padding: 6px 16px;
   font-weight: 600;
 }
+
+/* ---- 游客欢迎卡（REQ-游客浏览）：无 token 只读浏览时的价值主张 + 登录转化 ---- */
+.guest-cta {
+  margin-bottom: 24px;
+  text-align: center;
+}
+.guest-cta-title {
+  display: block;
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.guest-cta-sub {
+  display: block;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.guest-cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  width: 60%;
+  padding: 20px 0;
+}
+.guest-cta-btn-text {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 600;
+}
