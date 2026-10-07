@@ -74,9 +74,9 @@ export function splitCsvLines(text: string): string[][] {
   return rows;
 }
 
-/** "1,280.00" / "¥25.00" / "1280" → 分 */
+/** "1,280.00" / "¥25.00" / "￥25.00"（微信账单常见全角￥）/ "1280" → 分 */
 export function parseAmount(raw: string): number | null {
-  const cleaned = raw.replace(/[¥,\s]/g, "").trim();
+  const cleaned = raw.replace(/[¥￥,\s]/g, "").trim();
   if (!cleaned) return null;
   const n = Number.parseFloat(cleaned);
   if (!Number.isFinite(n)) return null;
@@ -114,7 +114,7 @@ const COL = (header: string[]) => {
   };
 };
 
-/** 我们的 9 分类 → 支付宝「交易分类」列映射表（其余走商家关键词/兜底其他） */
+/** 支付宝「交易分类」列值 → 我们的分类映射表（其余走商家关键词/兜底其他） */
 const ALIPAY_TYPE_MAP: Record<string, string> = {
   餐饮美食: "餐饮",
   交通出行: "交通",

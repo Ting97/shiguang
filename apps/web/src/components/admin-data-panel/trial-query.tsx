@@ -5,7 +5,11 @@ import { api } from "@/shared/api";
 import type { CatalogPayload, DatasetSpec, TrialResult } from "./types";
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** 北京口径日期（本地"今天"在海外设备会差一天，与数据面的北京日界错位） */
+const fmtBjDay = (offsetDays: number) => {
+  const t = new Date(Date.now() + 8 * 3600_000 + offsetDays * 86_400_000);
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+};
 
 /** 值截断 40 字符（null → —；布尔原样；空串 → —） */
 function cell(v: unknown): string {
@@ -23,9 +27,8 @@ function cell(v: unknown): string {
 export default function TrialQuery({ catalog }: { catalog: CatalogPayload }) {
   const selectable = catalog.datasets.filter((d) => d.partition !== "category");
   const [dsKey, setDsKey] = useState(() => selectable[0]?.key ?? "");
-  const now = new Date();
-  const [from, setFrom] = useState(() => fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)));
-  const [to, setTo] = useState(() => fmtDate(now));
+  const [from, setFrom] = useState(() => fmtBjDay(-6));
+  const [to, setTo] = useState(() => fmtBjDay(0));
   const [category, setCategory] = useState("");
   const [limit, setLimit] = useState(50);
   const [result, setResult] = useState<TrialResult | null>(null);

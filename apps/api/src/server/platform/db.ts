@@ -4,16 +4,31 @@ import { log } from "./http/logger";
 /** 开发期单用户（Phase 1 接入 Supabase Auth 后由会话取代） */
 export const DEV_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-const connectionString =
-  process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/shiguangri";
+// 缺 DATABASE_URL 必须显式报错（与 config.ts 同口径）：静默落弱默认串会绕过弱口令拦截、带错库启动。
+// 校验放在首次 query/connect 时而非模块加载期——next build 收集页面数据会 import 本模块，
+// 构建环境没有 .env，模块级 fail-fast 会直接打断构建（2026-10-08 实测踩坑）
+function assertDatabaseConfigured() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("缺少 DATABASE_URL（PostgreSQL 连接串）——请配置 .env 后启动");
+  }
+}
 
-export const pool = new Pool({
-  connectionString,
+/** Pool 代理：构建期可安全 import，运行期首次使用即校验配置（红线 1 的豁免入口，见 eslint 白名单） */
+export const pool = new Proxy(
+  new Pool({
+    connectionString: process.env.DATABASE_URL || undefined,
   // 9-F：max 5→10（请求 + 后台识别事务 + Bitget 长同步共用池，5 连接多用户排队）；
-  // statement_timeout 兜底防止失控查询长期占住连接（业务大查询均有索引支撑，15s 远超所需）
-  max: 10,
-  statement_timeout: 15_000,
-});
+    // statement_timeout 兜底防止失控查询长期占住连接（业务大查询均有索引支撑，15s 远超所需）
+    max: 10,
+    statement_timeout: 15_000,
+  }),
+  {
+    get(target, prop, receiver) {
+      if (prop === "query" || prop === "connect") assertDatabaseConfigured();
+      return Reflect.get(target, prop, receiver);
+    },
+  },
+);
 
 // 空闲连接出错（DB 重启/网络闪断）会以 EventEmitter error 事件冒泡：无监听即未捕获异常打崩整个进程
 pool.on("error", (e) => log.error({ err: String(e) }, "pg-idle-client-error"));

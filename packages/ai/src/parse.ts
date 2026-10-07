@@ -88,6 +88,8 @@ function makeTitle(text: string): string {
  * 话术日期词 → 花销发生日（北京 YYYY-MM-DD，REQ-009 FR-E6 确定性防漂移）。
  * 实测（2026-10-03）：GLM 对相对日期推算不可靠（前天/上周五均算错一天以上），
  * 明确日期词一律以本确定性引擎为准覆盖模型输出；解析不出才信模型给的 occurredDate。
+ * 注意：「M月N号/YYYY年M月N号」带月/年限定的日期不在此解析（历史上裸匹配只取到 N号，
+ * 把模型算对的跨月日期错误覆盖成本月 N 日）——带限定时返回 null 交回模型输出。
  */
 export function deterministicOccurredDate(text: string, now: Date): string | null {
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -105,14 +107,31 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
     const lastWeekMonday = new Date(monday.getTime() - 7 * 86_400_000);
     return ymd(new Date(lastWeekMonday.getTime() + (idx === 0 ? 6 : idx - 1) * 86_400_000));
   }
-  // N号/N日：本月 N 日；N 大于今天（未来）→ 上月 N 日（补记上月的常见话术）
-  const m = /(\d{1,2})[号日]/.exec(text);
+  // M月N号/M月N日（可带 YYYY 年）：确定性换算（花销发生日必为过去——未带年份且落在中国今天之后 → 按去年）
+  const md = /(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[号日]/.exec(text);
+  if (md) {
+    const mo = Number(md[2]);
+    const day = Number(md[3]);
+    if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) {
+      const year = md[1] ? Number(md[1]) : bj.getUTCFullYear();
+      let cand = new Date(Date.UTC(year, mo - 1, day));
+      if (!md[1] && cand.getTime() > bj.getTime()) cand = new Date(Date.UTC(year - 1, mo - 1, day));
+      if (cand.getUTCDate() === day) return ymd(cand);
+      return null; // 2月30 之类不存在的日期：宁缺勿错
+    }
+  }
+  // N号/N日（裸日，前面不带 月/年 限定）：N 大于今天（未来）→ 往回找最近一个存在 N 日的月份
+  // （补记上月的常见话术；旧版近似回退 30 天再取 N，N 大于上月天数时 Date.UTC 静默进位出未来日期）
+  const m = /(?<![月年\d])(\d{1,2})[号日]/.exec(text);
   if (m) {
     const n = Number(m[1]);
     if (n >= 1 && n <= 31) {
       const day = bj.getUTCDate();
-      const base = n <= day ? bj : new Date(bj.getTime() - 30 * 86_400_000); // 近似上月（仅取年月）
-      return ymd(new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), n)));
+      for (let back = n <= day ? 0 : 1; back <= 12; back++) {
+        const cand = new Date(Date.UTC(bj.getUTCFullYear(), bj.getUTCMonth() - back, n));
+        if (cand.getUTCDate() === n && cand.getTime() <= bj.getTime()) return ymd(cand);
+      }
+      return null;
     }
   }
   return null;
@@ -166,7 +185,9 @@ function ruleExtract(text: string, contactNames?: string[], now: Date = new Date
     diet: {
       applicable: dietHit,
       meal: /夜宵|宵夜/.test(text) ? "夜宵" : /加餐|下午茶/.test(text) ? "加餐" : /早/.test(text) ? "早餐" : /午饭|中午/.test(text) ? "午餐" : /晚/.test(text) ? "晚餐" : "未知",
-      items: dietHit ? [{ name: text.slice(0, 12), amount: null, kcal: null }] : [],
+      items: dietHit
+        ? (recoverDietItemsFromText(text) ?? [{ name: text.slice(0, 12), amount: null, kcal: null }])
+        : [],
       totalKcal: null,
       confidence: dietHit ? 0.6 : 0.5,
     },
@@ -182,14 +203,14 @@ export function toCstWallClock(d: Date): string {
   return `${c.getUTCFullYear()}-${p(c.getUTCMonth() + 1)}-${p(c.getUTCDate())} ${p(c.getUTCHours())}:${p(c.getUTCMinutes())}（北京时间）`;
 }
 
-/** 从原话确定性恢复饮食条目（规则路径整句当 name 时的兜底）：已不再用于 AI 路径（v2 schema 直接校验拒绝） */
-export function recoverDietItemsFromText(text: string): { name: string | null; amount: string | null; kcal: number | null }[] | null {
+/** 从原话确定性恢复饮食条目（规则路径整句当 name 的兜底，ruleExtract 接线使用）：剥不动前缀 → null（不像饮食流水账） */
+export function recoverDietItemsFromText(text: string): { name: string; amount: string | null; kcal: number | null }[] | null {
   const t = text.trim()
     .replace(/^(今天|今日|刚才|刚刚|现在|早上|中午|晚上)/, "")
     .replace(/^(喝了|吃了|喝|吃|点了|点了)/, "")
     .replace(/^(了)/, "");
   if (t === text) return null; // 没去掉任何时间/动词前缀 → 不像饮食流水账，放弃恢复
-  const items: { name: string | null; amount: string | null; kcal: number | null }[] = [];
+  const items: { name: string; amount: string | null; kcal: number | null }[] = []; // name 经下方长度校验后 push，不可能为 null
   for (const rawPart of t.split(/和|及|还有|，|,|、/)) {
     const seg = rawPart.trim().replace(/^一点点/, "").replace(/([0-9一二两三四五六七八九十半]+)(杯|碗|瓶|罐|份|个|根|块|片|包|盒|盘|颗)/g, "、");
     for (const piece of seg.split("、")) {
@@ -214,7 +235,8 @@ export async function aiExtract(
   systemOverride?: string,
   userOverride?: string,
 ): Promise<{ ext: LlmExtractionT; engine: "llm" | "llm-repaired" }> {
-  const system = systemOverride ?? (domain ? DOMAIN_PROMPTS[domain] : EXTRACT_SYSTEM_PROMPT);
+  // 非法 domain（DOMAIN_PROMPTS 之外）回落全量提示词，避免 system=undefined 让调用方拿到裸 Error
+  const system = systemOverride ?? (domain ? DOMAIN_PROMPTS[domain] ?? EXTRACT_SYSTEM_PROMPT : EXTRACT_SYSTEM_PROMPT);
   const schema = domain ? domainExtractionV2(domain) : FullExtractionV2;
   // user prompt 覆盖优先（3-A 输入装配）；缺省用包内默认装配
   const base = userOverride ?? buildExtractUserPrompt(text, toCstWallClock(now), contactNames);
@@ -506,8 +528,8 @@ function rulesPipeline(
 ): ParseResultT {
   const ext = ruleExtract(text, opts.contactNames, now);
   const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
-  const durationFromText = parseDuration(text);
-  const durationMin = ext.schedule.durationMin ?? durationFromText ?? defaults[ext.schedule.activity as keyof typeof defaults] ?? 30;
+  // ruleExtract 的 durationMin 已是 parseDuration(text)，无需重复计算
+  const durationMin = ext.schedule.durationMin ?? defaults[ext.schedule.activity as keyof typeof defaults] ?? 30;
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
   const future = ext.todo.applicable || detectFuture(text) !== null;
   const tb = inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);

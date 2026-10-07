@@ -114,9 +114,9 @@ export const GET = withAuth(async (req, { user }) => {
   });
 });
 
-/** 月份平移（-1 上月） */
+/** 月份平移（-1 上月）：UTC 算术平移（本地 Date getter 违反全站「UTC getter + 8h」口径，易被复制到不对称场景） */
 function monthOf(key: string, delta: number): string {
   const [y, m] = key.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }

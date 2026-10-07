@@ -456,7 +456,7 @@ export default function Profile() {
                         <Text className="model-name">{m.model || "其他模型"}</Text>
                         <Text className="model-stat">
                           近30天 {m.d30.calls} 次 · 累计 {m.all.calls} 次 /{" "}
-                          {(m.all.promptTokens + m.all.completionTokens).toLocaleString("zh-CN")} tokens
+                          {String(m.all.promptTokens + m.all.completionTokens).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} tokens
                         </Text>
                       </View>
                     ))}

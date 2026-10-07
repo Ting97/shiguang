@@ -4,9 +4,10 @@ import type { EngineMode } from "./types";
 
 export const zhTime = (iso: string | null) => {
   if (!iso) return "—";
-  const d = new Date(iso);
+  // 北京口径展示：UTC getter + 8h（本地 getter 在非 CST 宿主/设备会错 8 小时）
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 };
 
 /** 占位符完整性校验（与服务端同规则）：缺失与未知清单 */

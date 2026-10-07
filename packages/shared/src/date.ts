@@ -109,8 +109,10 @@ export function zhTime(iso: string): string {
 
 /** 用原块北京日期 + 新的 HH:MM 组装 ISO（改时间只换钟点、日期不动；本地 setHours 会存错 8 小时） */
 export function combineHM(originalIso: string, hm: string): string {
-  const d = new Date(new Date(originalIso).getTime() + 8 * 3600_000);
   const [h, m] = hm.split(":").map(Number);
+  // 非法输入（空串/残缺 "HH:"）不再让 setUTCHours(NaN) 产生 Invalid Date → toISOString 抛错砸穿 UI
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return originalIso;
+  const d = new Date(new Date(originalIso).getTime() + 8 * 3600_000);
   d.setUTCHours(h, m, 0, 0);
   return new Date(d.getTime() - 8 * 3600_000).toISOString();
 }

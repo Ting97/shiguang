@@ -16,6 +16,11 @@ export default tseslint.config(
     files: ["**/*.mjs", "**/*.cjs"],
     languageOptions: { globals: { console: "readonly", fetch: "readonly", process: "readonly", URL: "readonly", setTimeout: "readonly", clearTimeout: "readonly" } },
   },
+  {
+    // PWA Service Worker 运行在 worker 作用域，globals 与 window 不同
+    files: ["apps/web/public/sw.js"],
+    languageOptions: { globals: { self: "readonly", caches: "readonly", fetch: "readonly", URL: "readonly", clients: "readonly", registration: "readonly" } },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended.map((c) => ({
     ...c,

@@ -52,7 +52,13 @@ export function useSpaceData() {
       ]);
       if (seq !== seqRef.current) return; // 过期响应丢弃
 
-      if (sj.status === "fulfilled") {
+      // allSettled 永不 reject，catch 不可达：主请求（spaces）失败必须显式落错误态，
+      // 否则 space/loadErr 双空 → 页面永远停在"加载中"（与文件头注释承诺的兜底直接矛盾）
+      if (sj.status === "rejected") {
+        fresh(() => setLoadErr(sj.reason instanceof Error ? sj.reason.message : String(sj.reason)));
+        return;
+      }
+      {
         const spaces = (sj.value.spaces as Space[]) ?? [];
         setAllSpaces(spaces);
         const s = spaces.find((x) => x.id === id);

@@ -5,7 +5,7 @@
  */
 import Taro from "@tarojs/taro";
 import { API_BASE, ApiError, request } from "@/lib/request";
-import { getSessionToken, toLogin } from "@/lib/session";
+import { getSessionToken, toLogin, isGuest } from "@/lib/session";
 
 /* ---------- 动态流（GET /api/feed 返回的真实 camelCase 形态，源：server/timeline/service.ts listFeed SQL） ---------- */
 
@@ -318,7 +318,7 @@ export function uploadEntryImage(entryId: string, filePath: string): Promise<Upl
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(data);
         } else if (res.statusCode === 401) {
-          toLogin();
+          if (!isGuest()) toLogin(); // 游客只抛错不强跳（与 request/upload 的游客语义一致）
           reject(new ApiError(data?.error || "未登录", 401));
         } else {
           reject(new ApiError(data?.error || `图片上传失败（${res.statusCode}）`, res.statusCode));

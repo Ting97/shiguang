@@ -15,13 +15,14 @@ const MOOD_RULES: Array<[RegExp, string, number]> = [
   [/平静|还行|一般|淡淡/, "平静", 10],
 ];
 
-/** 否定前缀：命中词紧邻的前 1~2 字符含这些字 → 视为否定（「不开心」不是「开心」）。
+/** 否定前缀：命中词紧邻的前 1~2 字符含否定词，或「没」后跟 量词副词（没什么/没怎么） → 视为否定
+ *  （「不开心」不是「开心」；「没什么难过」「没怎么累」也是否定——旧版只看紧邻一字会漏）。
  *  规则引擎是 GLM 熔断/超时时的唯一兜底，极性反转的误判会以相反情绪分直接入库 */
-const NEGATORS = /[不没别]$/;
+const NEGATORS = /[不没别]$|没(?=[什么怎这])/;
 
 export function negated(re: RegExp, text: string): boolean {
   for (const m of text.matchAll(new RegExp(re.source, "g"))) {
-    const before = text.slice(Math.max(0, (m.index ?? 0) - 2), m.index);
+    const before = text.slice(Math.max(0, (m.index ?? 0) - 3), m.index);
     if (!NEGATORS.test(before)) return false; // 存在未否定的命中 → 该规则成立
   }
   return true; // 所有命中都被否定（或无命中）→ 视为否定/不成立

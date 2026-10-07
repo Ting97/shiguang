@@ -658,6 +658,17 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // 全局加锁约定（entriesRepo.rawTextOf）：写事务先锁 entry 行，与后台识别落库阶段互斥串行。
+    // 同时 stampAnalyzedAt（用户显式重识别 = 已落定）：仍在飞的旧后台识别进入落库阶段时
+    // 会按「识别期间已有用户落定数据」跳过清写——旧版无锁无置位，用户刚重识别的产物
+    // 会被后台识别整体 clearDerived 后重写（静默丢用户结果）
+    const current = await entriesRepo.rawTextOf(entryId, userId, client);
+    if (!current) throw ApiError.notFound("动态不存在");
+    if (String(current.raw_text) !== entry.raw_text) {
+      // 识别调用期间原文被编辑：本次产物基于旧文本，落库会覆盖新文本的语义 → 拒绝（与 analyze 陈旧校验同语义）
+      throw ApiError.conflict("原文已变更，请刷新后重新识别");
+    }
+    await entriesRepo.stampAnalyzedAt(client, entryId);
     let applied = false;
     let result: unknown = null;
     let message = "";
@@ -859,14 +870,7 @@ export async function addEntryImages(userId: string, entryId: string, form: Form
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (files.length === 0) throw ApiError.badRequest("没有文件");
 
-  const { rows: existing } = await pool.query(
-    `select count(*)::int as n from entry_images where entry_id = $1 and user_id = $2`,
-    [entryId, userId],
-  );
-  const have = existing[0].n;
-  if (have + files.length > MAX_PER_ENTRY) {
-    throw ApiError.badRequest(`单条动态最多 ${MAX_PER_ENTRY} 张（已有 ${have} 张）`);
-  }
+
 
   // 逐一校验（大小 + 魔数），全部通过才落库
   const prepared: { mime: string; bytes: number; data: Buffer; key: string }[] = [];
@@ -885,6 +889,14 @@ export async function addEntryImages(userId: string, entryId: string, form: Form
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // 计数在事务 + entry 行锁内做：并发上传同一动态的 check-then-insert 可越 9 张上限（TOCTOU）
+    await client.query(`select id from entries where id = $1 and user_id = $2 for update`, [entryId, userId]);
+    const have = (
+      await client.query(`select count(*)::int as n from entry_images where entry_id = $1 and user_id = $2`, [entryId, userId])
+    ).rows[0].n;
+    if (have + files.length > MAX_PER_ENTRY) {
+      throw ApiError.badRequest(`单条动态最多 ${MAX_PER_ENTRY} 张（已有 ${have} 张）`);
+    }
     const inserted: { id: string; storageKey: string; mime: string; width: number | null; height: number | null; sort: number }[] = [];
     let sort = have; // 追加到已有图片之后
     for (const p of prepared) {
@@ -911,6 +923,7 @@ export async function addEntryImages(userId: string, entryId: string, form: Form
     return { ok: true as const, images: inserted };
   } catch (e) {
     await client.query("rollback").catch(() => {});
+    if (e instanceof ApiError) throw e; // 上限/校验类 4xx 不得被吞成 500
     console.error("[images] 上传失败:", e);
     throw new ApiError(500, "upstream", "上传失败，请重试");
   } finally {

@@ -26,6 +26,7 @@ export const PUT = withModule("debt", async (req, { user }) => {
   };
   if (!isValidYearMonth(body.ym)) throw new ApiError(400, "invalid_input", "ym 需为 YYYY-MM（月份 01-12）");
   if (typeof body.checked !== "boolean") throw new ApiError(400, "invalid_input", "checked 必填");
+  if (body.all !== undefined && typeof body.all !== "boolean") throw new ApiError(400, "invalid_input", "all 需为布尔"); // 非布尔真值会被误当「一键」模式
   if (body.liabilityId !== undefined) assertUuidParam(body.liabilityId, "liabilityId"); // 非法 uuid 落 SQL 会 22P02 → 500
   if (body.ids !== undefined) {
     if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== "string")) {

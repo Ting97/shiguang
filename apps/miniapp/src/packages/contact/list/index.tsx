@@ -13,6 +13,7 @@ import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
 import { loadContacts, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import ContactFormModal from "../form-modal";
 import ContactGraph from "./graph";
 import type { ContactRow } from "../shared";
@@ -46,14 +47,26 @@ export default function ContactListPage() {
     }
   }
 
-  if (!inited && getSessionToken()) {
+  // 副作用移入 useEffect：render 期 setState+发请求在并发/StrictMode 下会双发
+  useEffect(() => {
+    if (inited || !getSessionToken()) return;
     setInited(true);
     void load();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     load().finally(() => Taro.stopPullDownRefresh());
   });
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="contacts">
+        <GuestGate title="人际" desc="联系人档案、星型关系图谱与往来记录" />
+      </PageShell>
+    );
+  }
 
   /** 分组 chips（全部 + 有联系人的分组，带计数） */
   const groupChips = useMemo(() => {

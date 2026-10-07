@@ -27,9 +27,8 @@ export function useReflection(opts: { id: string; load: () => Promise<void>; set
       setEditingReflection({ id: rid, content: j.reflection.content });
       setEditorOpen(true);
     } catch (e) {
-      if (e instanceof ApiClientError) {
-        setMsg({ ok: false, text: e.message === "操作失败" ? "全文加载失败" : e.message });
-      }
+      // ApiClientError 用服务端文案；断网等非 HTTP 错误也必须有反馈（旧版静默，编辑器不打开且无提示）
+      setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "全文加载失败，请检查网络后重试" });
     }
   }
 

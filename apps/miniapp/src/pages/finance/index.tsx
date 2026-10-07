@@ -17,6 +17,7 @@ import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { confirmTx, bjMonth, fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import {
   loadFinOverview,
   loadTxs,
@@ -593,6 +594,12 @@ export default function Finance() {
   // 删除流水两步确认：待确认的流水 id + 超时复位定时器
   const [armDel, setArmDel] = useState<string | null>(null);
   const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    },
+    [],
+  );
   const [inited, setInited] = useState(false);
 
   // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
@@ -612,14 +619,17 @@ export default function Finance() {
     }
   };
 
-  // 首次进入加载（token 就绪后）；me.modules 拉取失败按空数组处理（= web FinanceTabs）
-  if (!inited && getSessionToken()) {
+  // 首次进入加载（token 就绪后）；me.modules 拉取失败按空数组处理（= web FinanceTabs）。
+  // 副作用移入 useEffect：render 期 setState+发请求在并发/StrictMode 下会双发
+  useEffect(() => {
+    if (inited || !getSessionToken()) return;
     setInited(true);
     void load();
     fetchMe()
       .then((j) => setModules(j.modules ?? []))
       .catch(() => setModules([]));
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     load().finally(() => Taro.stopPullDownRefresh());
@@ -627,6 +637,16 @@ export default function Finance() {
 
   const drafts = useMemo(() => txs.filter((t) => t.is_draft), [txs]);
   const confirmed = useMemo(() => txs.filter((t) => !t.is_draft), [txs]);
+
+  // 游客无服务端只读通道（/api 全 401）：旧版停在永久骨架屏，这里给出登录引导出口
+  //（放在全部 hooks 之后，早退不跳过任何 hook 调用）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="finance">
+        <GuestGate title="财务" desc="记账、预算、CSV 导入与储蓄率报表" />
+      </PageShell>
+    );
+  }
 
   async function confirmOne(t: FinTx) {
     if (confirmBusy) return;

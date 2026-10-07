@@ -37,7 +37,8 @@ export const entriesRepo = {
     return pool.query(`update entry_recognitions set status = 'none', updated_at = now() where id = $1`, [recId]);
   },
   applyRecognition(recId: string, client: import("pg").PoolClient | typeof pool = pool) {
-    return client.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1`, [recId]);
+    // 状态守卫：并发双 confirm（pending 快照在事务外读入）只有第一方真正置 applied，防重复落库
+    return client.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1 and status = 'pending'`, [recId]);
   },
   moodOf(entryId: string, userId: string) {
     return pool.query(`select raw_text from entries where id = $1 and user_id = $2`, [entryId, userId]);

@@ -233,7 +233,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
             <div className="mt-4 border-t border-line-soft pt-3 text-xs text-ink-dim">
               共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + dayClampedMin(b), 0))}
             </div>
-            <DayReviewCard date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />
+            <DayReviewCard key={`day-${anchor}`} date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />
           </aside>
           <div className="order-last lg:order-none">
             {editing && (
@@ -249,6 +249,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
         <>
           <WeekView days={weekDays} blocks={blocks} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
           <WeekReviewCard
+            key={`week-${weekDays[0]}`}
             weekStart={weekDays[0]}
             weekEnd={weekDays[6]}
             hasRecords={blocks.length > 0}
@@ -259,13 +260,13 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
       {!loading && view === "month" && (
         <>
         <MonthView month={startOfMonth(anchor)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-        <MonthReviewCard month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+        <MonthReviewCard key={`month-${anchor.slice(0, 7)}`} month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
         </>
       )}
       {!loading && view === "year" && (
         <>
         <YearView year={anchor.slice(0, 4)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-        <YearReviewCard year={anchor.slice(0, 4)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+        <YearReviewCard key={`year-${anchor.slice(0, 4)}`} year={anchor.slice(0, 4)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
         </>
       )}
     </>

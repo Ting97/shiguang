@@ -17,6 +17,46 @@ import { ArrowRight, Check, Ellipsis, FileText, Repeat, RotateCcw } from "lucide
  * - N3：行内编辑器点空白/Esc 取消（有改动轻提示）
  * - 数据自取 /api/todos?view=today-actions（06:00 记录日惰性日切在服务端读取时触发）
  */
+/** 行动行（独立行动无父上下文行）：模块级定义——组件体内定义会在每次渲染重挂载子树 */
+function ActionRow({ a, onMenu }: { a: TodayAction; onMenu: (a: TodayAction, el: HTMLElement) => void }) {
+  const tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate text-sm text-ink">{a.title}</span>
+        {!a.parent_title && (
+          <span className="shrink-0 rounded-lg bg-slate-500/15 px-1.5 py-0.5 text-badge font-medium text-ink-dim" title="独立行动（不属于任何 todo）">
+            行动
+          </span>
+        )}
+        {a.repeat_daily && (
+          <span className="flex shrink-0 items-center gap-0.5 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success" title="每日重复">
+            <Repeat size={11} aria-hidden /> {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}
+          </span>
+        )}
+        {a.note && (
+          <span className="shrink-0 text-ink-faint" title="有描述">
+            <FileText size={11} aria-hidden />
+          </span>
+        )}
+        <button
+          onClick={(e) => onMenu(a, e.currentTarget)}
+          aria-label="操作菜单"
+          className="tap-lg press ml-auto shrink-0 rounded p-1 text-ink-faint transition hover:bg-wash hover:text-ink"
+        >
+          <Ellipsis size={14} />
+        </button>
+      </p>
+      {(a.parent_title || tag) && (
+        <p className="mt-0.5 flex items-center gap-1.5 text-micro text-ink-faint">
+          {a.parent_title && <span className="min-w-0 truncate">来自「{a.parent_title}」</span>}
+          {tag && <span className={`shrink-0 ${tag.cls}`}>{tag.text}</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; text: string } | null) => void }) {
   const [actions, setActions] = useState<TodayAction[] | null>(null);
   // 打卡进行中的行动 id：接到对应行按钮 disabled，防连点重复打卡
@@ -181,45 +221,6 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   const pending = (actions ?? []).filter((a) => a.status === "pending");
   const done = (actions ?? []).filter((a) => a.status === "done");
 
-  /** 行动行（独立行动无父上下文行） */
-  function ActionRow({ a }: { a: TodayAction }) {
-    const tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
-    return (
-      <div className="min-w-0 flex-1">
-        <p className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate text-sm text-ink">{a.title}</span>
-          {!a.parent_title && (
-            <span className="shrink-0 rounded-lg bg-slate-500/15 px-1.5 py-0.5 text-badge font-medium text-ink-dim" title="独立行动（不属于任何 todo）">
-              行动
-            </span>
-          )}
-          {a.repeat_daily && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded-lg bg-emerald-500/20 px-1.5 py-0.5 text-badge font-medium text-success" title="每日重复">
-              <Repeat size={11} aria-hidden /> {a.repeat_done_count > 0 ? `×${a.repeat_done_count}` : ""}
-            </span>
-          )}
-          {a.note && (
-            <span className="shrink-0 text-ink-faint" title="有描述">
-              <FileText size={11} aria-hidden />
-            </span>
-          )}
-          <button
-            onClick={(e) => openMenu(a, e.currentTarget)}
-            aria-label="操作菜单"
-            className="tap-lg press ml-auto shrink-0 rounded p-1 text-ink-faint transition hover:bg-wash hover:text-ink"
-          >
-            <Ellipsis size={14} />
-          </button>
-        </p>
-        {(a.parent_title || tag) && (
-          <p className="mt-0.5 flex items-center gap-1.5 text-micro text-ink-faint">
-            {a.parent_title && <span className="min-w-0 truncate">来自「{a.parent_title}」</span>}
-            {tag && <span className={`shrink-0 ${tag.cls}`}>{tag.text}</span>}
-          </p>
-        )}
-      </div>
-    );
-  }
 
   return (
     <section className="glass mb-5 rounded-2xl p-5" id="actions">
@@ -291,7 +292,6 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
               <ul className="space-y-0.5">
                 {pending.map((a) => {
                   // 到期提示：行动自身优先，父待办兜底（独立行动只有自身 due）
-                  const _tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
                   const isEditing = editingId === a.id;
                   return (
                     <li key={a.id} className="group flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-elevated/60">
@@ -332,7 +332,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                       ) : (
                         <>
                           <TodoCircle size="md" done={false} disabled={busyId === a.id} onClick={() => toggleDone(a)} />
-                          <ActionRow a={a} />
+                          <ActionRow a={a} onMenu={openMenu} />
                           {/* 编辑/删除收进 ⋯ 菜单（REQ-009 滚动：行面只留打卡与菜单入口） */}
                         </>
                       )}

@@ -220,7 +220,7 @@ export default function MomentCard({
             <View
               className="mc-space-badge"
               style={{ backgroundColor: `${m.space.color}26` /* web 同款 color+26 十六进制透明度 */ }}
-              onClick={() => Taro.redirectTo({ url: "/packages/space/detail/index?id=" + m.space!.id })}
+              onClick={() => Taro.navigateTo({ url: "/packages/space/detail/index?id=" + m.space!.id })}
             >
               <Text className="mc-space-icon">{m.space.icon}</Text>
               <Text className="mc-space-name">{m.space.name}</Text>
@@ -412,6 +412,8 @@ export default function MomentCard({
                       className="mc-edit-save"
                       onClick={() =>
                         run(async () => {
+                          // 空值显式拦截（旧版空串穿到 combineHM 抛 Invalid time value 原始错误）
+                          if (!editBlock.start || !editBlock.end) throw new Error("请选择开始和结束时间");
                           if (editBlock.end <= editBlock.start) throw new Error("结束时间必须晚于开始时间");
                           // startAt 兜底当前时刻：极端脏数据缺起始时间时 combineHM 需要一个合法日期基点
                           await patchBlock(b.id, {

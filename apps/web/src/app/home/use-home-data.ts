@@ -114,14 +114,20 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
 
   /** 「加载更多」：显式再拉一页（页数走 ref，不再借道 state 触发 effect 造成重复请求）；
    *  try/finally 保证失败时按钮加载态必复位（原实现只在 moments 变化时复位，失败会永久卡 true） */
+  const loadingMoreRef = useRef(false);
+
   async function loadMore() {
-    if (loadingMore) return;
+    // 双守卫：state 守卫给渲染层（按钮 disabled），ref 守卫拦同一事件循环的双击
+    //（setState 要等重渲染才生效，同步两次调用都能穿过旧版单守卫，重复拉一页）
+    if (loadingMore || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     feedLimitRef.current += FEED_PAGE_SIZE;
     try {
       const ok = await load();
       if (!ok) notifyError?.("加载更多失败，请稍后重试");
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
   }

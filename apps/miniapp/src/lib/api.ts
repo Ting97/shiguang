@@ -247,10 +247,6 @@ export function loadTradingReview(accountId: string) {
 
 /* ---------- 日程 / 待办 ---------- */
 
-export function loadTodayActions() {
-  return request<{ actions: any[] }>("/api/stats/today-actions").catch(() => ({ actions: [] }));
-}
-
 export function loadTodos() {
   return request<{ todos: any[] }>("/api/todos");
 }

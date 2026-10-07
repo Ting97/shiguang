@@ -100,3 +100,13 @@ test("农历生日：换算/倒计时/闰月回落", async () => {
   const uni = birthdayLabel({ birthday_cal: "lunar", lunar_month: 6, lunar_day: 3 }, today1);
   assert.deepEqual(uni, { date: "农历六月初三", countdown: "7 天后生日" });
 });
+
+/* ---- 检视修复回归：不存在的日历日期不再静默滚动 ---- */
+
+test("birthdayCountdown：2/30、4/31 等无效日期返回 null（旧版静默滚到下月报错天数）", () => {
+  const today = new Date(2026, 8, 18);
+  assert.equal(birthdayCountdown("1995-02-30", today), null);
+  assert.equal(birthdayCountdown("1995-04-31", today), null);
+  assert.equal(birthdayCountdown("1995-10-02", today), 14); // 合法日期回归
+  assert.equal(birthdayCountdown("1996-02-29", today), 163); // 2/29 平年钳到 2/28 的既有语义不变（2026-02-28 距 09-18 为 163 天）
+});

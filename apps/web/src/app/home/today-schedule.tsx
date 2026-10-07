@@ -139,8 +139,9 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
     setListSaving(true);
     const [sh, sm] = listDraft.start.split(":").map(Number);
     const [eh, em] = listDraft.end.split(":").map(Number);
-    // 北京今天 0 点作基（Date.parse 的 T00:00:00Z 即北京午夜），本地午夜基在海外设备会整体错 8 小时
-    const dayMs = Date.parse(`${bjToday()}T00:00:00Z`);
+    // 北京今天 0 点作基：必须显式 +08:00（T00:00:00Z 是 UTC 零点=北京 08:00，
+    // 旧版所有补录块整体晚 8 小时；本地午夜基在海外设备又会错 8 小时）
+    const dayMs = Date.parse(`${bjToday()}T00:00:00+08:00`);
     const ok = await createBlock({
       title: listDraft.title.trim(),
       startAt: new Date(dayMs + (sh * 60 + sm) * 60_000).toISOString(),

@@ -22,10 +22,17 @@ export function getThemeMode(): ThemeMode {
   }
 }
 
+// getSystemInfoSync 是同步桥调用：system 模式下旧版每次 render 都调一次。
+// 主题切换本身由微信 onThemeChange → 页面重渲染承接，短 TTL 缓存对正确性无损
+let sysThemeCache: { theme: Theme; at: number } | null = null;
+
 export function resolveTheme(mode: ThemeMode): Theme {
   if (mode !== "system") return mode;
+  if (sysThemeCache && Date.now() - sysThemeCache.at < 30_000) return sysThemeCache.theme;
   try {
-    return Taro.getSystemInfoSync().theme === "light" ? "light" : "dark";
+    const theme = Taro.getSystemInfoSync().theme === "light" ? "light" : "dark";
+    sysThemeCache = { theme, at: Date.now() };
+    return theme;
   } catch {
     return "dark";
   }

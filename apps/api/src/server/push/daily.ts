@@ -71,13 +71,15 @@ export async function runDailyReminderPush(): Promise<void> {
 
   try {
     const bj = today; // 北京今天 YYYY-MM-DD（UTC getter + 8h 口径，与 shared/date 一致）
-    // 到期待办：pending 且 due_at < 北京今日 24 点（date_trunc 对 now()+8h 取北京日界再 +1 天）
+    // 到期待办：pending 且 due_at < 北京今日 24 点。旧版 `date_trunc('day', now()+8h)` 按
+    // 会话时区（生产 UTC）截断，边界=北京次日 08:00——次日 0-8 点到期的待办全被误报「今日到期」；
+    // 改 `at time zone 'Asia/Shanghai'` 显式北京日界（与 /api/today 同范式）
     const dueRes = pool.query<{ user_id: string; n: number }>(
       `select t.user_id, count(*)::int as n
        from todos t
        where t.status = 'pending'
          and t.due_at is not null
-         and t.due_at < date_trunc('day', now() + interval '8 hours') + interval '1 day'
+         and t.due_at < (date_trunc('day', now() at time zone 'Asia/Shanghai') + interval '1 day') at time zone 'Asia/Shanghai'
          and t.due_at > now() - make_interval(days => $1)
        group by t.user_id`,
       [DUE_LOOKBACK_DAYS],

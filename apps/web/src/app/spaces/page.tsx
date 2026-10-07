@@ -52,11 +52,12 @@ export default function SpacesPage() {
     setLoadErr(null);
     try {
       // 原 401 分支（location.href = "/login"）已由 shared/api 统一处理；
-      // 原 !ok → 置空列表的语义由 ApiClientError 分支保留，网络异常仍走加载失败
+      // 404/400 等业务性失败才置空列表；5xx/网关错误必须走加载失败态——
+      // 旧版把一切非 2xx 当"空列表"，渲染成「还没有目标空间」引导用户重复建档
       const j = await api<any>("/api/spaces", "GET");
       setSpaces((j.spaces as Space[]) ?? []);
     } catch (e) {
-      if (e instanceof ApiClientError) {
+      if (e instanceof ApiClientError && e.status >= 400 && e.status < 500) {
         setSpaces([]);
       } else {
         setLoadErr(e instanceof Error ? e.message : String(e));

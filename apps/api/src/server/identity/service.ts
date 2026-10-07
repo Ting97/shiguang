@@ -189,12 +189,15 @@ export async function assertSetupToken(tokenHeader: string | null) {
   await consumeSetupToken();
 }
 
+/** 消费一次性令牌：insert returning 判定成败——旧版 on conflict do nothing 不看结果，
+ * 并发两个持有效令牌的请求都能通过 assertSetupToken 各自建号 */
 async function consumeSetupToken() {
-  await pool.query(
+  const { rows } = await pool.query(
     `insert into app_config (key, value) values ('setup_token_used', to_jsonb(now()))
-     on conflict (key) do nothing`,
+     on conflict (key) do nothing returning key`,
     [],
   );
+  if (!rows[0]) throw new ApiError(410, "conflict", "初始化令牌已失效");
 }
 
 /** 初始化管理员（一次性令牌校验 + 抢占防护） */

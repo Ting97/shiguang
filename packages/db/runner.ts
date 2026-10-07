@@ -59,6 +59,29 @@ async function main() {
     .sort(); // 文件名序即执行序（NNN-name.sql）
 
   // 空库 + --fresh：schema.sql 建基线 + 全量迁移真实执行（测试库/新环境初始化）
+  // --status 优先：预检契约是只读，--fresh --status 组合不得真实落库（旧版会执行全部迁移）
+  if (statusOnly) {
+    const pendingAll = files.filter((f) => !done.has(f));
+    console.log(
+      done.size === 0
+        ? freshApply
+          ? `[migrate]（--status 只读预检）空库 + --fresh：将执行 schema.sql + ${files.length} 个迁移`
+          : `[migrate] 未初始化：${files.length} 个既有迁移待回填（执行 db:migrate 完成回填）`
+        : `[migrate] 已应用 ${done.size} / 共 ${files.length}，待执行 ${pendingAll.length}`,
+    );
+    for (const f of pendingAll) console.log(`  pending: ${f}`);
+    // 预检同样做 checksum/缺失比对：运维看"待执行 0"时也要能看到已上线文件被手改
+    for (const [f, ck] of done) {
+      if (!files.includes(f)) {
+        console.error(`[migrate] ⚠ 记录表存在但迁移文件缺失：${f}（切分支/误删？终态与记录不一致）`);
+      } else if (ck) {
+        const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
+        if (now !== ck) console.error(`[migrate] ⚠ 迁移文件已变更但曾应用：${f}`);
+      }
+    }
+    return;
+  }
+
   if (done.size === 0 && files.length > 0 && freshApply) {
     const baseSql = readFileSync(join(here, "schema.sql"), "utf8");
     try {
@@ -98,10 +121,6 @@ async function main() {
 
   // 首跑自举：记录表为空但目录里有历史迁移 → 全部回填（不执行——库已含其效果）
   if (done.size === 0 && files.length > 0) {
-    if (statusOnly) {
-      console.log(`[migrate] 未初始化：${files.length} 个既有迁移待回填（执行 db:migrate 完成回填）`);
-      return;
-    }
     // 单向门守卫：连 profiles 都没有 = 真空库（测试/新环境忘加 --fresh）。静默回填会让零业务表的库
     // 假装"迁移已应用"，且 --fresh（要求记录表为空）从此永久跳过——必须显式 --fresh 全量执行。
     const probe = await client.query(`select to_regclass('public.profiles') as t`);
@@ -122,20 +141,6 @@ async function main() {
   }
 
   const pending = files.filter((f) => !done.has(f));
-  if (statusOnly) {
-    console.log(`[migrate] 已应用 ${done.size} / 共 ${files.length}，待执行 ${pending.length}`);
-    for (const f of pending) console.log(`  pending: ${f}`);
-    // --status 同样做 checksum 比对：运维看"待执行 0"时也要能看到已上线文件被手改
-    for (const [f, ck] of done) {
-      if (!files.includes(f)) {
-        console.error(`[migrate] ⚠ 记录表存在但迁移文件缺失：${f}（切分支/误删？终态与记录不一致）`);
-      } else if (ck) {
-        const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
-        if (now !== ck) console.error(`[migrate] ⚠ 迁移文件已变更但曾应用：${f}`);
-      }
-    }
-    return;
-  }
 
   // checksum 防篡改：已应用文件内容变化即报错；记录表孤儿（文件缺失）先告警
   for (const [f, ck] of done) {

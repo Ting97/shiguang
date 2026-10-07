@@ -199,9 +199,11 @@ export default function DailySection({ accountId }: { accountId: string }) {
                 <span key={`x-${mode === "week" ? (d as WeekDay).weekStart : (d as DailyDay).ymd}`} className="min-w-0 flex-1 text-center">
                   {(i % 5 === 0 || isCur) && (
                     <span className={`text-micro tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
+                      {/* day 模式 label 是完整 ymd（"2026-10-08"）：刻度取 月/日 必须从第 5/8 位切——
+                          旧版沿用 week 分支的 slice(0,2)/slice(3,5)，全年刻度渲染成 "20/10" */}
                       {mode === "week"
                         ? Number(label.slice(0, 2))
-                        : `${Number(label.slice(0, 2))}/${Number(label.slice(3, 5))}`}
+                        : `${Number(label.slice(5, 7))}/${Number(label.slice(8, 10))}`}
                     </span>
                   )}
                 </span>

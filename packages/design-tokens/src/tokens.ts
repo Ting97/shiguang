@@ -177,19 +177,3 @@ export const motion = {
 /** 层级刻度：收编散布的 30~100 字面量与 z-[..] 任意值 */
 export const zIndex = { base: 0, sticky: 20, overlay: 30, modal: 40, toast: 50, max: 60 } as const;
 
-/** #rrggbb → rgba(r, g, b, a) */
-function withAlpha(hex: string, alpha: number): string {
-  const n = hex.replace("#", "");
-  const r = parseInt(n.slice(0, 2), 16);
-  const g = parseInt(n.slice(2, 4), 16);
-  const b = parseInt(n.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-/** rgba(...) → 透明度（skia 极光只吃数值 alpha，颜色在组件内固定） */
-function alphaOf(rgba: string): number {
-  const m = rgba.match(/,\s*([\d.]+)\)$/);
-  if (!m) throw new Error(`alphaOf: 无法解析 ${rgba}`);
-  return Number(m[1]);
-}
-

@@ -3,7 +3,7 @@
  * 口径逐条对齐 web：lib/bj-time（北京时区）、spaces/page.tsx 的 daysOf/progressOf、
  * todo-bits.dueTag、use-arm-confirm（两步删除）。
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** GET /api/spaces 行结构（= web lib/types Space；本页消费的子集） */
 export interface SpaceRow {
@@ -73,6 +73,12 @@ export function dueTag(iso?: string | null): DueTag | null {
 export function useArmConfirm() {
   const [armedId, setArmedId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
   const arm = (id: string): boolean => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (armedId === id) {

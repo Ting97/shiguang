@@ -29,8 +29,12 @@ export const ACTIVITY_NAMES: Record<(typeof ACTIVITY_IDS)[number], string> = {
 export const TimeMode = z.enum(["explicit", "relative", "default", "future"]);
 
 // 模型 confidence 偶发输出非数字（如 "medium"）→ 整包校验失败会白白丢弃其余合法字段；
-// 容错为 0.5（低于 CONFIDENCE_THRESHOLD → 该域转 pending 待确认），宁让人工确认不可信结果
-const llmConfidence = z.coerce.number().min(0).max(1).catch(0.5);
+// 容错为 0.5（低于 CONFIDENCE_THRESHOLD → 该域转 pending 待确认），宁让人工确认不可信结果。
+// null 必须先短路：z.coerce 会把 null 强转成 0（Number(null)=0），与同文件 conf() 记录的坑相同
+const llmConfidence = z
+  .unknown()
+  .transform((v) => (v == null ? 0.5 : v))
+  .pipe(z.coerce.number().min(0).max(1).catch(0.5));
 
 /** 模型布尔容错：z.coerce.boolean 会把字符串 "false" 强转成 true——纯感想句被模板字段幻影出日程/流水；
  * 这里只收真布尔/"true"/"false"/1/0，缺答或垃圾值按校验失败走修复重问（V2 漏答即不合格语义不变） */

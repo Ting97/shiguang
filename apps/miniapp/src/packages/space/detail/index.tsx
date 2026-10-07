@@ -5,7 +5,7 @@
  * 取数（= web use-space-data）：GET /api/spaces（头卡从列表按 id 找，:id 无 GET）+ todos all/done
  * + feed?spaceId + activities 五路并行（allSettled，部分失败跳过）。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
@@ -13,6 +13,7 @@ import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
 import { loadFeed, loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import type { SpaceRow } from "../shared";
 import HeaderCard from "./header-card";
 import TodoSection from "./todo-section";
@@ -75,14 +76,26 @@ export default function SpaceDetailPage() {
     }
   }
 
-  if (!inited && getSessionToken() && id) {
+  // 副作用移入 useEffect：render 期 setState+发请求在并发/StrictMode 下会双发
+  useEffect(() => {
+    if (inited || !getSessionToken() || !id) return;
     setInited(true);
     void load();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     load().finally(() => Taro.stopPullDownRefresh());
   });
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell>
+        <GuestGate title="空间详情" desc="进度、待办、动态与感悟" />
+      </PageShell>
+    );
+  }
 
   async function saveRename(name: string): Promise<boolean> {
     try {

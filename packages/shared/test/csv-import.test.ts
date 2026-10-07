@@ -43,6 +43,7 @@ test("平台检测：支付宝/微信/未知", () => {
 test("金额解析：千分位/¥前缀/空值", () => {
   assert.equal(parseAmount("1,280.00"), 128000);
   assert.equal(parseAmount("¥25.00"), 2500);
+  assert.equal(parseAmount("￥26.80"), 2680); // 微信账单常见的全角￥（旧版整行误报「金额无法解析」）
   assert.equal(parseAmount("0.35"), 35);
   assert.equal(parseAmount(""), null);
   assert.equal(parseAmount("abc"), null);

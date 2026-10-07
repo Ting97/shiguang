@@ -97,9 +97,12 @@ async function parseResponse<T>(r: Response): Promise<T> {
     if (r.status === 401) await store.set(null); // 会话失效即清 token
     throw new ApiClientError((j as { error?: string }).error ?? "操作失败", r.status);
   }
-  // 登录/注册/setup 响应附带 token：自动入库，后续请求带 Bearer
+  // 登录/注册/setup 响应附带 token：自动入库，后续请求带 Bearer。
+  // 仅限 auth 路径：任何接口若恰好返回名为 token 的字段，静默覆盖会话属于隐性踩踏
   const t = (j as { token?: unknown }).token;
-  if (typeof t === "string" && t) await store.set(t);
+  if (typeof t === "string" && t && /\/api\/auth(\/|$)/.test(new URL(r.url, "http://x").pathname)) {
+    await store.set(t);
+  }
   return j as T;
 }
 

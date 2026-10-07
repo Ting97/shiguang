@@ -1,0 +1,36 @@
+/* 游客态门：居中说明 + 登录引导（对齐 schedule 页 empty-state 的克制风格） */
+.guest-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  padding: 120rpx 60rpx;
+  text-align: center;
+}
+.guest-gate-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: var(--ink);
+}
+.guest-gate-desc {
+  font-size: 26rpx;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+.guest-gate-hint {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: var(--ink-faint);
+}
+.guest-gate-btn {
+  margin-top: 24rpx;
+  padding: 18rpx 88rpx;
+  border-radius: 999rpx;
+  background: var(--accent, #38bdf8);
+}
+.guest-gate-btn-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #06121f;
+}

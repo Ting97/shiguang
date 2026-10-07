@@ -46,6 +46,12 @@ export default function RemindersBanner({
       showToast({ type: "ok", text: "☀️ 已加入今日 todo" });
       await load();
     } catch (e: any) {
+      // 乐观置位失败要回滚：旧版保留「已加入 ✓」的假成功态，用户以为已处理
+      setMarked((s) => {
+        const next = new Set(s);
+        next.delete(it.todoId!);
+        return next;
+      });
       showToast({ type: "err", text: `加入今日失败（${it.label.slice(0, 20)}…）${e?.message ? `：${e.message}` : ""}` });
     }
   }

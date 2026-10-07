@@ -20,6 +20,7 @@ import {
 } from "./api";
 import type { SpaceRow } from "../shared";
 import { bjDate, bjToday, dueTag, type DueTag } from "../shared";
+import { isoToBjInput, bjInputToIso } from "@shiguangri/shared";
 import { showToast } from "@/components/toast";
 import "./todo-section.scss";
 
@@ -29,21 +30,16 @@ interface Activity {
   icon: string;
 }
 
-/** ISO → 北京 {date, time}（datetime-local 等价拆分；空串=未设） */
+/** ISO → 北京 {date, time}（datetime-local 等价拆分；空串=未设）——shared isoToBjInput 单源 */
 function dueSplit(iso?: string | null): { date: string; time: string } {
-  if (!iso) return { date: "", time: "" };
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return {
-    date: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`,
-    time: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
-  };
+  const v = isoToBjInput(iso);
+  return { date: v.slice(0, 10), time: v.slice(11, 16) };
 }
 
-/** 北京 {date,time} → ISO（显式 +08:00，= web bjInputToIso）；无日期返回 null */
+/** 北京 {date,time} → ISO（shared bjInputToIso 单源）；无日期返回 null */
 function dueCompose(date: string, time: string): string | null {
   if (!date) return null;
-  return `${date}T${time || "00:00"}:00+08:00`;
+  return bjInputToIso(`${date}T${time || "00:00"}`);
 }
 
 /** 子行动进度 n/m（= web childProgress） */

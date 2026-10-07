@@ -247,8 +247,9 @@ create table if not exists public.audit_logs (
   id          bigserial primary key,
   user_id     uuid references public.profiles(id) on delete set null,
   entry_id    uuid,
-  stage       text not null,                        -- asr | parse | review | chat
-  model       text not null,
+  -- 与 011 迁移终态同形（stage/model 可空）：省略 stage 的审计写入在 fresh 测试库报错、生产静默通过，属环境分叉
+  stage       text,                                 -- asr | parse | review | chat
+  model       text,
   prompt_tokens    int not null default 0,
   completion_tokens int not null default 0,
   latency_ms  int,

@@ -44,6 +44,14 @@ export default function DebtImportDrawer({
   // 导入成功的面板内提示（替代原生 alert）
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // 成功后自动关闭的定时器：卸载/重开时清理（旧版卸载后仍触发 onClose）
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -88,7 +96,8 @@ export default function DebtImportDrawer({
       // 原生 alert 换面板内成功轻提示：短暂展示结果后自动关闭（阻塞式弹窗与全站交互不一致）
       setErr(null);
       setDoneMsg(`✅ 导入完成：新建 ${r.created} 笔、跳过 ${r.skipped} 笔${r.accountsCreated ? `、账户 ${r.accountsCreated} 个` : ""}`);
-      setTimeout(() => onClose(), 1200);
+      const t = setTimeout(() => onClose(), 1200);
+      closeTimerRef.current = t;
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {

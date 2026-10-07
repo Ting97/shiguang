@@ -7,7 +7,7 @@
  * - 新建/编辑档案、还款弹层用底部 sheet（web Modal 的移动端形态）；
  * - 策略模拟滑杆松手触发改为 Slider onChange +「开始模拟」按钮（触屏无 pointerup 语义差异，按钮更可靠）。
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button, Picker, Slider } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
@@ -15,6 +15,7 @@ import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { fetchMe, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import { ApiError } from "@/lib/request";
 import {
   DEBT_TYPES,
@@ -365,17 +366,29 @@ export default function DebtPage() {
       .catch(() => undefined);
   }
 
-  if (!inited && getSessionToken()) {
+  // 副作用移入 useEffect：render 期 setState+发请求在并发/StrictMode 下会双发
+  useEffect(() => {
+    if (inited || !getSessionToken()) return;
     setInited(true);
     void load();
     fetchMe()
       .then((j) => setModules(j.modules ?? []))
       .catch(() => setModules([]));
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     load().finally(() => Taro.stopPullDownRefresh());
   });
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="finance">
+        <GuestGate title="负债管理" desc="负债台账、还款计划与每月备付追踪" />
+      </PageShell>
+    );
+  }
 
   const hasModule = modules?.includes("debt") ?? false;
 

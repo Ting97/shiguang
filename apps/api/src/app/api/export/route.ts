@@ -73,7 +73,8 @@ export const GET = withAuth(async (req, { user }) => {
     const lines: string[] = [
       `# 拾光 · 动态日记`,
       ``,
-      `> 导出时间：${new Date().toLocaleString("zh-CN")} · 共 ${entries.rows.length} 条动态`,
+      // 北京口径导出时间（UTC 容器上 toLocaleString 会显示 UTC 时刻，与全站口径不一致）
+      `> 导出时间：${new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 16).replace("T", " ")}（北京时间） · 共 ${entries.rows.length} 条动态`,
       ``,
     ];
     let lastDay = "";
@@ -118,7 +119,7 @@ export const GET = withAuth(async (req, { user }) => {
 
   // 默认 json 全量备份
   const backup = {
-    exported_at: new Date().toISOString(),
+    exported_at: new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 19).replace("T", " ") + "+08:00",
     profile: { nickname: user.nickname ?? null, phone: user.phone ?? null },
     entries: entries.rows,
     time_blocks: blocks.rows,

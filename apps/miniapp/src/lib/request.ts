@@ -41,13 +41,23 @@ export async function request<T = unknown>(path: string, opts: Options = {}): Pr
   const header: Record<string, string> = { "Content-Type": "application/json" };
   if (token) header.Authorization = `Bearer ${token}`;
 
-  const res = await Taro.request({
-    url: `${API_BASE}${path}`,
-    method: opts.method ?? "GET",
-    data: opts.body as never,
-    header,
-    timeout: 20000,
-  });
+  // fail 分支（断网/DNS/SSL）reject 的是 {errMsg} 普通对象：不归一的话
+  // 消费侧 `e instanceof Error ? e.message : String(e)` 会把错误渲染成 "[object Object]"
+  let res: { statusCode: number; data: unknown };
+  try {
+    res = await Taro.request({
+      url: `${API_BASE}${path}`,
+      method: opts.method ?? "GET",
+      data: opts.body as never,
+      header,
+      timeout: 20000,
+    });
+  } catch (err) {
+    const msg = (err as { errMsg?: string; message?: string })?.errMsg
+      || (err instanceof Error ? err.message : "")
+      || "网络异常，请稍后重试";
+    throw new ApiError(msg, 0);
+  }
   const status = res.statusCode;
   const data = res.data as T & { error?: string; token?: string };
   if (status >= 200 && status < 300) {

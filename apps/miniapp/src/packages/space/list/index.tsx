@@ -5,7 +5,7 @@
  * todo 进度条 h-1.5 填充 space.color + 百分比）→ 归档折叠区（恢复/两步删除）
  * → 新建/编辑居中弹层（图标/颜色/日期选择）→ 卡片 ⋯ 底部弹层（编辑/归档/两步删除）。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
@@ -13,6 +13,7 @@ import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
 import { loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import type { SpaceRow } from "../shared";
 import { bjDate, bjToday, daysOf, progressOf, useArmConfirm } from "../shared";
 import { createSpace, deleteSpace, patchSpace } from "./api";
@@ -60,14 +61,26 @@ export default function SpaceListPage() {
     }
   }
 
-  if (!inited && getSessionToken()) {
+  // 副作用移入 useEffect：render 期 setState+发请求在并发/StrictMode 下会双发
+  useEffect(() => {
+    if (inited || !getSessionToken()) return;
     setInited(true);
     void load();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     load().finally(() => Taro.stopPullDownRefresh());
   });
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="spaces">
+        <GuestGate title="目标空间" desc="把目标装进空间：进度、待办与感悟沉淀" />
+      </PageShell>
+    );
+  }
 
   function openNew() {
     // 默认开始日期=北京口径今天（bjToday）：本地 getter 在海外设备差一天

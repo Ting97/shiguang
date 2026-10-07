@@ -172,7 +172,7 @@ function loadTradeMatrix() {
 
   // 备付核心.js：DOM 重度耦合，只提取 RULES 字面量求值（以「// 用户覆盖」注释为右边界）
   const coreSrc = readFileSync(join(TRADE_HOME, "资产", "备付核心.js"), "utf8");
-  const m = coreSrc.match(/const RULES = (\{[\s\S]*?\n  \});/);
+  const m = coreSrc.match(/const RULES = (\{[\s\S]*?\n {2}\});/);
   if (!m) throw new Error("备付核心.js 未找到 RULES 矩阵");
   const rules = new Function(`return (${m[1]})`)();
   if (!rules.A1 || !rules.D2) throw new Error("RULES 解析异常（缺 A1/D2）");

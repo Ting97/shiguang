@@ -161,6 +161,8 @@ export function birthdayCountdown(birthday: string | null | undefined, today = n
   // 「今天」按北京日历日取（非 CST 设备的宿主日界与业务日界错位时，今天/明天边界会错报一天）
   const shifted = new Date(today.getTime() + 8 * 3600_000);
   const bjToday = new Date(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()).getTime();
+  // 2/30、4/31 之类不存在的日期：Date 构造会静默滚进下月 → 倒计时按错误日期报数，直接拒绝
+  if (!(month === 2 && day === 29) && dateOf(shifted.getUTCFullYear()).getDate() !== day) return null;
   const thisYear = dateOf(shifted.getUTCFullYear());
   const target = thisYear.getTime() >= bjToday ? thisYear : dateOf(shifted.getUTCFullYear() + 1);
   return Math.round((target.getTime() - bjToday) / 86_400_000);

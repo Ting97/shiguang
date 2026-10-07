@@ -177,7 +177,10 @@ export default function Feed() {
     feedLimitRef.current += PAGE_SIZE;
     try {
       const ok = await load();
-      if (!ok) showToast({ type: "err", text: "加载更多失败，请稍后重试" });
+      if (!ok) {
+        feedLimitRef.current -= PAGE_SIZE; // 失败回退：旧版保持大值，下一次加载会多拉一页
+        showToast({ type: "err", text: "加载更多失败，请稍后重试" });
+      }
     } finally {
       setLoadingMore(false);
     }
@@ -293,7 +296,7 @@ export default function Feed() {
           <Text className="guest-cta-title">{isGuest() ? "游客模式 · 只读浏览" : "欢迎来到拾光"}</Text>
           <Text className="hint guest-cta-sub">
             {isGuest()
-              ? "正在以游客身份浏览示例页面；登录后才能记录自己的动态、日程与财务。"
+              ? "一句话记录花钱、待办、日程、心情——AI 帮你同时记进四本账；登录后才能记录自己的动态。"
               : "一句话记录花钱、待办、日程、心情——AI 帮你同时记进四本账。"}
           </Text>
           <View className="btn-primary guest-cta-btn" hoverClass="press" hoverStayTime={80} onTap={() => Taro.reLaunch({ url: "/pages/login/index" })}>

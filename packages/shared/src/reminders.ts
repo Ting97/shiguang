@@ -67,6 +67,7 @@ export function pickReminders(
   for (const t of todos) {
     const dueRaw = t.due_at ? new Date(t.due_at) : null;
     const due = dueRaw && !Number.isNaN(dueRaw.getTime()) ? dueRaw : null;
+    // 无效 due_at 的待办仍提醒（remind_at 已到就是有效提醒），只是不带时刻、不产生 NaN
     const overdue = due !== null && due < now;
     // 北京口径：getHours 用宿主时区（非 +8 设备横幅时刻差 N 小时）；+8h 后读 UTC getter
     const bjHm = due ? new Date(due.getTime() + 8 * 3600_000) : null;

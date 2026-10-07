@@ -106,11 +106,14 @@ export default function Home() {
     // 次日北京零点 = 该天全天的上界（UTC 前一日 16:00）
     const before = new Date(Date.UTC(y, m - 1, d + 1, -8)).toISOString();
     void loadRef.current({ before }).then(() => {
-      setTimeout(() => {
+      // 定时器登记进 refreshTimers（卸载时统一清理，快速切页后不再触发 setState/滚动）
+      const t1 = setTimeout(() => {
         // scroll-mt-24 已在横幅上：sticky 导航不会盖住 block:start 的定位结果
         historyBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        setTimeout(() => setBannerFlash(false), 3200);
+        const t2 = setTimeout(() => setBannerFlash(false), 3200);
+        refreshTimers.current.push(t2);
       }, 80);
+      refreshTimers.current.push(t1);
     });
   }, []);
 

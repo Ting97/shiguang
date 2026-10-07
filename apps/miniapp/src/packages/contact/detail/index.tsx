@@ -14,6 +14,7 @@ import PageShell from "@/components/page-shell";
 import { showToast } from "@/components/toast";
 import { loadContactDetail, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import ContactFormModal from "../form-modal";
 import InteractionModal from "./interaction-modal";
 import { deleteContact, generateAiProfile, type AiProfile } from "./api";
@@ -98,15 +99,26 @@ export default function ContactDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inited, id, rev]);
 
-  if (!inited && getSessionToken()) {
-    setInited(true);
-  }
+  // inited 置位移入 effect（render 期 setState 在并发下不可靠）；游客在下方渲染层早退
+  useEffect(() => {
+    if (!inited) setInited(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     load()
       .catch((e: any) => setLoadErr(e?.message ?? String(e)))
       .finally(() => Taro.stopPullDownRefresh());
   });
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="contacts">
+        <GuestGate title="联系人档案" desc="往来记录、人情账与生日提醒" />
+      </PageShell>
+    );
+  }
 
   async function runProfile() {
     if (profiling) return;

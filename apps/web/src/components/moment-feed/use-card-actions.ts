@@ -23,12 +23,20 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
     [],
   );
 
+  // 行内编辑「保存」等按钮无 disabled 态：重入锁防双击并发提交
+  // （PATCH 双发、DELETE 第二次 404 会再弹一条错误 toast）
+  const runningRef = useRef(false);
+
   const run = async (fn: () => Promise<string>) => {
+    if (runningRef.current) return;
+    runningRef.current = true;
     try {
       toast(await fn());
       await onRefresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      runningRef.current = false;
     }
   };
 

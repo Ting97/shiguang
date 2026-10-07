@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, RefreshCw, X } from "lucide-react";
 import { uploadImages } from "@/lib/image";
 import { useDismiss } from "./dismissable";
@@ -45,8 +45,6 @@ export default function PublishSheet({
   const cameraRef = useRef<HTMLInputElement>(null);
   // 打开时的初始文字快照（取消时判断是否"有改动"）
   const initialRef = useRef("");
-  // N3：点面板外空白 / Esc → 取消关闭（面板渲染期间生效）
-  const panelRef = useDismiss<HTMLDivElement>(cancel, open);
   // 触屏设备提供「拍照」入口（桌面无摄像头场景隐藏）
   const [canCapture, setCanCapture] = useState(false);
   useEffect(() => setCanCapture(window.matchMedia("(pointer: coarse)").matches), []);
@@ -73,10 +71,9 @@ export default function PublishSheet({
     });
   }, [open]);
 
-  if (!open) return null;
-
-  /** N3 取消：点空白/Esc/×——内容相对打开时有改动则轻提示"已取消，未保存" */
-  function cancel() {
+  /** N3 取消：点空白/Esc/×——内容相对打开时有改动则轻提示"已取消，未保存"。
+   *  useCallback 稳定引用：useDismiss 依赖它订阅全局监听，内联函数会每渲染重订阅 */
+  const cancel = useCallback(() => {
     if (value.trim() && value.trim() !== initialRef.current.trim()) {
       notify?.({ ok: true, text: "已取消，未保存" });
     }
@@ -86,7 +83,11 @@ export default function PublishSheet({
       return [];
     });
     onClose();
-  }
+  }, [value, notify, onClose]);
+  // N3：点面板外空白 / Esc → 取消关闭（面板渲染期间生效；cancel 引用稳定，不重订阅）
+  const panelRef = useDismiss<HTMLDivElement>(cancel, open);
+
+  if (!open) return null;
 
   function addImages(files: File[], source: "gallery" | "camera") {
     if (images.length >= 9) {

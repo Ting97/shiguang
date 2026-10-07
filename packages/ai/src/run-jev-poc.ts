@@ -85,9 +85,10 @@ function questionsFor(_text: string): JevQuestions {
 // 日程适用：纯感想/未来计划不算事件；吃喝事件带时间也算事件（实测 GLM 对饮食句同样判适用——
 // 与产品落库行为一致，因此饮食句期望为 true，只有 noSchedule/future 才为 false）
 const expectSched = (c: Case) => !(c.noSchedule || c.future);
-// GLM 侧 period 从时间块开始钟点推导（time.start 为本地时刻串，getHours 即北京钟点，勿重复加 8h）
+// GLM 侧 period 从时间块开始钟点推导。time.start 是带时区的 ISO：getHours() 读宿主机时区，
+// 非 CST 宿主（CI/UTC 容器）上会整体偏 8 小时——统一 UTC getter + 8h 取北京钟点
 const hourBucket = (iso: string): string => {
-  const h = new Date(iso).getHours();
+  const h = new Date(new Date(iso).getTime() + 8 * 3600_000).getUTCHours();
   if (h <= 5) return "lateNight";
   if (h <= 9) return "morning";
   if (h <= 12) return "noon";

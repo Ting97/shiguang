@@ -163,7 +163,10 @@ export function syncBitget(label: string) {
 /** USD 金额：$ 前缀 + 两位小数（负号在最前）；MT5/Bitget 金额非分，禁用 yuan() */
 export function fmtUsd(n: number): string {
   const v = Number(n) || 0;
-  return `${v < 0 ? "-" : ""}$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // 不用 toLocaleString：iOS JavaScriptCore 无 Intl 时退化为无千分位（三端展示不一致）
+  const [int, frac] = Math.abs(v).toFixed(2).split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${v < 0 ? "-" : ""}$${grouped}.${frac}`;
 }
 /** 盈亏着色：正 success / 负 danger / 零 dim */
 export const pnlTone = (n: number) => (n > 0 ? "money-in" : n < 0 ? "money-out" : "dim");

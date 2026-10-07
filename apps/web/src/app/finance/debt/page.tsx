@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Coins, Download, Hourglass, Landmark, Lightbulb, Pencil, Plus, Target, Trash2 } from "lucide-react";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import Skeleton from "@/components/skeleton";
@@ -72,8 +72,15 @@ export default function DebtPage() {
   const active = useMemo(() => (debts ?? []).filter((d) => d.status === "active"), [debts]);
   const settled = useMemo(() => (debts ?? []).filter((d) => d.status !== "active"), [debts]);
 
+  // 推演进行中再触发不丢弃：记下最新值，本轮结束后补跑（trailing）——
+  // 旧版直接 return，滑杆拖动期间松手的最终值被静默丢掉，展示的是旧滑杆位置的推演
+  const simPendingRef = useRef<number | null>(null);
+
   async function runSim(extraCents: number) {
-    if (simBusy) return; // 推演进行中忽略再次触发：滑杆连放会并发乱序，慢的旧响应可能覆盖新结果
+    if (simBusy) {
+      simPendingRef.current = extraCents;
+      return;
+    }
     setSimBusy(true);
     try {
       const r = await api("/api/debts/simulate", "POST", { extraMonthlyCents: extraCents });
@@ -83,6 +90,9 @@ export default function DebtPage() {
       toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setSimBusy(false);
+      const pending = simPendingRef.current;
+      simPendingRef.current = null;
+      if (pending != null && pending !== extraCents) void runSim(pending);
     }
   }
 

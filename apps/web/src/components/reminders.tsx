@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AlarmClock, Bell, Cake, Check, ClipboardList, Heart, Sun, X } from "lucide-react";
 import type { ReminderItem } from "@/lib/reminders";
-import { todayStr } from "@/lib/date";
+import { bjToday } from "@shiguangri/shared/date";
 import { TagChip } from "./tag-chip";
 
 /**
@@ -24,7 +24,7 @@ export default function Reminders({
   const [marked, setMarked] = useState<Set<string>>(new Set()); // 已标今日的条目（防重复提交 + 即时反馈）
 
   useEffect(() => {
-    setDismissed(window.localStorage.getItem("shiguang_reminders_dismissed") === todayStr());
+    setDismissed(window.localStorage.getItem("shiguang_reminders_dismissed") === bjToday());
   }, []);
 
   if (items.length === 0 || dismissed) return null;
@@ -45,7 +45,7 @@ export default function Reminders({
         <span className="flex-1" />
         <button
           onClick={() => {
-            window.localStorage.setItem("shiguang_reminders_dismissed", todayStr());
+            window.localStorage.setItem("shiguang_reminders_dismissed", bjToday());
             setDismissed(true);
           }}
           title="今天不再展示"

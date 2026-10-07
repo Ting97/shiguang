@@ -81,6 +81,21 @@ interface ChatOptions {
   reasoningEffort?: "low" | "high" | "max";
 }
 
+/** GLM 私有扩展（thinking/reasoning_effort/max_tokens 提升）按目标模型计算：
+ * 只发给智谱端点（换 OpenAI 兼容端点会报未知字段）；legacy/sdk 两传输共用，保证降级模型不继承主模型的 5.x 扩展 */
+function glmExtensions(m: string, base: string, opts: ChatOptions): Record<string, unknown> {
+  if (!base.includes("bigmodel.cn")) return {};
+  if (/glm-5\./i.test(m)) {
+    // GLM-5.3 系列始终思考：不支持 thinking.type=disabled（报 1210）。
+    // 官方迁移方案 = thinking enabled + reasoning_effort 控制思考强度（解析类任务用 low）；
+    // 思考会占用输出 token，未显式指定上限时提升到 4096 防止 content 被截断。
+    const ext: Record<string, unknown> = { thinking: { type: "enabled" }, reasoning_effort: opts.reasoningEffort ?? "low" };
+    if (!opts.maxTokens) ext.max_tokens = 4096;
+    return ext;
+  }
+  return { thinking: { type: opts.thinking ? "enabled" : "disabled" } };
+}
+
 /** 单轮对话，返回文本内容。timeoutMs 是所有重试的总预算（默认 30s）；429/5xx/超时/网络异常均重试；429 耗尽后降级 GLM_FALLBACK_MODEL */
 export async function chat(opts: ChatOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY;
@@ -89,6 +104,8 @@ export async function chat(opts: ChatOptions): Promise<string> {
   const model = process.env.GLM_MODEL ?? DEFAULT_MODEL;
   const fallback = process.env.GLM_FALLBACK_MODEL || "glm-4-flash";
 
+  // GLM 私有扩展不再在顶层按主模型一次性构建：legacy 降级到 fallback 模型时必须按目标模型
+  // 重算（glm-5.3 的 thinking enabled 发给 glm-4-flash 会报 1210，把限流降级通道本身打挂）
   const body: Record<string, unknown> = {
     temperature: opts.temperature ?? 0.1,
     max_tokens: opts.maxTokens ?? 1024,
@@ -97,19 +114,6 @@ export async function chat(opts: ChatOptions): Promise<string> {
       { role: "user", content: opts.user },
     ],
   };
-  // thinking 字段是智谱扩展：只发给智谱端点，避免换 OpenAI 兼容端点时报未知字段
-  if (base.includes("bigmodel.cn")) {
-    if (/glm-5\./i.test(model)) {
-      // GLM-5.3 系列始终思考：不支持 thinking.type=disabled（报 1210）。
-      // 官方迁移方案 = thinking enabled + reasoning_effort 控制思考强度（解析类任务用 low）；
-      // 思考会占用输出 token，默认上限提升到 4096 防止 content 被截断。
-      body.thinking = { type: "enabled" };
-      body.reasoning_effort = opts.reasoningEffort ?? "low";
-      if (!opts.maxTokens) body.max_tokens = 4096;
-    } else {
-      body.thinking = { type: opts.thinking ? "enabled" : "disabled" };
-    }
-  }
 
   // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）。
   // legacy 与 sdk 共用同一套 attempt 循环（次数/退避/可重试判定一致），差异只在单次传输实现。
@@ -152,7 +156,7 @@ export async function chat(opts: ChatOptions): Promise<string> {
   }
 
   /** legacy 单次传输：一次 fetch；res.ok 时返回 content/reasoning（可能为空串=失败信号，由重试驱动接手）；
-   * 非 2xx 抛 GlmError（rate/server 由重试驱动接手，其余立即失败） */
+   * 非 2xx 抛 GlmError（rate/server 由重试驱动接手，其余立即失败）。扩展按目标模型重算（与 sdkOnce 对齐） */
   async function legacyOnce(m: string, deadline: number, opts: ChatOptions, body: Record<string, unknown>): Promise<string> {
     const remainMs = deadline - Date.now();
     const ctl = new AbortController();
@@ -161,7 +165,7 @@ export async function chat(opts: ChatOptions): Promise<string> {
       const res = await fetch(`${base}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ ...body, model: m }),
+        body: JSON.stringify({ ...body, model: m, ...glmExtensions(m, base, opts) }),
         signal: ctl.signal,
       });
       if (res.ok) {
@@ -267,7 +271,8 @@ export interface TranscribeOptions {
 }
 
 /** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本。
- * 4-E（FR-D2.4）：2 次重试 + 总预算控制（timeoutMs 为单次上限，重试共用该预算的一半粒度）。 */
+ * 4-E（FR-D2.4）：2 次重试 + 总预算控制；鉴权/参数类与超时（AbortError→转写超时）立即失败不重试——
+ * 超时重试会把单次 30s 拖成 ~90s，与 chat()「预算耗尽即停」语义一致。 */
 export async function transcribeAudio(opts: TranscribeOptions): Promise<string> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -275,7 +280,9 @@ export async function transcribeAudio(opts: TranscribeOptions): Promise<string> 
       return await transcribeOnce(opts);
     } catch (e) {
       lastErr = e;
+      if (e instanceof GlmError && e.kind === "auth") throw e; // 缺 Key：重试无意义（旧版文案不含 HTTP 4xx 会被白重试 3 次）
       if (e instanceof Error && /HTTP 4(0[13]|0[04])/.test(e.message)) throw e; // 鉴权/参数类不重试
+      if (e instanceof Error && /转写超时/.test(e.message)) throw e; // 单次预算已耗尽，重试只会再超时
       if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));
     }
   }
@@ -320,19 +327,6 @@ async function transcribeOnce(opts: TranscribeOptions): Promise<string> {
 async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY as string;
   const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
-  const extensions = (model: string): Record<string, unknown> => {
-    const ext: Record<string, unknown> = {};
-    if (base.includes("bigmodel.cn")) {
-      if (/glm-5\./i.test(model)) {
-        // GLM-5.3 始终思考：thinking enabled + reasoning_effort 控强度；思考占输出 token，上限提至 4096
-        ext.thinking = { type: "enabled" };
-        ext.reasoning_effort = opts.reasoningEffort ?? "low";
-      } else {
-        ext.thinking = { type: opts.thinking ? "enabled" : "disabled" };
-      }
-    }
-    return ext;
-  };
   const provider = createOpenAICompatible({
     name: "glm",
     baseURL: base,
@@ -342,8 +336,7 @@ async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<
         try {
           const parsed = JSON.parse(init.body);
           const target = typeof parsed.model === "string" ? parsed.model : m;
-          if (!opts.maxTokens && /glm-5\./i.test(target)) parsed.max_tokens = 4096;
-          Object.assign(parsed, extensions(target));
+          Object.assign(parsed, glmExtensions(target, base, opts));
           init = { ...init, body: JSON.stringify(parsed) };
         } catch {
           /* 非 JSON body 原样透传 */
@@ -356,7 +349,7 @@ async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), Math.max(0, deadline - Date.now()));
   try {
-    const { text, usage } = await generateText({
+    const { text, reasoning, usage } = await generateText({
       model: provider.chatModel(m),
       system: opts.system,
       prompt: opts.user,
@@ -370,11 +363,17 @@ async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<
         completion_tokens: Number(usage.completionTokens ?? 0),
       });
     }
-    return text ?? "";
+    // 思考模型兜底（与 legacy 对齐）：max_tokens 被思考耗尽时 text 可能为空，思考文本里通常已有答案 JSON
+    return text || reasoning || "";
   } catch (e) {
     if (APICallError.isInstance(e)) {
       const status = e.statusCode ?? null;
-      throw new GlmError(classifyGlmFailure(status, e.message), `GLM(${m}) HTTP ${status ?? "?"}: ${String(e.message).slice(0, 200)}`);
+      // 分类依据必须是原始响应体（业务码在其中）：e.message 只有智谱的业务文案，
+      // 拿它分类会让 1113/1302 永远落不进 quota → 熔断成为死代码，欠费期每次解析空转 30s 重试
+      const bodyText = typeof (e as { responseBody?: unknown }).responseBody === "string"
+        ? (e as { responseBody: string }).responseBody
+        : e.message;
+      throw new GlmError(classifyGlmFailure(status, bodyText), `GLM(${m}) HTTP ${status ?? "?"}: ${String(e.message).slice(0, 200)}`);
     }
     if (e instanceof Error && (e.name === "AbortError" || /abort/i.test(e.message))) {
       throw new GlmError("timeout", `GLM(${m}) 响应超时（预算耗尽）`);

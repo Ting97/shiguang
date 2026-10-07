@@ -5,7 +5,7 @@
  * 仅保留本包刻意简化的部分：农历标签不做 solarlunar 换算（避免历法表进小程序包）、
  * TYPE_EMOJI 用宽 Record<string,string>（调用方以任意 string 索引）、useArmConfirm 等页面工具。
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export {
   CONTACT_GROUPS,
@@ -155,6 +155,12 @@ export function lunarDayLabel(d: number): string {
 export function useArmConfirm() {
   const [armedId, setArmedId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
   const arm = (id: string): boolean => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (armedId === id) {

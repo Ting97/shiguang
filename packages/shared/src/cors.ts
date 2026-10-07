@@ -3,6 +3,9 @@
  * - 静态白名单：Capacitor 壳 origin（android http://localhost / ios capacitor://localhost）
  * - 动态放行：任何携带 Authorization（Bearer 会话）的请求回显其 origin——
  *   token 通道天然无 cookie，CSRF 无利可图；反射 origin 时绝不附带 allow-credentials
+ * - 浏览器预检放行：预检（OPTIONS）按 fetch 规范不携带 Authorization，旧版 Bearer 判据
+ *   对预检恒为 false → 分离部署（NEXT_PUBLIC_API_BASE 跨域）的预检必挂。预检按
+ *   「静态白名单 ∪ 实际 Bearer ∪ 预检声明的 authorization/x-setup-token 请求头」放行
  * - Web 同域请求：不加任何 CORS 头（零回归）
  */
 
@@ -21,7 +24,10 @@ export function resolveCors(req: { method: string; headers: Headers }): CorsDeci
   if (!origin) return { preflight: false, headers: {} };
 
   const bearer = /^Bearer\s+/i.test(req.headers.get("authorization") ?? "");
-  const allowed = STATIC_ORIGINS.has(origin) || bearer;
+  // 浏览器预检声明的非简单请求头（小写比对；authorization 即 Bearer 会话通道，无 CSRF 面）
+  const declared = (req.headers.get("access-control-request-headers") ?? "").toLowerCase();
+  const tokenChannel = bearer || /authorization|x-setup-token/.test(declared);
+  const allowed = STATIC_ORIGINS.has(origin) || tokenChannel;
   if (!allowed) return { preflight: false, headers: {} };
 
   const headers: Record<string, string> = {
@@ -34,7 +40,7 @@ export function resolveCors(req: { method: string; headers: Headers }): CorsDeci
       headers: {
         ...headers,
         "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "Authorization,Content-Type",
+        "Access-Control-Allow-Headers": "Authorization,Content-Type,x-setup-token",
         "Access-Control-Max-Age": "86400",
       },
     };

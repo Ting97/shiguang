@@ -18,9 +18,10 @@ const NOW = new Date("2026-09-17T15:00:00+08:00");
 const live = !!process.env.ZHIPUAI_LIVE && hasApiKey();
 
 const fmt = (iso: string) => {
-  const d = new Date(iso);
+  // 北京时间展示：UTC getter + 8h（getHours 等本地 getter 在非 CST 宿主会偏 8 小时）
+  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 };
 
 interface Case {
@@ -38,7 +39,9 @@ const rows: string[] = [];
 for (const c of set.cases as Case[]) {
   let r;
   try {
-    r = await parseInput(c.text, { now: NOW });
+    // dry-run（未加 ZHIPUAI_LIVE=1）必须强制规则引擎：parseInput 只看有无 Key，
+    // 宿主环境恰好导出了 ZHIPUAI_API_KEY 时旧版会实际跑 LLM 白烧 token，评测对象错位
+    r = await parseInput(c.text, { now: NOW, forceRules: !live });
   } catch (e) {
     // live 模式下单句 API 失败（如限流）不应中断整轮：记为该句失败
     rows.push(`❌ #${String(c.id).padStart(2)} ${c.text.slice(0, 14).padEnd(14, "　")} API失败: ${String(e).slice(0, 60)}`);

@@ -63,8 +63,8 @@ export function detectFuture(text: string): FutureHint | null {
   if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
   // 计划/准备只认动词性用法（"准备去开会"是未来，"工作准备/准备工作"是名词），
   // 裸词会误伤补记（如"今天9:10到9:30工作准备+喝水"被拐进未来分支），已交给 LLM 结合当前时间判定。
-  // "记得"排除回忆性搭配（小时候/以前/当年/那次/起来…）：裸词会把"记得小时候…"拐进未来分支
-  if (/(计划[着去要下]|打算|准备[去要下]|记得(?!(小|以|当|曾|那|有|起|很))|记得到|要[去办交开]|得去)/.test(text)) return "soon";
+  // "记得"排除回忆性搭配（小时候/以前/上次/当年/那次/起来…）：裸词会把"记得小时候…"拐进未来分支
+  if (/(计划[着去要下]|打算|准备[去要下]|记得(?!(小|以|上|当|曾|那|有|起|很))|记得到|要[去办交开]|得去)/.test(text)) return "soon";
   return null;
 }
 
@@ -203,8 +203,8 @@ export function anchorRangeToToday<T extends { start: Date; end: Date }>(range: 
   if (hasExplicitDayRef(text) || detectFuture(text) !== null) return range;
   const diff = cstDayIdx(now) - cstDayIdx(range.start);
   // 跨午夜区间且终点落在今天（早晨补记昨晚睡眠「10.30到6.30」）→ 是昨天的真实记录，不前移；
-  // 终点也在昨天的（模型漂移）仍按下方规则归今天
-  if (diff === 0 || (diff === 1 && cstDayIdx(range.end) === cstDayIdx(now))) return range;
+  // 旧版只认 diff===1，diff≥2 的跨午夜漂移（模型把起点也挪早）会被整体平移出未来块
+  if (diff === 0 || (diff >= 1 && cstDayIdx(range.end) === cstDayIdx(now))) return range;
   if (diff === 1 && cstHour(now) < 5) return range;
   const shift = diff * 86400_000;
   return { ...range, start: new Date(range.start.getTime() + shift), end: new Date(range.end.getTime() + shift) };

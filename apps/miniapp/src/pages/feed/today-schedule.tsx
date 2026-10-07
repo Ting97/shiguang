@@ -13,7 +13,7 @@ import Taro from "@tarojs/taro";
 import { rowMenu } from "../../lib/row-menu";
 import { TagChip } from "./chip";
 import LucideIcon from "../../components/lucide-icon";
-import { bjClock, bjToday, combineHM, zhDuration } from "./kit";
+import { bjClock, bjToday, combineHM, zhDuration, bjNowMin } from "./kit";
 
 /** web 0.75px/分钟 → 750 稿 1.5 单位/分钟；一天高 2160，容器高 960（= web 1080px/480px） */
 const UNIT_PER_MIN = 1.5;
@@ -22,10 +22,6 @@ const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
 const hmOf = (minutes: number) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 
 /** 当前北京时刻的分钟数（UTC+8 推算，禁本地 getter） */
-function bjNowMin(): number {
-  const d = new Date(Date.now() + 8 * 3600_000);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
-}
 
 /** 表单值：HH:MM 两段 + 活动类别（= web BlockDraftValue） */
 interface Draft {
@@ -114,8 +110,9 @@ export default function TodaySchedule({
     try {
       const [sh, sm] = draft.start.split(":").map(Number);
       const [eh, em] = draft.end.split(":").map(Number);
-      // 北京今天 0 点作基（Date.parse 的 T00:00:00Z 即北京午夜），本地午夜基在海外设备会整体错 8 小时
-      const dayMs = Date.parse(`${bjToday()}T00:00:00Z`);
+      // 北京今天 0 点作基：必须显式 +08:00（T00:00:00Z 是 UTC 零点=北京 08:00，
+      // 旧版所有补录块整体晚 8 小时；本地午夜基在海外设备又会错 8 小时）
+      const dayMs = Date.parse(`${bjToday()}T00:00:00+08:00`);
       await apiCreateBlock({
         title: draft.title.trim(),
         startAt: new Date(dayMs + (sh * 60 + sm) * 60_000).toISOString(),
@@ -184,7 +181,8 @@ export default function TodaySchedule({
         return { title: "", start: hmOf(h * 60), end: hmOf((h + 1) * 60), activityId: activities[0]?.id ?? "other" };
       }
     }
-    return { title: "", start: hmOf(curH * 60), end: hmOf(Math.min(24, curH + 1) * 60), activityId: activities[0]?.id ?? "other" };
+    // 兜底（全天占满）：end 钳到 23:59——hmOf(24*60) 产出 "24:00"，wx Picker mode=time 不认
+    return { title: "", start: hmOf(Math.min(curH, 23) * 60), end: curH >= 23 ? "23:59" : hmOf((curH + 1) * 60), activityId: activities[0]?.id ?? "other" };
   }
 
   /** 环形图分段：活动分钟占比 → conic-gradient 色标（SVG 不可用时的小程序画法） */

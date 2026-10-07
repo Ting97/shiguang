@@ -11,6 +11,7 @@ import { bjDayIdx, zhTime } from "@shiguangri/shared";
 export {
   bjToday,
   bjDateKey,
+  bjNowMin,
   bjInputToIso,
   isoToBjInput,
   combineHM,

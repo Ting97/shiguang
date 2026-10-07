@@ -4,14 +4,16 @@
  * 周内日趋势双柱 → 支出分类(横条+行条) → 账户分布 + Top 对方 → AI 周报 → footer。
  * 统计零 AI 消耗；周报 GET 只读缓存、POST 才生成（走配额），错误（402/429/503…）直接展示服务端中文 message。
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { bjToday, fetchMe, yuan } from "@/lib/api";
+import { TX_COLORS } from "@shiguangri/shared";
 import { getSessionToken } from "@/lib/session";
+import GuestGate from "@/components/guest-gate";
 import { ApiError } from "@/lib/request";
 import { getWeekReview, genWeekReview, loadStats, type WeekStats, type WeekReview } from "./api";
 import "./index.scss";
@@ -36,19 +38,6 @@ function momPct(cur: number, base: number): number | null {
   return base > 0 ? Math.round(((cur - base) / base) * 100) : null;
 }
 const fmt = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
-/** 分类配色（= shared/finance TX_COLORS） */
-const TX_COLORS: Record<string, string> = {
-  餐饮: "#f97316",
-  交通: "#78716c",
-  人情往来: "#ec4899",
-  学习: "#10b981",
-  购物: "#8b5cf6",
-  娱乐: "#eab308",
-  医疗: "#14b8a6",
-  居住: "#0ea5e9",
-  还款: "#6366f1",
-  其他: "#64748b",
-};
 
 /* ---------- 二级 pill 导航（与 pages/finance 同款，分包各自持有副本避免跨包依赖） ---------- */
 
@@ -209,17 +198,29 @@ export default function ReviewPage() {
     void loadReview(false, p, a);
   }
 
-  if (!inited && getSessionToken()) {
+  // 副作用移入 useEffect：render 期 setState+发请求在并发/StrictMode 下会双发
+  useEffect(() => {
+    if (inited || !getSessionToken()) return;
     setInited(true);
     changeView();
     fetchMe()
       .then((j) => setModules(j.modules ?? []))
       .catch(() => setModules([]));
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePullDownRefresh(() => {
     Promise.all([loadStatsData(), loadReview(false)]).finally(() => Taro.stopPullDownRefresh());
   });
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="finance">
+        <GuestGate title="交易复盘" desc="交易统计、权益曲线与 AI 归因复盘" />
+      </PageShell>
+    );
+  }
 
   const hasModule = modules?.includes("trade_review") ?? false;
 

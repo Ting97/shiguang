@@ -9,7 +9,7 @@
  * - 着色与 web 同语义：成功 emerald/失败 rose/提示 sky 的半透明底 + 令牌文字色（--success/--danger/--accent），
  *   深浅主题自动适配。
  */
-import { useEffect, useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import LucideIcon, { type LucideIconName } from "../lucide-icon";
@@ -49,15 +49,20 @@ const ICON: Record<ToastType, LucideIconName> = { ok: "check_circle_2", err: "x"
 export function ToastHost() {
   const [items, setItems] = useState<ToastItem[]>([]);
 
+  // 待触发自动收起的定时器：卸载时清理（页面销毁后不再 setState）
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   useEffect(() => {
     const l: Listener = (t) => {
       // 同屏超过上限：最旧一条立即让位（= web MAX_VISIBLE）
       setItems((arr) => (arr.length >= MAX_VISIBLE ? [...arr.slice(arr.length - MAX_VISIBLE + 1), t] : [...arr, t]));
-      setTimeout(() => dismiss(t.id), DURATION_MS[t.type]);
+      const timer = setTimeout(() => dismiss(t.id), DURATION_MS[t.type]);
+      timers.current.push(timer);
     };
     listeners.add(l);
     return () => {
       listeners.delete(l);
+      timers.current.forEach(clearTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
