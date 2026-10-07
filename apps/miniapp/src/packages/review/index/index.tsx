@@ -108,7 +108,7 @@ function ModuleLocked({ title, desc }: { title: string; desc: string }) {
   return (
     <View className="locked-card glass">
       <View className="locked-icon">
-        <LucideIcon name="key_round" size={24} color="var(--warn)" />
+        <Text>🔒</Text>
       </View>
       <Text className="locked-title">{title}未开通</Text>
       <Text className="locked-desc">{desc}</Text>
