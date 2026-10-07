@@ -442,3 +442,17 @@
   flex: 1;
   min-width: 0;
 }
+
+/* 页脚徽章（= web footer mt-10 text-center + TagChip violet sm） */
+.sp-foot {
+  margin-top: 80px; /* mt-10 */
+  display: flex;
+  justify-content: center;
+}
+.sp-foot-chip {
+  background: rgba(139, 92, 246, 0.15); /* bg-violet-500/15 */
+  color: var(--ai); /* text-ai */
+  font-size: 20px; /* TagChip sm = text-[10px] */
+  padding: 4px 12px;
+  gap: 6px;
+}

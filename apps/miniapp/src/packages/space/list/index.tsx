@@ -304,6 +304,14 @@ export default function SpaceListPage() {
         </View>
       )}
 
+      {/* 页脚徽章（= web spaces/page.tsx footer：TagChip violet sm「拾光 · 目标空间」） */}
+      <View className="sp-foot">
+        <View className="chip sp-foot-chip">
+          <LucideIcon name="target" size={12} color="var(--ai)" />
+          <Text>拾光 · 目标空间</Text>
+        </View>
+      </View>
+
       {/* 新建/编辑弹层（web 移动端=居中弹层 inset-x-4 top-1/2，非底部 sheet） */}
       {editing && (
         <View className="overlay" onClick={() => setEditing(null)} />

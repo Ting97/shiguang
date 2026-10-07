@@ -13,9 +13,12 @@ export const API_BASE: string = TARO_APP_API_BASE;
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** 非 2xx 响应体原文（如绑定冲突 409 的 owner/current 数据概览），供页面做结构化处理 */
+  data?: unknown;
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -54,9 +57,9 @@ export async function request<T = unknown>(path: string, opts: Options = {}): Pr
   if (status === 401) {
     // 游客模式不强跳登录：token 过期/无权访问只抛错，页面自显空态或登录引导
     if (!opts.noRedirect && !isGuest()) toLogin();
-    throw new ApiError(data?.error || "未登录", 401);
+    throw new ApiError(data?.error || "未登录", 401, data);
   }
-  throw new ApiError(data?.error || `请求失败（${status}）`, status);
+  throw new ApiError(data?.error || `请求失败（${status}）`, status, data);
 }
 
 /** multipart 上传（语音 /api/asr、动态图片 /api/files）：字段名 file，与 web FormData 同构 */

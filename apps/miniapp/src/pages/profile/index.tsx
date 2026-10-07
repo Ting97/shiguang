@@ -16,11 +16,12 @@ import Taro from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
 import { useTheme } from "@/lib/theme";
 import { showToast } from "@/components/toast";
-import { logout, bindWechatSession } from "@/lib/api";
-import { API_BASE } from "@/lib/request";
-import { clearSessionToken, getSessionToken, toLogin } from "@/lib/session";
+import { logout, bindWechatSession, resolveWechatBind, type WechatBindConflict } from "@/lib/api";
+import { API_BASE, ApiError } from "@/lib/request";
+import { clearSessionToken, getSessionToken, setSessionToken, toLogin } from "@/lib/session";
 import { fetchMeFull, updateProfile, logoutAll, loadPlan, type Me, type PlanQuota } from "./api";
 import LucideIcon from "@/components/lucide-icon";
+import WxBindSheet from "@/components/wx-bind-sheet";
 import "./index.scss";
 
 /** 分包模块开通状态 → 展示名（未知 key 原样展示兜底） */
@@ -50,6 +51,8 @@ export default function Profile() {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [busy, setBusy] = useState(false);
   const [bindingWx, setBindingWx] = useState(false);
+  const [bindConflict, setBindConflict] = useState<WechatBindConflict | null>(null);
+  const [bindBusy, setBindBusy] = useState(false);
   // 外观主题三态循环（REQ-导航下移缩小：入口从顶栏挪入本页）
   const { mode: themeMode, cycle: cycleTheme } = useTheme();
   const themeName = themeMode === "dark" ? "深色" : themeMode === "light" ? "浅色" : "跟随系统";
@@ -97,7 +100,8 @@ export default function Profile() {
     }
   }
 
-  /** 绑定当前微信到本账号（REQ-绑定已有账户）：静默 wx.login 换 code；空壳回收/409 由服务端裁决 */
+  /** 绑定当前微信到本账号（REQ-绑定已有账户）：静默 wx.login 换 code；空壳回收静默完成，
+   *  409 冲突（微信被有数据的账号占用）→ 弹「保留哪份数据」选择（REQ-账号数据保留选择） */
   async function bindWechatNow() {
     if (bindingWx) return;
     setBindingWx(true);
@@ -107,9 +111,38 @@ export default function Profile() {
       showToast({ type: "ok", text: j.already ? "✓ 当前微信已绑定本账号" : "✅ 绑定成功，下次可微信一键登录" });
       loadMe();
     } catch (e) {
-      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
+      const conflict = e instanceof ApiError && e.status === 409 ? (e.data as WechatBindConflict | undefined) : undefined;
+      if (conflict?.code === "wechat_bind_conflict") {
+        setBindConflict(conflict);
+      } else {
+        showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
+      }
     } finally {
       setBindingWx(false);
+    }
+  }
+
+  /** 冲突弹层裁决：current=改绑（留在本账号）；wechat=切换登录到微信账号（换 token 后回首页重载） */
+  async function resolveBind(resolve: "current" | "wechat") {
+    if (bindBusy) return;
+    setBindBusy(true);
+    try {
+      const { code } = await Taro.login();
+      const j = await resolveWechatBind(code, resolve);
+      if (resolve === "wechat") {
+        if (j.token) setSessionToken(j.token);
+        showToast({ type: "ok", text: `已进入微信账号「${j.user?.nickname ?? ""}」` });
+        setBindConflict(null);
+        Taro.reLaunch({ url: "/pages/feed/index" }); // 账号已切换：整栈重载
+        return;
+      }
+      showToast({ type: "ok", text: "✅ 已绑定微信，下次可微信一键登录" });
+      setBindConflict(null);
+      loadMe();
+    } catch (e) {
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBindBusy(false);
     }
   }
 
@@ -469,6 +502,15 @@ export default function Profile() {
           </View>
         </>
       )}
+
+      {/* 绑定冲突选择弹层（REQ-账号数据保留选择，与登录页共用） */}
+      <WxBindSheet
+        open={!!bindConflict}
+        conflict={bindConflict}
+        busy={bindBusy}
+        onResolve={(r) => void resolveBind(r)}
+        onClose={() => setBindConflict(null)}
+      />
     </PageShell>
   );
 }

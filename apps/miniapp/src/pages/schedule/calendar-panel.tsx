@@ -37,7 +37,7 @@ const VIEW_TABS: [CalView, string][] = [
 ];
 
 export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { initialAnchor?: string; refreshTick?: number }) {
-  const [view, setView] = useState<CalView>("day");
+  const [view, setView] = useState<CalView>("week"); // 默认周视图（= web calendar-panel；一周安排一屏可见）
   const [anchor, setAnchor] = useState<string>(bjToday()); // 北京口径锚定（本地日海外会错 8 小时）
   // ?date= 直达锚定：参数在父层解析出来（晚于本组件首帧），定义后一次性采纳
   const anchoredRef = useRef(false);

@@ -1,0 +1,188 @@
+/* 账单导入弹层（= web bill-import.tsx：drop 区/粘贴框/预览卡/样例行） */
+.billimp {
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.billimp-head {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.billimp-chip {
+  background: rgba(245, 158, 11, 0.2); /* amber-500/20 */
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* 结果态 */
+.billimp-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0;
+  gap: 24px;
+}
+.billimp-result-text {
+  font-size: 26px;
+  color: var(--success);
+  text-align: center;
+  line-height: 1.6;
+}
+.billimp-done {
+  padding: 16px 56px;
+  border-radius: 16px;
+  font-size: 26px;
+}
+
+/* 选择态 */
+.billimp-drop {
+  border: 2px dashed var(--line-strong, var(--line-soft));
+  border-radius: 16px;
+  background: var(--ghost-bg);
+  padding: 40px 24px;
+  text-align: center;
+}
+.billimp-drop-main {
+  font-size: 26px;
+  color: var(--ink-mute);
+}
+.billimp-file {
+  font-size: 26px;
+  color: var(--accent);
+}
+.billimp-drop-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+  color: var(--ink-faint);
+}
+.billimp-textarea {
+  margin-top: 20px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 160px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 16px 20px;
+  font-size: 24px;
+  color: var(--ink);
+}
+.billimp-note {
+  display: block;
+  margin-top: 16px;
+  font-size: 20px;
+  line-height: 1.7;
+}
+.billimp-err {
+  display: block;
+  margin-top: 16px;
+}
+.billimp-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+}
+.billimp-cancel {
+  padding: 14px 32px;
+  font-size: 24px;
+  color: var(--ink-mute);
+}
+.billimp-parse {
+  padding: 14px 40px;
+  border-radius: 12px;
+  font-size: 24px;
+}
+
+/* 预览态 */
+.billimp-pv-head {
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.billimp-platform {
+  padding: 4px 16px;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: 500;
+  color: #fff;
+}
+.billimp-pv-sum {
+  font-size: 24px;
+  color: var(--ink-mute);
+  flex: 1;
+  min-width: 0;
+}
+.billimp-pv-n {
+  color: var(--accent);
+  font-weight: 700;
+}
+.billimp-pv-grid {
+  display: flex;
+  gap: 16px;
+}
+.billimp-pv-cell {
+  flex: 1;
+  text-align: center;
+  background: var(--ghost-bg);
+  border-radius: 12px;
+  padding: 16px;
+}
+.billimp-pv-money {
+  display: block;
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.billimp-pv-money.out {
+  color: var(--danger);
+}
+.billimp-pv-money.in {
+  color: var(--success);
+}
+.billimp-sample {
+  margin-top: 16px;
+  max-height: 240px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--ghost-bg);
+  padding: 12px;
+  box-sizing: border-box;
+}
+.billimp-sample-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.billimp-dir {
+  flex-shrink: 0;
+  font-size: 20px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.billimp-dir.out {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--danger);
+}
+.billimp-dir.in {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+.billimp-sample-cat {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.billimp-sample-amt {
+  flex-shrink: 0;
+  font-size: 22px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,98 @@
+/* 微信绑定冲突选择弹层（= app.scss sheet 范式 + 双账号数据卡） */
+.wxbs {
+  gap: 0;
+}
+.wxbs-handle {
+  width: 72px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  margin: 0 auto 20px;
+}
+.wxbs-title {
+  font-size: 30px; /* text-base */
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+}
+.wxbs-desc {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* 账号数据卡（= glass 小卡） */
+.wxbs-acc {
+  margin-top: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--ghost-bg);
+}
+.wxbs-acc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wxbs-acc-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wxbs-tag {
+  flex-shrink: 0;
+  font-size: 20px;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--elevated);
+  color: var(--ink-mute);
+}
+.wxbs-tag-on {
+  background: rgba(14, 165, 233, 0.15); /* sky-500/15 */
+  color: var(--accent);
+}
+.wxbs-acc-counts {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px; /* text-micro */
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+
+/* 动作区：主按钮保留当前 + 次按钮切微信 + 取消 */
+.wxbs-btn {
+  margin-top: 28px;
+  width: 100%;
+}
+.wxbs-btn-alt {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 0;
+  border-radius: 16px;
+  border: 1px solid var(--line-soft);
+  background: var(--ghost-bg);
+  color: var(--accent);
+  font-size: 26px;
+}
+.wxbs-btn-alt.disabled {
+  opacity: 0.6;
+}
+.wxbs-cancel {
+  display: block;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink-mute);
+  padding: 8px 0;
+}

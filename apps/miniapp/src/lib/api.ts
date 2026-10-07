@@ -24,12 +24,40 @@ export function wechatLogin(code: string, profile?: { nickname?: string }) {
   );
 }
 
-/** 已登录账号绑定当前微信（REQ-绑定已有账户）：空壳回收/409 由服务端裁决 */
+/** 已登录账号绑定当前微信（REQ-绑定已有账户）：空壳回收静默完成；openid 被有数据的账号
+ *  占用时 409（ApiError.data = WechatBindConflict，页面弹「保留哪份数据」选择） */
 export function bindWechatSession(code: string) {
   return request<{ ok: true; already?: boolean }>("/api/auth/wechat/bind-session", {
     method: "POST",
     body: { code },
   });
+}
+
+/** 绑定冲突裁决（REQ-账号数据保留选择）：current=微信改绑到当前账号；wechat=本次会话切换到微信账号 */
+export function resolveWechatBind(code: string, resolve: "current" | "wechat") {
+  return request<{ ok: true; switched?: boolean; token?: string; user?: { id: string; nickname: string } }>(
+    "/api/auth/wechat/bind-session",
+    { method: "POST", body: { code, resolve } },
+  );
+}
+
+/** 409 冲突响应体形状（ApiError.data 断言用；与服务端 bind-session route 对齐） */
+export interface WechatBindConflict {
+  code: "wechat_bind_conflict";
+  owner: {
+    nickname: string;
+    createdAt: string | null;
+    counts: {
+      entries: number;
+      transactions: number;
+      todos: number;
+      blocks: number;
+      contacts: number;
+      goalSpaces: number;
+      spaceReflections: number;
+    };
+  };
+  current: WechatBindConflict["owner"];
 }
 
 /** 微信绑定手机号（bindTicket + 短信验证码） */
@@ -133,6 +161,30 @@ export function loadTransactions(month: string) {
 /** 确认待确认流水（流水不入账新口径：无账户参数） */
 export function confirmTx(id: string) {
   return request(`/api/transactions/${id}`, { method: "PATCH", body: { confirm: true } });
+}
+
+/* ---------- 账单 CSV 导入（= web bill-import；解析/去重/分类全在服务端） ---------- */
+
+export interface ImportPreview {
+  platform: "alipay" | "wechat";
+  total: number;
+  importable: number;
+  batchDup: number;
+  dbDup: number;
+  skipped: number;
+  skipSummary: Record<string, number>;
+  categories: Record<string, number>;
+  outCents: number;
+  inCents: number;
+  sample?: { occurredAt: string; direction: string; amountCents: number; category: string; counterparty: string | null }[];
+}
+
+/** dryRun=true 预览；false 导入（流水只作记录不挂账户）。base64=文件原样（服务端 UTF-8/GBK 解码） */
+export function importBill(payload: { text?: string; base64?: string; dryRun: boolean }) {
+  return request<ImportPreview & { imported?: number; message?: string }>("/api/transactions/import", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export interface DebtRow {

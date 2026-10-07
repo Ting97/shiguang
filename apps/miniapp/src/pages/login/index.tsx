@@ -12,7 +12,9 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { showToast, ToastHost } from "@/components/toast";
-import { wechatLogin, bindWechatSession } from "@/lib/api";
+import WxBindSheet from "@/components/wx-bind-sheet";
+import { wechatLogin, bindWechatSession, resolveWechatBind, type WechatBindConflict } from "@/lib/api";
+import { ApiError } from "@/lib/request";
 import { enterGuest, exitGuest, getSessionToken, setSessionToken } from "@/lib/session";
 import { syncNativeBackground, useTheme } from "@/lib/theme";
 import { loginWithPassword, EMAIL_RE, PHONE_RE } from "./api";
@@ -27,6 +29,9 @@ export default function Login() {
   const [bindWx, setBindWx] = useState(true);
   const [busy, setBusy] = useState(false);
   const [wxErr, setWxErr] = useState<string | null>(null);
+  // 绑定冲突（REQ-账号数据保留选择）：409 概览 → 弹「保留哪份数据」
+  const [bindConflict, setBindConflict] = useState<WechatBindConflict | null>(null);
+  const [bindBusy, setBindBusy] = useState(false);
 
   // 已登录直接回首页（有 token 即走；token 失效由各页 401 统一打回登录）
   useEffect(() => {
@@ -78,6 +83,28 @@ export default function Login() {
     }
   }
 
+  /** 冲突弹层裁决（wx code 单次消费，裁决时重新取 code）：current=改绑；wechat=切换登录（换 token） */
+  async function resolveBind(resolve: "current" | "wechat") {
+    if (bindBusy) return;
+    setBindBusy(true);
+    try {
+      const { code } = await Taro.login();
+      const j = await resolveWechatBind(code, resolve);
+      if (resolve === "wechat") {
+        if (j.token) setSessionToken(j.token);
+        showToast({ type: "ok", text: `已进入微信账号「${j.user?.nickname ?? ""}」` });
+      } else {
+        showToast({ type: "ok", text: "✅ 已绑定微信，下次可一键登录" });
+      }
+      setBindConflict(null);
+      enterApp();
+    } catch (e) {
+      showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBindBusy(false);
+    }
+  }
+
   async function submit() {
     if (busy) return;
     const email = account.includes("@");
@@ -92,8 +119,10 @@ export default function Login() {
     setBusy(true);
     try {
       await loginWithPassword(account.trim(), password);
-      // request 层已自动入库 token；勾选了「同时绑定此微信」则静默绑定（失败不阻塞登录）
+      // request 层已自动入库 token；勾选了「同时绑定此微信」则静默绑定：
+      // 成功 → 提示；409 冲突（微信被有数据的账号占用）→ 弹「保留哪份数据」；其他失败不阻塞登录
       if (bindWx) {
+        let conflicted = false;
         try {
           const { code } = await Taro.login();
           const j = await bindWechatSession(code);
@@ -101,11 +130,19 @@ export default function Login() {
             type: "ok",
             text: j.already ? "✓ 微信已绑定本账号" : "✅ 已绑定微信，下次可一键登录",
           });
-        } catch {
-          showToast({ type: "err", text: "微信绑定未完成，可稍后在「我的」中绑定" });
+        } catch (e) {
+          const conflict = e instanceof ApiError && e.status === 409 ? (e.data as WechatBindConflict | undefined) : undefined;
+          if (conflict?.code === "wechat_bind_conflict") {
+            setBindConflict(conflict);
+            conflicted = true; // setState 异步：用局部标记挡住 enterApp，等用户在弹层里选择
+          } else {
+            showToast({ type: "err", text: "微信绑定未完成，可稍后在「我的」中绑定" });
+          }
         }
+        if (!conflicted) enterApp();
+      } else {
+        enterApp();
       }
-      enterApp();
     } catch (e) {
       showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -210,6 +247,14 @@ export default function Login() {
         {/* 页脚 = web mt-6 text-[10px] text-ink-faint */}
         <Text className="foot-line">个人经营系统 · 钱 · 时间 · 人</Text>
       </View>
+      {/* 绑定冲突选择弹层（REQ-账号数据保留选择） */}
+      <WxBindSheet
+        open={!!bindConflict}
+        conflict={bindConflict}
+        busy={bindBusy}
+        onResolve={(r) => void resolveBind(r)}
+        onClose={() => setBindConflict(null)}
+      />
       {/* NAVLESS 页无 PageShell：全局 toast 宿主自挂（REQ-009 9-C） */}
       <ToastHost />
     </View>

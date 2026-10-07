@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Input, Button, Picker } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import BillImport from "./bill-import";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { confirmTx, bjMonth, fetchMe, yuan } from "@/lib/api";
@@ -584,6 +585,7 @@ export default function Finance() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [modules, setModules] = useState<string[] | null>(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false); // 账单 CSV 导入弹层（= web BillImport）
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [editing, setEditing] = useState<FinTx | null>(null);
@@ -718,11 +720,11 @@ export default function Finance() {
           </View>
         </View>
         <View className="fin-toolbar-acts">
-          {/* web 是客户端解析 CSV 的 BillImport 弹层；小程序无 FileReader/GBK 能力，仅提示走 web（需求约定） */}
+          {/* 账单 CSV 导入（= web BillImport；文件从聊天记录选，base64 上送服务端解码解析） */}
           <View
             className="btn-sky-tinted fin-btn-import ico-row"
             hoverClass="press"
-            onTap={() => showToast({ type: "info", text: "CSV 导入请使用 web 端" })}
+            onTap={() => setImporting(true)}
           >
             <LucideIcon name="download" size={13} color="currentColor" />
             <Text>导入账单</Text>
@@ -1025,6 +1027,14 @@ export default function Finance() {
             }}
           />
         </View>
+      )}
+
+      {/* 账单 CSV 导入弹层（= web BillImport；导入成功后刷新当月数据） */}
+      {importing && (
+        <BillImport
+          onClose={() => setImporting(false)}
+          onImported={() => void load()}
+        />
       )}
     </PageShell>
   );
