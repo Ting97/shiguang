@@ -10,17 +10,30 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/transactions/import —— 支付宝/微信 CSV 账单导入
- * body: { text, platform?, accountId?, dryRun? }
+ * body: { text | base64, platform?, accountId?, dryRun? }
+ * - text：CSV 原文（web FileReader 已解码）
+ * - base64：文件 base64（小程序 chooseMessageFile 无 GBK 解码能力）——服务端按
+ *   UTF-8 优先解码，出现替换符（GBK 乱码特征）回退 GBK（Node full-ICU TextDecoder）
  * dryRun=true 只解析与去重做预览，不落库；false 时直接入账（is_draft=false, source=csv_import）
  */
 export const POST = withAuth(async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
+    base64?: string;
     platform?: "alipay" | "wechat";
     accountId?: string | null;
     dryRun?: boolean;
   };
-  const text = body.text ?? "";
+  let text = body.text ?? "";
+  if (body.base64) {
+    const buf = Buffer.from(body.base64, "base64");
+    if (buf.length > 5_000_000) {
+      throw ApiError.badRequest("账单文件过大（>5MB），请分段导出后导入");
+    }
+    const utf8 = new TextDecoder("utf-8").decode(buf);
+    // 与 web readFileText 同判据：替换符 = UTF-8 解不出来 → GBK 重解码
+    text = utf8.includes("\uFFFD") ? new TextDecoder("gbk").decode(buf) : utf8;
+  }
   if (text.trim().length < 10) {
     throw ApiError.badRequest("账单内容为空 —— 请上传 CSV 文件或粘贴账单文本");
   }

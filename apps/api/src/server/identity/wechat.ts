@@ -3,7 +3,8 @@
  * - loginByWechat：jscode2session → openid 命中 wechat_openid 即建会话；未命中自动建号
  *   （免绑手机号，昵称取用户授权资料；REQ-游客/微信直登）
  * - bindSessionByWechat：已登录账号凭 code 绑定当前微信（REQ-绑定已有账户）；openid
- *   占用方为自动建号空壳时回收迁移，否则 409
+ *   占用方为自动建号空壳时回收迁移；占用方有数据时返回 409 + 双方数据概览，
+ *   前端弹「保留哪份数据」选择 → resolve=current（改绑）/ resolve=wechat（改登对方）
  * - bindWechat：票据 + 手机号 + 短信验证码（purpose=bind）→ 绑定既有账号并建会话
  *   （登录流程不再强制绑定；票据流程保留给「微信号 ↔ 已有手机账号」互通场景）
  * 票据/验证码均为单次消费：验证码先核销（天然并发串行），票据 DELETE 认领兜底并发；
@@ -53,16 +54,74 @@ async function isBusinessEmpty(userId: string): Promise<boolean> {
   }
 }
 
+/** 账号数据概览（绑定冲突时给前端渲染「保留哪份数据」用） */
+export interface AccountSummary {
+  nickname: string;
+  createdAt: string | null;
+  counts: {
+    entries: number;
+    transactions: number;
+    todos: number;
+    blocks: number;
+    contacts: number;
+    goalSpaces: number;
+    spaceReflections: number;
+  };
+}
+
+async function accountSummary(userId: string): Promise<AccountSummary> {
+  const { rows } = await pool.query<{
+    nickname: string;
+    created_at: string | null;
+    entries: string;
+    transactions: string;
+    todos: string;
+    blocks: string;
+    contacts: string;
+    goal_spaces: string;
+    space_reflections: string;
+  }>(
+    `select p.nickname,
+            p.created_at,
+            (select count(*) from public.entries where user_id = p.id) as entries,
+            (select count(*) from public.transactions where user_id = p.id) as transactions,
+            (select count(*) from public.todos where user_id = p.id) as todos,
+            (select count(*) from public.blocks where user_id = p.id) as blocks,
+            (select count(*) from public.contacts where user_id = p.id) as contacts,
+            (select count(*) from public.goal_spaces where user_id = p.id) as goal_spaces,
+            (select count(*) from public.space_reflections where user_id = p.id) as space_reflections
+     from public.profiles p where p.id = $1`,
+    [userId],
+  );
+  const r = rows[0];
+  return {
+    nickname: r?.nickname ?? "",
+    createdAt: r?.created_at ? new Date(r.created_at).toISOString() : null,
+    counts: {
+      entries: Number(r?.entries ?? 0),
+      transactions: Number(r?.transactions ?? 0),
+      todos: Number(r?.todos ?? 0),
+      blocks: Number(r?.blocks ?? 0),
+      contacts: Number(r?.contacts ?? 0),
+      goalSpaces: Number(r?.goal_spaces ?? 0),
+      spaceReflections: Number(r?.space_reflections ?? 0),
+    },
+  };
+}
+
 /**
  * 已登录账号绑定当前微信（REQ-绑定已有账户）：密码登录后凭 code 把 openid 迁移到本账号，
- * 之后微信一键登录即进入本账号。openid 已被占用时仅当占用方为「无业务数据的自动建号
- * 空壳」才回收迁移（治愈直登期产生的空号），否则 409。
+ * 之后微信一键登录即进入本账号。openid 已被占用时：占用方为「无业务数据的自动建号空壳」
+ * 直接回收迁移；占用方有数据则返回 conflict + 双方概览（不自动动数据，由用户选择保留哪份）。
  */
 export async function bindSessionByWechat(input: {
   code: string;
   userId: string;
   userAgent?: string | null;
-}) {
+}): Promise<
+  | { status: "ok"; already?: boolean }
+  | { status: "conflict"; owner: AccountSummary; current: AccountSummary }
+> {
   const { openid, unionid } = await jscode2session(input.code);
   const { rows } = await pool.query(
     `select id, nickname from profiles where wechat_openid = $1`,
@@ -70,9 +129,14 @@ export async function bindSessionByWechat(input: {
   );
   const owner = rows[0];
   if (owner) {
-    if (owner.id === input.userId) return { ok: true as const, already: true as const };
+    if (owner.id === input.userId) return { status: "ok", already: true };
     if (!(await isBusinessEmpty(owner.id))) {
-      throw ApiError.conflict("该微信已绑定其他账号");
+      // 有数据的占用方：不自动动数据，交出双方概览由用户选（口子在 bind-session 路由）
+      const [ownerSummary, currentSummary] = await Promise.all([
+        accountSummary(owner.id),
+        accountSummary(input.userId),
+      ]);
+      return { status: "conflict", owner: ownerSummary, current: currentSummary };
     }
     // 回收空壳：解绑后把 openid 迁到当前账号（空壳无数据可丢）
     await pool.query(`update profiles set wechat_openid = null, wechat_unionid = null where id = $1`, [owner.id]);
@@ -83,7 +147,7 @@ export async function bindSessionByWechat(input: {
        where id = $3 returning id, nickname`,
       [openid, unionid, input.userId],
     );
-    return { ok: true as const };
+    return { status: "ok" };
   } catch (e) {
     // wechat_openid unique：并发绑定同 openid 到另一账号
     if ((e as { code?: string }).code === "23505") {
@@ -91,6 +155,71 @@ export async function bindSessionByWechat(input: {
     }
     throw e;
   }
+}
+
+/**
+ * 冲突口子一（resolve=current）：用户选择「保留当前账号的数据」——把微信从占用方解绑并
+ * 绑到当前账号。占用方数据原地保留（只是失去微信登录入口），不做任何删除/迁移。
+ */
+export async function bindSessionForceCurrent(input: { code: string; userId: string }) {
+  const { openid, unionid } = await jscode2session(input.code);
+  const owner = await pool.query(`select id from profiles where wechat_openid = $1 and id <> $2`, [
+    openid,
+    input.userId,
+  ]);
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    if (owner.rows[0]) {
+      await client.query(
+        `update profiles set wechat_openid = null, wechat_unionid = null where id = $1`,
+        [owner.rows[0].id],
+      );
+    }
+    await client.query(
+      `update profiles set wechat_openid = $1, wechat_unionid = coalesce($2, wechat_unionid), last_login_at = now()
+       where id = $3`,
+      [openid, unionid, input.userId],
+    );
+    await client.query("commit");
+    return { ok: true as const };
+  } catch (e) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // 连接已不可用
+    }
+    if ((e as { code?: string }).code === "23505") {
+      throw ApiError.conflict("该微信已绑定其他账号");
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 冲突口子二（resolve=wechat）：用户选择「保留微信账号的数据」——本次会话切换为微信绑定的
+ * 账号（凭「A 号密码 + 该微信 code」双重凭证，合法主张双方身份）。两个账号的数据都原样保留，
+ * 用户此后以对方账号为准继续使用；当前账号仍可密码登录（网页版不受影响）。
+ */
+export async function bindSessionSwitchToOwner(input: { code: string; userAgent?: string | null }) {
+  const { openid, unionid } = await jscode2session(input.code);
+  const { rows } = await pool.query(
+    `select id, nickname, status from profiles where wechat_openid = $1`,
+    [openid],
+  );
+  const owner = rows[0];
+  if (!owner) throw ApiError.badRequest("该微信尚未绑定任何账号，无需切换");
+  const token = await createSession(owner.id, input.userAgent ?? "miniapp");
+  await pool.query(`update profiles set last_login_at = now() where id = $1`, [owner.id]);
+  void unionid;
+  return {
+    ok: true as const,
+    switched: true as const,
+    token,
+    user: { id: owner.id, nickname: owner.nickname },
+  };
 }
 
 /** 授权昵称净化：去尖括号/压空白/限长——入库前最小防御 */
