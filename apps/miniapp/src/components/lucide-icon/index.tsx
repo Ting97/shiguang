@@ -30,8 +30,10 @@ export default function LucideIcon({
     <View
       className={`lucide-icon ${className}`}
       style={{
-        width: `${size * 2}px`,
-        height: `${size * 2}px`,
+        // rpx 内联单位：size(web px)×2 = rpx（750 设计宽），375 屏即 1:1 还原 web 尺寸。
+        // 不能写 px——内联 px 不会被 Taro 转 rpx，历史版本因此全站图标放大了 2 倍
+        width: `${size * 2}rpx`,
+        height: `${size * 2}rpx`,
         color,
         WebkitMaskImage: `url("${url}")`,
         maskImage: `url("${url}")`,
