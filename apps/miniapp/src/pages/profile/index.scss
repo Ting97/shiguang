@@ -164,10 +164,12 @@
 }
 .save-btn {
   flex-shrink: 0;
+  display: flex; /* 拉伸对齐输入框高度时文字垂直居中（原生 button 块流会顶到上沿） */
+  align-items: center;
+  justify-content: center;
   margin: 0;
-  padding: 0 40px; /* px-5（高度随 flex stretch 对齐输入框） */
+  padding: 0 40px; /* px-5 */
   font-size: 28px; /* text-sm */
-  line-height: inherit;
 }
 
 /* ---- 修改密码 ---- */
