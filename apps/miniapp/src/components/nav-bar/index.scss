@@ -1,6 +1,6 @@
 /**
- * 底部标签栏样式（REQ-导航下移缩小）：fixed 吸底、近实底、6 项均分（图标 14px + 10px 小字），
- * 内容高 76 单位（38px）+ 底部安全区。激活项 accent 色（图标 + 文字），非激活 ink-mute。
+ * 底部标签栏样式（REQ-导航下移缩小）：fixed 吸底、近实底、6 项均分（图标 16px + 10px 小字），
+ * 内容高 92 单位（46px）+ 底部安全区。激活项 accent 色（图标 + 文字），非激活 ink-mute。
  */
 .tabbar-root {
   position: fixed;
@@ -19,7 +19,7 @@
 .tabbar-track {
   display: flex;
   align-items: stretch;
-  height: 76px; /* 38px 内容高 */
+  height: 92px; /* 46px 内容高：图标 16px + 小字 + 上下留白 */
 }
 
 .tab-item {
@@ -29,8 +29,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 6px 0;
+  gap: 3px;
+  padding: 8px 0;
 }
 
 .tab-label {

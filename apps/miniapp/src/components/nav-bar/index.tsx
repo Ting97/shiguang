@@ -45,7 +45,7 @@ export default function NavBar({ active }: { active?: NavKey }) {
               hoverStayTime={80}
               onTap={() => go(it)}
             >
-              <LucideIcon name={it.icon} size={14} color={on ? "var(--accent)" : "var(--ink-mute)"} />
+              <LucideIcon name={it.icon} size={16} color={on ? "var(--accent)" : "var(--ink-mute)"} />
               <Text className="tab-label">{it.label}</Text>
             </View>
           );
