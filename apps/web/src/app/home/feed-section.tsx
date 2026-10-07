@@ -46,8 +46,11 @@ export default function FeedSection({
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <Sprout size={14} className="text-success" aria-hidden /> 我的动态
+        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
+          {/* shrink-0：窄屏（375 档）标题不再被日期输入挤压换行成「我的动/态」 */}
+          <span className="flex shrink-0 items-center gap-2">
+            <Sprout size={14} className="text-success" aria-hidden /> 我的动态
+          </span>
           {/* 日期跳转（2026-10-04）：选某天 → 列表定位到那天的动态（从当天最后一条往前） */}
           <input
             type="date"
