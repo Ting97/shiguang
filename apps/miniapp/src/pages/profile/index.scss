@@ -370,6 +370,9 @@
 .guest-login-btn {
   width: 70%;
   margin: 0 auto;
+  padding: 20px 0; /* py-2.5 */
+  font-size: 28px; /* text-sm */
+  line-height: 1.4;
 }
 
 /* ---- 微信绑定行（REQ-绑定已有账户） ---- */

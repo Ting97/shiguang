@@ -202,6 +202,31 @@ page {
   padding: 40px; /* 20px */
 }
 
+/* ============ 原生 Button 默认样式中和（按钮偏高根因） ============
+ * 微信原生 button 自带 line-height 2.56、18px 兜底字号、左右 14px 内边距、#f8f8f8 底
+ * 和 ::after 描边——只声明了字号/内边距的按钮类会被撑高一大圈（web 无这些默认）。
+ * 元素选择器优先级最低，bespoke 类全权接管；此处只把原生泄漏压平成 web 语义兜底 */
+button {
+  padding: 0;
+  background: none;
+  line-height: 1.4;
+  font-size: 24rpx; /* text-xs 兜底：未显式给字号的按钮不再是原生 18px */
+  color: inherit;
+  border-radius: 0;
+}
+button::after {
+  border: none;
+}
+/* 显式复位类：给只想用 bespoke 类全权控制的按钮（历史模板里大量引用但此前无定义） */
+.btn-reset {
+  padding: 0;
+  background: none;
+  line-height: 1.4;
+  font-size: 24rpx;
+  color: inherit;
+  border-radius: 0;
+}
+
 /* ============ 按钮体系（尺寸由页面类补：rounded-xl px-4 py-2 等价 px 值） ============ */
 .btn-primary {
   color: #fff;
