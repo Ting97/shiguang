@@ -86,6 +86,11 @@ export function logout() {
   return request<{ ok: true }>("/api/auth/logout", { method: "POST" });
 }
 
+/** 已登录账号绑定手机号（微信一键登录建的号补绑；验证码 purpose=bind 先发 sendSmsCode） */
+export function bindPhone(phone: string, smsCode: string) {
+  return request<{ ok: true }>("/api/auth/phone/bind", { method: "POST", body: { phone, smsCode } });
+}
+
 export function fetchMe() {
   return request<SessionUser & { isAdmin: boolean; modules: string[] }>("/api/auth/me");
 }

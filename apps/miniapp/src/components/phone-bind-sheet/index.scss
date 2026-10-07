@@ -1,0 +1,73 @@
+/* 绑定手机号弹层（= sheet 范式 + 验证码行） */
+.phonebs {
+  padding-bottom: 16px;
+}
+.phonebs-handle {
+  width: 72px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  margin: 0 auto 20px;
+}
+.phonebs-title {
+  display: block;
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+}
+.phonebs-desc {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 24px;
+  text-align: center;
+  line-height: 1.6;
+}
+.phonebs-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 88px;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--ghost-bg);
+  padding: 0 28px;
+  font-size: 28px;
+  color: var(--ink);
+}
+.phonebs-code-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+.phonebs-code {
+  flex: 1;
+  min-width: 0;
+}
+.phonebs-send {
+  flex-shrink: 0;
+  padding: 20px 24px;
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  border-radius: 16px;
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--accent);
+  font-size: 24px;
+  font-weight: 500;
+}
+.phonebs-send.disabled {
+  opacity: 0.5;
+}
+.phonebs-submit {
+  margin-top: 32px;
+  width: 100%;
+  padding: 22px 0;
+  font-size: 28px;
+}
+.phonebs-cancel {
+  display: block;
+  margin-top: 20px;
+  text-align: center;
+  font-size: 24px;
+  color: var(--ink-mute);
+  padding: 8px 0;
+}

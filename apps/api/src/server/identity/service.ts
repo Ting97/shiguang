@@ -342,3 +342,25 @@ export async function sendEmail(input: { email?: string; purpose?: string }) {
   if (!r.ok) throw new ApiError(r.status, "upstream", r.error ?? "发送失败");
   return { ok: true as const };
 }
+
+/** 已登录账号绑定手机号（REQ-微信账号可补绑手机）：短信 purpose=bind 核销后落 phone+verified。
+ *  profiles.phone 全局唯一：被其他账号占用时 409（老账号仍可密码登录，不受影响）。 */
+export async function bindPhoneBySession(input: { userId: string; phone: string; smsCode: string }) {
+  if (!isValidPhone(input.phone)) throw ApiError.badRequest("请填写正确的手机号");
+  if (!input.smsCode.trim()) throw ApiError.badRequest("请填写短信验证码");
+  if (!(await verifySmsCode(input.phone, "bind", input.smsCode))) {
+    throw ApiError.unauthorized("验证码错误或已过期");
+  }
+  try {
+    await pool.query(`update profiles set phone = $1, phone_verified = true where id = $2`, [
+      input.phone,
+      input.userId,
+    ]);
+    return { ok: true as const };
+  } catch (e) {
+    if ((e as { code?: string }).code === "23505") {
+      throw ApiError.conflict("该手机号已被其他账号使用");
+    }
+    throw e;
+  }
+}

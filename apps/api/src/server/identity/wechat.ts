@@ -41,7 +41,7 @@ async function isBusinessEmpty(userId: string): Promise<boolean> {
         (select count(*) from public.entries where user_id = $1)
       + (select count(*) from public.transactions where user_id = $1)
       + (select count(*) from public.todos where user_id = $1)
-      + (select count(*) from public.blocks where user_id = $1)
+      + (select count(*) from public.time_blocks where user_id = $1)
       + (select count(*) from public.contacts where user_id = $1)
       + (select count(*) from public.goal_spaces where user_id = $1)
       + (select count(*) from public.space_reflections where user_id = $1)
@@ -86,7 +86,7 @@ async function accountSummary(userId: string): Promise<AccountSummary> {
             (select count(*) from public.entries where user_id = p.id) as entries,
             (select count(*) from public.transactions where user_id = p.id) as transactions,
             (select count(*) from public.todos where user_id = p.id) as todos,
-            (select count(*) from public.blocks where user_id = p.id) as blocks,
+            (select count(*) from public.time_blocks where user_id = p.id) as blocks,
             (select count(*) from public.contacts where user_id = p.id) as contacts,
             (select count(*) from public.goal_spaces where user_id = p.id) as goal_spaces,
             (select count(*) from public.space_reflections where user_id = p.id) as space_reflections

@@ -22,6 +22,7 @@ import { clearSessionToken, getSessionToken, setSessionToken, toLogin } from "@/
 import { fetchMeFull, updateProfile, logoutAll, loadPlan, type Me, type PlanQuota } from "./api";
 import LucideIcon from "@/components/lucide-icon";
 import WxBindSheet from "@/components/wx-bind-sheet";
+import PhoneBindSheet from "@/components/phone-bind-sheet";
 import "./index.scss";
 
 /** 分包模块开通状态 → 展示名（未知 key 原样展示兜底） */
@@ -53,6 +54,7 @@ export default function Profile() {
   const [bindingWx, setBindingWx] = useState(false);
   const [bindConflict, setBindConflict] = useState<WechatBindConflict | null>(null);
   const [bindBusy, setBindBusy] = useState(false);
+  const [phoneSheet, setPhoneSheet] = useState(false); // 绑定/更换手机号弹层（REQ-微信账号可补绑手机）
   // 外观主题三态循环（REQ-导航下移缩小：入口从顶栏挪入本页）
   const { mode: themeMode, cycle: cycleTheme } = useTheme();
   const themeName = themeMode === "dark" ? "深色" : themeMode === "light" ? "浅色" : "跟随系统";
@@ -341,6 +343,19 @@ export default function Profile() {
                 </Button>
               )}
             </View>
+            {/* 手机号绑定（REQ-微信账号可补绑手机）：补绑后可用手机号登录网页版 */}
+            <View className="wx-bind-row">
+              <Text className="hint wx-bind-text">
+                {me.phone ? `当前手机号 ${me.phone.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}` : "未绑定手机号，网页版将无法登录"}
+              </Text>
+              <Button
+                className="btn-sky-tinted wx-bind-btn"
+                hoverClass="press"
+                onTap={() => setPhoneSheet(true)}
+              >
+                {me.phone ? "更换手机号" : "绑定手机号"}
+              </Button>
+            </View>
           </View>
 
           {/* ---- 修改密码 = web section.glass ---- */}
@@ -503,6 +518,12 @@ export default function Profile() {
         </>
       )}
 
+      {/* 绑定/更换手机号弹层（REQ-微信账号可补绑手机） */}
+      <PhoneBindSheet
+        open={phoneSheet}
+        onClose={() => setPhoneSheet(false)}
+        onBound={() => void loadMe()}
+      />
       {/* 绑定冲突选择弹层（REQ-账号数据保留选择，与登录页共用） */}
       <WxBindSheet
         open={!!bindConflict}
