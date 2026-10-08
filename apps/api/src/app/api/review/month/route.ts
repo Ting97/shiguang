@@ -54,7 +54,11 @@ export const POST = withAuth(async (req, { user }) => {
           timeoutMs: 60_000,
           onUsage: capture,
         });
-        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, n) : []);
+        // GLM 偶发把全角引号吐进返回串，页面渲染出 `","` 残渣——字符串统一剥引号
+        const arr = (v: unknown, n: number) =>
+          Array.isArray(v)
+            ? v.map((x) => String(x).replace(/["“”„]/g, "").slice(0, 40)).filter(Boolean).slice(0, n)
+            : [];
         const sections = Array.isArray(parsed.sections)
           ? parsed.sections
               .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
@@ -64,7 +68,7 @@ export const POST = withAuth(async (req, { user }) => {
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().slice(0, 160)
+              ? parsed.summary.trim().replace(/["“”„]/g, "").slice(0, 160)
               : "这个月记录还很少，多记几天再来复盘会更有料",
           sections,
           highlights: arr(parsed.highlights, 4),

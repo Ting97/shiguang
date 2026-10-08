@@ -295,6 +295,7 @@ export default function TodoSection(opts: {
               <Picker
                 mode="selector"
                 range={activities.map((a) => `${a.icon} ${a.name}`)}
+                value={Math.max(0, activities.findIndex((a) => a.id === editActivity))}
                 onChange={(e) => setEditActivity(activities[Number(e.detail.value)]?.id ?? "other")}
               >
                 <View className="ts-edit-field">

@@ -35,7 +35,10 @@ export function TxForm({
   async function save() {
     if (busy || !amount) return;
     const cents = Math.round(parseFloat(amount) * 100);
-    if (!Number.isFinite(cents) || cents <= 0) return;
+    if (!Number.isFinite(cents) || cents <= 0) {
+      setErr("金额需大于 0"); // 0/负数/非数静默早退会让人以为已保存
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -134,7 +137,7 @@ export function TxForm({
         </button>
         <button
           type="submit"
-          disabled={busy || !amount}
+          disabled={busy || !amount || Number(amount) <= 0}
           className="btn-primary rounded-lg px-5 py-1.5 text-xs font-medium disabled:opacity-40"
         >
           {busy ? "保存中…" : initial ? "保存" : "记入"}

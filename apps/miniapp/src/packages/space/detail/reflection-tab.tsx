@@ -251,11 +251,14 @@ export default function ReflectionTab(opts: {
             placeholderClass="input-placeholder"
             onInput={(e) => {
               const next = e.detail.value;
-              if (charsOf(next) > 50_000) {
-                setValue(Array.from(next).slice(0, 50_000).join(""));
+              // 先用 UTF-16 length 粗筛（码点数 ≤ length，length 不超限则码点必不超限）：
+              // 常规输入零 Array.from 开销，仅超限长文才做码点精算/截断
+              if (next.length <= 50_000) {
+                setValue(next);
                 return;
               }
-              setValue(next);
+              if (charsOf(next) > 50_000) setValue(Array.from(next).slice(0, 50_000).join(""));
+              else setValue(next);
             }}
           />
           <View className="rf-editor-foot">

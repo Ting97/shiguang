@@ -424,6 +424,8 @@ export default function DebtPage() {
       }
       await reloadReserve();
     } catch (e) {
+      // 合并组逐个 PUT 中途失败：已写入的几笔不会回显，重拉备付让 UI 回到服务端真实态
+      await reloadReserve().catch(() => {});
       showToast({ type: "err", text: e instanceof Error ? e.message : String(e) });
     } finally {
       setResBusy(false);

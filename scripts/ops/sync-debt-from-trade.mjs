@@ -46,7 +46,7 @@ const saveMapping = () => writeFileSync(MAPPING_FILE, JSON.stringify(MAPPING, nu
 const BANK_OF = { A1: "徽商银行", A2: "宁波银行", A3: "交通银行", A4: "中信银行", B1: "华夏银行", B2: "江苏银行", C1: "招商银行", C2: "工商银行", C3: "农业银行", C4: "工商银行", D1: "农业银行信用卡", D2: "建设银行", D3: "徽商银行", E1: "家人" };
 
 // ---- 拉取最新快照 ----
-const res = await fetch(STORE_URL);
+const res = await fetch(STORE_URL, { signal: AbortSignal.timeout(10_000) });
 if (!res.ok) {
   console.error(`[sync-debt] 拉取失败：HTTP ${res.status}`);
   process.exit(1);
@@ -314,6 +314,8 @@ try {
   if (!dry) {
     let srcN = 0;
     for (const [ym, kv] of Object.entries(reserve)) {
+      // 镜像只承诺 2026-09~2033-09：范围外历史月在 allGroups 无矩阵，bankNames 恒空会把银行行误判成储蓄来源
+      if (!allGroups.has(ym)) continue;
       const bankNames = new Set((allGroups.get(ym) ?? []).map((g) => g.bank));
       const keep = [];
       for (const [name, amount] of Object.entries(kv)) {

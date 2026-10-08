@@ -4,7 +4,7 @@
  * 契约：AI 识别 POST /api/entries/:id/recognize（卡片 onAI 已封装）；手动 POST /api/entries/:id/manual
  * payload 逐域对齐 web entry-menu.submitManual（due 显式按北京口径转 ISO）。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Input, Picker, ScrollView } from "@tarojs/components";
 import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 import type { Activity, FeedMomentFull } from "./api";
@@ -58,6 +58,11 @@ export default function EntryMenu({
   const [mood, setMood] = useState("");
   const [meal, setMeal] = useState("午餐");
   const [pType, setPType] = useState("见面");
+
+  // 六域共享一个 text 草稿：切换/收起手动域时清空，避免日程标题残留进饮食/关系等其它域的表单
+  useEffect(() => {
+    setText("");
+  }, [manualDomain]);
 
   /** 域状态：按已落库产物推断（= web domainState） */
   function domainState(key: SixKey): "applied" | "none" {
@@ -126,7 +131,7 @@ export default function EntryMenu({
       case "schedule":
         return (
           <View className="em-form">
-            <Input className="em-input" value={text} placeholder="做了什么" onInput={(e) => setText(e.detail.value)} />
+            <Input className="em-input" value={text} maxlength={100} placeholder="做了什么" onInput={(e) => setText(e.detail.value)} />
             <View className="em-form-row">
               <Picker mode="time" value={start} onChange={(e) => setStart(e.detail.value)}>
                 <View className="em-pick">{start}</View>
@@ -141,7 +146,7 @@ export default function EntryMenu({
       case "todo":
         return (
           <View className="em-form">
-            <Input className="em-input" value={text} placeholder="要做什么" onInput={(e) => setText(e.detail.value)} />
+            <Input className="em-input" value={text} maxlength={200} placeholder="要做什么" onInput={(e) => setText(e.detail.value)} />
             <View className="em-form-row">
               <Picker mode="date" value={dueDate || ""} onChange={(e) => setDueDate(e.detail.value)}>
                 <View className="em-pick">{dueDate || "截止日期(可空)"}</View>
@@ -190,7 +195,7 @@ export default function EntryMenu({
               <Picker mode="selector" range={MEALS} value={MEALS.indexOf(meal)} onChange={(e) => setMeal(MEALS[Number(e.detail.value)])}>
                 <View className="em-pick">{meal}</View>
               </Picker>
-              <Input className="em-input" value={text} placeholder="如 牛肉面一碗" onInput={(e) => setText(e.detail.value)} />
+              <Input className="em-input" value={text} maxlength={60} placeholder="如 牛肉面一碗" onInput={(e) => setText(e.detail.value)} />
             </View>
             {addBtn(!text.trim(), () => void submitManual(key))}
           </View>
@@ -199,7 +204,7 @@ export default function EntryMenu({
         return (
           <View className="em-form">
             <View className="em-form-row">
-              <Input className="em-input" value={text} placeholder="和谁在一起" onInput={(e) => setText(e.detail.value)} />
+              <Input className="em-input" value={text} maxlength={30} placeholder="和谁在一起" onInput={(e) => setText(e.detail.value)} />
               <Picker mode="selector" range={PEOPLE_TYPES} value={PEOPLE_TYPES.indexOf(pType)} onChange={(e) => setPType(PEOPLE_TYPES[Number(e.detail.value)])}>
                 <View className="em-pick">{pType}</View>
               </Picker>

@@ -67,6 +67,8 @@ export async function api<T = any>(
   method: string,
   body?: unknown,
   extraHeaders?: Record<string, string>,
+  /** 可选超时覆盖（毫秒）：LLM 识别/拆解、交易同步等服务端耗时远超 30s 的接口放宽 */
+  opts?: { timeoutMs?: number },
 ): Promise<T> {
   const headers: Record<string, string> = { ...extraHeaders };
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -78,7 +80,7 @@ export async function api<T = any>(
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     // 慢网/挂起请求不再无限等待（超时抛 TimeoutError，调用方按网络错误口径提示重试）
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(opts?.timeoutMs ?? 30_000),
   });
   return parseResponse<T>(r);
 }

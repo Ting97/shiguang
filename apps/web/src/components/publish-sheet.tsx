@@ -50,6 +50,11 @@ export default function PublishSheet({
   useEffect(() => setCanCapture(window.matchMedia("(pointer: coarse)").matches), []);
   // 最近发布的动态 id（重试用）
   const lastEntryId = useRef<string | null>(null);
+  // 镜像当前图片列表：publish 回包后按最新列表圈定本批（state 闭包是发布前快照）
+  const imagesRef = useRef<SheetImage[]>([]);
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
 
   useEffect(() => {
     if (!open) return;
@@ -118,25 +123,36 @@ export default function PublishSheet({
       return;
     }
     lastEntryId.current = entryId;
-    if (!files.length) {
-      onClose(); // 无图：直接收尾
+    // files 是发布前快照；await onPublish 期间用户可能增删图片。回包后以最新 state 圈定本批：
+    // - 期间新增的图（非本批 file 引用）保持 ready，可随下次发布上传
+    // - 期间被移除的图不再上传
+    const fileSet = new Set(files);
+    const batch = imagesRef.current.filter((i) => i.status === "ready" && fileSet.has(i.file));
+    if (!batch.length) {
+      onClose(); // 本批全被移走：直接收尾
       return;
     }
-    setImages((prev) => prev.map((i) => ({ ...i, status: "uploading" as const })));
+    setImages((prev) =>
+      prev.map((i) => (i.status === "ready" && fileSet.has(i.file) ? { ...i, status: "uploading" as const } : i)),
+    );
     setUploading(true);
     try {
-      const { failed } = await uploadImages(entryId, files);
+      const { failed } = await uploadImages(entryId, batch.map((i) => i.file));
+      const failedSet = new Set(failed);
+      // 本批上传成功的项释放 blob URL（期间新增项仍展示中，不能误 revoke）
+      batch.forEach((i) => {
+        if (!failedSet.has(i.file)) URL.revokeObjectURL(i.url);
+      });
       if (failed.length) {
-        const failedSet = new Set(failed);
-        // 从 state 移除（上传成功）的图同步释放 blob URL，与成功路径对齐
-        images.forEach((i) => {
-          if (!failedSet.has(i.file)) URL.revokeObjectURL(i.url);
-        });
-        setImages((prev) => prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })));
+        setImages((prev) =>
+          // 本批成功的移除、失败的标回 error 可重试；期间新增的 ready 项原样保留
+          prev
+            .filter((i) => !fileSet.has(i.file) || failedSet.has(i.file))
+            .map((i) => (fileSet.has(i.file) ? { ...i, status: "error" as const } : i)),
+        );
         setSheetMsg("动态已发布；部分图片上传失败，可「↻ 重试」或关闭面板");
         return;
       }
-      images.forEach((i) => URL.revokeObjectURL(i.url));
       onClose();
     } finally {
       setUploading(false);

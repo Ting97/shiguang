@@ -60,6 +60,8 @@ export default function IconPicker({ value, onChange }: { value: string; onChang
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
                 onKeyDown={(e) => {
+                  // 放行 Escape：外层 Dismissable 在 document 层监听 Esc 关浮层，下面的 stopPropagation 会把它吞掉
+                  if (e.key === "Escape") return;
                   // IME 守卫：中文输入法选词回车不应当作确认
                   if (e.key === "Enter" && !e.nativeEvent.isComposing && custom.trim()) {
                     onChange([...custom.trim()][0] ?? custom.trim());

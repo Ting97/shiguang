@@ -61,6 +61,7 @@ export default function DebtImportDrawer({
       setRows(null);
       setSkipped(new Set());
       setErr(null);
+      setDoneMsg(null);
     }
   }, [open]);
 
@@ -189,7 +190,6 @@ export default function DebtImportDrawer({
               ))}
             </ul>
             {err && <p className="mb-2 text-micro text-danger">{err}</p>}
-      {doneMsg && <p className="text-xs text-success">{doneMsg}</p>}
             <div className="flex gap-2">
               <button onClick={() => setRows(null)} className="flex-1 rounded-xl border border-line-soft py-2 text-sm text-ink-mute hover:text-ink">
                 返回修改
@@ -206,6 +206,8 @@ export default function DebtImportDrawer({
         )}
 
         {!rows && err && <p className="mt-2 text-micro text-danger">{err}</p>}
+        {/* 成功提示渲染在 !rows 分支：commit() 成功后 rows 已置 null，rows 分支永远看不到它 */}
+        {!rows && doneMsg && <p className="mt-2 text-xs text-success">{doneMsg}</p>}
       </div>
     </div>
   );

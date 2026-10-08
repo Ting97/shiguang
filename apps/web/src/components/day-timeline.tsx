@@ -112,7 +112,10 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
       s = Math.max(gap.s, gap.e - 60);
       e = gap.e;
     }
-    setDraft({ title: "", start: hmOf(s), end: hmOf(e), activityId: "other" });
+    // 尾部缺口 e=1440 → hmOf 产出 "24:00"，<input type="time"> 不接受该值（显示被清空而 state 仍是 24:00，
+    // 提交校验 end<=start 反而拦住合法 23:59 起 + 24:00 止的意图）；钳到 23:59 保留起止语义
+    const end = Math.min(e, 1439);
+    setDraft({ title: "", start: hmOf(s), end: hmOf(end), activityId: "other" });
   }
 
   /** 点击时间轴空白（左右留白条等缺口按钮未覆盖处）→ 同样定位整点区间 */

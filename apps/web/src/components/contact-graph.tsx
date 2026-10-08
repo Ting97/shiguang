@@ -199,7 +199,9 @@ export default function ContactGraph({
     if (d && n) {
       drag.current = null;
       setDraggingId(null);
-      if (!d.moved) onOpen(n.id); // 未拖动 = 点击 → 进 TA 档案
+      // 未拖动 = 点击 → 进 TA 档案；导航用按下节点的 id（d.id），不能用 pointerup 命中的 n——
+      // 节点贴着放时按下 A 松手落在 B 上会打开错人的档案（moved 判定不变，仍按位移阈值）
+      if (!d.moved) onOpen(d.id);
     } else if (d && !n) {
       // pointerup 落在 svg 背景（setPointerCapture 失败时拖出画布松手）：清残拖，
       // 否则 drag.current 残留——下次按住空白会被当节点拖动而非平移

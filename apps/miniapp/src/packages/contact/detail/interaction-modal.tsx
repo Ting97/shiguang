@@ -85,6 +85,7 @@ export default function InteractionModal(opts: {
           <Input
             className="input it-summary"
             value={summary}
+            maxlength={200}
             placeholder="记点什么（如：一起看了场电影）"
             placeholderClass="input-placeholder"
             onInput={(e) => setSummary(e.detail.value)}

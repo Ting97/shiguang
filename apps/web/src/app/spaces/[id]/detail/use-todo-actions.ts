@@ -119,7 +119,10 @@ export function useTodoActions(opts: {
     try {
       let j: any;
       try {
-        j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {});
+        // 服务端 LLM 拆解预算 60s，客户端超时放宽到 120s（否则服务端成功落库而客户端已报错）
+        j = await api<any>(`/api/todos/${t.id}/decompose`, "POST", mode ? { mode } : {}, undefined, {
+          timeoutMs: 120_000,
+        });
       } catch (e) {
         // 含网络错误就地消化（外抛会经 unhandledrejection 触发整页刷新）
         setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "AI 拆解失败，请稍后重试" });

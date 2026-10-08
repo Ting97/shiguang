@@ -113,9 +113,17 @@ export async function getTradingReviewCache(userId: string, accountId: string) {
 
 /** POST 侧：生成（缓存命中秒回——先于额度/KEY 门槛，额度用尽的用户也能读到已有复盘；仅真正需要生成时才 checkAiQuota） */
 export async function generateTradingReview(userId: string, accountId: string, role: string, refresh: boolean) {
-  // 数据新鲜度：该账号最后一笔平仓时间（缓存命中判定与 getOrGenerateReview 同口径）
+  // 数据新鲜度：该账号最后一笔平仓时间 vs 最近一次导入时刻（trades 表无 created_at 列，
+  // 导入时刻取 trade_imports.created_at）——补导历史流水（close_time 更早）也能失效缓存，
+  // 与 trade_week 用 max(created_at) 的口径对齐
   const latest = (
-    await pool.query(`select max(close_time) as t from trades where user_id = $1 and account_id = $2`, [userId, accountId])
+    await pool.query(
+      `select greatest(
+         (select max(t.close_time) from trades t where t.user_id = $1 and t.account_id = $2),
+         (select max(i.created_at) from trade_imports i where i.user_id = $1 and i.account_id = $2)
+       ) as t`,
+      [userId, accountId],
+    )
   ).rows[0].t;
   const latestAt = latest ? new Date(latest) : null;
 

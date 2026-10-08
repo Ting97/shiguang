@@ -18,7 +18,8 @@ export default function Reminders({
   onMarkToday,
 }: {
   items: ReminderItem[];
-  onMarkToday?: (todoId: string, title: string) => void;
+  /** 加入今日：返回 false / 抛错 = 失败（调用方自行提示），条目回滚为可重试 */
+  onMarkToday?: (todoId: string, title: string) => boolean | Promise<boolean> | void;
 }) {
   const [dismissed, setDismissed] = useState(true); // 默认不展示，读到 localStorage 后纠正，避免闪烁
   const [marked, setMarked] = useState<Set<string>>(new Set()); // 已标今日的条目（防重复提交 + 即时反馈）
@@ -35,8 +36,19 @@ export default function Reminders({
 
   async function markToday(it: ReminderItem) {
     if (!it.todoId || marked.has(it.todoId)) return;
-    setMarked((s) => new Set(s).add(it.todoId!));
-    await onMarkToday?.(it.todoId!, it.label);
+    const todoId = it.todoId;
+    setMarked((s) => new Set(s).add(todoId));
+    try {
+      const ok = await onMarkToday?.(todoId, it.label);
+      // 失败回滚乐观置位：否则按钮永久呈「已加入」且 disabled，用户失去重试入口
+      if (ok === false) throw new Error("mark failed");
+    } catch {
+      setMarked((s) => {
+        const n = new Set(s);
+        n.delete(todoId);
+        return n;
+      });
+    }
   }
 
   return (

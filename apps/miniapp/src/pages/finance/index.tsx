@@ -1022,7 +1022,8 @@ export default function Finance() {
         </View>
       )}
 
-      {/* 账户管理弹层 */}
+      {/* 账户管理弹层（遮罩与记一笔/编辑同款，点空白关闭） */}
+      {managingAccount && <View className="overlay" style={{ zIndex: 65 }} onTap={() => setManagingAccount(false)} />}
       {managingAccount && (
         <View className="sheet fin-sheet">
           <View className="sheet-head">

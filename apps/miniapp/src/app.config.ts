@@ -18,6 +18,11 @@ export default defineAppConfig({
     { root: "packages/trading", pages: ["index/index"] },
     { root: "packages/calendar", pages: ["index/index"] },
   ],
+  // 分包预加载：财务概览是负债/复盘/交易三分包的入口（页内二级 pill redirectTo），进财务页即预载，
+  // packages 字段取值须与上方 subPackages 的 root 一致
+  preloadRule: {
+    "pages/finance/index": { network: "all", packages: ["packages/debt", "packages/review", "packages/trading"] },
+  },
   // 微信系统深浅色跟随（REQ-009 9-A）：theme.json 由 design-tokens 生成，值随主题切换
   darkmode: true,
   themeLocation: "theme.json",

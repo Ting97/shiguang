@@ -7,7 +7,7 @@
 import { findOverlap, overlapError, pool } from "@/server/platform/db";
 import { isParsableMoment, isValidCalendarDate } from "@/server/platform/http/datetime";
 import { ApiError } from "../platform/http/errors";
-import { activitiesRepo, blocksRepo, statsRepo } from "./repo";
+import { activitiesRepo, blocksRepo, statsRepo, hasReviewablesInRange } from "./repo";
 import { seedPresetActivities } from "./seed";
 
 /** 与既有日程重叠的冲突块（409 响应体里的 conflict 字段） */
@@ -102,17 +102,9 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
 
 /** PATCH /api/blocks/:id —— 修改时间块（标题/起止时间/类别）；新时间段不得与其他块重叠 */
 export async function updateBlock(userId: string, id: string, body: BlockWriteBody): Promise<BlockWriteResult> {
-  // 重叠校验：新起止与现有块（排除自身）
-  const cur = await blocksRepo.timesOf(id, userId);
-  if (!cur) throw ApiError.notFound("日程不存在");
-  const newStart = body.startAt ?? cur.start_at;
-  const newEnd = body.endAt ?? cur.end_at;
   // 语义校验前置（QA 验收修复：倒挂/非法时间曾触发 PG range 异常 → 500 空响应体）
   if ((body.startAt != null && !isParsableMoment(body.startAt)) || (body.endAt != null && !isParsableMoment(body.endAt))) {
     throw ApiError.badRequest("起止时间格式不正确");
-  }
-  if (Date.parse(newEnd) <= Date.parse(newStart)) {
-    throw ApiError.badRequest("结束时间必须晚于开始时间");
   }
   // 注：activity_id 是 text 列，非 uuid 合法（预设分类）；不存在的 id 由 23503 FK 映射拦成 400
   const fields: Array<[string, unknown]> = [];
@@ -133,6 +125,15 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
   try {
     await client.query("begin");
     await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
+    // 基准读取收进锁内（同一 client）：锁外读的 cur 可能已被并发更新/删除，
+    // 重叠预检与落库会基于过期基准（与 createBlock 同强度）
+    const cur = await blocksRepo.timesOf(id, userId, client);
+    if (!cur) throw ApiError.notFound("日程不存在");
+    const newStart = body.startAt ?? cur.start_at;
+    const newEnd = body.endAt ?? cur.end_at;
+    if (Date.parse(newEnd) <= Date.parse(newStart)) {
+      throw ApiError.badRequest("结束时间必须晚于开始时间");
+    }
     const conflict = await findOverlap(userId, newStart, newEnd, id, undefined, client);
     if (conflict) {
       await client.query("rollback");
@@ -165,7 +166,9 @@ export async function listBlocksInRange(userId: string, from: string, to: string
   // 按「区间与查询日期有交集」取：跨天块在其覆盖的每一天都返回（前端按天钳制显示），
   // 避免开始日在前一天的凌晨占用段在当天不可见、却仍触发冲突拦截
   const { rows } = await blocksRepo.listRange(userId, TZ, from, to);
-  return { blocks: rows };
+  // 复盘卡「有记录」口径：时间块之外还有动态/流水/完成 todo 也算有（与复盘管线取数同口径）
+  const hasExtras = await hasReviewablesInRange(userId, TZ, from, to);
+  return { blocks: rows, hasExtras };
 }
 
 export interface ActivityBody {
@@ -275,5 +278,5 @@ export async function activityStatsInRange(userId: string, from: string, to: str
     d.totalMin += r.mins;
     totals[r.activity_id] = (totals[r.activity_id] ?? 0) + r.mins;
   }
-  return { days: [...daysMap.values()], totals };
+  return { days: [...daysMap.values()], totals, hasExtras: await hasReviewablesInRange(userId, TZ, from, to) };
 }

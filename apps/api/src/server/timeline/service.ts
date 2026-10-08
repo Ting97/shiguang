@@ -145,6 +145,12 @@ export async function confirmPending(
           if (Number.isNaN(new Date(result.dueAt).getTime())) {
             throw ApiError.badRequest("识别快照时间无效，请重新识别");
           }
+          // 替换式重写前先解挂拆解行动（parent_todo_id on delete cascade 且行动自身无 entry_id）：
+          // 直接删会把用户手动加的子行动连带清掉，parent 置 null 保留
+          await client.query(
+            `update todos set parent_todo_id = null where parent_todo_id in (select id from todos where entry_id = $1 and user_id = $2)`,
+            [entryId, userId],
+          );
           await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [entryId, userId]);
           await client.query(
             `insert into todos (user_id, entry_id, title, due_at, remind_at, source, space_id)
@@ -418,6 +424,8 @@ export async function appendManual(
         if (!title || !p.startTime || !p.endTime) {
           throw ApiError.badRequest("需要标题与起止时间");
         }
+        // 与 createBlock 同口径（≤100）：超长标题进冲突 409 文案与日程视图
+        if (title.length > 100) throw ApiError.badRequest("标题最长 100 字");
         if (!/^\d{2}:\d{2}$/.test(String(p.startTime)) || !/^\d{2}:\d{2}$/.test(String(p.endTime))) {
           throw ApiError.badRequest("起止时间格式需为 HH:MM");
         }
@@ -456,6 +464,8 @@ export async function appendManual(
         if (!title) {
           throw ApiError.badRequest("标题不能为空");
         }
+        // 与 createTodo 同口径（≤200）：超长标题进列表/提醒推送
+        if (title.length > 200) throw ApiError.badRequest("标题太长了（≤200 字）");
         // 快照防御：非法 dueAt 的 toISOString 会抛 RangeError → 500（与 confirmPending todo 分支同口径 400）
         const dueAt = p.dueAt ? toIsoOr400(p.dueAt, "到期时间格式不正确") : null;
         const activityId = typeof p.activityId === "string" && p.activityId ? p.activityId : "other";
@@ -480,13 +490,18 @@ export async function appendManual(
           throw ApiError.badRequest("单笔金额超出上限（¥100 万）");
         }
         const direction = p.direction === "in" ? "in" : "out";
+        // 与 contacts 姓名/分类词表同口径（≤30）：超长值进流水列表、人情账匹配（counterparty=name）与画像 prompt
+        const category = typeof p.category === "string" && p.category ? p.category : "其他";
+        const counterparty = typeof p.counterparty === "string" && p.counterparty ? p.counterparty : null;
+        if (category.length > 30) throw ApiError.badRequest("分类最长 30 字");
+        if (counterparty && counterparty.length > 30) throw ApiError.badRequest("交易对象最长 30 字");
         await client.query(
           `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at, is_draft)
            values ($1,$2,$3,$4,$5,$6,$7,$8,true)`,
           [
             userId, entryId, direction, Math.round(yuan * 100),
-            typeof p.category === "string" && p.category ? p.category : "其他",
-            typeof p.counterparty === "string" && p.counterparty ? p.counterparty : null,
+            category,
+            counterparty,
             entry.raw_text, new Date().toISOString(),
           ],
         );
@@ -499,6 +514,8 @@ export async function appendManual(
         if (!label) {
           throw ApiError.badRequest("请选择心情");
         }
+        // 与联系人类字段同口径（≤20）：超长心情词进动态流标签与复盘事实行
+        if (label.length > 20) throw ApiError.badRequest("心情最长 20 字");
         // mood_score 列 check(-100~100)：非有限数/越界曾直落 PG 违约 500，先拦成 400
         const score = Number(p.score ?? 0);
         if (!Number.isFinite(score) || score < -100 || score > 100) {
@@ -759,6 +776,12 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
         break;
       }
       case "todo": {
+        // 替换式重写前先解挂拆解行动（parent_todo_id on delete cascade 且行动自身无 entry_id）：
+        // 直接删会把用户手动加的子行动连带清掉，parent 置 null 保留
+        await client.query(
+          `update todos set parent_todo_id = null where parent_todo_id in (select id from todos where entry_id = $1 and user_id = $2)`,
+          [entryId, userId],
+        );
         await client.query(`delete from todos where entry_id = $1 and user_id = $2`, [entryId, userId]);
         if (r.intent === "todo") {
           const remind = new Date(new Date(r.time.start).getTime() - 15 * 60_000);

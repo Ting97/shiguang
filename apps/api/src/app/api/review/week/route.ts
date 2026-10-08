@@ -53,11 +53,15 @@ export const POST = withAuth(async (req, { user }) => {
           timeoutMs: 45_000,
           onUsage: capture,
         });
-        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
+        // GLM 偶发把全角引号吐进返回串，页面渲染出 `","` 残渣——字符串统一剥引号
+        const arr = (v: unknown, n: number) =>
+          Array.isArray(v)
+            ? v.map((x) => String(x).replace(/["“”„]/g, "").slice(0, 34)).filter(Boolean).slice(0, n)
+            : [];
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().slice(0, 150)
+              ? parsed.summary.trim().replace(/["“”„]/g, "").slice(0, 150)
               : "这一周记录还很少，多记几天再来复盘会更有料",
           highlights: arr(parsed.highlights, 3),
           suggestions: arr(parsed.suggestions, 2),

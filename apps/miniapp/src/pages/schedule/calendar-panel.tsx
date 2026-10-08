@@ -50,6 +50,8 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
   const [activities, setActivities] = useState<Activity[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]); // 日/周视图原始块
   const [stats, setStats] = useState<Map<string, DayStat>>(new Map()); // 月/年聚合
+  // 时间块之外还有动态/流水/完成 todo（复盘卡「有记录」口径的一部分，与 web calendar-panel 对齐）
+  const [hasExtras, setHasExtras] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [creating, setCreating] = useState<BlockDraftValue | null>(null);
@@ -93,10 +95,12 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
         const j = await loadBlocksRange(range.from, range.to);
         if (seq !== loadSeq.current) return;
         setBlocks(j.blocks ?? []);
+        setHasExtras(j.hasExtras === true);
       } else {
         const j = await loadStatsRange(range.from, range.to);
         if (seq !== loadSeq.current) return;
         setStats(new Map((j.days ?? []).map((d: DayStat) => [d.date, d])));
+        setHasExtras(j.hasExtras === true);
       }
     } catch (e: any) {
       if (seq !== loadSeq.current) return;
@@ -296,7 +300,7 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
             <ReviewCard
               kind="day"
               period={anchor}
-              hasRecords={blocks.length > 0}
+              hasRecords={blocks.length > 0 || hasExtras}
               notify={setErr}
               variant="inline"
               onOpenFull={() => openFullReview("day", anchor)}
@@ -326,7 +330,7 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
               setView("day");
             }}
           />
-          <ReviewCard kind="week" period={weekDays[0]} subLabel={`${weekDays[0]} – ${weekDays[6]}`} hasRecords={blocks.length > 0} notify={setErr} />
+          <ReviewCard kind="week" period={weekDays[0]} subLabel={`${weekDays[0]} – ${weekDays[6]}`} hasRecords={blocks.length > 0 || hasExtras} notify={setErr} />
         </View>
       )}
       {!loading && view === "month" && (
@@ -340,7 +344,7 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
               setView("day");
             }}
           />
-          <ReviewCard kind="month" period={anchor.slice(0, 7)} subLabel={`${Number(anchor.slice(5, 7))} 月`} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+          <ReviewCard kind="month" period={anchor.slice(0, 7)} subLabel={`${Number(anchor.slice(5, 7))} 月`} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />
         </View>
       )}
       {!loading && view === "year" && (
@@ -354,7 +358,7 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
               setView("day");
             }}
           />
-          <ReviewCard kind="year" period={anchor.slice(0, 4)} subLabel={`${anchor.slice(0, 4)} 年`} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+          <ReviewCard kind="year" period={anchor.slice(0, 4)} subLabel={`${anchor.slice(0, 4)} 年`} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />
         </View>
       )}
 

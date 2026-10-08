@@ -18,10 +18,10 @@ function toSetClauses(fields: readonly UpdateField[]) {
 }
 
 export const blocksRepo = {
-  /** 单块的现有起止（重叠校验的基准） */
-  async timesOf(id: string, userId: string) {
+  /** 单块的现有起止（重叠校验的基准）；可传事务 client 在锁内读，避免基准与落库间被并发改写 */
+  async timesOf(id: string, userId: string, exec: Pick<typeof pool, "query"> = pool) {
     return (
-      await pool.query(`select start_at, end_at from time_blocks where id = $1 and user_id = $2`, [id, userId])
+      await exec.query(`select start_at, end_at from time_blocks where id = $1 and user_id = $2`, [id, userId])
     ).rows[0];
   },
   insert(userId: string, activityId: string, title: string, startAt: string, endAt: string, exec: Pick<typeof pool, "query"> = pool) {
@@ -58,6 +58,19 @@ export const blocksRepo = {
     );
   },
 };
+
+/** 区间内是否有时间块以外的可复盘数据（动态/非草稿流水/已完成 todo，口径对齐复盘管线取数）。
+ *  复盘卡「有记录」判定用：只记了账或心情而没记时间块的日子/周，生成按钮不应被禁。 */
+export async function hasReviewablesInRange(userId: string, tz: string, from: string, to: string) {
+  const { rows } = await pool.query(
+    `select exists (select 1 from entries where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date)
+      or exists (select 1 from transactions where user_id = $1 and is_draft = false and (occurred_at at time zone $2)::date between $3::date and $4::date)
+      or exists (select 1 from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date)
+      as has_extras`,
+    [userId, tz, from, to],
+  );
+  return rows[0]?.has_extras === true;
+}
 
 export const activitiesRepo = {
   listByUser(userId: string) {

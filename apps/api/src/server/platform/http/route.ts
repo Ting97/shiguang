@@ -143,11 +143,15 @@ export function withModule(
  *  认证前端点的共享基座，无上限时未登录者可流式投喂超大 body 打内存（req.json() 全量缓冲）。
  *  content-length 超限直接 413；缺头（chunked）按流累计字节拒绝。 */
 async function readJsonCapped(req: NextRequest, capBytes = 1024 * 1024): Promise<unknown> {
-  const declared = Number(req.headers.get("content-length") ?? "");
-  if (Number.isFinite(declared) && declared > capBytes) {
-    throw new ApiError(413, "payload_too_large", "请求体过大");
+  // 缺头（chunked）必须走按流计数分支：Number(null ?? "")=0 会让缺头请求绕过上限走 req.json() 全量缓冲
+  const raw = req.headers.get("content-length");
+  if (raw != null) {
+    const declared = Number(raw);
+    if (Number.isFinite(declared) && declared > capBytes) {
+      throw new ApiError(413, "payload_too_large", "请求体过大");
+    }
+    if (Number.isFinite(declared) && declared >= 0) return req.json().catch(() => ({}));
   }
-  if (Number.isFinite(declared) && declared >= 0) return req.json().catch(() => ({}));
   const reader = req.body?.getReader();
   if (!reader) return {};
   const chunks: Uint8Array[] = [];

@@ -24,6 +24,13 @@ export const POST = withAuth(async (req, { user }) => {
     accountId?: string | null;
     dryRun?: boolean;
   };
+  // 可选字符串字段预检：非字符串（如 {text:{}}）走 .trim()/Buffer.from 会 TypeError → 500，统一 400
+  if (body.text !== undefined && body.text !== null && typeof body.text !== "string") {
+    throw ApiError.badRequest("text 需为字符串");
+  }
+  if (body.base64 !== undefined && body.base64 !== null && typeof body.base64 !== "string") {
+    throw ApiError.badRequest("base64 需为字符串");
+  }
   let text = body.text ?? "";
   if (body.base64) {
     const buf = Buffer.from(body.base64, "base64");

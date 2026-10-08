@@ -141,14 +141,15 @@ export async function updateProfile(userId: string, body: ProfileInput) {
   let nickname: string | undefined;
   let message: string | undefined;
 
+  // 全部校验（含 scrypt 验证）前置到任何写库之前：旧版昵称先落库、密码校验在后，
+  // 当前密码输错时昵称已改（部分成功），用户误以为改密成功
   if (wantsNickname) {
     nickname = body.nickname!.trim();
     if (!nickname || nickname.length > 20) {
       throw ApiError.badRequest("昵称需为 1~20 个字符");
     }
-    await profilesRepo.setNickname(userId, nickname);
   }
-
+  let newHash: string | undefined;
   if (wantsPassword) {
     // 上限 128：多 MB 密码串直进 scryptSync（N=16384，16MB 内存/次）可被认证用户反复触发
     if (body.newPassword!.length < 8 || body.newPassword!.length > 128) {
@@ -158,7 +159,13 @@ export async function updateProfile(userId: string, body: ProfileInput) {
     if (stored && (!body.currentPassword || !verifyPassword(body.currentPassword, stored))) {
       throw ApiError.unauthorized("当前密码不正确");
     }
-    await profilesRepo.setPasswordHash(userId, hashPassword(body.newPassword!));
+    newHash = hashPassword(body.newPassword!);
+  }
+
+  // 校验全过才写库
+  if (nickname !== undefined) await profilesRepo.setNickname(userId, nickname);
+  if (newHash !== undefined) {
+    await profilesRepo.setPasswordHash(userId, newHash);
     message = "密码已更新";
   }
 

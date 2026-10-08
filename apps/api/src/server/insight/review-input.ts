@@ -1,6 +1,7 @@
 import { pool } from "@/server/platform/db";
-import { chat, extractJson } from "@shiguangri/ai";
+import { chat, extractJson, activeModel } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle } from "@/server/ai/prompts";
+import { writeAuditRecord } from "@/server/ai/audit";
 
 /**
  * 复盘输入基建（review v3）：原始明细行格式化、下层小结链、用户画像读写。
@@ -224,12 +225,29 @@ export async function updateProfileFromReview(
       factsText: clip(factsText, 1600),
       reviewText: clip(reviewText, 1200),
     }, { userId });
+    // 审计计量（成本监控，与 ai_profile 画像提炼同口径；9-E 记账补漏：profile_merge 此前
+    // 不传 onUsage 也不写审计，token 恒 0 成本失真）。不进配额：getQuota 只按 parse/review/asr 计费
+    const t0 = Date.now();
+    let usage: { prompt_tokens: number; completion_tokens: number } | null = null;
     const raw = await chat({
       system: bundle.system,
       user: userPrompt,
       temperature: 0.2,
       maxTokens: 1200,
       timeoutMs: 45_000,
+      onUsage: (u) => { usage = u; },
+    });
+    const u = usage as { prompt_tokens: number; completion_tokens: number } | null; // 回调赋值 TS 不追踪，断言回宽（analyze 同款）
+    void writeAuditRecord({
+      userId,
+      stage: "ai_profile",
+      model: activeModel(),
+      engine: "profile_merge",
+      latencyMs: Date.now() - t0,
+      textLen: userPrompt.length,
+      promptTokens: u?.prompt_tokens,
+      completionTokens: u?.completion_tokens,
+      ok: true,
     });
     const profile = validProfile(extractJson(raw), bundle.config.caps.profileItems);
     if (!profile) return;

@@ -204,11 +204,12 @@ export const interactionsRepo = {
 };
 
 export const peopleMoneyRepo = {
-  /** 画像提炼的人情账输入（最近 30 笔；参数顺序沿用原 SQL：$1 对方、$2 用户） */
+  /** 画像提炼的人情账输入（最近 30 笔；参数顺序沿用原 SQL：$1 对方、$2 用户）。
+   *  与 moneyOf 同口径：只取「人情往来」分类——普通消费同名对方不是人情账 */
   recentForProfile(name: string, userId: string) {
     return pool.query(
       `select direction, amount_cents, category, note, occurred_at from transactions
-       where user_id = $2 and is_draft = false and counterparty = $1
+       where user_id = $2 and is_draft = false and counterparty = $1 and category = '人情往来'
        order by occurred_at desc limit 30`,
       [name, userId],
     );

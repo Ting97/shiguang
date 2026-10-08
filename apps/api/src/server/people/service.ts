@@ -6,7 +6,8 @@
 import { CONTACT_GROUPS, INTERACTION_TYPES } from "@shiguangri/shared/social";
 import { chat, extractJson, hasApiKey, activeModel } from "@shiguangri/ai";
 import { ApiError } from "../platform/http/errors";
-import { isValidCalendarDate } from "../platform/http/datetime";
+import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
+import { pool } from "../platform/db";
 import { checkAiQuota, writeAuditRecord, type AuditRecord } from "../ai";
 import { contactsRepo, interactionsRepo, peopleMoneyRepo } from "./repo";
 
@@ -177,8 +178,23 @@ export async function updateContact(userId: string, id: string, body: ContactUps
   if (fields.length === 0) throw ApiError.badRequest("没有可更新的字段");
 
   try {
+    // 改名级联：更新前取旧名，改名成功后把历史人情账一起改（transactions 按 counterparty=name 精确
+    // 匹配关联联系人）——不级联则 moneyOf/净额/画像输入全部断链。本方法无既有事务，顺序执行，
+    // 失败走下方既有 catch（与原错误语义一致）
+    const oldName = body.name?.trim()
+      ? ((await pool.query(`select name from contacts where id = $1 and user_id = $2`, [id, userId])).rows[0]?.name as
+          | string
+          | undefined)
+      : undefined;
     const updated = (await contactsRepo.updateFields(id, userId, fields)).rows[0];
     if (!updated) throw ApiError.notFound("联系人不存在");
+    const newName = body.name?.trim();
+    if (newName && oldName && oldName !== newName) {
+      await pool.query(
+        `update transactions set counterparty = $1 where user_id = $2 and counterparty = $3`,
+        [newName, userId, oldName],
+      );
+    }
     return { contact: updated };
   } catch (e) {
     if (e instanceof ApiError) throw e;
@@ -216,8 +232,14 @@ export async function createInteraction(userId: string, contactId: string, body:
   if (!contact) throw ApiError.notFound("联系人不存在");
 
   const type = (INTERACTION_TYPES as readonly string[]).includes(body.type ?? "") ? body.type! : "其他";
-  const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
-  if (isNaN(occurredAt.getTime())) {
+  // isParsableMoment 严格校验（与 time/goal 域同口径）：弱 new Date() 对含时区偏移之外的串按宿主时区
+  // 解释（UTC 容器差 8 小时），形状合法但解析不出的值（"25:99"）也会静默 Invalid
+  const occurredAt = body.occurredAt
+    ? isParsableMoment(body.occurredAt)
+      ? new Date(body.occurredAt)
+      : null
+    : new Date();
+  if (!occurredAt || isNaN(occurredAt.getTime())) {
     throw ApiError.badRequest("时间格式不正确");
   }
 
@@ -380,9 +402,11 @@ export async function generateAiProfile(userId: string, id: string) {
   }
   await audit(true);
 
+  // 生成期间联系人可能被并发删除：setAiProfile 不命中时 rows[0] 为 undefined，直取属性会 TypeError → 500
   const updated = (
     await contactsRepo.setAiProfile(id, userId, JSON.stringify(profile))
   ).rows[0];
+  if (!updated) throw ApiError.notFound("联系人不存在");
 
   return { profile: updated.ai_profile, profileAt: updated.ai_profile_at };
 }

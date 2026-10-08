@@ -71,7 +71,7 @@ export default function CalendarReviewPage() {
   } else if (kind === "month") subLabel = `${Number(anchor.slice(0, 4))}年${Number(anchor.slice(5, 7))}月`;
   else subLabel = `${anchor.slice(0, 4)} 年`;
 
-  // 有无记录：day/week 用原始块，month/year 用聚合（与 web 各 review 卡的 hasRecords 同口径）
+  // 有无记录：块 + 动态/流水/完成 todo（hasExtras，与 web review 卡口径一致），month/year 用聚合
   useEffect(() => {
     let alive = true;
     setRecLoading(true);
@@ -79,18 +79,18 @@ export default function CalendarReviewPage() {
       try {
         if (kind === "day") {
           const j = await loadBlocksRange(period, period);
-          if (alive) setHasRecords((j.blocks ?? []).length > 0);
+          if (alive) setHasRecords((j.blocks ?? []).length > 0 || j.hasExtras === true);
         } else if (kind === "week") {
           const mon = bjMondayOf(anchor);
           const j = await loadBlocksRange(mon, addDays(mon, 6));
-          if (alive) setHasRecords((j.blocks ?? []).length > 0);
+          if (alive) setHasRecords((j.blocks ?? []).length > 0 || j.hasExtras === true);
         } else if (kind === "month") {
           const [y, m] = period.split("-").map(Number);
           const j = await loadStatsRange(`${period}-01`, `${period}-${new Date(y, m, 0).getDate()}`.slice(0, 10));
-          if (alive) setHasRecords((j.days ?? []).length > 0);
+          if (alive) setHasRecords((j.days ?? []).length > 0 || j.hasExtras === true);
         } else {
           const j = await loadStatsRange(startOfYear(period), `${period.slice(0, 4)}-12-31`);
-          if (alive) setHasRecords((j.days ?? []).length > 0);
+          if (alive) setHasRecords((j.days ?? []).length > 0 || j.hasExtras === true);
         }
       } catch {
         if (alive) setHasRecords(false);

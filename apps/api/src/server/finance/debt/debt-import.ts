@@ -81,7 +81,11 @@ async function planRows(userId: string, data: ImportPayload) {
   const rows = data.liabilities.map((r) => {
     const k = key(r.name.trim(), r.type);
     const dup = existingMap.get(k);
-    if (!dup) existingMap.set(k, r); // 批内判重回填：同一 payload 两行同名同类型不再双双 create
+    if (!dup) {
+      // 批内判重回填：同一 payload 两行同名同类型不再双双 create。回填归一成 DB 行形状
+      // （balance_cents 缺省回落本金），下游 Number(dup.balance_cents) 不会 Number(undefined)=NaN
+      existingMap.set(k, { name: r.name, type: r.type, balance_cents: r.balanceCents ?? r.principalCents });
+    }
     return {
       ...r,
       name: r.name.trim(),

@@ -7,7 +7,7 @@
 import { request } from "@/lib/request";
 
 export const loadBlocksRange = (from: string, to: string) =>
-  request<{ blocks: unknown[] }>(`/api/blocks/range?from=${from}&to=${to}`);
+  request<{ blocks: unknown[]; hasExtras?: boolean }>(`/api/blocks/range?from=${from}&to=${to}`);
 
 export const loadStatsRange = (from: string, to: string) =>
-  request<{ days: unknown[] }>(`/api/stats/range?from=${from}&to=${to}`);
+  request<{ days: unknown[]; hasExtras?: boolean }>(`/api/stats/range?from=${from}&to=${to}`);

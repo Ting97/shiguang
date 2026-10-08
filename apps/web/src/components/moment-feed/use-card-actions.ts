@@ -31,7 +31,11 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
   const delArmedRef = useRef<string | null>(null);
 
   const run = async (fn: () => Promise<string>): Promise<boolean> => {
-    if (runningRef.current) return false; // 受理失败：调用方（确认框）不应把确认态关掉
+    if (runningRef.current) {
+      // 重入锁占用 = 本次点击未受理：静默返回会让用户以为点了没生效（全部调用方都是用户点击，无程序化路径）
+      toast("上一步操作还在进行中，请稍候", "info");
+      return false;
+    }
     runningRef.current = true;
     try {
       toast(await fn());
@@ -47,12 +51,14 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
     }
   };
 
-  /** 菜单里点某域：AI 识别该域 */
+  /** 菜单里点某域：AI 识别该域（服务端 LLM 预算 45s+，客户端超时放宽到 120s） */
   const recognizeDomain = (domain: string) =>
     run(async () => {
       setBusyDomain(domain);
       try {
-        const j = await api(`/api/entries/${m.id}/recognize`, "POST", { domain });
+        const j = await api(`/api/entries/${m.id}/recognize`, "POST", { domain }, undefined, {
+          timeoutMs: 120_000,
+        });
         return j.message ?? "已重新识别";
       } finally {
         setBusyDomain(null);

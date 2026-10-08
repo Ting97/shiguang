@@ -13,6 +13,7 @@ import PageShell from "@/components/page-shell";
 import PageFooter from "@/components/page-footer";
 import { showToast } from "@/components/toast";
 import { loadFeed, loadSpaces } from "@/lib/api";
+import { ApiError } from "@/lib/request";
 import { getSessionToken } from "@/lib/session";
 import GuestGate from "@/components/guest-gate";
 import type { SpaceRow } from "../shared";
@@ -73,6 +74,12 @@ export default function SpaceDetailPage() {
         const s = spaces.find((x) => x.id === id) ?? null;
         setSpace(s);
         setNotFound(!s);
+      } else {
+        // 头卡空间列表拉取失败：allSettled 不会走外层 catch，必须在此收口，
+        // 否则初始加载失败时 space 恒 null、页面停在「加载中…」。404 走 notFound，网络错/5xx 给重试横幅
+        const e = sj.reason;
+        if (e instanceof ApiError && e.status === 404) setNotFound(true);
+        else setLoadErr(e instanceof Error ? e.message : String(e));
       }
       if (tj.status === "fulfilled") setTodos((tj.value.todos ?? []).filter((t) => t.space_id === id));
       if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos ?? []) as TodoItem[]).filter((t) => t.space_id === id));

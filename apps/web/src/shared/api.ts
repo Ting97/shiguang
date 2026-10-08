@@ -32,8 +32,9 @@ export function api<T = any>(
   method = "GET",
   body?: unknown,
   headers?: Record<string, string>,
+  opts?: { timeoutMs?: number },
 ): Promise<T> {
-  return with401Redirect(() => baseApi<T>(url, method, body, headers));
+  return with401Redirect(() => baseApi<T>(url, method, body, headers, opts));
 }
 
 export function apiForm<T = any>(url: string, form: FormData, method = "POST"): Promise<T> {

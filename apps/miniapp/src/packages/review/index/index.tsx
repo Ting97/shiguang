@@ -456,7 +456,9 @@ export default function ReviewPage() {
                   <Chip icon="sparkles" label="AI 交易周报" tone="emerald" />
                   {meta && reviewForThisWeek && (
                     <Text className="hint-faint">
-                      {meta.cached ? "缓存" : "已生成"} · {bjMD(meta.generatedAt ?? "")}
+                      {/* generatedAt 缺省时不渲染时间段（bjMD("") 会解析出 NaN/NaN） */}
+                      {meta.cached ? "缓存" : "已生成"}
+                      {meta.generatedAt ? ` · ${bjMD(meta.generatedAt)}` : ""}
                     </Text>
                   )}
                 </View>

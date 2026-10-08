@@ -41,7 +41,7 @@ export type TodoCounts = Record<TodoView, number>;
 /* ---------- 块（日/周视图） ---------- */
 
 export const loadBlocksRange = (from: string, to: string) =>
-  request<{ blocks: Block[] }>(`/api/blocks/range?from=${from}&to=${to}`);
+  request<{ blocks: Block[]; hasExtras?: boolean }>(`/api/blocks/range?from=${from}&to=${to}`);
 
 export const createBlock = (payload: { title: string; startAt: string; endAt: string; activityId: string }) =>
   request("/api/blocks", { method: "POST", body: payload });
@@ -55,7 +55,8 @@ export const deleteBlock = (id: string) =>
 /* ---------- 聚合（月/年视图） ---------- */
 
 export const loadStatsRange = (from: string, to: string) =>
-  request<{ days: DayStat[] }>(`/api/stats/range?from=${from}&to=${to}`);
+  // hasExtras：区间内是否有聚合外的明细（blocks/range 同款，供「去复盘」入口显隐）
+  request<{ days: DayStat[]; hasExtras?: boolean }>(`/api/stats/range?from=${from}&to=${to}`);
 
 /* ---------- 活动分类 ---------- */
 

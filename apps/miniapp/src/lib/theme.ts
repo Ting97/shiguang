@@ -12,6 +12,8 @@ export type ThemeMode = "dark" | "light" | "system";
 export type Theme = "dark" | "light";
 const KEY = "shiguang_theme";
 const EVT = "theme:change";
+/** 微信系统深浅色切换事件（app.ts 注册 Taro.onThemeChange → applySysTheme 转发至此） */
+export const SYS_THEME_EVT = "shiguang:sys-theme";
 
 export function getThemeMode(): ThemeMode {
   try {
@@ -66,15 +68,30 @@ export function syncNativeBackground(theme: Theme) {
   }
 }
 
+/** 微信系统深浅色切换入口（app.ts 里 if (Taro.onThemeChange) 注册转发）：
+ * 刷新 system 模式缓存 + 同步原生底色 + 广播订阅方重渲染——否则 system 模式下切系统主题，
+ * 页面要等缓存过期后的下一次渲染才跟随 */
+export function applySysTheme(theme: Theme) {
+  sysThemeCache = { theme, at: Date.now() };
+  syncNativeBackground(theme);
+  Taro.eventCenter.trigger(SYS_THEME_EVT, theme);
+}
+
 /** 页面级订阅：返回当前解析后的主题与循环切换函数 */
 export function useTheme() {
   const [mode, setMode] = useState<ThemeMode>(getThemeMode());
+  // 系统主题切换计数：仅用于强制重渲染（theme 值由 resolveTheme 读缓存得出）
+  const [, setSysTick] = useState(0);
   const theme = resolveTheme(mode);
   useEffect(() => {
     const handler = (m: ThemeMode) => setMode(m);
     Taro.eventCenter.on(EVT, handler);
+    // 系统深浅色切换：缓存已由 applySysTheme 刷新，此处 bump 触发使用方重渲染
+    const onSys = () => setSysTick((n) => n + 1);
+    Taro.eventCenter.on(SYS_THEME_EVT, onSys);
     return () => {
       Taro.eventCenter.off(EVT, handler);
+      Taro.eventCenter.off(SYS_THEME_EVT, onSys);
     };
   }, []);
   return { mode, theme, cycle: cycleThemeMode };

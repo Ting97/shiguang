@@ -34,6 +34,8 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
   const [activities, setActivities] = useState<Activity[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]); // 日/周视图原始块
   const [stats, setStats] = useState<Map<string, DayStat>>(new Map()); // 月/年聚合
+  // 时间块之外还有动态/流水/完成 todo（复盘卡「有记录」口径的一部分，见 hasReviewablesInRange）
+  const [hasExtras, setHasExtras] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<BlockDraft | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -82,10 +84,12 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
         const j = await api<any>(`/api/blocks/range?${qs}`);
         if (seq !== loadSeq.current) return; // 锚定快速切换时旧响应可能后到，丢弃过期数据
         setBlocks(j.blocks ?? []);
+        setHasExtras(j.hasExtras === true);
       } else {
         const j = await api<any>(`/api/stats/range?${qs}`);
         if (seq !== loadSeq.current) return;
         setStats(new Map((j.days ?? []).map((d: DayStat) => [d.date, d])));
+        setHasExtras(j.hasExtras === true);
       }
     } catch (e) {
       if (seq !== loadSeq.current) return;
@@ -238,7 +242,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
             <div className="mt-4 border-t border-line-soft pt-3 text-xs text-ink-dim">
               共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + dayClampedMin(b), 0))}
             </div>
-            <DayReviewCard key={`day-${anchor}`} date={anchor} hasRecords={dayBlocks.length > 0} notify={setErr} />
+            <DayReviewCard key={`day-${anchor}`} date={anchor} hasRecords={dayBlocks.length > 0 || hasExtras} notify={setErr} />
           </aside>
           <div className="order-last lg:order-none">
             {editing && (
@@ -257,7 +261,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
             key={`week-${weekDays[0]}`}
             weekStart={weekDays[0]}
             weekEnd={weekDays[6]}
-            hasRecords={blocks.length > 0}
+            hasRecords={blocks.length > 0 || hasExtras}
             notify={setErr}
           />
         </>
@@ -265,13 +269,13 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
       {!loading && view === "month" && (
         <>
         <MonthView month={startOfMonth(anchor)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-        <MonthReviewCard key={`month-${anchor.slice(0, 7)}`} month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+        <MonthReviewCard key={`month-${anchor.slice(0, 7)}`} month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />
         </>
       )}
       {!loading && view === "year" && (
         <>
         <YearView year={anchor.slice(0, 4)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-        <YearReviewCard key={`year-${anchor.slice(0, 4)}`} year={anchor.slice(0, 4)} hasRecords={[...stats.values()].length > 0} notify={setErr} />
+        <YearReviewCard key={`year-${anchor.slice(0, 4)}`} year={anchor.slice(0, 4)} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />
         </>
       )}
     </>

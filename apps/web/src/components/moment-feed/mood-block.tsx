@@ -26,10 +26,13 @@ export function MoodBlock({ m, run }: MoodBlockProps) {
             <button
               key={w}
               onClick={() =>
+                // run 返回 false = 重入锁占用（请求未发出）：保持选择器打开，用户可重试
                 run(async () => {
                   await api(`/api/feed/${m.id}`, "PATCH", { mood: w });
                   return `${moodEmoji(w)} 心情已改为「${w}」`;
-                }).then(() => setMoodPicker(false))
+                }).then((ok) => {
+                  if (ok) setMoodPicker(false);
+                })
               }
               className={`rounded-full px-2 py-0.5 text-micro ${
                 m.mood === w ? "bg-sky-600 text-white" : "bg-soft/60 text-ink-soft hover:bg-strong"
@@ -40,10 +43,13 @@ export function MoodBlock({ m, run }: MoodBlockProps) {
           ))}
           <button
             onClick={() =>
+              // 同上：锁占用时不关选择器
               run(async () => {
                 await api(`/api/feed/${m.id}`, "PATCH", { mood: null });
                 return "已清除心情";
-              }).then(() => setMoodPicker(false))
+              }).then((ok) => {
+                if (ok) setMoodPicker(false);
+              })
             }
             className="rounded-full px-2 py-0.5 text-micro text-danger hover:bg-rose-500/20"
           >

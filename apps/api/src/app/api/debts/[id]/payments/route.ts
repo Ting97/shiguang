@@ -1,29 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuthParams, type AuthedCtx } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam, optionalTrimmed } from "@/server/platform/http/validate";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
-import { getModuleUser } from "@/server/platform";
 import { serializeDebt, serializePayment, autoCheckAfterPayment } from "@/server/finance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** 带路径参数的 debt 模块门禁：等价组合 withModule("debt")（基座 withModule 不透传 params）
- * —— withAuthParams 未登录 401「未登录」；getModuleUser 为 null 即已登录未授权 → 403「未开通该模块」（admin 直通）。 */
-const withDebtParams = (
-  handler: (req: NextRequest, ctx: AuthedCtx & { params: Promise<any> }) => Promise<Response> | Response,
-) =>
-  withAuthParams(async (req, ctx) => {
-    if (!(await getModuleUser("debt"))) throw new ApiError(403, "forbidden", "未开通该模块");
-    return handler(req, ctx);
-  });
-
 /** POST /api/debts/[id]/payments —— 记还款 {amountCents, paidAt?, accountId?, note?}
  * 余额递减、归零自动结清；accountId 传值时联动记一笔「还款」支出并回填 tx_id；
  * 同负债同日同额重复提交 409（防双击/重试）。 */
-export const POST = withDebtParams(async (req, { user, params }) => {
+export const POST = withModuleParams("debt", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as {
@@ -127,7 +116,7 @@ export const POST = withDebtParams(async (req, { user, params }) => {
 });
 
 /** GET /api/debts/[id]/payments —— 还款记录（余额曲线数据源，时间升序） */
-export const GET = withDebtParams(async (_req, { user, params }) => {
+export const GET = withModuleParams("debt", async (_req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
   const owned = await pool.query(`select id from liabilities where id = $1 and user_id = $2`, [id, user.id]);

@@ -98,13 +98,20 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
     setBusy(true);
     setSummary(null);
     try {
-      const j = await api<Record<string, unknown>>("/api/trading/bitget/sync", "POST", {
-        keyLabel: syncLabel || undefined,
-        from,
-        to,
-        login: login.trim() || undefined,
-        dryRun,
-      });
+      // 页面文案自称同步需数分钟：客户端超时放宽到 300s，避免服务端仍在同步而客户端先报「同步失败」
+      const j = await api<Record<string, unknown>>(
+        "/api/trading/bitget/sync",
+        "POST",
+        {
+          keyLabel: syncLabel || undefined,
+          from,
+          to,
+          login: login.trim() || undefined,
+          dryRun,
+        },
+        undefined,
+        { timeoutMs: 300_000 },
+      );
       setSummary(j);
       if (!dryRun) {
         toast("✅ 同步完成");

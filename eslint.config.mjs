@@ -14,7 +14,7 @@ export default tseslint.config(
   {
     // Node 环境的 .mjs 脚本（tools/e2e 脚本）需要 node/browser 全局
     files: ["**/*.mjs", "**/*.cjs"],
-    languageOptions: { globals: { console: "readonly", fetch: "readonly", process: "readonly", URL: "readonly", setTimeout: "readonly", clearTimeout: "readonly" } },
+    languageOptions: { globals: { console: "readonly", fetch: "readonly", process: "readonly", URL: "readonly", setTimeout: "readonly", clearTimeout: "readonly", AbortSignal: "readonly", URLSearchParams: "readonly", TextDecoder: "readonly", Buffer: "readonly" } },
   },
   {
     // PWA Service Worker 运行在 worker 作用域，globals 与 window 不同

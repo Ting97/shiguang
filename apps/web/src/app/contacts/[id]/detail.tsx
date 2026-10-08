@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Cake, Calendar, Clock, Coins, Heart, Pencil, Pin, Plus, Sparkles, Trash2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -91,12 +91,23 @@ export function ContactDetailPage() {
   // 往来时间线单条删除：重入锁（deletingId）+ 两步确认（armDelId 3 秒窗口）
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [armDelId, setArmDelId] = useState<string | null>(null);
+  // load 竞态序号：只允许最新一次请求落地（见 load 内说明）
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async () => {
-    const j = await api(`/api/contacts/${id}`, "GET");
-    setContact(j.contact ?? null);
-    setTimeline(j.timeline ?? []);
-    setMoney(j.money ?? []);
+    // seq 竞态守卫（全站范式）：id/rev 切换触发的并发 load 只有最新一次允许落地，
+    // 防慢请求后到覆盖新数据（如快速重试或往来增删与重载并发）
+    const seq = ++loadSeqRef.current;
+    try {
+      const j = await api(`/api/contacts/${id}`, "GET");
+      if (seq !== loadSeqRef.current) return;
+      setContact(j.contact ?? null);
+      setTimeline(j.timeline ?? []);
+      setMoney(j.money ?? []);
+    } catch (e) {
+      if (seq !== loadSeqRef.current) return;
+      throw e;
+    }
   }, [id]);
 
   async function runProfile() {

@@ -174,7 +174,8 @@ export default function SpaceReflections({
                   >
                     {full ?? it.preview}
                   </p>
-                  <p className="mt-1 text-right text-badge text-ink-faint">{it.chars} 字{it.edited ? " · 已编辑" : ""}</p>
+                  {/* 「已编辑」只在时间行展示一次，这里不再重复缀字数行尾 */}
+                  <p className="mt-1 text-right text-badge text-ink-faint">{it.chars} 字</p>
                 </li>
               );
             })}

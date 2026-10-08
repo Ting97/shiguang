@@ -20,9 +20,13 @@ const MOOD_RULES: Array<[RegExp, string, number]> = [
  *  规则引擎是 GLM 熔断/超时时的唯一兜底，极性反转的误判会以相反情绪分直接入库 */
 const NEGATORS = /[不没别]$|没(?=[什么怎这])/;
 
+/** 程度副词白名单：紧邻命中词时是修饰不是否定（「特别」以 别$ 落进 NEGATORS 的 3 字符窗口，误伤「特别累/特别开心」） */
+const DEGREE_ADVERBS = /(?:特别|格外|尤其|超|太|好|真|挺)$/;
+
 export function negated(re: RegExp, text: string): boolean {
   for (const m of text.matchAll(new RegExp(re.source, "g"))) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 3), m.index);
+    if (DEGREE_ADVERBS.test(before)) return false; // 程度副词修饰 → 本义，非否定
     if (!NEGATORS.test(before)) return false; // 存在未否定的命中 → 该规则成立
   }
   return true; // 所有命中都被否定（或无命中）→ 视为否定/不成立

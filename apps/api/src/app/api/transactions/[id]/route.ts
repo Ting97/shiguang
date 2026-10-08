@@ -3,11 +3,12 @@ import { pool } from "@/server/platform/db";
 import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam, optionalTrimmed } from "@/server/platform/http/validate";
+import { isParsableMoment } from "@/server/platform/http/datetime";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
 
-/** PATCH /api/transactions/:id —— 修正流水（方向/金额/类别/交易对象/账户）；{confirm:true} 草稿转正 */
+/** PATCH /api/transactions/:id —— 修正流水（方向/金额/类别/交易对象/账户/备注/发生时间）；{confirm:true} 草稿转正 */
 export const PATCH = withAuthParams(async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
@@ -17,6 +18,8 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     category?: string;
     counterparty?: string | null;
     accountId?: string | null;
+    note?: string | null;
+    occurredAt?: string;
     confirm?: boolean; // 草稿 → 已确认入账
   };
 
@@ -66,6 +69,19 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
       vals.push(body.accountId);
       sets.push(`account_id = $${vals.length}`);
     }
+  }
+  if (body.note !== undefined) {
+    vals.push(optionalTrimmed(body.note, "note") ?? null);
+    sets.push(`note = $${vals.length}`);
+  }
+  if (body.occurredAt !== undefined) {
+    // 与 POST /api/transactions 同校验口径（web 编辑表单/小程序 TxForm 都发该字段，旧版被静默丢弃）：
+    // 不可解析时刻拦 400，避免脏值穿透 timestamptz cast 500
+    if (typeof body.occurredAt !== "string" || !isParsableMoment(body.occurredAt)) {
+      throw ApiError.badRequest("时间格式不正确");
+    }
+    vals.push(new Date(body.occurredAt).toISOString());
+    sets.push(`occurred_at = $${vals.length}`);
   }
   if (body.confirm === true) {
     vals.push(false);

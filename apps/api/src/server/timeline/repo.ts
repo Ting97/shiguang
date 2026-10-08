@@ -41,14 +41,23 @@ export const entriesRepo = {
     return client.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1 and status = 'pending'`, [recId]);
   },
   /** 子表清空（confirm/edit 重写前、DELETE 前共用；顺序即依赖顺序） */
-  async clearDerived(client: import("pg").PoolClient | typeof pool, entryId: string, userId: string) {
+  async clearDerived(client: import("pg").PoolClient, entryId: string, userId: string) {
+    // 拆解行动挂在本条动态的识别待办下（parent_todo_id on delete cascade）且自身无 entry_id：
+    // 删识别待办前先解挂（parent 置 null），用户手动/AI 拆解加的行动保留，不随识别重写连带清掉
+    await client.query(
+      `update todos set parent_todo_id = null
+       where parent_todo_id in (select id from todos where entry_id = $1 and user_id = $2)`,
+      [entryId, userId],
+    );
     for (const t of ["interactions", "transactions", "todos", "time_blocks", "diet_records", "entry_recognitions"]) {
       await client.query(`delete from ${t} where entry_id = $1 and user_id = $2`, [entryId, userId]);
     }
   },
   editRawText(client: import("pg").PoolClient, entryId: string, userId: string, text: string) {
+    // analyze_retries 同句归零：编辑=新一轮识别（analyzed_at 置 null 触发重识别），
+    // 不清零时巡检按旧失败代次的预算拒绝补跑，新文本识别失败后永远没有重试机会
     return client.query(
-      `update entries set raw_text = $1, mood = null, mood_score = null, analyzed_at = null
+      `update entries set raw_text = $1, mood = null, mood_score = null, analyzed_at = null, analyze_retries = 0
        where id = $2 and user_id = $3 returning id, raw_text, analyzed_at`,
       [text, entryId, userId],
     );

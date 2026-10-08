@@ -60,7 +60,7 @@ export function InteractionFormModal({
               取消
             </button>
             <button
-              disabled={busy}
+              disabled={busy || !summary.trim()} // 空摘要提交会被服务端拒：按钮态先行禁用
               onClick={async () => {
                 setBusy(true);
                 setErr(null);

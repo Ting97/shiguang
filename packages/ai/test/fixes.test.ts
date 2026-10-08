@@ -335,6 +335,18 @@ test("心情否定词：「不开心」不再判成 开心+60（GLM 熔断时规
   assert.deepEqual(ruleMood("不开心，但是完成项目很快乐"), { label: "开心", score: 60 });
 });
 
+/* ---- 回归10：程度副词不触发否定（「特别」以 别$ 误落否定窗口 → 疲惫/开心规则被整条跳过） ---- */
+
+test("心情程度副词：「特别累/特别开心/格外烦」是本义不是否定", () => {
+  assert.deepEqual(ruleMood("今天特别累"), { label: "疲惫", score: -40 });
+  assert.deepEqual(ruleMood("今天特别开心"), { label: "开心", score: 60 });
+  assert.deepEqual(ruleMood("特别高兴"), { label: "开心", score: 60 });
+  assert.deepEqual(ruleMood("格外烦躁"), { label: "烦躁", score: -60 });
+  // 真否定不受白名单影响
+  assert.deepEqual(ruleMood("别难过"), null);
+  assert.deepEqual(ruleMood("今天不开心"), null);
+});
+
 test("cnToNumber：口语省「十」（一百二=120 而非 102），标准写法回归", () => {
   assert.equal(cnToNumber("一百二"), 120);
   assert.equal(cnToNumber("二百五"), 250);

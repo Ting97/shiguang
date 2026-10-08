@@ -65,9 +65,10 @@ export const POST = withAuth(async (req, { user }) => {
   }
 
   // body 上限前置预检（15MB 音频 + multipart 开销余量）：formData() 全量缓冲进内存，先拦超大 body。
-  // 缺 content-length（chunked）同样拒绝——内存防线不能依赖客户端自觉报长度
-  const declared = Number(req.headers.get("content-length") ?? "");
-  if (!Number.isFinite(declared) || declared > 20 * 1024 * 1024) {
+  // 缺 content-length（chunked）同样拒绝——Number("")=0 会放行，内存防线不能依赖客户端自觉报长度
+  //（与 images 通道同口径：缺头/非数字/超限一律 400）
+  const declared = req.headers.get("content-length");
+  if (declared === null || !Number.isFinite(Number(declared)) || Number(declared) > 20 * 1024 * 1024) {
     return NextResponse.json({ error: "音频太长（上限 15MB）" }, { status: 400 });
   }
   const form = await req.formData().catch(() => null);

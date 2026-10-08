@@ -45,6 +45,13 @@ async function isBusinessEmpty(userId: string): Promise<boolean> {
       + (select count(*) from public.contacts where user_id = $1)
       + (select count(*) from public.goal_spaces where user_id = $1)
       + (select count(*) from public.space_reflections where user_id = $1)
+      + (select count(*) from public.liabilities where user_id = $1)
+      + (select count(*) from public.liability_payments where user_id = $1)
+      + (select count(*) from public.accounts where user_id = $1)
+      + (select count(*) from public.trades where user_id = $1)
+      + (select count(*) from public.trade_accounts where user_id = $1)
+      + (select count(*) from public.budgets where user_id = $1)
+      + (select count(*) from public.interactions where user_id = $1)
       )::int as n`,
       [userId],
     );
@@ -191,11 +198,17 @@ export async function bindSessionForceCurrent(input: { code: string; userId: str
         [owner.rows[0].id],
       );
     }
-    await client.query(
+    // 守卫：与 bindSessionByWechat 同款——本账号已绑定其他微信时拒绝静默改绑
+    //（冲突对话框打开到确认之间，本账号可能又绑上了别的微信）
+    const bound = await client.query(
       `update profiles set wechat_openid = $1, wechat_unionid = coalesce($2, wechat_unionid), last_login_at = now()
-       where id = $3`,
+       where id = $3 and (wechat_openid is null or wechat_openid = $1) returning id`,
       [openid, unionid, input.userId],
     );
+    if (!bound.rows[0]) {
+      await client.query("rollback");
+      throw ApiError.conflict("当前账号已绑定其他微信，请先解绑后再绑定");
+    }
     await client.query("commit");
     return { ok: true as const };
   } catch (e) {

@@ -194,7 +194,8 @@ function ruleExtract(text: string, contactNames?: string[], now: Date = new Date
       applicable: dietHit,
       meal: /夜宵|宵夜/.test(text) ? "夜宵" : /加餐|下午茶/.test(text) ? "加餐" : /早/.test(text) ? "早餐" : /午饭|中午/.test(text) ? "午餐" : /晚/.test(text) ? "晚餐" : "未知",
       items: dietHit
-        ? (recoverDietItemsFromText(text) ?? [{ name: text.slice(0, 12), amount: null, kcal: null }])
+        // 码点级截断（同 makeTitle）：UTF-16 码元 slice 会把骑边界的 emoji 切成孤代理对（落库变 U+FFFD）
+        ? (recoverDietItemsFromText(text) ?? [{ name: Array.from(text).slice(0, 12).join(""), amount: null, kcal: null }])
         : [],
       totalKcal: null,
       confidence: dietHit ? 0.6 : 0.5,

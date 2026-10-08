@@ -70,7 +70,15 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   const [pType, setPType] = useState("见面");
 
   function openManual(key: SixKey) {
-    setManualDomain(key === manualDomain ? null : key);
+    if (key === manualDomain) {
+      setManualDomain(null);
+      return;
+    }
+    // text/yuan/mood 是多域共享的草稿：切域即重置，避免「饮食域输入串到 todo/关系域」（提交后重置只覆盖成功路径）
+    setManualDomain(key);
+    setText("");
+    setYuan("");
+    setMood("");
   }
 
   async function submitManual(key: SixKey) {

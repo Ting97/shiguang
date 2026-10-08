@@ -85,6 +85,8 @@ export default function ReviewCard({
 
   async function generate() {
     if (busy) return;
+    // 无记录周期不给生成：按钮只是视觉置灰（View 无 disabled），守卫拦住才能避免白烧一次 AI 配额
+    if (!hasRecords) return;
     setBusy(true);
     try {
       // 已有小结（含上次持久化的）时 refresh:true 强制刷新（= web 重新生成语义）

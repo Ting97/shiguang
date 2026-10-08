@@ -54,7 +54,6 @@ export const POST = withModule("trade_review", async (req, { user }) => {
     return NextResponse.json({ error: "date 需为真实存在的 YYYY-MM-DD 日期" }, { status: 400 });
   }
   const anchor = date ?? bjToday();
-  if (!hasApiKey()) return NextResponse.json({ error: "未配置 AI 服务" }, { status: 503 });
 
   const from = bjMondayOf(anchor);
   const to = bjAddDays(from, 6);
@@ -156,13 +155,15 @@ export const POST = withModule("trade_review", async (req, { user }) => {
   let result;
   try {
     result = await getOrGenerateReview(user.id, "trade_week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
-      // 全局 AI 配额门禁在生成回调内（与 day/week/month/year 同口径）：缓存命中不拦，只拦真正生成
+      // 额度/KEY 门禁在生成回调内（与 day/week/month/year 同口径）：缓存命中不拦，
+      // 无 KEY/额度用尽的用户也能读到已生成的周报，只拦真正生成
       if (user.role !== "admin") {
         const q = await checkAiQuota(user.id);
         if (!q.allowed) {
           throw new ReviewGateError(`AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`);
         }
       }
+      if (!hasApiKey()) throw new ReviewGateError("未配置 AI 服务");
       await acquireGeneration(user.id, "trade_week", from, latest ? new Date(latest) : null);
       try {
         const parsed = await chatReviewJson<Partial<WeekReview>>({
@@ -172,11 +173,15 @@ export const POST = withModule("trade_review", async (req, { user }) => {
           timeoutMs: 45_000,
           onUsage: capture,
         });
-        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
+        // GLM 偶发把全角引号吐进数组元素，页面渲染出 `","` 残渣——字符串统一剥引号
+        const arr = (v: unknown, n: number) =>
+          Array.isArray(v)
+            ? v.map((x) => String(x).replace(/["“”„]/g, "").slice(0, 34)).filter(Boolean).slice(0, n)
+            : [];
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().slice(0, 120)
+              ? parsed.summary.trim().replace(/["“”„]/g, "").slice(0, 120)
               : "本周流水还很少，多记几笔再来复盘会更有料",
           highlights: arr(parsed.highlights, 3),
           suggestions: arr(parsed.suggestions, 2),

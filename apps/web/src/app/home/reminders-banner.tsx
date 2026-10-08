@@ -17,12 +17,15 @@ export default function RemindersBanner({
     <Reminders
       items={items}
       onMarkToday={async (todoId, label) => {
+        // 返回成功与否给 Reminders 做乐观置位回滚（失败时恢复「今日」按钮可点）
         try {
           await api(`/api/todos/${todoId}`, "PATCH", { today: true });
           toast(`☀️ 已加入今日 todo`);
           await load();
+          return true;
         } catch {
           toast(`加入今日失败（${label.slice(0, 20)}…）`, "err");
+          return false;
         }
       }}
     />

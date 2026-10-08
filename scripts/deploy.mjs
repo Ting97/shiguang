@@ -122,10 +122,25 @@ try {
 if (active !== "active") rollback(`服务状态异常：${active}`);
 
 console.log("[deploy] 冒烟 …");
-const health = sh("curl -s -m 10 https://shiguang.ting97.cn/api/health", { quiet: true });
-const loginCode = sh("curl -s -o /dev/null -w '%{http_code}' -m 10 https://shiguang.ting97.cn/login", { quiet: true });
-if (!health.includes('"ok":true') || loginCode !== "200") {
-  rollback(`冒烟失败：health=${health.slice(0, 80)} login=${loginCode}`);
+// 冷启动就绪可能慢于 sleep 3：单次 curl 失败即回滚会误杀好版本——各最多探 3 次（间隔 3s），任一次成功即过
+async function smoke(label, cmd, check) {
+  let last = "";
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      last = sh(cmd, { quiet: true });
+    } catch (e) {
+      last = String(e.message).slice(0, 80); // curl 连接失败/超时非零退出会让 execSync 抛错，视为该次未过
+    }
+    if (check(last)) return { ok: true, out: last };
+    console.log(`[deploy] 冒烟第 ${attempt}/3 次未过（${label}）${attempt < 3 ? "，3s 后重试" : ""}`);
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 3000));
+  }
+  return { ok: false, out: last };
+}
+const health = await smoke("health", "curl -s -m 10 https://shiguang.ting97.cn/api/health", (o) => o.includes('"ok":true'));
+const login = await smoke("login", "curl -s -o /dev/null -w '%{http_code}' -m 10 https://shiguang.ting97.cn/login", (o) => o === "200");
+if (!health.ok || !login.ok) {
+  rollback(`冒烟失败：health=${health.out.slice(0, 80)} login=${login.out}`);
 }
 const rev = sh("git log --oneline -1", { quiet: true });
 console.log(`[deploy] ✓ 完成：health ok，login 200，当前代码 ${rev}`);

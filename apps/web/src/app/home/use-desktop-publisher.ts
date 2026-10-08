@@ -87,18 +87,29 @@ export function useDesktopPublisher({ setMsg, load }: { setMsg: Notify; load: ()
   async function uploadAfterPublish(entryId: string, files: File[]) {
     lastEntryId.current = entryId;
     if (!files.length) return;
-    setDesktopImages((prev) => prev.map((i) => ({ ...i, status: "uploading" as const })));
+    // 只操作本次提交的 files 对应项（按 File 引用比对）：列表里残留的旧 error 项不属于本批，
+    // 不能卷入——否则被标 uploading 后又被下方 failedSet 过滤掉而静默丢弃，用户失去重试入口
+    const fileSet = new Set(files);
+    setDesktopImages((prev) =>
+      prev.map((i) => (fileSet.has(i.file) ? { ...i, status: "uploading" as const } : i)),
+    );
     const { failed } = await uploadImages(entryId, files);
     if (failed.length) {
       const failedSet = new Set(failed);
       setDesktopImages((prev) =>
-        prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })),
+        // 本批已成功的移除、失败的标回 error；旧 error 项原样保留待用户重试
+        prev
+          .filter((i) => !fileSet.has(i.file) || failedSet.has(i.file))
+          .map((i) => (fileSet.has(i.file) ? { ...i, status: "error" as const } : i)),
       );
       setMsg({ ok: false, text: "动态已发布；部分图片上传失败，点缩略图上的「↻ 重试」" });
     } else {
       setDesktopImages((prev) => {
-        prev.forEach((i) => URL.revokeObjectURL(i.url));
-        return [];
+        // 只回收本批项的 blob URL，旧 error 项仍在展示中不能 revoke
+        prev.forEach((i) => {
+          if (fileSet.has(i.file)) URL.revokeObjectURL(i.url);
+        });
+        return prev.filter((i) => !fileSet.has(i.file));
       });
       setMsg({ ok: true, text: "✨ 动态与图片已发布，AI 正在识别…" });
     }

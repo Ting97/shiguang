@@ -196,29 +196,35 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
         <Text className="at-loading">加载中…</Text>
       ) : (
         <>
-          {/* 添加行动行（回车即建，默认标记今日） */}
-          <View className="at-add">
-            <View className="at-add-circle" />
-            <Input
-              className="at-add-input"
-              value={newTitle}
-              maxlength={200}
-              placeholder="添加行动，回车保存"
-              placeholderClass="input-placeholder"
-              confirmType="done"
-              onConfirm={() => void addAction()}
-              onInput={(e) => setNewTitle(e.detail.value)}
-            />
-            {newTitle.trim() ? (
-              <View className={`btn-primary at-add-btn${adding ? " disabled" : ""}`} hoverClass="press" hoverStayTime={80} onTap={() => void addAction()}>
-                <Text className="at-add-btn-text">{adding ? "保存中…" : "添加"}</Text>
-              </View>
-            ) : null}
-          </View>
+          {/* 添加行动行（回车即建，默认标记今日）；游客/未登录无写通道，隐藏避免诱导输入（清单只读） */}
+          {getSessionToken() ? (
+            <View className="at-add">
+              <View className="at-add-circle" />
+              <Input
+                className="at-add-input"
+                value={newTitle}
+                maxlength={200}
+                placeholder="添加行动，回车保存"
+                placeholderClass="input-placeholder"
+                confirmType="done"
+                onConfirm={() => void addAction()}
+                onInput={(e) => setNewTitle(e.detail.value)}
+              />
+              {newTitle.trim() ? (
+                <View className={`btn-primary at-add-btn${adding ? " disabled" : ""}`} hoverClass="press" hoverStayTime={80} onTap={() => void addAction()}>
+                  <Text className="at-add-btn-text">{adding ? "保存中…" : "添加"}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {pending.length === 0 && done.length === 0 ? (
             <View className="at-empty">
-              <Text>今天还没有行动 —— 在上面直接添加一条（自动标记今日 ☀️），或在 todo 里 ✨ 拆解出可执行的行动</Text>
+              <Text>
+                {getSessionToken()
+                  ? "今天还没有行动 —— 在上面直接添加一条（自动标记今日 ☀️），或在 todo 里 ✨ 拆解出可执行的行动"
+                  : "登录后开始记录你的一天"}
+              </Text>
             </View>
           ) : (
             <>

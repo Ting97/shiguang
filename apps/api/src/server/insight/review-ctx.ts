@@ -93,6 +93,7 @@ export async function buildReviewCtx(
   const entryCap = cfg.caps.entryCap ?? 0;
   const blockCap = cfg.caps.blockCap ?? 0;
   const todoCap = cfg.caps.todoCap ?? 0;
+  const entryLimitInSql = kind !== "year" && entryCap > 0;
 
   // ---- 聚合 + 明细并行取数（注入关闭的明细不取数；cap>0 下沉 SQL LIMIT）----
   const [timeRows, todoRows, txRows, interactRows, kcalRows, entryRows, subRows, rawEntryRows, blockRows, todoListRows, entryCountRows, blockCountRows, todoCountRows] =
@@ -124,8 +125,8 @@ export async function buildReviewCtx(
       pool.query(
         `select c.name, count(*)::int as n from interactions i join contacts c on c.id = i.contact_id
          where i.user_id = $1 and (i.occurred_at at time zone $2)::date between $3::date and $4::date
-         group by 1 order by n desc limit ${kind === "day" ? 5 : 3}`,
-        baseParams,
+         group by 1 order by n desc limit $5::int`,
+        [...baseParams, kind === "day" ? 5 : 3],
       ),
       // day 独有：饮食总热量事实行
       kind === "day"
@@ -146,12 +147,13 @@ export async function buildReviewCtx(
       ),
       buildSubRows(userId, kind, from, to),
       // 原始明细：year 全量取回（抽样与总数需要）；其余按 cap LIMIT；注入关闭则不查
+      //   占位符与参数必须同条件收放：year 不带 limit $5，参数也须停在 4 个（否则 bind 数失配 500）
       cfg.inject.entryDetail
         ? pool.query(
             `select raw_text, mood, mood_score, created_at from entries
              where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
-             order by created_at${kind !== "year" && entryCap > 0 ? ` limit $5::int` : ""}`,
-            entryCap > 0 ? [...baseParams, entryCap] : baseParams,
+             order by created_at${entryLimitInSql ? ` limit $5::int` : ""}`,
+            entryLimitInSql ? [...baseParams, entryCap] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       cfg.inject.blockDetail
@@ -316,7 +318,10 @@ async function buildProfileCtxValue(userId: string): Promise<string> {
   return profile ? `该用户的已知画像（供理解参考，不要复述）：\n${profile}` : "";
 }
 
-/** 数据最近变动时刻（day/week/month 用 from–to 区间；year 按自然年字段匹配，与原实现一致） */
+/** 数据最近变动时刻（day/week/month 用 from–to 区间；year 按自然年字段匹配，与原实现一致）。
+ *  未来日期的记录（预记的交易/往来、计划块）不算「数据变动」——否则缓存新鲜度恒不过，
+ *  每次查看都重新生成（REQ-034 在 time_blocks 上修过的同类问题，此处对 occurred_at 同口径钳到 now()；
+ *  entries.created_at / todos.done_at 为服务端完成时刻，天然不会落在未来）。 */
 async function buildLatest(userId: string, kind: ReviewContentKind, period: ReviewPeriod): Promise<Date | null> {
   if (kind !== "day" && kind !== "week" && kind !== "month") {
     const year = Number(period.year ?? new Date(Date.now() + 8 * 3600_000).getUTCFullYear());
@@ -326,13 +331,13 @@ async function buildLatest(userId: string, kind: ReviewContentKind, period: Revi
     const to = `${year + 1}-01-01T00:00:00+08:00`;
     const { rows } = await pool.query(
       `select greatest(
-         (select max(created_at) from entries where user_id = $1 and created_at >= $3::timestamptz and created_at < $4::timestamptz),
-         (select max(done_at) from todos where user_id = $1 and status = 'done' and done_at >= $3::timestamptz and done_at < $4::timestamptz),
-         (select max(occurred_at) from transactions where user_id = $1 and occurred_at >= $3::timestamptz and occurred_at < $4::timestamptz),
-         (select max(start_at) from time_blocks where user_id = $1 and start_at >= $3::timestamptz and start_at < $4::timestamptz and start_at <= now()),
-         (select max(occurred_at) from interactions where user_id = $1 and occurred_at >= $3::timestamptz and occurred_at < $4::timestamptz)
+         (select max(created_at) from entries where user_id = $1 and created_at >= $2::timestamptz and created_at < $3::timestamptz),
+         (select max(done_at) from todos where user_id = $1 and status = 'done' and done_at >= $2::timestamptz and done_at < $3::timestamptz),
+         (select max(occurred_at) from transactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz and occurred_at <= now()),
+         (select max(start_at) from time_blocks where user_id = $1 and start_at >= $2::timestamptz and start_at < $3::timestamptz and start_at <= now()),
+         (select max(occurred_at) from interactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz and occurred_at <= now())
        ) as latest`,
-      [userId, TZ, from, to],
+      [userId, from, to],
     );
     return (rows[0]?.latest as Date | null) ?? null;
   }
@@ -356,9 +361,9 @@ async function buildLatest(userId: string, kind: ReviewContentKind, period: Revi
     `select greatest(
        (select max(created_at) from entries where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date),
        (select max(done_at) from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date),
-       (select max(occurred_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date),
+       (select max(occurred_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date and occurred_at <= now()),
        (select max(start_at) from time_blocks where user_id = $1 and (start_at at time zone $2)::date between $3::date and $4::date and start_at <= now()),
-       (select max(occurred_at) from interactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date)
+       (select max(occurred_at) from interactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date and occurred_at <= now())
      ) as latest`,
     [userId, TZ, from, to],
   );

@@ -151,7 +151,10 @@ export function PaymentForm({
   async function save() {
     if (busy || !amount) return;
     const cents = Math.round(parseFloat(amount) * 100);
-    if (!Number.isFinite(cents) || cents <= 0) return;
+    if (!Number.isFinite(cents) || cents <= 0) {
+      onError("金额需大于 0"); // 0/负数/非数静默早退会让人以为已还款
+      return;
+    }
     setBusy(true);
     try {
       const r = await api(`/api/debts/${debt.id}/payments`, "POST", {
@@ -200,7 +203,7 @@ export function PaymentForm({
         <button type="button" onClick={onCancel} className="rounded-lg px-4 py-1.5 text-xs text-ink-mute hover:bg-soft">取消</button>
         <button
           type="submit"
-          disabled={busy || !amount}
+          disabled={busy || !amount || Number(amount) <= 0}
           className="btn-primary rounded-lg px-5 py-1.5 text-xs font-medium disabled:opacity-40"
         >
           {busy ? "保存中…" : "确认还款"}

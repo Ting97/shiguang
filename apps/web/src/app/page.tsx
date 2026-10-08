@@ -250,11 +250,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* 今日行动清单：只展示行动级条目（每日重复 ∪ 父 todo 今日/今日到期），完整管理在「日程 · todo」 */}
-        {/* 今日行动：移动端顶部内联；桌面端收纳为右上角触发钮 + 弹出面板（见下方） */}
-        <div className="lg:hidden">
-          <ActionsToday notify={forwardMsg} />
-        </div>
+        {/* 今日行动：移动端顶部内联；桌面端收纳为右上角触发钮 + 弹出面板（见下方）。
+            按断点二选一挂载：恒挂 lg:hidden 会与桌面弹层并存两个实例（双份请求、双份 toast） */}
+        {!isDesktop && <ActionsToday notify={forwardMsg} />}
 
         {/* 动态流顶部锚点：发布后视口定位到这（新动态即列表首位） */}
         <div ref={feedTopRef} className="scroll-mt-24" aria-hidden />
