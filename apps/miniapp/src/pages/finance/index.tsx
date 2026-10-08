@@ -3,8 +3,6 @@
  * 结构：hero → pill 二级导航(📊概览/🏦负债/📈收支复盘/🎯交易) → 月份导航+导入/记一笔 →
  * 草稿提醒条 → 概览大卡(三项统计/储蓄率趋势/预算/分类占比) → 账户卡 → 待确认区 → 流水列表 → footer。
  * 与 web 的差异（小程序约束）：
- * - 「📥导入账单」只渲染按钮，点击提示用 web 端（web BillImport 用 FileReader 客户端解析 CSV/GBK，
- *   小程序无文件选择与编码转换能力，无法对齐）；
  * - 行内编辑/弹窗统一改为底部 sheet（web 桌面居中 Modal 的移动端形态即底部弹层）；
  * - 流水行操作钮（✏️/🗑）常显：web 靠 hover 显示，触屏无 hover，藏起来功能就不可达了。
  */
@@ -12,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Input, Button, Picker } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
-import BillImport from "./bill-import";
+import PageFooter from "@/components/page-footer";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { confirmTx, bjMonth, fetchMe, yuan } from "@/lib/api";
@@ -586,7 +584,6 @@ export default function Finance() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [modules, setModules] = useState<string[] | null>(null);
   const [adding, setAdding] = useState(false);
-  const [importing, setImporting] = useState(false); // 账单 CSV 导入弹层（= web BillImport）
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [editing, setEditing] = useState<FinTx | null>(null);
@@ -740,15 +737,6 @@ export default function Finance() {
           </View>
         </View>
         <View className="fin-toolbar-acts">
-          {/* 账单 CSV 导入（= web BillImport；文件从聊天记录选，base64 上送服务端解码解析） */}
-          <View
-            className="btn-sky-tinted fin-btn-import ico-row"
-            hoverClass="press"
-            onTap={() => setImporting(true)}
-          >
-            <LucideIcon name="download" size={13} color="currentColor" />
-            <Text>导入账单</Text>
-          </View>
           <Button className="btn-primary fin-btn-add ico-row" hoverClass="press" onClick={() => setAdding(true)}>
             <LucideIcon name="plus" size={13} color="currentColor" />
             <Text>记一笔</Text>
@@ -972,7 +960,7 @@ export default function Finance() {
             ))}
           </View>
 
-          <Text className="fin-footer">拾光 · 财务模块 v1 · 流水仅作记录与月度统计，不影响账户余额（余额在「管理」中维护）</Text>
+          <Text className="fin-footer">流水仅作记录与月度统计，不影响账户余额（余额在「管理」中维护）</Text>
         </>
       )}
 
@@ -1048,14 +1036,8 @@ export default function Finance() {
           />
         </View>
       )}
-
-      {/* 账单 CSV 导入弹层（= web BillImport；导入成功后刷新当月数据） */}
-      {importing && (
-        <BillImport
-          onClose={() => setImporting(false)}
-          onImported={() => void load()}
-        />
-      )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="wallet" label="财务" />
     </PageShell>
   );
 }

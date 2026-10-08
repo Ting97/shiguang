@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { bjToday, fetchMe, yuan } from "@/lib/api";
@@ -258,6 +259,7 @@ export default function ReviewPage() {
     return (
       <PageShell active="finance">
         <ModuleLocked title="收支复盘" desc="该模块由管理员授权后开放，可联系管理员开通。" />
+        <PageFooter icon="bar_chart_3" label="收支复盘" />
       </PageShell>
     );
   }
@@ -497,6 +499,8 @@ export default function ReviewPage() {
           <Text className="fin-footer">拾光 · 收支复盘 · 统计零 AI 消耗，周报走 AI 配额</Text>
         </>
       )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="bar_chart_3" label="收支复盘" />
     </PageShell>
   );
 }

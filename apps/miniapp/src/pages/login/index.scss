@@ -194,3 +194,11 @@
   font-size: 24px;
   color: var(--ink-soft);
 }
+
+/* 协议勾选行（REQ-登录页协议）：与 bind-check 同构，置于登录按钮上方 */
+.agree-check {
+  margin-bottom: 20px;
+}
+.agree-link {
+  color: var(--accent);
+}

@@ -6,6 +6,8 @@ export default defineAppConfig({
     "pages/profile/index",
     "pages/login/index",
     "pages/bind/index",
+    "pages/agreement/index",
+    "pages/manual/index",
   ],
   subPackages: [
     { root: "packages/space", pages: ["list/index", "detail/index"] },

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Input, Picker, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh, useReachBottom, useShareAppMessage } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import LucideIcon from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { parseText } from "@/lib/api";
@@ -422,7 +423,15 @@ export default function Feed() {
                         {/* 记录时刻：移动端窄屏置于卡片上方（= web sm:hidden 时刻行） */}
                         <Text className="mf-clock">{t.clock}</Text>
                         <View className="mf-card">
-                          <MomentCard m={m} activities={activities} onRefresh={loadVoid} />
+                          {/* 卡内增删后除整页刷新外还要 bump actionsKey：今日行动清单联动重拉 */}
+                          <MomentCard
+                            m={m}
+                            activities={activities}
+                            onRefresh={() => {
+                              void loadVoid();
+                              setActionsKey((k) => k + 1);
+                            }}
+                          />
                         </View>
                       </View>
                     );
@@ -446,8 +455,6 @@ export default function Feed() {
       {/* 今日日程：时间轴 / 列表 双视图 */}
       <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
 
-      {/* = web footer */}
-      <Text className="feed-footer">拾光 · 第一阶段开发中 · 源码仓库 github.com/Ting97/shiguang</Text>
 
       {/* 移动端发布入口：底部悬浮圆圈（点按打字 / 长按说话，转写后回填面板预览；反馈统一 toast） */}
       <CaptureButton
@@ -467,6 +474,8 @@ export default function Feed() {
         onPublish={publish}
         onClose={() => setSheetOpen(false)}
       />
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="sparkles" label="动态" />
     </PageShell>
   );
 }

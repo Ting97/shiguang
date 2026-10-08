@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import { getSessionToken } from "@/lib/session";
 import ReviewCard from "@/pages/schedule/review-card";
 import { loadBlocksRange, loadStatsRange } from "./api";
@@ -199,6 +200,8 @@ export default function CalendarReviewPage() {
           />
         )}
       </View>
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="calendar_days" label="日历" />
     </PageShell>
   );
 }

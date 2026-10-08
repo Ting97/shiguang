@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Input, Button, Picker, Slider } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { fetchMe, yuan } from "@/lib/api";
@@ -495,6 +496,7 @@ export default function DebtPage() {
     return (
       <PageShell active="finance">
         <ModuleLocked title="负债管理" desc="该模块由管理员授权后开放，可联系管理员开通。" />
+        <PageFooter icon="landmark" label="负债" />
       </PageShell>
     );
   }
@@ -1009,6 +1011,8 @@ export default function DebtPage() {
           />
         </View>
       )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="landmark" label="负债" />
     </PageShell>
   );
 }

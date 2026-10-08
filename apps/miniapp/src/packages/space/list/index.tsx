@@ -10,6 +10,7 @@ import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components"
 import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import { showToast } from "@/components/toast";
 import { loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -261,7 +262,7 @@ export default function SpaceListPage() {
                       </View>
                     )}
                     <Text className="sp-meta">
-                      {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态
+                      {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态 · 感悟 {s.reflection_count ?? 0}
                       {days != null ? ` · 第 ${days} 天` : ""}
                       {s.target_date ? ` · ⏳ ${bjDate(s.target_date).slice(5)}` : ""}
                     </Text>
@@ -317,13 +318,8 @@ export default function SpaceListPage() {
         </View>
       )}
 
-      {/* 页脚徽章（= web spaces/page.tsx footer：TagChip violet sm「拾光 · 目标空间」） */}
-      <View className="sp-foot">
-        <View className="chip sp-foot-chip">
-          <LucideIcon name="target" size={12} color="var(--ai)" />
-          <Text>拾光 · 目标空间</Text>
-        </View>
-      </View>
+      {/* 页脚徽章（REQ-全站页脚徽章，= web spaces footer 的共享组件形态） */}
+      <PageFooter icon="target" label="目标空间" />
 
       {/* 新建/编辑弹层（web 移动端=居中弹层 inset-x-4 top-1/2，非底部 sheet） */}
       {editing && (
@@ -476,6 +472,8 @@ export default function SpaceListPage() {
           </View>
         </View>
       )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="target" label="目标空间" />
     </PageShell>
   );
 }

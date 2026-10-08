@@ -1,0 +1,69 @@
+/* 使用手册页（= 协议页的独立容器 + 图标章节卡） */
+.manual-screen {
+  min-height: 100vh;
+}
+.manual-col {
+  padding: 24px 32px calc(60px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+.manual-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+  position: relative;
+}
+.manual-back {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.manual-title {
+  font-size: 34px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.manual-sub {
+  margin-top: 8px;
+  font-size: 22px;
+  color: var(--ink-faint);
+}
+.manual-sec {
+  margin-bottom: 24px;
+}
+.manual-sec-h {
+  margin-bottom: 12px;
+  gap: 10px;
+}
+.manual-sec-h-text {
+  font-size: 27px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.manual-row {
+  display: block;
+  font-size: 24px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+  margin-bottom: 10px;
+}
+.manual-foot-wrap {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+.manual-foot-chip {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--ai);
+  font-size: 20px;
+  padding: 4px 12px;
+  gap: 6px;
+}

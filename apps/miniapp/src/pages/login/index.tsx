@@ -27,6 +27,8 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false); // 明文切换
   // 密码登录成功后是否同时把当前微信绑到该账号（REQ-绑定已有账户）：默认开，可取消
   const [bindWx, setBindWx] = useState(true);
+  // 协议勾选（REQ-登录页协议）：未勾选拦截登录动作，游客模式不拦截
+  const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [wxErr, setWxErr] = useState<string | null>(null);
   // 绑定冲突（REQ-账号数据保留选择）：409 概览 → 弹「保留哪份数据」
@@ -55,6 +57,11 @@ export default function Login() {
    */
   async function wxLogin() {
     if (busy) return;
+    if (!agreed) {
+      showToast({ type: "err", text: "请先阅读并勾选同意《用户服务协议》与《隐私政策》" });
+      return;
+    }
+
     setBusy(true);
     setWxErr(null);
     try {
@@ -107,6 +114,10 @@ export default function Login() {
 
   async function submit() {
     if (busy) return;
+    if (!agreed) {
+      showToast({ type: "err", text: "请先阅读并勾选同意《用户服务协议》与《隐私政策》" });
+      return;
+    }
     const email = account.includes("@");
     if (email ? !EMAIL_RE.test(account) : !PHONE_RE.test(account)) {
       showToast({ type: "err", text: email ? "请填写正确的邮箱地址" : "请填写正确的手机号" });
@@ -170,6 +181,32 @@ export default function Login() {
 
         {/* ---- 表单卡 = web glass rounded-2xl p-5 ---- */}
         <View className="glass glass-p5">
+          {/* 协议勾选（REQ-登录页协议）：未勾选拦截两个登录入口；书名号可点开协议全文 */}
+          <View className="bind-check agree-check" hoverClass="press" hoverStayTime={80} onClick={() => setAgreed((v) => !v)}>
+            <View className={`check-box${agreed ? " check-on" : ""}`} />
+            <Text className="bind-check-text">
+              已阅读并同意
+              <Text
+                className="agree-link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  Taro.navigateTo({ url: "/pages/agreement/index?doc=service" });
+                }}
+              >
+                《用户服务协议》
+              </Text>
+              与
+              <Text
+                className="agree-link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  Taro.navigateTo({ url: "/pages/agreement/index?doc=privacy" });
+                }}
+              >
+                《隐私政策》
+              </Text>
+            </Text>
+          </View>
           {/* 微信一键登录主按钮（保持 web 主按钮渐变，非微信绿）；含用户授权弹窗 */}
           <Button
             className={`btn-primary submit-btn wx-btn${busy ? " disabled" : ""}`}
@@ -184,7 +221,6 @@ export default function Login() {
           {/未配置|503|通道/.test(wxErr ?? "") && (
             <Text className="hint wx-hint">服务端未配置微信通道，可先用下方方式登录</Text>
           )}
-          <Text className="hint wx-hint">登录即同意创建账号，无需绑定手机号，昵称可在「我的」中修改</Text>
 
           {/* 分隔线：上为微信登录、下为 web 同款账号表单 */}
           <View className="alt-divider">

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { getSessionToken } from "@/lib/session";
 import CalendarPanel from "./calendar-panel";
@@ -112,6 +113,8 @@ export default function Schedule() {
           <ActivityPanel refreshTick={refreshTick} />
         </View>
       )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="calendar_days" label="日程" />
     </PageShell>
   );
 }

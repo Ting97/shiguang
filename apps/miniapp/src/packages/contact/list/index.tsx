@@ -10,6 +10,7 @@ import { View, Text, Input, Button } from "@tarojs/components";
 import LucideIcon from "@/components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import { showToast } from "@/components/toast";
 import { loadContacts, yuan } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -260,9 +261,8 @@ export default function ContactListPage() {
         />
       )}
 
-      <View className="ct-foot">
-        <Text className="ct-foot-text">拾光 · 人际模块 v2 · 语音提及自动建档</Text>
-      </View>
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="users" label="人际" />
     </PageShell>
   );
 }

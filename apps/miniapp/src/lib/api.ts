@@ -168,30 +168,6 @@ export function confirmTx(id: string) {
   return request(`/api/transactions/${id}`, { method: "PATCH", body: { confirm: true } });
 }
 
-/* ---------- 账单 CSV 导入（= web bill-import；解析/去重/分类全在服务端） ---------- */
-
-export interface ImportPreview {
-  platform: "alipay" | "wechat";
-  total: number;
-  importable: number;
-  batchDup: number;
-  dbDup: number;
-  skipped: number;
-  skipSummary: Record<string, number>;
-  categories: Record<string, number>;
-  outCents: number;
-  inCents: number;
-  sample?: { occurredAt: string; direction: string; amountCents: number; category: string; counterparty: string | null }[];
-}
-
-/** dryRun=true 预览；false 导入（流水只作记录不挂账户）。base64=文件原样（服务端 UTF-8/GBK 解码） */
-export function importBill(payload: { text?: string; base64?: string; dryRun: boolean }) {
-  return request<ImportPreview & { imported?: number; message?: string }>("/api/transactions/import", {
-    method: "POST",
-    body: payload,
-  });
-}
-
 export interface DebtRow {
   id: string;
   name: string;

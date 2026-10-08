@@ -1412,3 +1412,11 @@
   font-size: 28px;
   font-weight: 600;
 }
+
+/* 今日行动标题行右侧：规划链接 + 折叠箭头（整行点按折叠） */
+.at-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}

@@ -1,0 +1,61 @@
+/* 协议页（= 登录页的 NAVLESS 独立容器 + 结构化条款卡） */
+.agreement-screen {
+  min-height: 100vh;
+}
+.agree-col {
+  padding: 24px 32px calc(60px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+.agree-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+  position: relative;
+}
+.agree-back {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 24px;
+  color: var(--ink-dim);
+}
+.agree-title {
+  font-size: 34px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.agree-updated {
+  margin-top: 8px;
+  font-size: 20px;
+  color: var(--ink-faint);
+}
+.agree-sec {
+  margin-bottom: 24px;
+}
+.agree-sec-h {
+  display: block;
+  font-size: 27px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.agree-p {
+  display: block;
+  font-size: 24px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+  margin-bottom: 10px;
+}
+.agree-foot {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 20px;
+  color: var(--ink-faint);
+}

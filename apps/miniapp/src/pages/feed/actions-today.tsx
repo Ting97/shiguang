@@ -36,6 +36,25 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
   // 删除两步确认（3 秒超时自动复位，= web useArmConfirm）
   // 「今日已完成」折叠（web 用 <details>，小程序用状态开关）
   const [showDone, setShowDone] = useState(false);
+  // 整卡折叠（REQ-今日行动可收起）：默认展开，记住用户选择
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return Taro.getStorageSync("shiguang_at_collapsed") === true;
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      try {
+        Taro.setStorageSync("shiguang_at_collapsed", !v);
+      } catch {
+        /* 存储失败只影响记忆，不影响本次折叠 */
+      }
+      return !v;
+    });
+  }
 
 
   const load = useCallback(async () => {
@@ -146,8 +165,8 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
   return (
     // = web section.glass.rounded-2xl.p-5#actions
     <View className="at glass glass-p5">
-      {/* 标题行 */}
-      <View className="at-head">
+      {/* 标题行（整行可点折叠/展开；规划链接单独 stopPropagation） */}
+      <View className="at-head" onClick={toggleCollapsed}>
         <View className="at-head-left">
           <View className="at-logo">
             <LucideIcon name="list_todo" size={10} color="currentColor" />
@@ -159,12 +178,15 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
             </Text>
           ) : null}
         </View>
-          <Text className="at-plan" onClick={() => Taro.redirectTo({ url: "/pages/schedule/index" })}>
-          规划 →
-        </Text>
+        <View className="at-head-right ico-row">
+          <Text className="at-plan" onClick={(e) => { e.stopPropagation(); Taro.redirectTo({ url: "/pages/schedule/index" }); }}>
+            规划 →
+          </Text>
+          <LucideIcon name={collapsed ? "chevron_down" : "chevron_up"} size={13} color="var(--ink-mute)" />
+        </View>
       </View>
 
-      {actions === null ? (
+      {!collapsed && (actions === null ? (
         <Text className="at-loading">加载中…</Text>
       ) : (
         <>
@@ -296,7 +318,7 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
             </>
           )}
         </>
-      )}
+      ))}
     </View>
   );
 }

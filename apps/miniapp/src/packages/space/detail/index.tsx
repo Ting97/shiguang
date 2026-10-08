@@ -10,6 +10,7 @@ import { View, Text, Button } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import { showToast } from "@/components/toast";
 import { loadFeed, loadSpaces } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -304,6 +305,8 @@ export default function SpaceDetailPage() {
           </View>
         </View>
       )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="target" label="目标空间" />
     </PageShell>
   );
 }

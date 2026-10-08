@@ -14,6 +14,7 @@ import { useCallback, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import { useTheme } from "@/lib/theme";
 import { showToast } from "@/components/toast";
 import { logout, bindWechatSession, resolveWechatBind, type WechatBindConflict } from "@/lib/api";
@@ -356,6 +357,17 @@ export default function Profile() {
                 {me.phone ? "更换手机号" : "绑定手机号"}
               </Button>
             </View>
+            {/* 使用手册（REQ-使用手册）：功能介绍与使用方式 */}
+            <View className="wx-bind-row">
+              <Text className="hint wx-bind-text">功能介绍与使用方式</Text>
+              <Button
+                className="btn-sky-tinted wx-bind-btn"
+                hoverClass="press"
+                onTap={() => Taro.navigateTo({ url: "/pages/manual/index" })}
+              >
+                使用手册
+              </Button>
+            </View>
           </View>
 
           {/* ---- 修改密码 = web section.glass ---- */}
@@ -532,6 +544,8 @@ export default function Profile() {
         onResolve={(r) => void resolveBind(r)}
         onClose={() => setBindConflict(null)}
       />
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="user" label="我的" />
     </PageShell>
   );
 }

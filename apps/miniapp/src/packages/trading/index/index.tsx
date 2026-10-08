@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Button, Picker, ScrollView } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
+import PageFooter from "@/components/page-footer";
 import LucideIcon, { type LucideIconName } from "@/components/lucide-icon";
 import { fetchMe } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
@@ -1041,6 +1042,7 @@ export default function TradingPage() {
     return (
       <PageShell active="finance">
         <ModuleLocked title="交易" desc="该模块由管理员授权后开放，可联系管理员开通。" />
+        <PageFooter icon="trending_up" label="交易" />
       </PageShell>
     );
   }
@@ -1166,6 +1168,8 @@ export default function TradingPage() {
           <Text className="fin-footer">拾光 · 交易 · 独立核算不入净资产，统计零 AI 消耗</Text>
         </>
       )}
+      {/* 页脚徽章（REQ-全站页脚徽章） */}
+      <PageFooter icon="trending_up" label="交易" />
     </PageShell>
   );
 }

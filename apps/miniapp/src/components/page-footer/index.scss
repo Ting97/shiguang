@@ -1,0 +1,13 @@
+/* 页面页脚徽章（= sp-foot 首例的通用化：mt-10 居中 + violet tinted chip） */
+.pg-foot {
+  margin-top: 80px; /* mt-10 */
+  display: flex;
+  justify-content: center;
+}
+.pg-foot-chip {
+  background: rgba(139, 92, 246, 0.15); /* bg-violet-500/15 */
+  color: var(--ai); /* text-ai */
+  font-size: 20px; /* TagChip sm = text-[10px] */
+  padding: 4px 12px;
+  gap: 6px;
+}
