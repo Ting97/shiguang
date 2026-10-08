@@ -231,9 +231,10 @@ export default function TradingPage() {
               )
             )}
 
-            <footer className="mt-10 text-center text-badge text-ink-faint">
-              拾光 · 交易 · 独立核算不入净资产，统计零 AI 消耗
-            </footer>
+<footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 交易</span>
+        </footer>
+            <p className="mt-2 text-center text-badge text-ink-faint">独立核算不入净资产，统计零 AI 消耗</p>
           </>
         )}
       </div>

@@ -302,8 +302,8 @@ export default function Home() {
         {/* 今日日程：时间轴 / 列表 双视图 */}
         <TodaySchedule blocks={blocks} activities={activities} todayKcal={todayKcal} load={loadVoid} />
 
-        <footer className="mt-10 text-center text-badge text-ink-faint">
-          拾光 · 钱·时间·人 · 源码仓库 github.com/Ting97/shiguang
+<footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 动态</span>
         </footer>
       </div>
 

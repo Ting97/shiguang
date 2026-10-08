@@ -281,8 +281,8 @@ export default function ContactsPage() {
           />
         )}
 
-        <footer className="mt-10 text-center text-badge text-ink-faint">
-          拾光 · 人际模块 v2（Phase 3 W9~W11）· 语音提及自动建档
+<footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 人际</span>
         </footer>
       </div>
     </main>

@@ -21,6 +21,8 @@ interface Section {
   icon: LucideIcon;
   h: string;
   rows: string[];
+  /** 章节配图（/manual/ 下静态截图，给用户直观指引） */
+  img?: string;
 }
 
 const SECTIONS: Section[] = [
@@ -35,6 +37,7 @@ const SECTIONS: Section[] = [
   {
     icon: Mic,
     h: "怎么记录一句话",
+    img: "/manual/web-feed.png",
     rows: [
       "首页顶部输入框随口写一句（如「刚跑完步40分钟，心情不错」「明天下午三点看牙」「打车花了32块」），点发布或按 Enter（Shift+Enter 换行）。",
       "语音输入：按住输入框左下的话筒按钮说话，松开自动转成文字（最长 2 分钟）。音频不保存，转完即弃。",
@@ -54,6 +57,7 @@ const SECTIONS: Section[] = [
   {
     icon: CalendarDays,
     h: "日程与日历",
+    img: "/manual/web-schedule.png",
     rows: [
       "首页底部是今日日程时间轴；完整日历在 日程 页：日 / 周 / 月 / 年四种视图，周视图默认一周安排一屏可见。",
       "所有视图都能新增 / 编辑 / 删除日程，保存时自动做冲突检测。",
@@ -62,6 +66,7 @@ const SECTIONS: Section[] = [
   {
     icon: Target,
     h: "目标空间",
+    img: "/manual/web-spaces.png",
     rows: [
       "目标 页为大目标建专属空间（考研上岸 / 副业过万…），把 TODO·行动、感悟和动态聚在一起，卡片展示 todo 进度、动态数与感悟数。",
       "空间详情里可以写感悟、看进度；相关动态自动归属。",
@@ -70,6 +75,7 @@ const SECTIONS: Section[] = [
   {
     icon: Users,
     h: "人际",
+    img: "/manual/web-contacts.png",
     rows: [
       "人际 页有 列表 / 图谱 双视图：图谱以你为中心，联系人按重要程度（5 亲密 ~ 1 简单）分布在轨道上，可用鼠标/手指拖动摆位。",
       "联系人档案支持生日（阳历/农历）、纪念日、分组、备注；生日自动换算提醒（显示「N 天后生日」）。",
@@ -79,6 +85,7 @@ const SECTIONS: Section[] = [
   {
     icon: Wallet,
     h: "财务",
+    img: "/manual/web-finance.png",
     rows: [
       "财务 页：本月收支/储蓄率概览、月度支出预算与预警、分类占比、账户管理。",
       "动态里说的钱先以「待确认流水」存在，确认入账后才算数——防止 AI 误识别污染账目；也可直接「记一笔」手动记账。",
@@ -87,6 +94,7 @@ const SECTIONS: Section[] = [
   {
     icon: User,
     h: "账户与设置",
+    img: "/manual/web-profile.png",
     rows: [
       "登录：手机号/邮箱 + 密码；小程序端还支持微信一键登录，绑定的账号可补绑手机号、设置密码后登录网页版。",
       "个人设置：改昵称、改密码、主题切换（深色/浅色/跟随系统）、导出数据（JSON / Markdown）、全端登出。",
@@ -123,6 +131,9 @@ export default function ManualPage() {
               {r}
             </p>
           ))}
+          {sec.img && (
+            <img src={sec.img} alt={sec.h + " 界面截图"} loading="lazy" className="mt-3 w-full rounded-xl border border-line" />
+          )}
         </section>
       ))}
 

@@ -248,8 +248,8 @@ export default function FinancePage() {
           </Modal>
         )}
 
-        <footer className="mt-10 text-center text-badge text-ink-faint">
-          拾光 · 财务模块 v1 · 流水仅作记录与月度统计，不影响账户余额（余额在「管理」中维护）
+<footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 财务</span>
         </footer>
       </div>
     </main>

@@ -370,7 +370,10 @@ export default function FinanceReviewPage() {
               </section>
             )}
 
-            <footer className="mt-10 text-center text-badge text-ink-faint">拾光 · 收支复盘 · 统计零 AI 消耗，周报走 AI 配额</footer>
+<footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 收支复盘</span>
+        </footer>
+            <p className="mt-2 text-center text-badge text-ink-faint">统计零 AI 消耗，周报走 AI 配额</p>
           </>
         )}
       </div>

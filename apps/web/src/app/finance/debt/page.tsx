@@ -404,7 +404,10 @@ export default function DebtPage() {
               )}
             </section>
 
-            <footer className="mt-10 text-center text-badge text-ink-faint">拾光 · 负债管理 · 还款后余额自动递减</footer>
+<footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 负债</span>
+        </footer>
+            <p className="mt-2 text-center text-badge text-ink-faint">还款后余额自动递减</p>
           </>
         )}
       </div>

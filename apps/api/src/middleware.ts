@@ -10,7 +10,7 @@ import { verifyWriteOrigin } from "@/server/platform/security/csrf";
  * 4-B：Cookie 会话写请求强制 Origin/Sec-Fetch-Site 同源（CSRF，Bearer 豁免）。
  * CORS 策略见 lib/cors.ts：预检 204、白名单/Bearer origin 回显。
  */
-const PUBLIC_PAGES = ["/login", "/setup"];
+const PUBLIC_PAGES = ["/login", "/setup", "/manual"];
 
 export function middleware(req: NextRequest) {
   // CORS 处理独立于鉴权开关：本地 AUTH_DISABLED 跨域联调也需要响应头

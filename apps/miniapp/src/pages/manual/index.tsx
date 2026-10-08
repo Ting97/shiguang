@@ -4,16 +4,19 @@
  * 独立轻容器（= 协议页形态：app-bg + 返回，不挂底部栏）。
  */
 import { useEffect, useState } from "react";
-import { View, Text } from "@tarojs/components";
+import { View, Text, Image } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import LucideIcon from "@/components/lucide-icon";
 import { syncNativeBackground, useTheme } from "@/lib/theme";
+import { API_BASE } from "@/lib/request";
 import "./index.scss";
 
 interface Section {
   icon: string;
   h: string;
   rows: string[];
+  /** 章节配图（服务端静态截图，Image 组件不走域名白名单） */
+  img?: string;
 }
 
 const SECTIONS: Section[] = [
@@ -28,6 +31,7 @@ const SECTIONS: Section[] = [
   {
     icon: "mic",
     h: "怎么记录一句话",
+    img: "/manual/mini-feed.png",
     rows: [
       "动态页顶部输入框随口写一句（如「刚跑完步40分钟，心情不错」「明天下午三点看牙」「打车花了32块」），点发布。",
       "语音输入：长按输入框下方的话筒按钮说话，松开自动转成文字（最长 2 分钟）。音频不保存，转完即弃。",
@@ -47,6 +51,7 @@ const SECTIONS: Section[] = [
   {
     icon: "calendar_days",
     h: "日程与日历",
+    img: "/manual/mini-schedule.png",
     rows: [
       "动态页底部是今日日程时间轴；完整日历在 日程 页：日 / 周 / 月 / 年四种视图，周视图默认一周安排一屏可见。",
       "所有视图都能新增 / 编辑 / 删除日程，保存时自动做冲突检测。",
@@ -55,6 +60,7 @@ const SECTIONS: Section[] = [
   {
     icon: "target",
     h: "目标空间",
+    img: "/manual/mini-spaces.png",
     rows: [
       "目标 页为大目标建专属空间（考研上岸 / 副业过万…），把 TODO·行动、感悟和动态聚在一起，卡片展示 todo 进度、动态数与感悟数。",
       "空间详情里可以写感悟、看进度；相关动态自动归属。",
@@ -63,6 +69,7 @@ const SECTIONS: Section[] = [
   {
     icon: "users",
     h: "人际",
+    img: "/manual/mini-contacts.png",
     rows: [
       "人际 页有 列表 / 图谱 双视图：图谱以你为中心，联系人按重要程度分布在轨道上，可拖动摆位。",
       "联系人档案支持生日（阳历/农历）、纪念日、分组、备注；生日自动换算提醒（显示「N 天后生日」）。",
@@ -72,6 +79,7 @@ const SECTIONS: Section[] = [
   {
     icon: "wallet",
     h: "财务",
+    img: "/manual/mini-finance.png",
     rows: [
       "财务 页：本月收支/储蓄率概览、月度支出预算与预警、分类占比、账户管理。",
       "动态里说的钱先以「待确认流水」存在，确认入账后才算数——防止 AI 误识别污染账目；也可直接「记一笔」手动记账。",
@@ -80,6 +88,7 @@ const SECTIONS: Section[] = [
   {
     icon: "user",
     h: "账户与设置",
+    img: "/manual/mini-profile.png",
     rows: [
       "登录：微信一键登录，或手机号/邮箱 + 密码；微信绑定的账号可在「我的」补绑手机号、设置密码后登录网页版。",
       "「我的」页：改昵称、改密码、切换深色/浅色主题、绑定微信、导出数据（JSON / Markdown）、全端登出。",
@@ -129,6 +138,14 @@ export default function Manual() {
             {sec.rows.map((r, i) => (
               <Text key={i} className="manual-row">{r}</Text>
             ))}
+            {sec.img && (
+              <Image
+                src={API_BASE + sec.img}
+                mode="widthFix"
+                lazyLoad
+                className="manual-shot"
+              />
+            )}
           </View>
         ))}
 
