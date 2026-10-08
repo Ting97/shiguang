@@ -59,7 +59,9 @@ export function parseDuration(text: string): number | null {
     if (n === null || n === 0) continue;
     const isHour = /小时|钟头|^h$/.test(m[4]);
     const half = m[3] === "半" && isHour ? 30 : 0; // "一个半小时"；"X分半"忽略
-    const minutes = isHour ? Math.round(n * 60) : Math.round(n); // 小时允许小数 → 分钟取整
+    // 向上保底 1 分钟：「刷了0.4分钟」取整为 0 会撞 ParseResult durationMin>0 契约，
+    // 且 rules 兜底路径无 LLM 路径的 max(1) 钳制 → zod 异常逃逸 parseInput（打卡入口不可失败的底线）
+    const minutes = Math.max(1, isHour ? Math.round(n * 60) : Math.round(n)); // 小时允许小数 → 分钟取整
     return minutes + half;
   }
 

@@ -149,15 +149,34 @@ export async function acquireGeneration(
   if (available < 1) {
     throw new ReviewGateError(gateMessage(kind, periodKey, Math.min(ceiling, M), M));
   }
-  return { ok: true, remaining: available };
+  // 原子占位：门禁通过即 used+1。check-then-act 两段式（acquire 只读、consume 才 +1）在并发双击
+  // 「重新生成」时会双双通过门禁各生成一次，超限 N-1 次；占位式让并发第二发在 where 上失败
+  const lim = Math.min(M, ceiling + effectiveBonus);
+  const occupied = await pool.query(
+    `update review_gen_quotas set used = used + 1, updated_at = now()
+     where user_id = $1 and kind = $2 and period_key = $3 and used < $4::int
+     returning used`,
+    [userId, kind, periodKey, lim],
+  );
+  if (!occupied.rows[0]) {
+    // 并发对手已占走最后一次：给固定文案（精确剩余数不值得为此再读一行）
+    throw new ReviewGateError(gateMessage(kind, periodKey, Math.min(ceiling, M), M));
+  }
+  return { ok: true, remaining: lim - occupied.rows[0].used };
 }
 
-/** 生成成功后消耗一次 */
-export async function consumeGeneration(userId: string, kind: ReviewKind, periodKey: string): Promise<void> {
+/** 生成失败时回退占位（幂等，下限 0） */
+export async function releaseGeneration(userId: string, kind: ReviewKind, periodKey: string): Promise<void> {
   if (await isAdminUser(userId)) return;
   await pool.query(
-    `update review_gen_quotas set used = used + 1, updated_at = now()
+    `update review_gen_quotas set used = greatest(used - 1, 0), updated_at = now()
      where user_id = $1 and kind = $2 and period_key = $3`,
     [userId, kind, periodKey],
   );
+}
+
+/** 生成成功后消耗一次 */
+export async function consumeGeneration(_userId: string, _kind: ReviewKind, _periodKey: string): Promise<void> {
+  // 占位式语义（009 轮）：acquireGeneration 已原子完成 used+1，成功路径无需再计。
+  // 函数保留导出是为了既有调用点平滑过渡；新生成入口不要再调它（会双计）
 }

@@ -10,6 +10,7 @@ import { View, Text, Input, Picker } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { showToast } from "@/components/toast";
 import { createTodo, deleteTodo, loadTodayActions, patchTodo, type TodayActionRow } from "./api";
+import { getSessionToken } from "@/lib/session";
 import { rowMenu } from "../../lib/row-menu";
 import LucideIcon from "../../components/lucide-icon";
 import { bjInputToIso, dueTag, isoToBjInput } from "./kit";
@@ -58,6 +59,11 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
 
 
   const load = useCallback(async () => {
+    // 游客/未登录跳过：挂载即裸跑会在游客态每次进 feed 弹「未登录」toast（009 轮修复）
+    if (!getSessionToken()) {
+      setActions([]);
+      return;
+    }
     try {
       const j = await loadTodayActions();
       setActions(j.actions ?? []);

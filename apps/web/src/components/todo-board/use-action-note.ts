@@ -48,6 +48,7 @@ export function useActionNote({ patchTodo }: ActionNoteCtx) {
   }
 
   async function saveNote() {
+    if (noteSaving) return; // 重入锁：保存进行中按 Enter（绕过按钮 disabled）会双发 PATCH（use-todo-edit 同款）
     if (!noteOpenId || !noteTitle.trim()) {
       toast("标题不能为空", "err");
       return;

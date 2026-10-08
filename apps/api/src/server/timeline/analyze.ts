@@ -34,8 +34,8 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
   try {
     const bundle = await getPromptBundle("space_classify");
     const { rows: spaces } = await pool.query(
-      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit ${bundle.config.caps.spaceCount}`,
-      [userId],
+      `select id, name, description from goal_spaces where user_id = $1 and status = 'active' order by sort limit $2::int`,
+      [userId, bundle.config.caps.spaceCount],
     );
     if (spaces.length === 0) return; // 无 active 空间：跳过分类调用
 
@@ -63,7 +63,8 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
           confidence >= SPACE_CONFIDENCE_THRESHOLD &&
           spaces.some((s) => s.id === choice);
         if (accepted) {
-          await pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3`, [choice, entryId, userId]);
+          // space_id is null 守卫：分类窗口内用户已手动归属的不再被 AI 结果顶掉（todos 侧同语义守卫已有一年）
+          await pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3 and space_id is null`, [choice, entryId, userId]);
           await pool.query(`update todos set space_id = $1 where entry_id = $2 and user_id = $3 and space_id is null`, [
             choice, entryId, userId,
           ]);
@@ -105,7 +106,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
     if (!spaceId || confidence < SPACE_CONFIDENCE_THRESHOLD) return;
     if (!spaces.some((s) => s.id === spaceId)) return; // spaceId 不在候选内：忽略
 
-    await pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3`, [spaceId, entryId, userId]);
+    await pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3 and space_id is null`, [spaceId, entryId, userId]);
     // 待办继承动态的空间（AI 从带空间动态识别出的待办自动归类）
     await pool.query(`update todos set space_id = $1 where entry_id = $2 and user_id = $3 and space_id is null`, [
       spaceId,
@@ -302,10 +303,11 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   }
 
   // 自定义分类归一：模型输出的 activity（枚举 id/自定义 id/名称）对齐到用户 activities 表的 id，
-  // time_blocks.activity_id 的 join 两类 id 都成立；归一在落库与待确认快照之前
-  if (userActs.length && r.scheduleApplicable) {
-    r.activity = resolveActivityValue(r.activity, userActs);
-  }
+  // time_blocks.activity_id 的 join 两类 id 都成立；归一在落库与待确认快照之前。
+  // 无条件执行（不门禁 scheduleApplicable）：todos.activity_id 是同一个复合外键，intent=todo 时
+  // scheduleApplicable=false 会跳过归一，模型自由串直插 → 23503 整个五域事务回滚、动态永久识别超时；
+  // userActs 为空（管理台关 catList 注入）时归一兜底回落 "other"（预设活动，注册必播），FK 同样安全
+  r.activity = resolveActivityValue(r.activity, userActs);
 
   engine = r.engine;
   if (r.fallbackReason) console.warn(`[ai] 本次为规则降级（${r.fallbackReason}），entry=${entryId}`);

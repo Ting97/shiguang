@@ -258,9 +258,10 @@ export default function ContactsPage() {
                   </p>
                   {Number(c.gift_net_cents) !== 0 && (
                     <p className="mt-1 text-micro tabular-nums text-ink-dim">
-                      {/* 金额展示统一走共享 yuan()（整数运算），替换原内联浮点除法 */}
-                      人情往来 {Number(c.gift_net_cents) > 0 ? "+" : ""}
-                      {`¥${yuan(Math.abs(Number(c.gift_net_cents)))}`}
+                      {/* 金额展示统一走共享 yuan()（整数运算）；负数（净送出）必须带 - 号，
+                          绝对值裸显会被误读成净收入（009 轮三端体验发现） */}
+                      人情往来 {Number(c.gift_net_cents) > 0 ? "+" : "-"}¥
+                      {yuan(Math.abs(Number(c.gift_net_cents)))}
                     </p>
                   )}
                 </Link>

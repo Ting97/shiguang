@@ -20,6 +20,9 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
 
   const sets: string[] = [];
   const vals: unknown[] = [];
+  // 非字符串直落 .trim() 是 TypeError → 500（与 POST 通道同批守卫）
+  if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("账户名称需为字符串");
+  if (body.icon != null && typeof body.icon !== "string") throw ApiError.badRequest("图标需为字符串");
   if (body.name?.trim()) {
     vals.push(body.name.trim());
     sets.push(`name = $${vals.length}`);
@@ -29,8 +32,9 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     sets.push(`icon = $${vals.length}`);
   }
   if (body.openingBalanceCents != null) {
-    if (!Number.isInteger(body.openingBalanceCents)) {
-      throw ApiError.badRequest("期初余额需为整数（分）");
+    // 上限对齐 transactions（¥100 万）：bigint 列吃 1e21 → pg 序列化 "1e+21" → 22P02 → 500
+    if (!Number.isInteger(body.openingBalanceCents) || Math.abs(body.openingBalanceCents) > 100_000_000) {
+      throw ApiError.badRequest("期初余额需为整数（分），不超过 ¥100 万");
     }
     vals.push(body.openingBalanceCents);
     sets.push(`opening_balance_cents = $${vals.length}`);

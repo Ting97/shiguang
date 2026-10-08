@@ -252,3 +252,22 @@ test("toCstWallClock：UTC 时刻 → 北京墙钟，且与宿主机时区无关
   // 北京 00:30（UTC 前一天 16:30）→ 日期必须还是当天（旧 bug 会回退到前一天）
   assert.equal(toCstWallClock(new Date("2026-09-22T16:30:00Z")), "2026-09-23 00:30（北京时间）");
 });
+
+// —— 009 轮检视回归：裸「N号/N日」是显式日期，缺分支会让模型给对的区间被整天平移 ——
+test("hasExplicitDayRef：裸 N号/N日 也是显式日期（3号区间不再平移到今天）", () => {
+  assert.equal(hasExplicitDayRef("3号下午2点到4点开会"), true);
+  assert.equal(hasExplicitDayRef("15日交房"), true);
+  // 「10月3号」由 M月N号 分支覆盖，lookbehind 不双计
+  assert.equal(hasExplicitDayRef("10月3号随了600块礼"), true);
+  // 无日期词仍然 false（锚定路径正常工作）
+  assert.equal(hasExplicitDayRef("下午2点到6点一直在打磨项目"), false);
+});
+
+test("锚定：话术带裸「3号」→ 模型给对的历史区间不再被平移", () => {
+  // now=10-08，模型把「3号下午」区间给成 10-03：有显式日期 → 原样保留
+  const now = new Date(2026, 9, 8, 18, 0);
+  const range = { start: new Date(2026, 9, 3, 14, 0), end: new Date(2026, 9, 3, 16, 0) };
+  const r = anchorRangeToToday(range, "3号下午2点到4点开会", now);
+  assert.equal(r.start.getDate(), 3);
+  assert.equal(r.start.getHours(), 14);
+});

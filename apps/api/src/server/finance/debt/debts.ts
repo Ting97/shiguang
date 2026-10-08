@@ -26,6 +26,14 @@ export function serializePayment(row: Record<string, unknown>) {
   return { ...row, amount_cents: Number(row.amount_cents) };
 }
 
+
+/** 负债金额上限（分）：对齐 transactions 的 ¥100 万口径。bigint 列吃 1e19 会 22003 → 500，
+ * ≥2^53 的整数经 float64 序列化还会静默丢分，必须在入口拦下 */
+const DEBT_CENTS_LIMIT = 100_000_000;
+const assertCentsLimit = (v: number, label: string) => {
+  if (v > DEBT_CENTS_LIMIT) throw { message: `${label}不能超过 ¥100 万` };
+};
+
 export function validateDebtBody(body: Record<string, unknown>, partial: boolean) {
   const out: Record<string, unknown> = {};
   const need = (v: unknown) => v !== undefined || !partial;
@@ -43,11 +51,13 @@ export function validateDebtBody(body: Record<string, unknown>, partial: boolean
   if (need(body.principalCents)) {
     const v = body.principalCents;
     if (!Number.isInteger(v) || (v as number) < 0) throw { message: "本金需为不小于 0 的整数（分）" };
+    assertCentsLimit(v as number, "本金");
     out.principal_cents = v;
   }
   if (body.balanceCents !== undefined) {
     const v = body.balanceCents;
     if (!Number.isInteger(v) || (v as number) < 0) throw { message: "当前余额需为不小于 0 的整数（分）" };
+    assertCentsLimit(v as number, "当前余额");
     out.balance_cents = v;
   }
   if (body.ratePct !== undefined) {
@@ -59,7 +69,10 @@ export function validateDebtBody(body: Record<string, unknown>, partial: boolean
     const v = body.monthlyCents;
     if (v === null) out.monthly_cents = null;
     else if (!Number.isInteger(v) || (v as number) <= 0) throw { message: "月供需为正整数（分）或空" };
-    else out.monthly_cents = v;
+    else {
+      assertCentsLimit(v as number, "月供");
+      out.monthly_cents = v;
+    }
   }
   if (body.payDay !== undefined) {
     const v = body.payDay;

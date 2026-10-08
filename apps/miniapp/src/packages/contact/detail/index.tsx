@@ -34,6 +34,12 @@ import {
 } from "../shared";
 import "./index.scss";
 
+/** 删除/归档后的回列表：优先 navigateBack（入口是列表 navigateTo，栈里还有列表实例——
+ * redirectTo 会再压一份新列表成 [list, list]，物理返回落在旧实例），栈空（分享直达）兜底 redirectTo */
+function backToList(url: string) {
+  Taro.navigateBack().catch(() => Taro.redirectTo({ url }));
+}
+
 /** 时间线行（= web TimelineItem） */
 interface TimelineRow {
   id: string;
@@ -143,7 +149,7 @@ export default function ContactDetailPage() {
       showToast({ type: "err", text: e?.message ?? String(e) });
       return;
     }
-    Taro.redirectTo({ url: "/packages/contact/list/index" });
+    backToList("/packages/contact/list/index");
   }
 
   /* ---- 加载 / 失败 / 404 形态（= web detail 三分支） ---- */
@@ -396,7 +402,7 @@ export default function ContactDetailPage() {
               <LucideIcon name="wallet" size={11} color="currentColor" />
               <Text>关联人情账</Text>
             </View>
-            <Text className="cd-money-sub">流水中「对方」为 TA 的人情往来 · 净额 ¥{yuan(giftIn - giftOut)}</Text>
+            <Text className="cd-money-sub">流水中「对方」为 TA 的人情往来 · 净额 {giftIn - giftOut < 0 ? "-" : ""}¥{yuan(Math.abs(giftIn - giftOut))}</Text>
           </View>
           <View className="cd-money-list">
             {money.map((m) => (

@@ -18,6 +18,7 @@ export interface ContactDraft {
   lunar_leap?: boolean | null;
   anniversary: string | null;
   importance?: number;
+  intimacy?: number | null;
   notes: string | null;
 }
 
@@ -44,6 +45,8 @@ export default function ContactFormModal({
   const [lunarLeap, setLunarLeap] = useState(!!initial?.lunar_leap);
   const [anniversary, setAnniversary] = useState(initial?.anniversary ?? "");
   const [importance, setImportance] = useState<number>(initial?.importance ?? 3);
+  // 亲密度 0~100：新建默认 50（服务端同款回落），编辑读已有值
+  const [intimacy, setIntimacy] = useState<number>(initial?.intimacy ?? 50);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -70,6 +73,7 @@ export default function ContactFormModal({
         ...birthdayPayload(),
         anniversary: anniversary || null,
         importance,
+        intimacy,
         notes,
       };
       if (initial) {
@@ -216,6 +220,22 @@ export default function ContactFormModal({
                 </button>
               ))}
             </div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between text-micro text-ink-dim">
+              亲密度
+              <span className="tabular-nums text-ink-mute">{intimacy}/100</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={intimacy}
+              onChange={(e) => setIntimacy(Number(e.target.value))}
+              className="h-6 w-full accent-sky-500"
+              aria-label="亲密度"
+            />
           </div>
           <textarea
             value={notes ?? ""}

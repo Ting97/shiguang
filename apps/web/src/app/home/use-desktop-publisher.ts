@@ -34,6 +34,11 @@ export function useDesktopPublisher({ setMsg, load }: { setMsg: Notify; load: ()
 
   /** 随动态附图：选择（≤9 张，超出的忽略并提示） */
   function addDesktopImages(files: File[]) {
+    // 已满 9 张先短路提示：原实现 slice(0,0) 后 imgs 为空，误报「格式不支持」（用户选的明明是图片）
+    if (desktopImages.length >= 9) {
+      setMsg({ ok: false, text: "最多添加 9 张，已忽略新选图片" });
+      return;
+    }
     const imgs = files
       .filter((f) => /^image\/(jpeg|png|webp|gif)$/.test(f.type))
       .slice(0, 9 - desktopImages.length)

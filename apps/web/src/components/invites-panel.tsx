@@ -63,6 +63,8 @@ export default function InvitesPanel() {
   const [msg, setMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ self: UsageSelf; invitees: UsageInvitee[]; byModel?: UsageByModel[] } | null>(null);
+  // 子请求失败落终态：usage 初值即 null，失败仍 null 会永久停在「消耗数据加载中…」无重试
+  const [usageErr, setUsageErr] = useState(false);
   // 「已复制」恢复定时器：卸载时清理，避免卸载后 setState
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -88,10 +90,17 @@ export default function InvitesPanel() {
     setInvites(j.invites ?? []);
     setState("ok");
     api("/api/tokens/usage")
+      .then((j2) => {
+        setUsage({ self: j2.self, invitees: j2.invitees ?? [], byModel: j2.byModel ?? [] });
+        setUsageErr(false);
+      })
+      .catch(() => setUsageErr(true));
+  }, []);
+  const retryUsage = useCallback(() => {
+    setUsageErr(false);
+    api("/api/tokens/usage")
       .then((j2) => setUsage({ self: j2.self, invitees: j2.invitees ?? [], byModel: j2.byModel ?? [] }))
-      .catch((e) => {
-        if (e instanceof ApiClientError) setUsage(null);
-      });
+      .catch(() => setUsageErr(true));
   }, []);
   useEffect(() => {
     load();
@@ -193,7 +202,12 @@ export default function InvitesPanel() {
           <span className="text-micro font-normal text-ink-dim">识别 · 复盘 · 语音全阶段</span>
         </p>
 
-        {!usage ? (
+        {!usage && usageErr ? (
+          <p className="mt-2 text-xs text-ink-dim">
+            消耗数据加载失败
+            <button onClick={retryUsage} className="ml-2 underline underline-offset-2">重试</button>
+          </p>
+        ) : !usage ? (
           <p className="mt-2 text-xs text-ink-dim">消耗数据加载中…</p>
         ) : (
           <>

@@ -133,10 +133,14 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
   }
 
   /** 发布时清空搜索再刷新：只置状态——setQuery("") 让 load 换引用、effect 自动拉取一次，
-   *  原先「置状态后再手动 load({query:""})」会同一参数连发两批请求（changeSpace 同型问题的漏改点） */
+   *  原先「置状态后再手动 load({query:""})」会同一参数连发两批请求（changeSpace 同型问题的漏改点）。
+   *  例外兜底：searchInput 非空但 query 已是 ""（防抖未落地/重复清空）时 setQuery 不改 state、
+   *  effect 与下方锚点重置 effect 都不跑 → beforeRef 残留旧锚点，新动态不可见且横幅消失；
+   *  显式 load({before:null}) 补一次从最新拉取（幂等，重复调用只是多一次请求不产生错误状态） */
   async function resetSearch() {
     setSearchInput("");
     setQuery("");
+    if (!query) await load({ before: null });
   }
 
   /** 切换空间筛选：仅置状态，由 effect 随 spaceFilter 变化自动拉取一次——

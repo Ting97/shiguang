@@ -237,9 +237,9 @@ export default function ContactListPage() {
                   )}
                 </Text>
                 {gift !== 0 && (
-                  /* 与 web 同款展示：正数带 +、负数不带符号（基准源码如此，保持一致） */
+                  /* 与 web 同款展示：正数带 +、负数带 -（净送出裸显绝对值会被误读成净收入，009 轮三端体验同步修复） */
                   <Text className="ct-gift">
-                    人情往来 {gift > 0 ? "+" : ""}¥{yuan(Math.abs(gift))}
+                    人情往来 {gift > 0 ? "+" : "-"}¥{yuan(Math.abs(gift))}
                   </Text>
                 )}
               </View>

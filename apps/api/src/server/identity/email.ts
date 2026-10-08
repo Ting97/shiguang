@@ -61,7 +61,9 @@ export async function sendEmailCode(email: string, purpose: "login" | "bind"): P
     return { ok: true, status: 200 };
   } catch (e) {
     await pool.query(`delete from email_codes where id = $1`, [codeId]);
-    return { ok: false, status: 502, error: `邮件发送失败：${e instanceof Error ? e.message : e}` };
+    // 同 sms 口径：SMTP 原始错误只进日志
+    console.warn(`[email] 发送失败: ${String(e).slice(0, 300)}`);
+    return { ok: false, status: 502, error: "验证码发送失败，请稍后重试" };
   }
 }
 

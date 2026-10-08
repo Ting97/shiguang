@@ -77,6 +77,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   }, [load]);
 
   async function toggle(liabilityId: string, checked: boolean) {
+    if (busy) return; // 受控 checkbox 回包前不重绘，连点会双发同值 PUT（与 toggleAll 的 busy 门对齐）
     setBusy(true);
     try {
       // 合并组「组内任一勾选即整组已勾」：取消勾选只发单 id 会对组内其他行静默无效，

@@ -58,6 +58,8 @@ export interface BlockWriteBody {
 
 /** POST /api/blocks —— 手动创建时间块（日视图缺口补录）；不允许与已有日程重叠 */
 export async function createBlock(userId: string, body: BlockWriteBody): Promise<BlockWriteResult> {
+  // title 先验类型再验内容：非字符串（{title:123}）走 .trim() 是 TypeError → 500，应 400
+  if (body.title != null && typeof body.title !== "string") throw ApiError.badRequest("标题需为字符串");
   if (!body.title?.trim() || !body.startAt || !body.endAt || !body.activityId) {
     throw ApiError.badRequest("标题、起止时间、类别均必填");
   }
@@ -103,7 +105,11 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
   if (conflict) return { conflict };
 
   const fields: Array<[string, unknown]> = [];
-  if (body.title != null) fields.push(["title", body.title.trim()]);
+  if (body.title != null) {
+    if (typeof body.title !== "string") throw ApiError.badRequest("标题需为字符串");
+    if (!body.title.trim()) throw ApiError.badRequest("标题不能为空");
+    fields.push(["title", body.title.trim()]);
+  }
   if (body.startAt != null) fields.push(["start_at", body.startAt]);
   if (body.endAt != null) fields.push(["end_at", body.endAt]);
   if (body.activityId != null) fields.push(["activity_id", body.activityId]);
@@ -188,10 +194,19 @@ export async function updateActivity(userId: string, id: string, body: ActivityB
   const fields: Array<[string, unknown]> = [];
   if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("名称需为字符串");
   if (body.icon != null && typeof body.icon !== "string") throw ApiError.badRequest("图标需为字符串");
-  if (body.name != null) fields.push(["name", body.name.trim()]);
+  // 空名与 create 口径对齐（activities.name 仅 not null 无 check，空串会存出无名分类）
+  if (body.name != null) {
+    if (!body.name.trim()) throw ApiError.badRequest("名称必填");
+    fields.push(["name", body.name.trim()]);
+  }
   if (body.icon != null) fields.push(["icon", body.icon.trim() || "🏷"]);
   if (body.color != null && /^#[0-9a-fA-F]{6}$/.test(body.color)) fields.push(["color", body.color]);
-  if (body.defaultMin != null) fields.push(["default_min", Math.min(Math.max(body.defaultMin, 5), 720)]);
+  if (body.defaultMin != null) {
+    if (typeof body.defaultMin !== "number" || !Number.isInteger(body.defaultMin)) {
+      throw ApiError.badRequest("defaultMin 需为整数（分钟）");
+    }
+    fields.push(["default_min", Math.min(Math.max(body.defaultMin, 5), 720)]);
+  }
   if (fields.length === 0) throw ApiError.badRequest("没有可更新的字段");
 
   try {

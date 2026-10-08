@@ -24,7 +24,11 @@ export default function Reminders({
   const [marked, setMarked] = useState<Set<string>>(new Set()); // 已标今日的条目（防重复提交 + 即时反馈）
 
   useEffect(() => {
-    setDismissed(window.localStorage.getItem("shiguang_reminders_dismissed") === bjToday());
+    // Safari 锁定模式等场景 localStorage 访问直接 throw：passive effect 内抛出会被根边界捕获整页换错误态，
+    // 读写各包 try/catch（失败按「未关闭」处理，与 actions-today/capture-button 同口径）
+    try {
+      setDismissed(window.localStorage.getItem("shiguang_reminders_dismissed") === bjToday());
+    } catch {}
   }, []);
 
   if (items.length === 0 || dismissed) return null;
@@ -45,7 +49,9 @@ export default function Reminders({
         <span className="flex-1" />
         <button
           onClick={() => {
-            window.localStorage.setItem("shiguang_reminders_dismissed", bjToday());
+            try {
+              window.localStorage.setItem("shiguang_reminders_dismissed", bjToday());
+            } catch {}
             setDismissed(true);
           }}
           title="今天不再展示"

@@ -39,6 +39,18 @@ const lunarMonthOf = (v?: number) =>
   ([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as number[]).includes(v as number) ? (v as number) : null;
 const lunarDayOf = (v?: number) => (v != null && v >= 1 && v <= 30 ? (v as number) : null);
 
+/** 建档通道的亲密度：合法整数取值，否则回落默认 50（与 importance 宽松口径一致；
+ * 历史 bug：接口签名声明了 intimacy 但 repo 层从未透传，调用方传值被静默丢弃恒为列默认 50） */
+const clampIntimacy = (v: unknown): number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100 ? v : 50;
+
+/** 非字符串直落 .trim() 是 TypeError → 500（{notes:123} 类越型输入应 400）；undefined/null 返回 null */
+const trimmedOrNull = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (typeof v !== "string") throw ApiError.badRequest("文本字段需为字符串");
+  return v.trim() || null;
+};
+
 /** GET /api/contacts —— 联系人列表（含互动次数/最近往来/人情往来净额） */
 export async function listContacts(userId: string) {
   const { rows } = await contactsRepo.listWithStats(userId);
@@ -66,7 +78,7 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
     const created = (
       await contactsRepo.create(userId, {
         name,
-        alias: body.alias?.trim() || null,
+        alias: trimmedOrNull(body.alias),
         group,
         birthday: isLunar ? null : dateOrNull(body.birthday),
         birthdayCal: isLunar ? "lunar" : "solar",
@@ -75,7 +87,8 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
         lunarLeap: isLunar ? !!body.lunarLeap : false,
         anniversary: dateOrNull(body.anniversary),
         importance,
-        notes: body.notes?.trim() || null,
+        intimacy: clampIntimacy(body.intimacy),
+        notes: trimmedOrNull(body.notes),
       })
     ).rows[0];
     return { contact: created };
@@ -152,7 +165,7 @@ export async function updateContact(userId: string, id: string, body: ContactUps
     fields.push(["importance", body.importance]);
   }
   if (body.notes !== undefined) {
-    fields.push(["notes", body.notes?.trim() || null]);
+    fields.push(["notes", trimmedOrNull(body.notes)]);
   }
   if (fields.length === 0) throw ApiError.badRequest("没有可更新的字段");
 
@@ -202,7 +215,7 @@ export async function createInteraction(userId: string, contactId: string, body:
   }
 
   const created = (
-    await interactionsRepo.create(userId, contactId, type, body.summary?.trim() || null, occurredAt.toISOString())
+    await interactionsRepo.create(userId, contactId, type, trimmedOrNull(body.summary), occurredAt.toISOString())
   ).rows[0];
   return { interaction: created };
 }
@@ -219,7 +232,7 @@ export async function updateInteraction(userId: string, id: string, body: Intera
     sets.push(`type = $${vals.length}`);
   }
   if (body.summary !== undefined) {
-    vals.push(body.summary?.trim() || null);
+    vals.push(trimmedOrNull(body.summary));
     sets.push(`summary = $${vals.length}`);
   }
   if (body.occurredAt !== undefined) {

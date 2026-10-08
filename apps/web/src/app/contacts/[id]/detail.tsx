@@ -88,6 +88,9 @@ export function ContactDetailPage() {
   const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
   // 删除档案两步确认（全站规范，替代原生 confirm）
   const armDelete = useArmConfirm();
+  // 往来时间线单条删除：重入锁（deletingId）+ 两步确认（armDelId 3 秒窗口）
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [armDelId, setArmDelId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const j = await api(`/api/contacts/${id}`, "GET");
@@ -163,6 +166,26 @@ export function ContactDetailPage() {
   const giftIn = money.filter((m) => m.direction === "in").reduce((s, m) => s + m.amount_cents, 0);
   const giftOut = money.filter((m) => m.direction === "out").reduce((s, m) => s + m.amount_cents, 0);
 
+  async function removeInteraction(id: string) {
+    if (deletingId) return;
+    if (armDelId !== id) {
+      setArmDelId(id);
+      setTimeout(() => setArmDelId((cur) => (cur === id ? null : cur)), 3000); // 与 useArmConfirm 同款 3 秒窗口
+      return;
+    }
+    setDeletingId(id);
+    try {
+      await api(`/api/interactions/${id}`, "DELETE");
+      toast("🗑 往来已删除");
+      setArmDelId(null);
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function removeContact() {
     if (!armDelete.arm(contact!.id)) return;
     try {
@@ -225,13 +248,14 @@ export function ContactDetailPage() {
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
-              <button onClick={() => setEditing(true)} title="编辑档案" className="rounded px-2 py-1 text-ink-mute hover:bg-soft hover:text-accent">
+              {/* 触控热区：px-2 py-1 只有 ~29px 高，390px 小屏误触率高（008 轮 reminders 同款教训）→ p-2 */}
+              <button onClick={() => setEditing(true)} title="编辑档案" className="rounded p-2 text-ink-mute hover:bg-soft hover:text-accent">
                 <Pencil size={13} />
               </button>
               <button
                 onClick={removeContact}
                 title={armDelete.armedId ? "3 秒内再点确认删除（往来时间线将一并删除，动态与流水不受影响）" : "删除联系人"}
-                className={`flex items-center rounded px-2 py-1 text-[10px] font-medium leading-none ${armDelete.armedId ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
+                className={`flex items-center rounded p-2 text-[10px] font-medium leading-none ${armDelete.armedId ? "bg-rose-500/15 text-danger" : "text-ink-mute hover:bg-soft hover:text-danger"}`}
               >
                 {armDelete.armedId ? "确认删除?" : <Trash2 size={13} />}
               </button>
@@ -333,7 +357,7 @@ export function ContactDetailPage() {
               {timeline.map((t, idx) => {
                 const when = t.occurred_at ?? t.created_at;
                 return (
-                  <li key={t.id} className="relative flex gap-3">
+                  <li key={t.id} className="group relative flex gap-3">
                     {idx < timeline.length - 1 && (
                       <span className="absolute left-[13px] top-7 -bottom-2 w-px bg-gradient-to-b from-sky-500/40 to-indigo-500/10" />
                     )}
@@ -349,6 +373,17 @@ export function ContactDetailPage() {
                             {t.tx_direction === "out" ? "送出" : "收到"} ¥{yuan(t.tx_amount_cents)}
                           </span>
                         )}
+                        <span className="flex-1" />
+                        <button
+                          onClick={() => void removeInteraction(t.id)}
+                          disabled={deletingId === t.id}
+                          title={armDelId === t.id ? "3 秒内再点确认删除（仅删除这条往来，档案与流水不受影响）" : "删除这条往来"}
+                          className={`shrink-0 rounded px-1 py-0.5 text-micro transition ${
+                            armDelId === t.id ? "bg-rose-500/15 text-danger" : "text-ink-faint opacity-0 hover:text-danger group-hover:opacity-100 focus:opacity-100"
+                          }`}
+                        >
+                          {deletingId === t.id ? "删除中…" : armDelId === t.id ? "确认删除" : <Trash2 size={11} aria-hidden />}
+                        </button>
                       </div>
                       {t.summary && <p className="mt-1 text-sm text-ink">{displaySummary(t.summary)}</p>}
                       {t.entry_text && t.entry_text !== t.summary && (
@@ -367,7 +402,8 @@ export function ContactDetailPage() {
           <section className="glass rounded-2xl p-5">
             <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
               <TagChip icon={<Coins size={12} />} label="关联人情账" tone="rose" />
-              <span className="text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 ¥{yuan(giftIn - giftOut)}</span>
+              {/* 净额为负（净送出）必须带 - 号：绝对值裸显会被误读成净收入 */}
+              <span className="text-xs font-normal text-ink-dim">流水中「对方」为 TA 的人情往来 · 净额 {giftIn - giftOut < 0 ? "-" : ""}¥{yuan(Math.abs(giftIn - giftOut))}</span>
             </h2>
             <ul className="space-y-1">
               {money.map((m) => (

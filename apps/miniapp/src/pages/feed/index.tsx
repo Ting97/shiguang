@@ -155,8 +155,12 @@ export default function Feed() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）
+  // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）；游客/未登录跳过（防 401 触发跳登录）
   useEffect(() => {
+    if (!getSessionToken()) {
+      setSpaces([]);
+      return;
+    }
     loadActiveSpaces()
       .then((j) => setSpaces((j.spaces ?? []).filter((s) => s.status === "active")))
       .catch(() => setSpaces([]));

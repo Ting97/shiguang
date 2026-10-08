@@ -185,13 +185,14 @@ test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 d
   assert.equal(second.rowsDup, 1, "二次 dryRun 全 dup（幂等）");
   assert.equal(second.rowsNew, 0);
   const { rows } = await pool.query(
-    `select t.ticket, t.direction, t.profit, t.net_profit, a.source
+    `select t.ticket, t.direction, t.profit, t.commission, t.net_profit, a.source
      from trades t join trade_accounts a on a.id = t.account_id where a.login = 'bitget-t'`,
   );
   assert.equal(rows[0].ticket, "C22675709");
   assert.equal(rows[0].direction, "buy");
   assert.equal(Number(rows[0].profit), 1.44);
-  assert.equal(Number(rows[0].net_profit), 1.44, "生成列净额=cashFlow（零费用）");
+  assert.equal(Number(rows[0].commission), -0.43, "开仓行 R5 手续费归属本笔");
+  assert.equal(Number(rows[0].net_profit), 1.01, "生成列净额=cashFlow+开仓费（1.44-0.43）");
   assert.equal(rows[0].source, "bitget", "账户来源 bitget");
 
   // 增量默认：from 缺省 = 该账号最后一笔平仓日 -1 天（WIN_TS），to 缺省 = 今天

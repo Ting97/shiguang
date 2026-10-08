@@ -58,7 +58,9 @@ export async function sendSmsCode(phone: string, purpose: "login" | "bind"): Pro
     return { ok: true, status: 200 };
   } catch (e) {
     await pool.query(`delete from sms_codes where id = $1`, [codeId]);
-    return { ok: false, status: 502, error: `短信发送失败：${e instanceof Error ? e.message : e}` };
+    // 上游原始错误（签名/模板/配额语义）不再随响应外泄给未登录调用方，只进服务端日志
+    console.warn(`[sms] 发送失败: ${String(e).slice(0, 300)}`);
+    return { ok: false, status: 502, error: "验证码发送失败，请稍后重试" };
   }
 }
 

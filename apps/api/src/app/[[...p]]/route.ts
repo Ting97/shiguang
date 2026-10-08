@@ -61,7 +61,14 @@ function respond(path: string, _req: Request): NextResponse {
 async function GET(req: Request) {
   const { pathname } = new URL(req.url);
   const dir = staticDir();
-  const clean = normalize(decodeURIComponent(pathname)).replace(/\\/g, "/");
+  // 畸形百分号编码（/%zz）decodeURIComponent 抛 URIError → 未处理 500；此文件不走 withRoute 统一错误映射，就地 400
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return new NextResponse(null, { status: 400 });
+  }
+  const clean = normalize(decoded).replace(/\\/g, "/");
   if (clean.includes("..")) return new NextResponse(null, { status: 400 });
 
   const candidates: string[] = [];

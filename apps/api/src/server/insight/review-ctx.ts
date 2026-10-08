@@ -150,8 +150,8 @@ export async function buildReviewCtx(
         ? pool.query(
             `select raw_text, mood, mood_score, created_at from entries
              where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
-             order by created_at${kind !== "year" && entryCap > 0 ? ` limit ${entryCap}` : ""}`,
-            baseParams,
+             order by created_at${kind !== "year" && entryCap > 0 ? ` limit $5::int` : ""}`,
+            entryCap > 0 ? [...baseParams, entryCap] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       cfg.inject.blockDetail
@@ -160,16 +160,16 @@ export async function buildReviewCtx(
              from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
              where b.user_id = $1
                and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
-             order by b.start_at${blockCap > 0 ? ` limit ${blockCap}` : ""}`,
-            baseParams,
+             order by b.start_at${blockCap > 0 ? ` limit $5::int` : ""}`,
+            blockCap > 0 ? [...baseParams, blockCap] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       cfg.inject.todoDetail
         ? pool.query(
             `select title, done_at from todos
              where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date
-             order by done_at${todoCap > 0 ? ` limit ${todoCap}` : ""}`,
-            baseParams,
+             order by done_at${todoCap > 0 ? ` limit $5::int` : ""}`,
+            todoCap > 0 ? [...baseParams, todoCap] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       // 截断注记所需真实总数（仅 cap>0 且注入开启才查；year 由明细行数直接得）

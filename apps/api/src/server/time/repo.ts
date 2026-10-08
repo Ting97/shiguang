@@ -106,7 +106,8 @@ export const activitiesRepo = {
       await client.query("commit");
       return "deleted";
     } catch (e) {
-      await client.query("rollback");
+      // 连接已坏时 rollback 会抛错顶替原始异常（全站同口径：.catch 不顶替）
+      await client.query("rollback").catch(() => {});
       throw e;
     } finally {
       client.release();

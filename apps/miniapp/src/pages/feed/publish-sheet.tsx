@@ -148,6 +148,9 @@ export default function PublishSheet({
       return;
     }
     lastEntryId.current = entryId;
+    // 发布成功即清文本：失败图保留供「↻ 重试」，但正文已上墙——
+    // 面板残留原文时再点「发布」会重复发一条动态（009 轮修复）
+    setValue("");
     if (!toSend.length) {
       onClose(); // 无图：直接收尾
       return;

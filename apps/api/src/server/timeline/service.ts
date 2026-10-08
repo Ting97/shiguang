@@ -118,8 +118,10 @@ export async function confirmPending(
             throw ApiError.badRequest("识别快照时间无效，请重新识别");
           }
           // pending 快照是识别时刻的，确认可能发生在数小时后——落库前同样做重叠检测
-          //（与 createBlock/appendManual/reRecognize 对齐，否则确认路径可绕过「一个时刻只做一件事」）
-          const conflict = await findOverlap(userId, result.startAt, result.endAt);
+          //（与 createBlock/appendManual/reRecognize 对齐，否则确认路径可绕过「一个时刻只做一件事」）。
+          // 排除本 entry 自己的块：识别 pending 期间用户已手动补录过同条动态时，替换式写入（下方 delete+insert）
+          // 语义本就是覆盖自己——命中自己的块报 409 会让确认流死锁（与 reRecognize 同根，009 轮补齐）
+          const conflict = await findOverlap(userId, result.startAt, result.endAt, undefined, entryId);
           if (conflict) {
             throw ApiError.conflict(overlapError(conflict, {
               title: result.title, start: result.startAt, end: result.endAt,
@@ -451,6 +453,8 @@ export async function appendManual(
         // 快照防御：非法 dueAt 的 toISOString 会抛 RangeError → 500（与 confirmPending todo 分支同口径 400）
         const dueAt = p.dueAt ? toIsoOr400(p.dueAt, "到期时间格式不正确") : null;
         const activityId = typeof p.activityId === "string" && p.activityId ? p.activityId : "other";
+        // todos.activity_id 是 (activity_id, user_id) 复合外键：任意串直插 23503 → 事务回滚 500（schedule 分支同款预检）
+        await assertActivityExists(client, userId, activityId);
         await client.query(
           `insert into todos (user_id, entry_id, title, activity_id, due_at, remind_at, source, space_id)
            values ($1,$2,$3,$4,$5,$6,'manual',(select space_id from entries where id = $2))`,
@@ -944,18 +948,31 @@ export async function deleteEntryImage(userId: string, entryId: string, imageId:
 
 /** DELETE /api/entries/:id/diet —— 删除该动态的饮食记录（识别产物可单独删除） */
 export async function deleteEntryDiet(userId: string, entryId: string) {
-  const { rowCount } = await pool.query(
-    `delete from diet_records where entry_id = $1 and user_id = $2`,
-    [entryId, userId],
-  );
-  // 识别登记簿同步置"已删除"，避免统计/重识别状态与实际不符
-  await pool.query(
-    `update entry_recognitions set status = 'none', result = result || '{"reason": "用户已删除饮食记录"}'::jsonb
-     where entry_id = $1 and user_id = $2 and domain = 'diet'`,
-    [entryId, userId],
-  );
-  if (!rowCount) throw ApiError.notFound("没有饮食记录");
-  return { ok: true as const };
+  // 删记录与登记簿置状态必须同事务：第二条失败会让「实际无记录但登记簿仍 applied」（重识别/统计失真）
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const { rowCount } = await client.query(
+      `delete from diet_records where entry_id = $1 and user_id = $2`,
+      [entryId, userId],
+    );
+    // 登记簿只在确实删了记录时改写（rowCount=0 说明本来就没有，404 之外不该动登记状态）
+    if (rowCount) {
+      await client.query(
+        `update entry_recognitions set status = 'none', result = result || '{"reason": "用户已删除饮食记录"}'::jsonb
+         where entry_id = $1 and user_id = $2 and domain = 'diet'`,
+        [entryId, userId],
+      );
+    }
+    await client.query("commit");
+    if (!rowCount) throw ApiError.notFound("没有饮食记录");
+    return { ok: true as const };
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 /** POST /api/feed/:id/dismiss-conflict —— 关闭日程冲突警示条（服务端标记 reasonDismissed，多端持久） */

@@ -39,7 +39,8 @@ function dueSplit(iso?: string | null): { date: string; time: string } {
 /** 北京 {date,time} → ISO（shared bjInputToIso 单源）；无日期返回 null */
 function dueCompose(date: string, time: string): string | null {
   if (!date) return null;
-  return bjInputToIso(`${date}T${time || "00:00"}`);
+  // 默认时刻 09:00 与 todo-bits.joinDue / actions-today 全站口径一致（00:00 会落出「零点截止」）
+  return bjInputToIso(`${date}T${time || "09:00"}`);
 }
 
 /** 子行动进度 n/m（= web childProgress） */

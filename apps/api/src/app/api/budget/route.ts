@@ -23,8 +23,9 @@ export const PUT = withAuth(async (req, { user }) => {
     monthlyLimitCents?: number;
     alertThreshold?: number;
   };
-  if (!Number.isInteger(body.monthlyLimitCents) || (body.monthlyLimitCents ?? 0) < 0) {
-    throw ApiError.badRequest("上限需为非负整数（分，0=不设上限）");
+  // 上限对齐 transactions（¥100 万）：monthly_limit_cents 是 bigint，1e21 → pg 序列化 "1e+21" → 22P02 → 500
+  if (!Number.isInteger(body.monthlyLimitCents) || (body.monthlyLimitCents ?? 0) < 0 || (body.monthlyLimitCents ?? 0) > 100_000_000) {
+    throw ApiError.badRequest("上限需为非负整数（分，0=不设上限，不超过 ¥100 万）");
   }
   // 非数值（如 "高"）先 400：否则 Math.max 产 NaN → int 列 500；数值再 clamp（取整防小数落 int 列）
   if (body.alertThreshold !== undefined && (typeof body.alertThreshold !== "number" || !Number.isFinite(body.alertThreshold))) {

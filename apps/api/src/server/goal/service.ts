@@ -328,6 +328,8 @@ async function listSpaces(userId: string) {
 async function createSpace(userId: string, body: SpaceCreateInput) {
   const { name, description, icon, color, startedAt, targetDate } = body;
   if (name != null && typeof name !== "string") throw ApiError.badRequest("名称需为字符串");
+  if (description != null && typeof description !== "string") throw ApiError.badRequest("描述需为字符串");
+  if (icon != null && typeof icon !== "string") throw ApiError.badRequest("图标需为字符串");
   const trimmed = (name ?? "").trim();
   if (!trimmed || trimmed.length > 40) throw ApiError.badRequest("名称必填且不超过 40 字");
   const { rows: active } = await spaceRepo.countActive(userId);
@@ -346,12 +348,16 @@ async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
   if (status !== undefined && status !== "active" && status !== "archived") {
     throw ApiError.badRequest("status 需为 active/archived");
   }
+  // 非字符串直落 .trim() 是 TypeError → 500（create 通道有守卫，PATCH 通道同批补齐）
+  if (name !== undefined && typeof name !== "string") throw ApiError.badRequest("名称需为字符串");
+  if (description !== undefined && description !== null && typeof description !== "string") throw ApiError.badRequest("描述需为字符串");
+  if (icon !== undefined && icon !== null && typeof icon !== "string") throw ApiError.badRequest("图标需为字符串");
   if (name !== undefined && (!name.trim() || name.trim().length > 40)) {
     throw ApiError.badRequest("名称必填且不超过 40 字");
   }
-  // sort 是 int 列："abc"/1.5 曾穿透 → PG cast 500；存在时必须为整数
-  if (sort !== undefined && !Number.isInteger(sort)) {
-    throw ApiError.badRequest("sort 需为整数");
+  // sort 是 int 列："abc"/1.5 曾穿透 → PG cast 500；1e12 越界 → 22003 500；存在时必须为 0~9999 整数
+  if (sort !== undefined && (!Number.isInteger(sort) || sort < 0 || sort > 9999)) {
+    throw ApiError.badRequest("sort 需为 0~9999 的整数");
   }
   const { rows } = await spaceRepo.update(id, userId, {
     name: name?.trim() ?? null,
@@ -400,6 +406,7 @@ async function listReflections(userId: string, spaceId: string, limit: number, o
 
 /** POST /api/spaces/:id/reflections —— 新建感悟 { content }（路由以 201 返回） */
 async function createReflection(userId: string, spaceId: string, body: ReflectionCreateInput) {
+  if (body.content != null && typeof body.content !== "string") throw ApiError.badRequest("感悟需为字符串");
   const content = (body.content ?? "").trim();
   if (!content) throw ApiError.badRequest("感悟不能为空");
   if (content.length > MAX_CHARS) throw ApiError.badRequest("超出 50000 字上限");
@@ -420,6 +427,7 @@ async function getReflection(userId: string, rid: string) {
 /** PATCH /api/spaces/:id/reflections/:rid —— 编辑 { content } */
 async function updateReflection(userId: string, rid: string, body: ReflectionCreateInput) {
   if (!(await reflectionRepo.ownOf(rid, userId))) throw ApiError.notFound("感悟不存在");
+  if (body.content != null && typeof body.content !== "string") throw ApiError.badRequest("感悟需为字符串");
   const content = (body.content ?? "").trim();
   if (!content) throw ApiError.badRequest("感悟不能为空");
   if (content.length > MAX_CHARS) throw ApiError.badRequest("超出 50000 字上限");

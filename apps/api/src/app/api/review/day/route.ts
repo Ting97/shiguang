@@ -3,7 +3,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
-import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
+import { acquireGeneration, releaseGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight";
 import { buildReviewCtx } from "@/server/insight";
@@ -45,23 +45,28 @@ export const POST = withAuth(async (req, { user }) => {
       }
       if (!hasApiKey()) throw new ReviewGateError("未配置 AI 服务");
       await acquireGeneration(user.id, "day", date, latest ? new Date(latest) : null);
-      const parsed = await chatReviewJson<Partial<DayReview>>({
-        system: bundle.system,
-        user: built.userPrompt,
-        maxTokens: 700,
-        timeoutMs: 45_000,
-        onUsage: capture,
-      });
-      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 30)).filter(Boolean).slice(0, n) : []);
-      await consumeGeneration(user.id, "day", date);
-      return {
-        summary:
-          typeof parsed.summary === "string" && parsed.summary.trim()
-            ? parsed.summary.trim().slice(0, 80)
-            : "这一天记录还很少，多记几句再来复盘会更有料",
-        highlights: arr(parsed.highlights, 2),
-        suggestions: arr(parsed.suggestions, 2),
-      };
+      try {
+        const parsed = await chatReviewJson<Partial<DayReview>>({
+          system: bundle.system,
+          user: built.userPrompt,
+          maxTokens: 700,
+          timeoutMs: 45_000,
+          onUsage: capture,
+        });
+        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 30)).filter(Boolean).slice(0, n) : []);
+        return {
+          summary:
+            typeof parsed.summary === "string" && parsed.summary.trim()
+              ? parsed.summary.trim().slice(0, 80)
+              : "这一天记录还很少，多记几句再来复盘会更有料",
+          highlights: arr(parsed.highlights, 2),
+          suggestions: arr(parsed.suggestions, 2),
+        };
+      } catch (e) {
+        // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）
+        await releaseGeneration(user.id, "day", date).catch(() => {});
+        throw e;
+      }
     });
   } catch (e) {
     if (e instanceof ReviewGateError) return NextResponse.json({ error: e.message }, { status: 403 });

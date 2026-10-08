@@ -94,7 +94,8 @@ export default function DayTimeline({ date, blocks, loading = false, onEditBlock
       s = Math.max(gap.s, gap.e - 60);
       e = gap.e;
     }
-    onOpenSlot(hmOf(s), hmOf(e));
+    // picker 钳 23:59：hmOf(1440)="24:00"，wx Picker mode=time 不认（一碰结束时间回落 00:00 触发倒挂校验）
+    onOpenSlot(hmOf(s), hmOf(Math.min(e, 1439)));
   }
 
   /** tap 事件的视口 Y（changedTouches 在 touchend 阶段才有值） */

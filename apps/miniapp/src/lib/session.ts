@@ -35,10 +35,20 @@ export function ensureSessionToken(): string | null {
   return getSessionToken();
 }
 
-/** 未登录或 401 后的统一收敛：清态 + 跳登录页（对齐 web shared/session 单点跳转） */
+/** 未登录或 401 后的统一收敛：清态 + 跳登录页（对齐 web shared/session 单点跳转）。
+ * 单飞去重：feed 首屏 5 路并发同时 401 时，reLaunch 连发会报导航冲突 + 登录页 onLoad 多次
+ * （web 靠 location.href 浏览器天然合并，小程序端必须显式去重，009 轮修复） */
+let goingLogin = false;
 export function toLogin() {
   clearSessionToken();
-  Taro.reLaunch({ url: "/pages/login/index" });
+  if (goingLogin) return;
+  goingLogin = true;
+  Taro.reLaunch({
+    url: "/pages/login/index",
+    complete: () => {
+      goingLogin = false;
+    },
+  });
 }
 
 /* ---------- 游客模式（REQ-游客浏览）：无 token 只读浏览，不清除直到主动登录 ---------- */

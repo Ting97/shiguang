@@ -42,8 +42,13 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
   const [editDeleting, setEditDeleting] = useState(false);
 
   const loadActivities = useCallback(async () => {
-    const j = await api<any>("/api/activities");
-    setActivities(j.activities ?? []);
+    // 裸 rejection 会命中 ChunkErrorReloader 的宽匹配 → 整页强刷循环（use-todo-data 同款注释）
+    try {
+      const j = await api<any>("/api/activities");
+      setActivities(j.activities ?? []);
+    } catch {
+      setActivities([]); // 失败按无自定义分类降级：预设分类仍可用，不阻断日程页
+    }
   }, []);
   useEffect(() => {
     loadActivities();

@@ -25,3 +25,10 @@ test("isoToBjInput：北京墙上输入值（回归）", () => {
   assert.equal(isoToBjInput(ISO), "2026-10-08T12:30");
   assert.equal(isoToBjInput(null), "");
 });
+
+test("combineHM：负数钟点保持原值（setUTCHours(-1) 回卷一天）", () => {
+  const ISO = "2026-10-08T04:30:00.000Z";
+  assert.equal(combineHM(ISO, "-1:30"), ISO);
+  assert.equal(combineHM(ISO, "12:-5"), ISO);
+  assert.equal(combineHM(ISO, "23:59") !== ISO, true); // 合法值仍正常换算
+});

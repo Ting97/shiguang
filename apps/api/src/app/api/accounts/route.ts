@@ -30,11 +30,13 @@ export const POST = withAuth(async (req, { user }) => {
     icon?: string;
     openingBalanceCents?: number;
   };
+  if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("账户名称需为字符串");
   const name = body.name?.trim();
   if (!name) throw ApiError.badRequest("账户名称必填");
   if (name.length > 20) throw ApiError.badRequest("账户名称过长");
   const opening = body.openingBalanceCents ?? 0;
-  if (!Number.isInteger(opening)) throw ApiError.badRequest("期初余额需为整数（分）");
+  // 上限对齐 transactions（¥100 万）：bigint 列吃 1e21 时 pg 序列化成 "1e+21" → 22P02 → 500
+  if (!Number.isInteger(opening) || Math.abs(opening) > 100_000_000) throw ApiError.badRequest("期初余额需为整数（分），不超过 ¥100 万");
 
   try {
     const created = (

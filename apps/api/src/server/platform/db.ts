@@ -39,16 +39,18 @@ export async function findOverlap(
   startAt: string,
   endAt: string,
   excludeId?: string,
+  excludeEntryId?: string,
 ): Promise<{ id: string; title: string; start_at: string; end_at: string } | null> {
   const { rows } = await pool.query(
     `select id, title, start_at, end_at
      from time_blocks
      where user_id = $1
        and ($4::uuid is null or id <> $4::uuid)
+       and ($5::uuid is null or entry_id is distinct from $5::uuid)
        and tstzrange(start_at, end_at, '[)') && tstzrange($2::timestamptz, $3::timestamptz, '[)')
      order by start_at
      limit 1`,
-    [userId, startAt, endAt, excludeId ?? null],
+    [userId, startAt, endAt, excludeId ?? null, excludeEntryId ?? null],
   );
   return rows[0] ?? null;
 }

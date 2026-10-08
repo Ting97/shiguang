@@ -4,7 +4,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
-import { getOrGenerateReview, acquireGeneration, consumeGeneration, ReviewGateError } from "@/server/insight";
+import { getOrGenerateReview, acquireGeneration, releaseGeneration, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle, assembleUserPrompt } from "@/server/ai";
 import { chatReviewJson } from "@/server/insight";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
@@ -166,23 +166,28 @@ export const POST = withModule("trade_review", async (req, { user }) => {
   try {
     result = await getOrGenerateReview(user.id, "trade_week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
       await acquireGeneration(user.id, "trade_week", from, latest ? new Date(latest) : null);
-      const parsed = await chatReviewJson<Partial<WeekReview>>({
-        system: bundle.system,
-        user: userPrompt,
-        maxTokens: 800,
-        timeoutMs: 45_000,
-        onUsage: capture,
-      });
-      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
-      await consumeGeneration(user.id, "trade_week", from);
-      return {
-        summary:
-          typeof parsed.summary === "string" && parsed.summary.trim()
-            ? parsed.summary.trim().slice(0, 120)
-            : "本周流水还很少，多记几笔再来复盘会更有料",
-        highlights: arr(parsed.highlights, 3),
-        suggestions: arr(parsed.suggestions, 2),
-      };
+      try {
+        const parsed = await chatReviewJson<Partial<WeekReview>>({
+          system: bundle.system,
+          user: userPrompt,
+          maxTokens: 800,
+          timeoutMs: 45_000,
+          onUsage: capture,
+        });
+        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 34)).filter(Boolean).slice(0, n) : []);
+        return {
+          summary:
+            typeof parsed.summary === "string" && parsed.summary.trim()
+              ? parsed.summary.trim().slice(0, 120)
+              : "本周流水还很少，多记几笔再来复盘会更有料",
+          highlights: arr(parsed.highlights, 3),
+          suggestions: arr(parsed.suggestions, 2),
+        };
+      } catch (e) {
+        // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）
+        await releaseGeneration(user.id, "trade_week", from).catch(() => {});
+        throw e;
+      }
     });
   } catch (e) {
     if (e instanceof ReviewGateError) return NextResponse.json({ error: e.message }, { status: 403 });

@@ -10,7 +10,7 @@
  * - web 的「后台管理」入口（/admin）不迁移：小程序无后台页；管理员标识与不限量说明保留。
  * - 主题切换行（REQ-导航下移缩小）：原顶栏入口随导航改为底部 tab 后挪入本页资料卡。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import PageShell from "@/components/page-shell";
@@ -81,13 +81,16 @@ export default function Profile() {
       .catch((e) => setQuotaErr(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  // 首次进入加载（token 就绪后，= feed/finance 的 inited 范式）
+  // 首次进入加载（token 就绪后，= feed/finance 的 inited 范式）。
+  // 必须在 useEffect 里：render 期 setState+发请求在并发渲染打断重放时会双发（009 轮修复，8 页范式此处漏网）
   const [inited, setInited] = useState(false);
-  if (!inited && getSessionToken()) {
+  useEffect(() => {
+    if (inited || !getSessionToken()) return;
     setInited(true);
     loadMe();
     loadQuota();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function saveNickname() {
     if (busy) return;

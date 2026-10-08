@@ -32,6 +32,11 @@ export interface ImportBody {
   rows: TradeRowInput[];
 }
 
+/** numeric 列宽上限：price/lots/commission/swap/profit 直插 numeric(12,5)/(10,2)/(12,2)，
+ * 越界 22003 → 整批 500；NaN 经 node-pg 序列化成 'NaN' 落库会污染生成列与全部聚合 */
+const TRADE_FIELD_LIMITS: Record<string, number> = {
+  openPrice: 1e9, closePrice: 1e9, lots: 1e8, profit: 1e10, commission: 1e9, swap: 1e9,
+};
 function validateRows(rows: TradeRowInput[]) {
   if (!Array.isArray(rows) || rows.length === 0) throw ApiError.badRequest("rows 为空");
   if (rows.length > 50_000) throw ApiError.badRequest("单次导入上限 50000 笔");
@@ -45,6 +50,16 @@ function validateRows(rows: TradeRowInput[]) {
     for (const k of ["profit"] as const) {
       if (!Number.isFinite(Number(r[k]))) throw ApiError.badRequest(`第 ${i + 1} 行 profit 非法`);
     }
+    // openPrice/closePrice 此前无校验（非数值串 22P02 整批 500）；commission/swap NaN 曾以 'NaN' 落库污染 net_profit 生成列
+    for (const k of ["openPrice", "closePrice", "commission", "swap"] as const) {
+      const v = r[k];
+      if (v == null) continue; // 可空字段保持原语义（运行时可能收到 JSON 数字串，Number() 统一归一）
+      const n = Number(v);
+      if (!Number.isFinite(n)) throw ApiError.badRequest(`第 ${i + 1} 行 ${k} 非法`);
+      if (Math.abs(n) > TRADE_FIELD_LIMITS[k]) throw ApiError.badRequest(`第 ${i + 1} 行 ${k} 超出数值上限`);
+    }
+    if (Math.abs(Number(r.profit)) > TRADE_FIELD_LIMITS.profit) throw ApiError.badRequest(`第 ${i + 1} 行 profit 超出数值上限`);
+    if (Number(r.lots) > TRADE_FIELD_LIMITS.lots) throw ApiError.badRequest(`第 ${i + 1} 行手数超出数值上限`);
   }
 }
 
@@ -54,8 +69,11 @@ async function ensureAccount(userId: string, login: string, nickname?: string, s
     if (nickname) await pool.query(`update trade_accounts set nickname = $1 where id = $2`, [nickname, hit.rows[0].id]);
     return hit.rows[0].id;
   }
+  // on conflict 兜底并发首导入同一新 login（unique user_id+login）：先查后插的窗口会撞 23505 → 裸 500
   const ins = await pool.query(
-    `insert into trade_accounts (user_id, login, nickname, source) values ($1,$2,$3,$4) returning id`,
+    `insert into trade_accounts (user_id, login, nickname, source) values ($1,$2,$3,$4)
+     on conflict (user_id, login) do update set nickname = coalesce(excluded.nickname, trade_accounts.nickname)
+     returning id`,
     [userId, login, nickname ?? null, source],
   );
   return ins.rows[0].id;

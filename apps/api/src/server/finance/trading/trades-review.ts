@@ -5,7 +5,7 @@
 import { pool } from "@/server/platform/db";
 import { hasApiKey } from "@shiguangri/ai";
 import { ApiError } from "@/server/platform/http/errors";
-import { getOrGenerateReview, acquireGeneration, consumeGeneration, ReviewGateError, chatReviewJson } from "@/server/insight";
+import { getOrGenerateReview, acquireGeneration, releaseGeneration, ReviewGateError, chatReviewJson } from "@/server/insight";
 import { checkAiQuota, getPromptBundle, assembleUserPrompt } from "@/server/ai";
 import { equityCurve, listTrades, TZ } from "./trades";
 
@@ -152,23 +152,28 @@ export async function generateTradingReview(userId: string, accountId: string, r
   try {
     result = await getOrGenerateReview(userId, "trading", accountId, refresh === true, latestAt, async (capture) => {
       await acquireGeneration(userId, "trading", accountId, latestAt);
-      const parsed = await chatReviewJson<Partial<TradingReview>>({
-        system: bundle.system,
-        user: userPrompt,
-        maxTokens: 900,
-        timeoutMs: 45_000,
-        onUsage: capture,
-      });
-      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 60)).filter(Boolean).slice(0, n) : []);
-      await consumeGeneration(userId, "trading", accountId);
-      return {
-        summary:
-          typeof parsed.summary === "string" && parsed.summary.trim()
-            ? parsed.summary.trim().slice(0, 160)
-            : "交易样本还少，继续导入账单后再来看复盘结论",
-        highlights: arr(parsed.highlights, 3),
-        suggestions: arr(parsed.suggestions, 3),
-      };
+      try {
+        const parsed = await chatReviewJson<Partial<TradingReview>>({
+          system: bundle.system,
+          user: userPrompt,
+          maxTokens: 900,
+          timeoutMs: 45_000,
+          onUsage: capture,
+        });
+        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 60)).filter(Boolean).slice(0, n) : []);
+        return {
+          summary:
+            typeof parsed.summary === "string" && parsed.summary.trim()
+              ? parsed.summary.trim().slice(0, 160)
+              : "交易样本还少，继续导入账单后再来看复盘结论",
+          highlights: arr(parsed.highlights, 3),
+          suggestions: arr(parsed.suggestions, 3),
+        };
+      } catch (e) {
+        // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）
+        await releaseGeneration(userId, "trading", accountId).catch(() => {});
+        throw e;
+      }
     });
   } catch (e) {
     if (e instanceof ReviewGateError) throw new ApiError(429, "quota", e.message);

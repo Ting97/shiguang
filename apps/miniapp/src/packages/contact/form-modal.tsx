@@ -5,7 +5,7 @@
  * web 的 <select> → Taro Picker；type=date → Picker mode=date。
  */
 import { useState } from "react";
-import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
+import { View, Text, Input, Textarea, Button, Picker, Slider } from "@tarojs/components";
 import LucideIcon from "../../components/lucide-icon";
 import { request } from "@/lib/request";
 import type { ContactRow } from "./shared";
@@ -38,6 +38,8 @@ export default function ContactFormModal(opts: {
   const [lunarLeap, setLunarLeap] = useState(!!initial?.lunar_leap);
   const [anniversary, setAnniversary] = useState(initial?.anniversary ?? "");
   const [importance, setImportance] = useState(initial?.importance ?? 3);
+  // 亲密度 0~100：新建默认 50（服务端同款回落），编辑读已有值（= web contact-form）
+  const [intimacy, setIntimacy] = useState(initial?.intimacy ?? 50);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export default function ContactFormModal(opts: {
       ...birthdayPayload(),
       anniversary: anniversary || null,
       importance,
+      intimacy,
       notes,
     };
     try {
@@ -196,6 +199,22 @@ export default function ContactFormModal(opts: {
                 </View>
               ))}
             </View>
+          </View>
+          {/* 亲密度滑杆（= web contact-form；详情页进度条此前只读无编辑入口） */}
+          <View>
+            <View className="cf-imp-label">
+              <Text>亲密度</Text>
+              <Text className="cf-int-val">{intimacy}/100</Text>
+            </View>
+            <Slider
+              min={0}
+              max={100}
+              step={5}
+              value={intimacy}
+              activeColor="#0ea5e9"
+              blockSize={20}
+              onChange={(e) => setIntimacy(Number(e.detail.value))}
+            />
           </View>
           <Textarea
             className="cf-notes"

@@ -60,3 +60,6 @@ shiguang-import.json
 
 # miniapp 构建缓存/产物
 apps/miniapp/.swc
+
+# 本地临时（测试库连接串等）
+.local/

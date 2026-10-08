@@ -259,7 +259,8 @@ export const MoodDraftV2 = z
     }
   });
 
-/** 严格饮食域：条目名 1-16 字（单字食物名如"盐/茶"合法）、禁止整句片段 */
+/** 严格饮食域：条目名 1-16 字（单字食物名如"盐/茶"合法）、禁止整句片段；
+ * kcal/totalKcal 上限对齐 OpenVocab（5000）——直落 diet_records.total_kcal int4，模型抽风不得撑爆 */
 export const DietItemV2 = z.object({
   name: z
     .string()
@@ -267,14 +268,14 @@ export const DietItemV2 = z.object({
     .max(16)
     .refine((n) => !/^(今天|今日|刚才|刚刚|我|现在)/.test(n.trim()), { message: "items[].name 不能是句子片段" }),
   amount: z.string().nullish(),
-  kcal: z.coerce.number().int().positive().nullish(),
+  kcal: z.coerce.number().int().positive().max(5000).nullish(),
 });
 export const DietDraftV2 = z
   .object({
     applicable: llmBoolean,
     meal: z.enum(["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"]).nullish().transform((m) => m ?? "未知"),
-    items: z.array(DietItemV2).default([]),
-    totalKcal: z.coerce.number().int().nullish(),
+    items: z.array(DietItemV2).max(20).default([]),
+    totalKcal: z.coerce.number().int().max(20000).nullish(),
     confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
@@ -284,7 +285,12 @@ export const DietDraftV2 = z
   });
 
 export const PersonDraftV2 = z.object({
-  name: z.string().min(1).refine((n) => !/^(省略|无|没有|null|none)$/i.test(n.trim()), { message: "people[].name 不能是占位词" }),
+  // name 1-20 字 + people 上限对齐 OpenVocab（≤10 人）：一段话提到的人有限，防模型抽风产出脏数据/撑爆关联表
+  name: z
+    .string()
+    .min(1)
+    .max(20)
+    .refine((n) => !/^(省略|无|没有|null|none)$/i.test(n.trim()), { message: "people[].name 不能是占位词" }),
   event: z.string().nullish(),
 });
 
@@ -305,7 +311,7 @@ export const FullExtractionV2 = z.object({
   finance: FinanceDraftV2,
   mood: MoodDraftV2,
   diet: DietDraftV2,
-  people: z.array(PersonDraftV2).default([]),
+  people: z.array(PersonDraftV2).max(10).default([]),
   ambiguity: z.string().nullish().catch(null),
 });
 
@@ -317,7 +323,7 @@ export function domainExtractionV2(domain: string): z.ZodTypeAny {
     case "finance": return z.object({ reasoning: z.string().nullish(), finance: FinanceDraftV2 });
     case "mood": return z.object({ reasoning: z.string().nullish(), mood: MoodDraftV2 });
     case "diet": return z.object({ reasoning: z.string().nullish(), diet: DietDraftV2 });
-    case "people": return z.object({ reasoning: z.string().nullish(), people: z.array(PersonDraftV2).default([]) });
+    case "people": return z.object({ reasoning: z.string().nullish(), people: z.array(PersonDraftV2).max(10).default([]) });
     default: throw new Error(`未知域: ${domain}`);
   }
 }

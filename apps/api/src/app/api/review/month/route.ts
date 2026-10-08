@@ -3,7 +3,7 @@ import { hasApiKey } from "@shiguangri/ai";
 import { withAuth } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth } from "@/server/platform/http/validate";
-import { acquireGeneration, consumeGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
+import { acquireGeneration, releaseGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle } from "@/server/ai";
 import { chatReviewJson, updateProfileFromReview } from "@/server/insight";
 import { buildReviewCtx } from "@/server/insight";
@@ -46,30 +46,35 @@ export const POST = withAuth(async (req, { user }) => {
       }
       if (!hasApiKey()) throw new ReviewGateError("未配置 AI 服务");
       await acquireGeneration(user.id, "month", month, latest ? new Date(latest) : null);
-      const parsed = await chatReviewJson<Partial<MonthReview>>({
-        system: bundle.system,
-        user: userPrompt,
-        maxTokens: 2500,
-        timeoutMs: 60_000,
-        onUsage: capture,
-      });
-      const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, n) : []);
-      const sections = Array.isArray(parsed.sections)
-        ? parsed.sections
-            .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
-            .slice(0, 4)
-            .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 220) }))
-        : [];
-      await consumeGeneration(user.id, "month", month);
-      return {
-        summary:
-          typeof parsed.summary === "string" && parsed.summary.trim()
-            ? parsed.summary.trim().slice(0, 160)
-            : "这个月记录还很少，多记几天再来复盘会更有料",
-        sections,
-        highlights: arr(parsed.highlights, 4),
-        suggestions: arr(parsed.suggestions, 3),
-      };
+      try {
+        const parsed = await chatReviewJson<Partial<MonthReview>>({
+          system: bundle.system,
+          user: userPrompt,
+          maxTokens: 2500,
+          timeoutMs: 60_000,
+          onUsage: capture,
+        });
+        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, n) : []);
+        const sections = Array.isArray(parsed.sections)
+          ? parsed.sections
+              .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
+              .slice(0, 4)
+              .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 220) }))
+          : [];
+        return {
+          summary:
+            typeof parsed.summary === "string" && parsed.summary.trim()
+              ? parsed.summary.trim().slice(0, 160)
+              : "这个月记录还很少，多记几天再来复盘会更有料",
+          sections,
+          highlights: arr(parsed.highlights, 4),
+          suggestions: arr(parsed.suggestions, 3),
+        };
+      } catch (e) {
+        // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）
+        await releaseGeneration(user.id, "month", month).catch(() => {});
+        throw e;
+      }
     });
   } catch (e) {
     if (e instanceof ReviewGateError) return NextResponse.json({ error: e.message }, { status: 403 });

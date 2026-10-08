@@ -45,13 +45,14 @@ export const contactsRepo = {
       lunarLeap: boolean;
       anniversary: string | null;
       importance: number;
+      intimacy: number;
       notes: string | null;
     },
   ) {
     return pool.query(
       `with ins as (
-         insert into contacts (user_id, name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, notes)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         insert into contacts (user_id, name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, intimacy, notes)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          returning *
        )
        select ins.*, to_char(ins.birthday, 'YYYY-MM-DD') as birthday,
@@ -69,6 +70,7 @@ export const contactsRepo = {
         p.lunarLeap,
         p.anniversary,
         p.importance,
+        p.intimacy,
         p.notes,
       ],
     );

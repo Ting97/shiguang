@@ -31,6 +31,12 @@ import {
 import { deleteSpace, patchSpace } from "../list/api"; // 空间 CRUD 端点在列表页局部 api（同分包复用）
 import "./index.scss";
 
+/** 删除/归档后的回列表：优先 navigateBack（入口是列表 navigateTo，栈里还有列表实例——
+ * redirectTo 会再压一份新列表成 [list, list]，物理返回落在旧实例），栈空（分享直达）兜底 redirectTo */
+function backToList(url: string) {
+  Taro.navigateBack().catch(() => Taro.redirectTo({ url }));
+}
+
 type SpaceTab = "todo" | "reflection" | "moments";
 
 export default function SpaceDetailPage() {
@@ -131,7 +137,7 @@ export default function SpaceDetailPage() {
       return;
     }
     // web 归档/恢复后跳回列表（location.href="/spaces"）
-    Taro.redirectTo({ url: "/packages/space/list/index" });
+    backToList("/packages/space/list/index");
   }
 
   async function removeSpace() {
@@ -149,7 +155,7 @@ export default function SpaceDetailPage() {
       showToast({ type: "err", text: e?.message ?? "删除失败" });
       return;
     }
-    Taro.redirectTo({ url: "/packages/space/list/index" });
+    backToList("/packages/space/list/index");
   }
 
   /** 行级空间关联（菜单「关联空间」→ 选择后 PATCH spaceId） */
@@ -175,7 +181,7 @@ export default function SpaceDetailPage() {
           <Button
             className="btn-reset btn-primary dt-notfound-btn"
             hoverClass="press"
-            onClick={() => Taro.redirectTo({ url: "/packages/space/list/index" })}
+            onClick={() => backToList("/packages/space/list/index")}
           >
             返回目标列表
           </Button>

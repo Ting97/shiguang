@@ -167,3 +167,11 @@
   font-size: 24px;
   border-radius: 16px; /* rounded-lg */
 }
+
+/* 亲密度滑杆值（= web justify-between 布局） */
+.cf-int-val {
+  margin-left: auto;
+  font-size: 20rpx;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}

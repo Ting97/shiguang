@@ -96,7 +96,8 @@ export default function TodaySchedule({
       e = gap.e;
     }
     setDraftErr(null);
-    setDraft({ title: "", start: hmOf(s), end: hmOf(e), activityId: activities[0]?.id ?? "other" });
+    // end 钳 23:59：同 day-timeline 缺口入口，hmOf(1440) 的 "24:00" wx time picker 不认
+    setDraft({ title: "", start: hmOf(s), end: hmOf(Math.min(e, 1439)), activityId: activities[0]?.id ?? "other" });
   }
 
   /** 提交补录/新增（POST /api/blocks；409=时间重叠，服务端文案就地展示） */

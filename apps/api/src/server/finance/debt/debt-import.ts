@@ -32,6 +32,12 @@ export interface ImportPayload {
 
 const DEBT_TYPES = new Set(["credit_card", "mortgage", "car_loan", "consumer_loan", "bnpl", "family"]);
 
+/** 金额上限（分）：与 validateDebtBody 同口径（¥100 万）——bigint 列 1e19 越界 22003 会让整单 500 */
+const IMPORT_CENTS_LIMIT = 100_000_000;
+const assertImportCents = (v: unknown, label: string, row: string) => {
+  if (typeof v === "number" && v > IMPORT_CENTS_LIMIT) throw ApiError.badRequest(`${row}${label}不能超过 ¥100 万`);
+};
+
 function validateRows(data: ImportPayload) {
   if (!data || !Array.isArray(data.liabilities)) throw ApiError.badRequest("data.liabilities 缺失");
   // 行数上限：防超大 payload 拖垮逐行 insert 事务
@@ -40,8 +46,11 @@ function validateRows(data: ImportPayload) {
     if (!r?.name?.trim() || r.name.length > 40) throw ApiError.badRequest(`第 ${i + 1} 行名称必填且 ≤40 字`);
     if (!DEBT_TYPES.has(r.type)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）无效的负债类型：${r.type}`);
     if (!Number.isInteger(r.principalCents) || r.principalCents < 0) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）本金需为非负整数（分）`);
+    assertImportCents(r.principalCents, "本金", `第 ${i + 1} 行（${r.name}）`);
     if (r.balanceCents != null && (!Number.isInteger(r.balanceCents) || r.balanceCents < 0)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）余额需为非负整数（分）`);
+    assertImportCents(r.balanceCents, "余额", `第 ${i + 1} 行（${r.name}）`);
     if (r.monthlyCents != null && (!Number.isInteger(r.monthlyCents) || r.monthlyCents < 0)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）月供需为非负整数（分）`);
+    assertImportCents(r.monthlyCents, "月供", `第 ${i + 1} 行（${r.name}）`);
     // ratePct/payDay 与 validateDebtBody 同口径：非数值/越界曾穿透到 PG 列约束抛 500
     if (r.ratePct != null) {
       const v = Number(r.ratePct);
@@ -55,6 +64,7 @@ function validateRows(data: ImportPayload) {
   (data.accounts ?? []).forEach((a, i) => {
     if (!a?.name?.trim()) throw ApiError.badRequest(`账户第 ${i + 1} 行名称必填`);
     if (!Number.isInteger(a.openingBalanceCents)) throw ApiError.badRequest(`账户第 ${i + 1} 行（${a.name}）期初余额需为整数（分）`);
+    assertImportCents(a.openingBalanceCents, "期初余额", `账户第 ${i + 1} 行（${a.name}）`);
   });
 }
 

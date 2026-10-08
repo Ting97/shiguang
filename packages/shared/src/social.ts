@@ -111,6 +111,11 @@ export interface BirthdayFields {
   lunar_leap?: boolean | null;
 }
 
+/** 时刻 t 的北京日历年（UTC getter + 8h；宿主本地帧在年界错位窗口会差一年） */
+function bjYearOf(t: Date): number {
+  return new Date(t.getTime() + 8 * 3600_000).getUTCFullYear();
+}
+
 /** 距下一个生日天数（自动区分阳历/农历）：0=今天；无效返回 null */
 export function birthdayCountdownOf(c: BirthdayFields, today = new Date()): number | null {
   if (c.birthday_cal === "lunar" && c.lunar_month && c.lunar_day) {
@@ -127,9 +132,11 @@ export function birthdayInfoOf(
   if (c.birthday_cal === "lunar" && c.lunar_month && c.lunar_day) {
     const b = { month: c.lunar_month, day: c.lunar_day, leap: !!c.lunar_leap };
     const next = nextLunarBirthdaySolar(b, today);
-    // 下一次生日可能落在明年（闰月回落/今年已过）：前缀区分「今年/明年」
+    // 下一次生日可能落在明年（闰月回落/今年已过）：前缀区分「今年/明年」。
+    // next 是按北京日历日构造的本地零点 holder（getFullYear 读回即构造值）；today 必须先归一到北京帧，
+    // 否则非 CST 宿主在两地年界错位窗口会把「今年」标成「明年」
     const nextSolar = next
-      ? `${next.getFullYear() === today.getFullYear() ? "今年" : "明年"}${next.getMonth() + 1}月${next.getDate()}日`
+      ? `${next.getFullYear() === bjYearOf(today) ? "今年" : "明年"}${next.getMonth() + 1}月${next.getDate()}日`
       : null;
     return {
       date: `农历${lunarBirthdayLabel(b)}`,

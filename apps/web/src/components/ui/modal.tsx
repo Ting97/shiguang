@@ -38,8 +38,11 @@ export function Modal({
     [dismissRef],
   );
 
-  // 焦点管理：打开→聚焦首个可聚焦元素；Tab 圈定在弹层内；卸载→焦点归还触发元素
+  // 焦点管理：打开→聚焦首个可聚焦元素；Tab 圈定在弹层内；卸载→焦点归还触发元素。
+  // 依赖 [mounted]：首帧 SSR/水合前 mounted=false 渲染 null，cardRef 未挂载；
+  // 空依赖数组会让三段焦点逻辑永不执行（死代码，009 轮修复）
   useEffect(() => {
+    if (!mounted) return;
     const card = cardRef.current;
     if (!card) return;
     const prev = document.activeElement as HTMLElement | null;
@@ -66,7 +69,7 @@ export function Modal({
       document.removeEventListener("keydown", onKey);
       prev?.focus?.();
     };
-  }, []);
+  }, [mounted]);
 
   if (!mounted) return null;
   return createPortal(
