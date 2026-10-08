@@ -70,7 +70,7 @@ export function useSpaceData() {
       }
       // 该空间的待办（全视图取全部再前端过滤）；失败跳过（原 if (tr.ok) 静默语义保留）
       fresh(() => {
-        if (tj.status === "fulfilled") setTodos((tj.value.todos as TodoItem[]).filter((t) => t.space_id === id));
+        if (tj.status === "fulfilled") setTodos(((tj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id)); // ?? [] 与 done 视图同口径：畸形 200 不再把已成功的空间加载打成整页失败
         // 已完成的关联 todo（done 视图按完成时间倒序）
         if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
         if (fj.status === "fulfilled") setMoments(fj.value.moments as FeedMoment[]);

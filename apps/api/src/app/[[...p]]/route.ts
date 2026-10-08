@@ -45,15 +45,20 @@ function fileStream(path: string): ReadableStream | null {
   return Readable.toWeb(createReadStream(path)) as unknown as ReadableStream;
 }
 
-function respond(path: string, _req: Request): NextResponse {
+function respond(path: string, req: Request): NextResponse {
   const immutable = path.includes(`${join("_next", "static")}`) || path.includes("_next/static");
   const stream = fileStream(path);
   if (!stream) return new NextResponse(null, { status: 404 });
+  const etag = `"${statSync(path).size}-${statSync(path).mtimeMs}"`;
+  // If-None-Match 命中回 304：no-cache 页面资源（html/manifest）每次协商，免重复传 body
+  if (req.headers.get("if-none-match") === etag) {
+    return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache" } });
+  }
   return new NextResponse(stream, {
     headers: {
       "Content-Type": MIME[extname(path).toLowerCase()] ?? "application/octet-stream",
       "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
-      ETag: `"${statSync(path).size}-${statSync(path).mtimeMs}"`,
+      ETag: etag,
     },
   });
 }

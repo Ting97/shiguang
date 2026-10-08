@@ -61,6 +61,7 @@ function validateRows(data: ImportPayload) {
     if (r.dueDate != null && !isValidCalendarDate(r.dueDate)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）到期日需为真实存在的日期（YYYY-MM-DD）`);
   });
   if (data.accounts && !Array.isArray(data.accounts)) throw ApiError.badRequest("data.accounts 需为数组");
+  if ((data.accounts ?? []).length > 500) throw ApiError.badRequest("单次最多导入 500 个账户");
   (data.accounts ?? []).forEach((a, i) => {
     if (!a?.name?.trim()) throw ApiError.badRequest(`账户第 ${i + 1} 行名称必填`);
     if (!Number.isInteger(a.openingBalanceCents)) throw ApiError.badRequest(`账户第 ${i + 1} 行（${a.name}）期初余额需为整数（分）`);
@@ -78,13 +79,18 @@ async function planRows(userId: string, data: ImportPayload) {
   const existingMap = new Map(existing.rows.map((r) => [key(r.name, r.type), r]));
 
   const rows = data.liabilities.map((r) => {
-    const dup = existingMap.get(key(r.name.trim(), r.type));
+    const k = key(r.name.trim(), r.type);
+    const dup = existingMap.get(k);
+    if (!dup) existingMap.set(k, r); // 批内判重回填：同一 payload 两行同名同类型不再双双 create
     return {
       ...r,
       name: r.name.trim(),
+      // 校验用转换值、入库用原值的双轨不一致收口：boolean/数组型 JSON 经 Number 校验通过后
+      // 原值直落 numeric 列会 22P02 整单回滚——归一在校验层一次完成
+      ratePct: r.ratePct == null ? null : Number(r.ratePct),
       action: dup ? ("skip" as const) : ("create" as const),
       exists: Boolean(dup),
-      existingBalanceCents: dup?.balance_cents ?? null,
+      existingBalanceCents: dup ? Number(dup.balance_cents) : null, // bigint 统一 Number 下发口径
     };
   });
 

@@ -383,13 +383,16 @@ try {
         console.log(`[sync-debt] 备付建档「${bank}」（仅备付行，余额 0）`);
       }
       if (liabilityId === "(dry)") continue;
-      await client.query(
-        `insert into debt_reserve_checks (user_id, ym, liability_id, planned_cents, source)
-         values ($1, $2, $3, $4, 'trade')
-         on conflict (user_id, ym, liability_id)
-         do update set planned_cents = $4, source = 'trade'`,
-        [userId, `${ym}-01`, liabilityId, cents],
-      );
+      // dry-run 契约：预览只计数不落库（旧版已映射行会照常 upsert，违背结尾「dry-run 未写库」承诺）
+      if (!dry) {
+        await client.query(
+          `insert into debt_reserve_checks (user_id, ym, liability_id, planned_cents, source)
+           values ($1, $2, $3, $4, 'trade')
+           on conflict (user_id, ym, liability_id)
+           do update set planned_cents = $4, source = 'trade'`,
+          [userId, `${ym}-01`, liabilityId, cents],
+        );
+      }
       liabN += 1;
     }
   }

@@ -281,6 +281,7 @@ export async function transcribeAudio(opts: TranscribeOptions): Promise<string> 
     } catch (e) {
       lastErr = e;
       if (e instanceof GlmError && e.kind === "auth") throw e; // 缺 Key：重试无意义（旧版文案不含 HTTP 4xx 会被白重试 3 次）
+      if (e instanceof GlmError && e.kind === "quota") throw e; // 欠费/配额尽：熔断已触发，重试只会重复烧
       if (e instanceof Error && /HTTP 4(0[13]|0[04])/.test(e.message)) throw e; // 鉴权/参数类不重试
       if (e instanceof Error && /转写超时/.test(e.message)) throw e; // 单次预算已耗尽，重试只会再超时
       if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));
@@ -307,7 +308,13 @@ async function transcribeOnce(opts: TranscribeOptions): Promise<string> {
       signal: ctl.signal,
     });
     const text = await res.text();
-    if (!res.ok) throw new Error("GLM-ASR HTTP " + res.status + ": " + text.slice(0, 300));
+    if (!res.ok) {
+      // 与 chat() 同口径分类：quota 类（欠费/配额尽）触发熔断，转写调用方收到 GlmError("quota")
+      // 后熔断期内直接短路——旧版裸 Error 不熔断，欠费期每条语音仍白打 3 次上游
+      const kind = classifyGlmFailure(res.status, text);
+      if (kind === "quota") tripQuotaBreaker();
+      throw new GlmError(kind, "GLM-ASR HTTP " + res.status + ": " + text.slice(0, 300));
+    }
     let parsed: any;
     try { parsed = JSON.parse(text); } catch { throw new Error("GLM-ASR 响应非 JSON：" + text.slice(0, 120)); }
     // usage 字段各版本不一（tokens / completion_tokens / total_tokens）：有啥取啥，全部记入 completion（ASR 只计输出）

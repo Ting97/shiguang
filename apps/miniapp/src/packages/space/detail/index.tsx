@@ -92,6 +92,10 @@ export default function SpaceDetailPage() {
   }, []);
 
   usePullDownRefresh(() => {
+    if (!getSessionToken()) {
+      Taro.stopPullDownRefresh(); // 游客态无服务端通道，直接收起动画（防 401 错误横幅/toast）
+      return;
+    }
     load().finally(() => Taro.stopPullDownRefresh());
   });
 

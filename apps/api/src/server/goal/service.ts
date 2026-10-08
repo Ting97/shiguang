@@ -332,13 +332,18 @@ async function createSpace(userId: string, body: SpaceCreateInput) {
   if (icon != null && typeof icon !== "string") throw ApiError.badRequest("图标需为字符串");
   const trimmed = (name ?? "").trim();
   if (!trimmed || trimmed.length > 40) throw ApiError.badRequest("名称必填且不超过 40 字");
+  // 描述 ≤500：原文会逐条拼进每次识别的 space_classify prompt（20 空间 × 巨长描述 = 免费用户零成本的 token 放大器）
+  const desc = description?.trim() || null;
+  if (desc && desc.length > 500) throw ApiError.badRequest("描述最长 500 字");
+  // 与 time 域同口径：#RRGGBB 之外的串直落库会原样下发前端渲染（CSS 注入面/脏数据）
+  const safeColor = color != null && /^#[0-9a-fA-F]{6}$/.test(color) ? color : null;
   const { rows: active } = await spaceRepo.countActive(userId);
   if (active[0].n >= MAX_ACTIVE_SPACES) {
     throw ApiError.badRequest(`进行中的空间已达 ${MAX_ACTIVE_SPACES} 个，请先归档`);
   }
   const started = calendarDateOrNull(startedAt, "开始日期");
   const target = calendarDateOrNull(targetDate, "目标日期");
-  const { rows } = await spaceRepo.insert(userId, trimmed, description?.trim() || null, icon?.trim() || null, color ?? null, started, target);
+  const { rows } = await spaceRepo.insert(userId, trimmed, desc, icon?.trim() || null, safeColor, started, target);
   return { ok: true as const, space: rows[0] };
 }
 
@@ -355,6 +360,10 @@ async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
   if (name !== undefined && (!name.trim() || name.trim().length > 40)) {
     throw ApiError.badRequest("名称必填且不超过 40 字");
   }
+  // 与 create 同口径：描述长度 + color 格式（PATCH 通道曾绕过）
+  if (description !== undefined && description !== null && description.trim().length > 500) {
+    throw ApiError.badRequest("描述最长 500 字");
+  }
   // sort 是 int 列："abc"/1.5 曾穿透 → PG cast 500；1e12 越界 → 22003 500；存在时必须为 0~9999 整数
   if (sort !== undefined && (!Number.isInteger(sort) || sort < 0 || sort > 9999)) {
     throw ApiError.badRequest("sort 需为 0~9999 的整数");
@@ -364,7 +373,7 @@ async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
     hasDescription: description !== undefined,
     description: description?.trim() || null,
     icon: icon?.trim() || null,
-    color: color ?? null,
+    color: color != null && /^#[0-9a-fA-F]{6}$/.test(color) ? color : null,
     hasStartedAt: startedAt !== undefined,
     startedAt: calendarDateOrNull(startedAt, "开始日期"),
     hasTargetDate: targetDate !== undefined,
@@ -419,14 +428,14 @@ async function createReflection(userId: string, spaceId: string, body: Reflectio
 }
 
 /** GET /api/spaces/:id/reflections/:rid —— 全文（编辑/展开时拉取） */
-async function getReflection(userId: string, rid: string) {
-  if (!(await reflectionRepo.ownOf(rid, userId))) throw ApiError.notFound("感悟不存在");
+async function getReflection(userId: string, rid: string, spaceId?: string) {
+  if (!(await reflectionRepo.ownOf(rid, userId, spaceId))) throw ApiError.notFound("感悟不存在");
   return { reflection: await reflectionRepo.byId(rid) };
 }
 
 /** PATCH /api/spaces/:id/reflections/:rid —— 编辑 { content } */
-async function updateReflection(userId: string, rid: string, body: ReflectionCreateInput) {
-  if (!(await reflectionRepo.ownOf(rid, userId))) throw ApiError.notFound("感悟不存在");
+async function updateReflection(userId: string, rid: string, body: ReflectionCreateInput, spaceId?: string) {
+  if (!(await reflectionRepo.ownOf(rid, userId, spaceId))) throw ApiError.notFound("感悟不存在");
   if (body.content != null && typeof body.content !== "string") throw ApiError.badRequest("感悟需为字符串");
   const content = (body.content ?? "").trim();
   if (!content) throw ApiError.badRequest("感悟不能为空");
@@ -437,8 +446,8 @@ async function updateReflection(userId: string, rid: string, body: ReflectionCre
 }
 
 /** DELETE /api/spaces/:id/reflections/:rid —— 硬删 */
-async function removeReflection(userId: string, rid: string) {
-  if (!(await reflectionRepo.ownOf(rid, userId))) throw ApiError.notFound("感悟不存在");
+async function removeReflection(userId: string, rid: string, spaceId?: string) {
+  if (!(await reflectionRepo.ownOf(rid, userId, spaceId))) throw ApiError.notFound("感悟不存在");
   await reflectionRepo.remove(rid);
   return { ok: true as const };
 }

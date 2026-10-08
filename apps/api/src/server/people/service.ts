@@ -51,6 +51,13 @@ const trimmedOrNull = (v: unknown): string | null => {
   return v.trim() || null;
 };
 
+/** 文本字段长度守卫：alias/notes/summary 无上限会进列表、409 文案与 AI 画像 prompt（真金 token） */
+const trimmedCapped = (v: unknown, cap: number, label: string): string | null => {
+  const t = trimmedOrNull(v);
+  if (t && t.length > cap) throw ApiError.badRequest(`${label}最长 ${cap} 字`);
+  return t;
+};
+
 /** GET /api/contacts —— 联系人列表（含互动次数/最近往来/人情往来净额） */
 export async function listContacts(userId: string) {
   const { rows } = await contactsRepo.listWithStats(userId);
@@ -78,7 +85,7 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
     const created = (
       await contactsRepo.create(userId, {
         name,
-        alias: trimmedOrNull(body.alias),
+        alias: trimmedCapped(body.alias, 30, "别名"),
         group,
         birthday: isLunar ? null : dateOrNull(body.birthday),
         birthdayCal: isLunar ? "lunar" : "solar",
@@ -88,7 +95,7 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
         anniversary: dateOrNull(body.anniversary),
         importance,
         intimacy: clampIntimacy(body.intimacy),
-        notes: trimmedOrNull(body.notes),
+        notes: trimmedCapped(body.notes, 1000, "备注"),
       })
     ).rows[0];
     return { contact: created };
@@ -165,7 +172,7 @@ export async function updateContact(userId: string, id: string, body: ContactUps
     fields.push(["importance", body.importance]);
   }
   if (body.notes !== undefined) {
-    fields.push(["notes", trimmedOrNull(body.notes)]);
+    fields.push(["notes", trimmedCapped(body.notes, 1000, "备注")]);
   }
   if (fields.length === 0) throw ApiError.badRequest("没有可更新的字段");
 
@@ -215,7 +222,7 @@ export async function createInteraction(userId: string, contactId: string, body:
   }
 
   const created = (
-    await interactionsRepo.create(userId, contactId, type, trimmedOrNull(body.summary), occurredAt.toISOString())
+    await interactionsRepo.create(userId, contactId, type, trimmedCapped(body.summary, 200, "往来摘要"), occurredAt.toISOString())
   ).rows[0];
   return { interaction: created };
 }
@@ -232,7 +239,7 @@ export async function updateInteraction(userId: string, id: string, body: Intera
     sets.push(`type = $${vals.length}`);
   }
   if (body.summary !== undefined) {
-    vals.push(trimmedOrNull(body.summary));
+    vals.push(trimmedCapped(body.summary, 200, "往来摘要"));
     sets.push(`summary = $${vals.length}`);
   }
   if (body.occurredAt !== undefined) {
@@ -305,7 +312,7 @@ export async function generateAiProfile(userId: string, id: string) {
     `人物：${contact.name}${contact.alias ? `（备注名 ${contact.alias}）` : ""}，分组 ${contact.group_tag}`,
     // birthday 是 date 列（Date 对象）：直接内插得 "Wed Sep 23..." 脏串，必须先归一化成北京日历日
     contact.birthday ? `生日 ${bjDateStr(contact.birthday)}` : "",
-    contact.notes ? `档案备注：${contact.notes}` : "",
+    contact.notes ? `档案备注：${String(contact.notes).slice(0, 500)}` : "", // 兜底截断：存量超长备注不放大 token
     interactions.length
       ? `往来记录（最近 ${interactions.length} 条）：\n${interactions
           .map((i: Record<string, unknown>) => `- [${i.type}] ${i.summary ?? ""}${i.occurred_at ? `（${bjDateStr(i.occurred_at)}）` : ""}`)

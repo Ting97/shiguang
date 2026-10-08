@@ -4,8 +4,7 @@ import {
   budgetTone,
   categoryBreakdown,
   momChange,
-  monthKey,
-  prevMonthKey,
+  
   savingsRate,
   yuan,
 } from "../src/finance.ts";
@@ -39,12 +38,6 @@ test("预算状态：安全/预警/超支/未设置", () => {
 test("分转元显示：整数不带小数", () => {
   assert.equal(yuan(26000), "260");
   assert.equal(yuan(26050), "260.50");
-});
-
-test("月份工具：当月与上月（跨年边界）", () => {
-  assert.equal(monthKey(new Date(2026, 8, 17)), "2026-09");
-  assert.equal(prevMonthKey("2026-09"), "2026-08");
-  assert.equal(prevMonthKey("2026-01"), "2025-12");
 });
 
 test("环比：正增长/下降/基数为零", () => {

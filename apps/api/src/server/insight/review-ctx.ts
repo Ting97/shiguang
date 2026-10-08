@@ -114,8 +114,8 @@ export async function buildReviewCtx(
         baseParams,
       ),
       pool.query(
-        `select coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::int as out_cents,
-                coalesce(sum(case when direction='in' then amount_cents else 0 end),0)::int as in_cents
+        `select coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::bigint as out_cents,
+                coalesce(sum(case when direction='in' then amount_cents else 0 end),0)::bigint as in_cents
          from transactions
          where user_id = $1 and is_draft = false
            and (occurred_at at time zone $2)::date between $3::date and $4::date`,
@@ -206,7 +206,7 @@ export async function buildReviewCtx(
     periodLabel,
     `时间投入：${timeParts.length ? timeParts.join("、") : "无"}`,
     `完成 todo：${todoDone} 件`,
-    `支出 ¥${((txRows.rows[0] as { out_cents: number }).out_cents / 100).toFixed(0)} · 收入 ¥${((txRows.rows[0] as { in_cents: number }).in_cents / 100).toFixed(0)}`,
+    `支出 ¥${(Number((txRows.rows[0] as { out_cents: number | string }).out_cents) / 100).toFixed(0)} · 收入 ¥${(Number((txRows.rows[0] as { in_cents: number | string }).in_cents) / 100).toFixed(0)}`,
     interactRows.rows.length
       ? `人际互动：${(interactRows.rows as { name: string; n: number }[]).map((r) => `${r.name}${r.n}次`).join("、")}`
       : "人际互动：无",
@@ -399,7 +399,7 @@ function buildSubLines(
     }
     for (const r of txRows.rows as { day: string; out_cents: number }[]) {
       const d = agg.get(r.day);
-      if (d) d.out = r.out_cents;
+      if (d) d.out = Number(r.out_cents);
     }
     return [
       "每日明细：",
@@ -431,7 +431,7 @@ function buildSubLines(
     for (const r of txRows.rows as { wk: string; out_cents: number }[]) {
       const k = wkKey(r.wk);
       if (!k) continue;
-      touch(k).out = r.out_cents;
+      touch(k).out = Number(r.out_cents);
     }
     const firstDow = (bjDow(`${yy}-${pad2(mm)}-01`) + 6) % 7;
     const lines: string[] = ["每周对比："];
@@ -454,7 +454,7 @@ function buildSubLines(
   }
   for (const r of txRows.rows as { mm: number; out_cents: number }[]) {
     const d = agg.get(r.mm);
-    if (d) d.out = r.out_cents;
+    if (d) d.out = Number(r.out_cents);
   }
   return [
     "逐月轨迹：",
@@ -492,7 +492,7 @@ async function buildSubRows(
       ),
       pool.query(
         `select (occurred_at at time zone $2)::date::text as day,
-                coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::int as out_cents
+                coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::bigint as out_cents
          from transactions
          where user_id = $1 and is_draft = false
            and (occurred_at at time zone $2)::date between $3::date and $4::date
@@ -529,7 +529,7 @@ async function buildSubRows(
     ),
     pool.query(
       `select ${keyExpr("occurred_at")},
-              coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::int as out_cents
+              coalesce(sum(case when direction='out' then amount_cents else 0 end),0)::bigint as out_cents
        from transactions
        where user_id = $1 and is_draft = false
          and (occurred_at at time zone $2)::date between $3::date and $4::date

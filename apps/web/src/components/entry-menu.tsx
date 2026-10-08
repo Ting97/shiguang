@@ -55,6 +55,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   const [manualDomain, setManualDomain] = useState<SixKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [spaceMenu, setSpaceMenu] = useState<Array<{ id: string; name: string; icon: string; color: string; status: string }> | null>(null);
+  // 拉取失败独立终态：旧版与空列表共用「还没有进行中的空间」文案，误导且无重试
+  const [spaceMenuErr, setSpaceMenuErr] = useState(false);
 
   const [text, setText] = useState("");
   const [start, setStart] = useState("12:00");
@@ -76,7 +78,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
     setBusy(true);
     try {
       let payload: Record<string, unknown> = {};
-      if (key === "schedule") payload = { title: text, startTime: start, endTime: end, activityId: activities[0]?.id ?? "other" };
+      if (key === "schedule") payload = { title: text, startTime: start, endTime: end, activityId: activities.find((a) => a.id === "other")?.id ?? activities[0]?.id ?? "other" }; // 默认归「其他」而非任意首个分类
       // due 是 datetime-local 裸值：直发会被服务端按宿主时区解析（UTC 容器上统一错 8 小时），显式按北京口径转 ISO
       else if (key === "todo") payload = { title: text, dueAt: bjInputToIso(due) };
       else if (key === "finance") payload = { direction, yuan: Number(yuan), category };
@@ -281,9 +283,13 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
         {spaceMenu === null ? (
           <button
             onClick={() => {
+              setSpaceMenuErr(false);
               api("/api/spaces")
                 .then((j) => setSpaceMenu((j.spaces ?? []).filter((s: { status: string }) => s.status === "active")))
-                .catch(() => setSpaceMenu([]));
+                .catch(() => {
+                  setSpaceMenu([]);
+                  setSpaceMenuErr(true);
+                });
             }}
             className="mt-1 block text-micro text-accent hover:underline"
           >
@@ -291,7 +297,23 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
           </button>
         ) : (
           <div className="mt-1 space-y-0.5">
-            {spaceMenu.length === 0 && <p className="text-badge text-ink-faint">还没有进行中的空间</p>}
+            {spaceMenu.length === 0 &&
+              (spaceMenuErr ? (
+                <p className="text-badge text-ink-faint">
+                  空间列表加载失败，
+                  <button
+                    className="text-accent hover:underline"
+                    onClick={() => {
+                      setSpaceMenu(null); // 回到「选择归属…」让用户重试
+                      setSpaceMenuErr(false);
+                    }}
+                  >
+                    重试
+                  </button>
+                </p>
+              ) : (
+                <p className="text-badge text-ink-faint">还没有进行中的空间</p>
+              ))}
             {spaceMenu.map((s: { id: string; name: string; icon: string; color: string }) => (
               <button
                 key={s.id}

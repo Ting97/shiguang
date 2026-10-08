@@ -20,14 +20,26 @@ export const PRESET_ACTIVITIES: Array<{
   { id: "other",   name: "其他", icon: "📌", color: "#64748b", defaultMin: 30,  sortOrder: 9 },
 ];
 
-/** 为用户播种预设分类（幂等：已存在的不动） */
+/** 为用户播种预设分类（幂等：已存在的不动）。
+ *  单事务：中途失败留下部分预设时，listActivities 的自愈条件 rows.length===0 永不命中，
+ *  缺 "other" 会让 deleteCustom 与 analyze 的 other 兜底双双 23503 */
 export async function seedPresetActivities(userId: string) {
-  for (const a of PRESET_ACTIVITIES) {
-    await pool.query(
-      `insert into activities (id, user_id, name, icon, color, default_min, sort_order, is_preset)
-       values ($1, $2, $3, $4, $5, $6, $7, true)
-       on conflict (id, user_id) do nothing`,
-      [a.id, userId, a.name, a.icon, a.color, a.defaultMin, a.sortOrder],
-    );
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    for (const a of PRESET_ACTIVITIES) {
+      await client.query(
+        `insert into activities (id, user_id, name, icon, color, default_min, sort_order, is_preset)
+         values ($1, $2, $3, $4, $5, $6, $7, true)
+         on conflict (id, user_id) do nothing`,
+        [a.id, userId, a.name, a.icon, a.color, a.defaultMin, a.sortOrder],
+      );
+    }
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
   }
 }

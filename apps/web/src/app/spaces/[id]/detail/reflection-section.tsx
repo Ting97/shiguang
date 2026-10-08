@@ -30,7 +30,7 @@ export default function ReflectionSection(opts: {
         notify={setMsg}
         rev={reflection.rev}
         onChanged={() => void load()}
-        onEdit={({ id: rid }) => {
+        onEdit={(rid) => {
           // 打开编辑器前拉取全文
           void openEdit(rid);
         }}

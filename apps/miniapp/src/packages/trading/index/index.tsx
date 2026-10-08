@@ -994,6 +994,10 @@ export default function TradingPage() {
   }, []);
 
   usePullDownRefresh(() => {
+    if (!getSessionToken()) {
+      Taro.stopPullDownRefresh(); // 游客态无服务端通道，直接收起动画
+      return;
+    }
     load()
       .then(() => setRev((r) => r + 1))
       .finally(() => Taro.stopPullDownRefresh());

@@ -128,8 +128,6 @@ export default function SpacesPage() {
   }
 
   async function remove(s: Space) {
-    const refN = s.reflection_count ?? 0;
-    void refN;
     if (!armDelete.arm(s.id)) return;
     try {
       await api<any>(`/api/spaces/${s.id}`, "DELETE");

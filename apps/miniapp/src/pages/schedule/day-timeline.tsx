@@ -198,7 +198,7 @@ export default function DayTimeline({ date, blocks, loading = false, onEditBlock
                 className="tl-block"
                 style={{
                   top: `${s * PPM}rpx`,
-                  height: `${h - 4}rpx`,
+                  height: `${Math.max(h - 4, 12)}rpx`, // 下钳 12rpx：≤2 分钟的极短块负高度渲染异常（与 today-schedule 同口径）
                   backgroundColor: `${b.color}40`, // hex 追加 alpha = web ${color}40
                   borderLeftColor: b.color,
                 }}

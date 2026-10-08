@@ -60,15 +60,15 @@ export default function WeekReviewCard({ weekStart, weekEnd, hasRecords, notify 
           <p className="text-sm leading-relaxed text-ink">{shown.summary}</p>
           {(shown.highlights ?? []).length > 0 && (
             <ul className="space-y-1">
-              {shown.highlights.map((h) => (
-                <li key={h} className="flex gap-1.5 text-xs text-success/90"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success/80"></span><span>{h}</span></li>
+              {shown.highlights.map((h, i) => (
+                <li key={`${i}-${h}`} className="flex gap-1.5 text-xs text-success/90"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success/80"></span><span>{h}</span></li>
               ))}
             </ul>
           )}
           {(shown.suggestions ?? []).length > 0 && (
             <ul className="space-y-1">
-              {shown.suggestions.map((sg) => (
-                <li key={sg} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 leading-none text-ai"><Lightbulb size={10} aria-hidden /></span><span>{sg}</span></li>
+              {shown.suggestions.map((sg, i) => (
+                <li key={`${i}-${sg}`} className="flex gap-1.5 text-xs text-accent/90"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-violet-500/15 leading-none text-ai"><Lightbulb size={10} aria-hidden /></span><span>{sg}</span></li>
               ))}
             </ul>
           )}

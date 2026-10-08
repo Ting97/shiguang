@@ -138,22 +138,37 @@ export async function bindSessionByWechat(input: {
       ]);
       return { status: "conflict", owner: ownerSummary, current: currentSummary };
     }
-    // 回收空壳：解绑后把 openid 迁到当前账号（空壳无数据可丢）
-    await pool.query(`update profiles set wechat_openid = null, wechat_unionid = null where id = $1`, [owner.id]);
   }
+  // 回收空壳与改绑同一事务：两条独立语句的窗口期内并发 loginByWechat 会以同 openid
+  // 重建空壳号 → 改绑撞 unique 报「已绑定其他账号」并留下孤儿行
+  const client = await pool.connect();
   try {
-    await pool.query(
+    await client.query("begin");
+    if (owner) {
+      // 回收空壳：解绑后把 openid 迁到当前账号（空壳无数据可丢）
+      await client.query(`update profiles set wechat_openid = null, wechat_unionid = null where id = $1`, [owner.id]);
+    }
+    // 守卫：本账号已绑定其他微信时拒绝静默改绑（原 openid 被孤儿化，下次原微信登录自动建新空壳号）
+    const bound = await client.query(
       `update profiles set wechat_openid = $1, wechat_unionid = coalesce($2, wechat_unionid), last_login_at = now()
-       where id = $3 returning id, nickname`,
+       where id = $3 and (wechat_openid is null or wechat_openid = $1) returning id, nickname`,
       [openid, unionid, input.userId],
     );
+    if (!bound.rows[0]) {
+      await client.query("rollback");
+      throw ApiError.conflict("当前账号已绑定其他微信，请先解绑后再绑定");
+    }
+    await client.query("commit");
     return { status: "ok" };
   } catch (e) {
+    await client.query("rollback").catch(() => {});
     // wechat_openid unique：并发绑定同 openid 到另一账号
     if ((e as { code?: string }).code === "23505") {
       throw ApiError.conflict("该微信已绑定其他账号");
     }
     throw e;
+  } finally {
+    client.release();
   }
 }
 

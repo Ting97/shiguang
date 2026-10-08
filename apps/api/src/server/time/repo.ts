@@ -24,17 +24,17 @@ export const blocksRepo = {
       await pool.query(`select start_at, end_at from time_blocks where id = $1 and user_id = $2`, [id, userId])
     ).rows[0];
   },
-  insert(userId: string, activityId: string, title: string, startAt: string, endAt: string) {
-    return pool.query(
+  insert(userId: string, activityId: string, title: string, startAt: string, endAt: string, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(
       `insert into time_blocks (user_id, activity_id, title, start_at, end_at, time_mode, source)
        values ($1,$2,$3,$4,$5,'manual','manual') returning *`,
       [userId, activityId, title, startAt, endAt],
     );
   },
-  updateFields(id: string, userId: string, fields: readonly UpdateField[]) {
+  updateFields(id: string, userId: string, fields: readonly UpdateField[], exec: Pick<typeof pool, "query"> = pool) {
     const { sets, vals } = toSetClauses(fields);
     vals.push(id, userId);
-    return pool.query(
+    return exec.query(
       `update time_blocks set ${sets.join(", ")}
        where id = $${vals.length - 1} and user_id = $${vals.length}
        returning *`,

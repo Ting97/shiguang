@@ -8,6 +8,7 @@
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { pool } from "@/server/platform/db";
+import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { loadConfig } from "@/server/platform/config";
 import { ApiError } from "@/server/platform/http/errors";
 import { importTrades, type TradeRowInput } from "./trades";
@@ -235,7 +236,8 @@ const bjYmd = (d: Date) => new Date(d.getTime() + 8 * 3600_000).toISOString().sl
  */
 export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?: FetchLike) {
   const to = String(body.to ?? "") || bjYmd(new Date());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) throw ApiError.badRequest("to 需为 YYYY-MM-DD");
+  // 形状之外补真实日历日校验：2025-02-30 形状合法但 Date.parse=NaN → inWindow 恒 false，静默「同步 0 笔」
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || !isValidCalendarDate(to)) throw ApiError.badRequest("to 需为真实存在的日期（YYYY-MM-DD）");
   const keyLabel = (body.keyLabel ?? "").trim() || DEFAULT_KEY_LABEL;
   const login = (body.login ?? "").trim() || keyLabel;
 
@@ -250,7 +252,7 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
     const last = rows[0]?.last ? new Date(rows[0].last) : null;
     from = last ? bjYmd(new Date(last.getTime() - 86_400_000)) : bjYmd(new Date(Date.now() - 30 * 86_400_000));
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw ApiError.badRequest("from 需为 YYYY-MM-DD");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !isValidCalendarDate(from)) throw ApiError.badRequest("from 需为真实存在的日期（YYYY-MM-DD）");
   if (Date.parse(from) > Date.parse(to)) throw ApiError.badRequest("from 不能晚于 to");
   const fromTimeMs = Date.parse(`${from}T00:00:00+08:00`);
   const toTimeMs = Date.parse(`${to}T23:59:59+08:00`);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { confirmDialog } from "@/shared/ui/confirm";
 import { X, Zap } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
@@ -72,6 +73,13 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
 
   async function unbind(label?: string) {
     if (busy) return;
+    // 两步确认（全站删除类规范）：解绑后需重新生成/粘贴 API 凭据才能恢复，单点误触代价高
+    const ok = await confirmDialog({
+      title: "解绑 API 密钥",
+      message: label ? `「${label}」解绑后需重新生成并粘贴凭据才能恢复同步。` : "解绑全部密钥后需逐一重新绑定才能恢复同步。",
+      confirmText: "解绑",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api(`/api/trading/bitget/keys${label ? `?label=${encodeURIComponent(label)}` : ""}`, "DELETE");

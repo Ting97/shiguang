@@ -175,8 +175,9 @@ export default function InputAssemblySection({
                   max={c.max}
                   value={capsDraft[c.key] ?? c.default}
                   onChange={(e) => {
-                    const v = e.target.value === "" ? "" : Math.max(c.min, Math.min(c.max, Math.round(Number(e.target.value))));
-                    setCapsDraft((d) => ({ ...d, [c.key]: v as number }));
+                    // 清空回落默认值：存 "" 会被 as number 谎报类型原样 PUT（v as number 谎报类型，cfgDirty 也恒判有改动）
+                    const v = e.target.value === "" ? c.default : Math.max(c.min, Math.min(c.max, Math.round(Number(e.target.value))));
+                    setCapsDraft((d) => ({ ...d, [c.key]: v }));
                     setDirty(true);
                   }}
                   className="w-16 rounded border border-line bg-surface px-1.5 py-0.5 text-right tabular-nums text-ink outline-none focus:border-sky-500"

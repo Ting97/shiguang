@@ -87,7 +87,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
       }
     }
 
-    const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description}）` : ""}`).join("\n");
+    const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description.slice(0, 200)}）` : ""}`).join("\n");
     const userPrompt = await assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) }, { userId });
     const t0 = Date.now();
     // 9-E 记账补漏：space_classify 此前不传 onUsage，token 恒 0（计费口径失真）
@@ -318,6 +318,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // per-user advisory lock：跨路径串行化时间块写事务（重叠 check-then-insert 的 TOCTOU 收口，生产 PG13 无 EXCLUDE 约束兜底）
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
     // for update 串行化同一动态的并发识别（发布后台识别 vs 巡检补跑），防止清旧插新交错出重复产物
     const { rows: current } = await client.query(
       `select raw_text, analyzed_at, created_at from entries where id = $1 and user_id = $2 for update`,

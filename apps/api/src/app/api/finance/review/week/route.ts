@@ -49,15 +49,6 @@ export const GET = withModule("trade_review", async (req, { user }) => {
 /** POST /api/finance/review/week {date?, refresh?} —— AI 交易周报（FR-C2.7 ②）
  * 复用复盘管线：review_caches(kind='trade_week') 缓存 + review_gen_quotas 周池 + /admin 可调 prompt。 */
 export const POST = withModule("trade_review", async (req, { user }) => {
-  if (user.role !== "admin") {
-    const q = await checkAiQuota(user.id);
-    if (!q.allowed) {
-      return NextResponse.json(
-        { error: `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`, quota: q },
-        { status: 402 },
-      );
-    }
-  }
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
   if (date && !isValidCalendarDate(date)) {
     return NextResponse.json({ error: "date 需为真实存在的 YYYY-MM-DD 日期" }, { status: 400 });
@@ -165,6 +156,13 @@ export const POST = withModule("trade_review", async (req, { user }) => {
   let result;
   try {
     result = await getOrGenerateReview(user.id, "trade_week", from, refresh === true, latest ? new Date(latest) : null, async (capture) => {
+      // 全局 AI 配额门禁在生成回调内（与 day/week/month/year 同口径）：缓存命中不拦，只拦真正生成
+      if (user.role !== "admin") {
+        const q = await checkAiQuota(user.id);
+        if (!q.allowed) {
+          throw new ReviewGateError(`AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限复盘`);
+        }
+      }
       await acquireGeneration(user.id, "trade_week", from, latest ? new Date(latest) : null);
       try {
         const parsed = await chatReviewJson<Partial<WeekReview>>({

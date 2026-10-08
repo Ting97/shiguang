@@ -6,7 +6,7 @@
  *
  * 发布链路保留旧版契约：POST /api/parse 文字落库秒回拿 entryId → 图片并行上传
  * POST /api/entries/:id/images（publish-sheet 内置单张失败重试一次）；识别数秒完成，
- * 发布后安排 6s/16s 两轮延迟刷新把 AI 产物带上墙（经 loadRef 总是以最新筛选参数取数）。
+ * 发布后安排 6s/16s/30s 三轮延迟刷新把 AI 产物带上墙（经 loadRef 总是以最新筛选参数取数）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Input, Picker, ScrollView } from "@tarojs/components";
@@ -195,14 +195,23 @@ export default function Feed() {
   });
 
   usePullDownRefresh(() => {
+    if (!getSessionToken()) {
+      // 游客态无服务端通道：下拉只收起刷新动画（旧版直调 load 触发 4 路 401 + 「加载失败」横幅与游客 CTA 同屏）
+      Taro.stopPullDownRefresh();
+      return;
+    }
     feedLimitRef.current = PAGE_SIZE;
     load().finally(() => Taro.stopPullDownRefresh());
   });
 
   /** 发布时清空搜索再刷新：只置状态，由 effect 自动拉取（= web resetSearch，避免同参数连发两批） */
   async function resetSearch() {
+    const hadInput = !!searchInput;
     setSearchInput("");
+    // 防抖未落地窗口（输入了 "abc" 但 400ms 未到、query 仍 ""）：两次 setState 都无状态变化，
+    // effect 不触发 → 新动态不上墙。此时显式补一次拉取
     setQuery("");
+    if (!query && hadInput) void loadRef.current({ before: null });
   }
 
   function changeSpace(id: string) {
@@ -248,12 +257,14 @@ export default function Feed() {
       }
       // 回到列表顶：刚发的动态即首位（= web 滚动定位）
       Taro.pageScrollTo({ scrollTop: 0, duration: 300 });
-      // 识别通常数秒完成：两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数）；
-      // 同步 bump actionsKey 让今日行动重拉（识别出的 todo 立即可见，= web）
+      // 识别通常数秒完成：延迟刷新把识别产物带上墙（经 loadRef 取最新参数）；
+      // 同步 bump actionsKey 让今日行动重拉（识别出的 todo 立即可见，= web）。
+      // REQ-011 体验实测：GLM 尾延可到 18s+，只刷两轮会停留在「识别中」——补 30s 兜底轮（= web）
       refreshTimers.current.forEach(clearTimeout);
       refreshTimers.current = [
         setTimeout(() => { void loadRef.current(); setActionsKey((k) => k + 1); }, 6000),
         setTimeout(() => { void loadRef.current(); setActionsKey((k) => k + 1); }, 16000),
+        setTimeout(() => { void loadRef.current(); setActionsKey((k) => k + 1); }, 30000),
       ];
       return j.entry.id as string;
     } catch (e: any) {

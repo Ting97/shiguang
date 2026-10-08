@@ -77,26 +77,48 @@ console.log("[deploy] 双 tar 上传 …");
 sh("tar czf - -C apps/api/.next/standalone . | ssh tencent \"rm -rf /opt/shiguangri_new && mkdir -p /opt/shiguangri_new && tar xzf - -C /opt/shiguangri_new/\"", { quiet: true });
 sh("tar czf - -C apps/web out | ssh tencent \"tar xzf - -C /opt/shiguangri_new/apps/api/\"", { quiet: true });
 
-/** 失败回滚：反向 mv + 重启 + 复验（FR-F2：不再只打印提示） */
+/** 失败回滚：反向 mv + 重启 + 复验（FR-F2：不再只打印提示）
+ *  状态安全要点：
+ *  - 只有确认 /opt/shiguangri_old 备份存在时才动当前目录（交换早期失败时当前目录是唯一好版本，绝不能删）
+ *  - POSIX mv 目标存在时会把源移进其内部——必须先挪走当前目录再 mv，不能直接 mv 覆盖
+ *  - 坏版本保留为 /opt/shiguangri_failed 供事后分析（下次部署会被覆盖） */
 function rollback(reason) {
   console.error(`[deploy] ✗ ${reason}——自动回滚 …`);
-  const active = sh(
-    "ssh tencent \"systemctl stop shiguangri && rm -rf /opt/shiguangri_new && [ -d /opt/shiguangri_old ] && mv /opt/shiguangri_old /opt/shiguangri; systemctl start shiguangri && sleep 3 && systemctl is-active shiguangri\"",
-    { quiet: true },
-  );
+  const script = [
+    "systemctl stop shiguangri",
+    "rm -rf /opt/shiguangri_new",
+    "if [ -d /opt/shiguangri_old ]; then",
+    "  if [ -d /opt/shiguangri ]; then rm -rf /opt/shiguangri_failed; mv /opt/shiguangri /opt/shiguangri_failed; fi",
+    "  rm -rf /opt/shiguangri",
+    "  mv /opt/shiguangri_old /opt/shiguangri",
+    "fi",
+    "systemctl start shiguangri && sleep 3 && systemctl is-active shiguangri",
+  ].join("; ");
+  let active = "";
+  try {
+    active = sh(`ssh tencent "${script}"`, { quiet: true });
+  } catch (e) {
+    console.error(`[deploy] ✗ 回滚命令本身失败：${e.message?.slice(0, 200)}`);
+  }
   if (active === "active") {
     console.error("[deploy] ✓ 已回滚到上一版本（服务 active）；数据库回退如需，请用 /opt/shiguangri_backups/ 最新 dump 自行恢复");
   } else {
-    console.error(`[deploy] ✗ 回滚后服务状态仍异常：${active}——人工介入！备份在 /opt/shiguangri_backups/`);
+    console.error(`[deploy] ✗ 回滚后服务状态仍异常：${active || "(命令失败)"}——人工介入！备份在 /opt/shiguangri_backups/`);
   }
   process.exit(1);
 }
 
 console.log("[deploy] 原子交换 + 重启 …");
-const active = sh(
-  "ssh tencent \"cp /opt/shiguangri/.env /opt/shiguangri_new/.env && systemctl stop shiguangri && rm -rf /opt/shiguangri_old && mv /opt/shiguangri /opt/shiguangri_old && mv /opt/shiguangri_new /opt/shiguangri && systemctl start shiguangri && sleep 3 && systemctl is-active shiguangri\"",
-  { quiet: true },
-);
+let active;
+try {
+  active = sh(
+    "ssh tencent \"cp /opt/shiguangri/.env /opt/shiguangri_new/.env && systemctl stop shiguangri && rm -rf /opt/shiguangri_old && mv /opt/shiguangri /opt/shiguangri_old && mv /opt/shiguangri_new /opt/shiguangri && systemctl start shiguangri && sleep 3 && systemctl is-active shiguangri\"",
+    { quiet: true },
+  );
+} catch (e) {
+  // 交换中途断连：服务可能已 stop、目录可能已 mv 一半——必须走回滚而非裸崩
+  rollback(`交换命令失败：${e.message?.slice(0, 200)}`);
+}
 if (active !== "active") rollback(`服务状态异常：${active}`);
 
 console.log("[deploy] 冒烟 …");

@@ -289,7 +289,12 @@ export default function Login() {
         conflict={bindConflict}
         busy={bindBusy}
         onResolve={(r) => void resolveBind(r)}
-        onClose={() => setBindConflict(null)}
+        onClose={() => {
+          setBindConflict(null);
+          // 关闭弹层=放弃裁决：密码登录本身已成功（token 已入库），挂载时的自动跳转不会再跑，
+          // 不补跳转用户会被困在登录页且重登必再撞 409（REQ-011 检视 P1）
+          if (getSessionToken()) enterApp();
+        }}
       />
       {/* NAVLESS 页无 PageShell：全局 toast 宿主自挂（REQ-009 9-C） */}
       <ToastHost />

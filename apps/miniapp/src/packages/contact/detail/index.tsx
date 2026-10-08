@@ -113,6 +113,10 @@ export default function ContactDetailPage() {
   }, []);
 
   usePullDownRefresh(() => {
+    if (!getSessionToken()) {
+      Taro.stopPullDownRefresh(); // 游客态无服务端通道，直接收起动画
+      return;
+    }
     load()
       .catch((e: any) => setLoadErr(e?.message ?? String(e)))
       .finally(() => Taro.stopPullDownRefresh());

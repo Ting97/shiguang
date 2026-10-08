@@ -18,7 +18,7 @@ const envDb = process.env.SHIGUANGRI_TEST_DB;
 const testDb =
   envDb ??
   readFileSync(join(root, ".env"), "utf8")
-    .match(/DATABASE_URL=(.*)/)?.[1]
+    .match(/^DATABASE_URL=(.+)$/m)?.[1].trim() // 锚定行首：注释行（# DATABASE_URL=...）不再抢先命中
     ?.trim()
     .replace(/^"|"$/g, "")
     .replace(/\/[^/]+$/, "/shiguangri_test");

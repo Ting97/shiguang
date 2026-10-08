@@ -25,7 +25,8 @@ export async function listUserActivities(userId: string): Promise<UserActivityRo
 
 /** 「分类对照」串：`sleep=睡眠、<uuid>=吉他`（预设用 id=改名后的名称，自定义用 uuid=名称） */
 export function catListFromActivities(acts: UserActivityRow[]): string {
-  return acts.map((a) => `${a.id}=${a.name}`).join("、");
+  // 名称切片防存量超长名（≤20 已在 create/update 校验）：catList 逐条进每次识别 prompt
+  return acts.map((a) => `${a.id}=${String(a.name).slice(0, 20)}`).join("、");
 }
 
 /** 用户历史常用花销分类（频次降序 topN；条数上限在调用方钳制） */

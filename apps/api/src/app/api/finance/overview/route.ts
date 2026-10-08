@@ -57,8 +57,8 @@ export const GET = withAuth(async (req, { user }) => {
   const [trendStart, trendEnd] = [bjMonthRange(monthOf(month, -5))[0], bjMonthRange(month)[1]];
   const { rows: trendRows } = await pool.query(
     `select to_char(occurred_at at time zone $2, 'YYYY-MM') as month,
-            sum(case when direction = 'out' then amount_cents else 0 end)::int as out_cents,
-            sum(case when direction = 'in'  then amount_cents else 0 end)::int as in_cents
+            sum(case when direction = 'out' then amount_cents else 0 end)::bigint as out_cents,
+            sum(case when direction = 'in'  then amount_cents else 0 end)::bigint as in_cents
      from transactions
      where user_id = $1 and is_draft = false
        and occurred_at >= $3 and occurred_at < $4

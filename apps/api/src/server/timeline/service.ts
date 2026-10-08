@@ -93,6 +93,8 @@ export async function confirmPending(
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // per-user advisory lock：跨路径串行化时间块写事务（重叠 check-then-insert 的 TOCTOU 收口，生产 PG13 无 EXCLUDE 约束兜底）
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
     // 事务内所有语句统一走 client（否则自动提交让 rollback 形同虚设，中途失败会静默丢数据）
     const entry = await entriesRepo.rawTextOf(entryId, userId, client);
     if (!entry) {
@@ -334,6 +336,8 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
     const text = body.raw_text.trim();
     if (!text) throw ApiError.badRequest("内容不能为空");
     if (text.length > 2000) throw ApiError.badRequest("动态最长 2000 字");
+    // 编辑改文与发布口（ingest）同款内容安全门禁（通道未配置/异常一律放行，不阻塞主流程）
+    await enforceUgcText(userId, text);
     const q = await checkAiQuota(userId);
     if (!q.allowed) {
       throw ApiError.quota(`AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限识别`, q);
@@ -399,6 +403,8 @@ export async function appendManual(
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // per-user advisory lock：跨路径串行化时间块写事务（重叠 check-then-insert 的 TOCTOU 收口，生产 PG13 无 EXCLUDE 约束兜底）
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
     // 手动补录 = 用户在该动态上落定数据：先打 analyzed_at（幂等，UPDATE 同时取得 entry 行锁，
     // 与 analyzeAndPersist/confirmPending「先锁 entry 再动子表」同序）。识别若还在飞行中，
     // 落库阶段看到 analyzed_at 已置会主动放弃清写——否则本条手动数据会被识别结果整体覆盖
@@ -527,6 +533,8 @@ export async function appendManual(
         if (!name) {
           throw ApiError.badRequest("请填写姓名");
         }
+        // 与 createContact 同口径（≤30）：超长名会进 409 文案、AI 画像 prompt 与图谱节点
+        if (name.length > 30) throw ApiError.badRequest("姓名最长 30 字");
         const type = ["见面", "通话", "送礼", "收礼", "请客", "帮忙", "其他"].includes(String(p.type)) ? String(p.type) : "见面";
         const c = (
           await client.query(
@@ -535,6 +543,10 @@ export async function appendManual(
             [userId, name],
           )
         ).rows[0];
+        // 幂等：同动态同人重复补录先清旧往来再插（只清本条联系人，不动同动态其他人）
+        await client.query(`delete from interactions where entry_id = $1 and user_id = $2 and contact_id = $3`, [
+          entryId, userId, c.id,
+        ]);
         await client.query(
           `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
            values ($1,$2,$3,$4,$5,$6)`,
@@ -647,8 +659,10 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
       completionTokens += u.completion_tokens;
     },
   });
-  // schedule 域自定义分类归一（与全量 analyzeAndPersist 同语义）
-  if (domain === "schedule" && userActs.length && r.scheduleApplicable) {
+  // schedule 域自定义分类归一：与全量 analyzeAndPersist 同语义、无条件执行——
+  // 门禁 userActs.length 时（早期账号分类播种前/userActs 拉取失败），模型自由串会直插
+  // time_blocks.activity_id 复合外键 → 23503 整事务回滚、单域重识别恒失败
+  if (domain === "schedule") {
     r.activity = resolveActivityValue(r.activity, userActs);
   }
   // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型
@@ -662,6 +676,8 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // per-user advisory lock：跨路径串行化时间块写事务（重叠 check-then-insert 的 TOCTOU 收口，生产 PG13 无 EXCLUDE 约束兜底）
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
     // 全局加锁约定（entriesRepo.rawTextOf）：写事务先锁 entry 行，与后台识别落库阶段互斥串行。
     // 同时 stampAnalyzedAt（用户显式重识别 = 已落定）：仍在飞的旧后台识别进入落库阶段时
     // 会按「识别期间已有用户落定数据」跳过清写——旧版无锁无置位，用户刚重识别的产物
@@ -873,8 +889,11 @@ export async function addEntryImages(userId: string, entryId: string, form: Form
 
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (files.length === 0) throw ApiError.badRequest("没有文件");
-
-
+  // 廉价计数预检前置于缓冲：9 张上限在缓冲循环之后才判的话，超量文件已被整体读进内存
+  const existing = await pool.query(`select count(*)::int as n from entry_images where entry_id = $1 and user_id = $2`, [entryId, userId]);
+  if (existing.rows[0].n + files.length > MAX_PER_ENTRY) {
+    throw ApiError.badRequest(`一条动态最多 ${MAX_PER_ENTRY} 张图片`);
+  }
 
   // 逐一校验（大小 + 魔数），全部通过才落库
   const prepared: { mime: string; bytes: number; data: Buffer; key: string }[] = [];

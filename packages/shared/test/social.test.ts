@@ -110,3 +110,14 @@ test("birthdayCountdown：2/30、4/31 等无效日期返回 null（旧版静默�
   assert.equal(birthdayCountdown("1995-10-02", today), 14); // 合法日期回归
   assert.equal(birthdayCountdown("1996-02-29", today), 163); // 2/29 平年钳到 2/28 的既有语义不变（2026-02-28 距 09-18 为 163 天）
 });
+
+/* ---- REQ-011 检视回归：lunarBirthdayCountdown 与 target 必须同帧（北京帧）求差 ---- */
+
+test("lunarBirthdayCountdown：UTC 宿主北京 0~8 点窗口不再多算一天（每日推送漏发生日根因）", async () => {
+  const { lunarBirthdayCountdown } = await import("../src/lunar.ts");
+  const b = { month: 6, day: 3, leap: false }; // 2026 农历六月初三 = 公历 2026-07-16
+  // UTC 2026-07-15T16:05Z = 北京 2026-07-16 00:05 → 生日就是今天，倒计时必须为 0（旧版宿主帧差出 1）
+  assert.equal(lunarBirthdayCountdown(b, new Date("2026-07-15T16:05:00Z")), 0);
+  // 北京 07-15 00:05 → 明天生日，1 天
+  assert.equal(lunarBirthdayCountdown(b, new Date("2026-07-14T16:05:00Z")), 1);
+});

@@ -13,7 +13,8 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 [ -f "$DB_DUMP" ] || { echo "✗ 找不到 $DB_DUMP"; exit 1; }
 
 echo "[restore] 兜底备份当前数据库 …"
-sudo -u postgres pg_dump -Fc "$DB_NAME" > "/opt/shiguangri_backups/db-before-restore-$STAMP.dump"
+# 兜底档用 keep- 前缀：db-*.dump 是每日轮转池（7 份），兜底档进池会被挤掉
+sudo -u postgres pg_dump -Fc "$DB_NAME" > "/opt/shiguangri_backups/keep-before-restore-$STAMP.dump"
 
 echo "[restore] 停服务 → 恢复数据库 …"
 systemctl stop shiguangri
@@ -31,4 +32,4 @@ systemctl start shiguangri
 sleep 3
 systemctl is-active shiguangri
 curl -s -m 10 https://shiguang.ting97.cn/api/health | head -c 120; echo
-echo "[restore] ✓ 完成（如需回退：db-before-restore-$STAMP.dump 仍在）"
+echo "[restore] ✓ 完成（如需回退：keep-before-restore-$STAMP.dump 仍在）"

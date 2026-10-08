@@ -13,12 +13,14 @@ DB_NAME="${DB_NAME:-shiguangri}"
 mkdir -p "$BACKUP_DIR"
 
 # 1) 数据库（pg_dump -Fc 自定义格式，pg_restore 可并行恢复）
-sudo -u postgres pg_dump -Fc "$DB_NAME" > "$BACKUP_DIR/db-$STAMP.dump"
+# .part 两段式：中途失败不留半截 dump 占着最新 mtime 挤掉好档（轮转按 mtime）
+sudo -u postgres pg_dump -Fc "$DB_NAME" > "$BACKUP_DIR/db-$STAMP.dump.part"
+mv "$BACKUP_DIR/db-$STAMP.dump.part" "$BACKUP_DIR/db-$STAMP.dump"
 
 # 2) 上传目录（增量代价高、总量可控，直接整目录打包）
 tar czf "$BACKUP_DIR/uploads-$STAMP.tar.gz" -C "$(dirname "$UPLOADS_DIR")" "$(basename "$UPLOADS_DIR")"
 
-# 3) 轮转：只保留最近 KEEP 份
+# 3) 轮转：只保留最近 KEEP 份（glob 不含 restore 兜底档 keep-*——那是恢复前的最后防线，不参与轮转）
 ls -1t "$BACKUP_DIR"/db-*.dump | tail -n +$((KEEP + 1)) | xargs -r rm --
 ls -1t "$BACKUP_DIR"/uploads-*.tar.gz | tail -n +$((KEEP + 1)) | xargs -r rm --
 

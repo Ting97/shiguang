@@ -57,7 +57,12 @@ export async function getQuota(userId: string): Promise<QuotaInfo> {
   };
 }
 
-/** AI 入口限流检查：allowed=false 时调用方应返回 402 */
+/**
+ * AI 入口限流检查：allowed=false 时调用方应返回 402。
+ * 已知局限（REQ-011 检视记录待办）：消费（audit_logs ok=true 落库）在 LLM 调用完成后，
+ * 本检查与消费之间的窗口内并发生成可小幅超限（超限量=并发在途数，无安全面）。
+ * 原子化需「预占审计行→调用后更新」方案，触及全站计费口径，另起批次。
+ */
 export async function checkAiQuota(userId: string): Promise<QuotaInfo & { allowed: boolean }> {
   const q = await getQuota(userId);
   return { ...q, allowed: q.limit === null || q.used < q.limit };

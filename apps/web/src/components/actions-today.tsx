@@ -7,7 +7,7 @@ import { Dismissable } from "./dismissable";
 import { TodoRowMenu } from "@/components/todo";
 import { confirmDialog } from "@/shared/ui/confirm";
 import type { TodayAction } from "@/lib/types";
-import { api } from "@/shared/api";
+import { api, ApiClientError } from "@/shared/api";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, FileText, Repeat, RotateCcw } from "lucide-react";
 
 /**
@@ -163,16 +163,27 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     }
   }
 
-  /** AI 拆解/细化（父在清单内会带出行动；仅行动可见清单变化） */
-  async function decompose(a: { id: string; title: string }, _isAction: boolean) {
+  /** AI 拆解/细化（父在清单内会带出行动；仅行动可见清单变化）。
+   *  mode：todo 已有未完成行动时由菜单二选一传入（replace/append）——缺省无 mode 且服务端判有
+   *  未完成行动会 409 needMode，旧版死路（报「操作失败」且无出路） */
+  async function decompose(a: { id: string; title: string }, _isAction: boolean, mode?: "replace" | "append") {
     if (decomposingId) return;
     setDecomposingId(a.id);
     try {
-      const j = await api<{ actions?: unknown[] }>(`/api/todos/${a.id}/decompose`, "POST", {});
+      const j = await api<{ actions?: unknown[] }>(`/api/todos/${a.id}/decompose`, "POST", mode ? { mode } : {});
       notify({ ok: true, text: `✨ AI 拆出 ${j.actions?.length ?? 0} 个行动` });
       await load();
     } catch (e) {
-      notify({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      const status = e instanceof ApiClientError ? e.status : 0;
+      notify({
+        ok: false,
+        text:
+          status === 409
+            ? `「${a.title}」已有未完成的行动，请从菜单选择「重新生成」或「追加」`
+            : e instanceof Error
+              ? e.message
+              : String(e),
+      });
     } finally {
       setDecomposingId(null);
     }
@@ -254,7 +265,9 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             patch: patchTodo,
             decompose,
             remove: menuRemove,
-            pendingCount: () => 0,
+            // 真实未完成行动数（行动级扁平列表按 parent_todo_id 归数）：旧版硬编码 0，
+            // 有行动的父 todo 永远渲染单项「AI 拆解」→ 服务端 409 needMode 死路
+            pendingCount: (t) => (actions ?? []).filter((x) => x.parent_todo_id === t.id && x.status === "pending").length,
             startEdit: (t) => startEdit(t as TodayAction),
           }}
         />
@@ -344,7 +357,12 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                             onChange={(e) => setEditTitle(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit();
-                              if (e.key === "Escape") setEditingId(null);
+                              // Esc 与 Dismissable onClose 同口径：有改动轻提示（旧版静默丢弃编辑）
+                              if (e.key === "Escape") {
+                                const dirty = editTitle !== a.title || editDue !== isoToLocalInput(a.due_at);
+                                if (dirty) notify({ ok: true, text: "已取消，未保存" });
+                                setEditingId(null);
+                              }
                             }}
                             className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
                           />

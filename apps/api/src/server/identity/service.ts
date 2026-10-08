@@ -65,8 +65,11 @@ export async function login(input: LoginInput) {
       throw fuzzyFail();
     }
   } else if (byEmail) {
+    // 未验证态不得用专属文案暴露「账号存在且未验证」（违背本文件「不暴露账号存在性」口径），
+    // 且必须计入失败尝试：收敛为与验证码错误一致的模糊响应
     if (!user.email_verified) {
-      throw new ApiError(403, "forbidden", "该邮箱未完成验证，请使用密码登录");
+      void noteAttempt(identity, input.ip, false);
+      throw ApiError.unauthorized("验证码错误或已过期");
     }
     if (!input.emailCode || !(await verifyEmailCode(identity, "login", input.emailCode))) {
       void noteAttempt(identity, input.ip, false);
@@ -74,7 +77,8 @@ export async function login(input: LoginInput) {
     }
   } else {
     if (!user.phone_verified) {
-      throw new ApiError(403, "forbidden", "该账号手机号未验证，请使用密码登录");
+      void noteAttempt(identity, input.ip, false);
+      throw ApiError.unauthorized("验证码错误或已过期");
     }
     if (!input.smsCode || !(await verifySmsCode(identity, "login", input.smsCode))) {
       void noteAttempt(identity, input.ip, false);
@@ -146,8 +150,9 @@ export async function updateProfile(userId: string, body: ProfileInput) {
   }
 
   if (wantsPassword) {
-    if (body.newPassword!.length < 8) {
-      throw ApiError.badRequest("新密码至少 8 位");
+    // 上限 128：多 MB 密码串直进 scryptSync（N=16384，16MB 内存/次）可被认证用户反复触发
+    if (body.newPassword!.length < 8 || body.newPassword!.length > 128) {
+      throw ApiError.badRequest("新密码需为 8~128 位");
     }
     const stored = await profilesRepo.passwordHashOf(userId);
     if (stored && (!body.currentPassword || !verifyPassword(body.currentPassword, stored))) {
@@ -239,7 +244,8 @@ export async function register(input: RegisterInput) {
   const nickname = nicknameRaw?.trim();
   if (!nickname || nickname.length > 20) throw ApiError.badRequest("请填写昵称（1-20 个字符）");
   const byEmail = validateRegisterIdentity(input);
-  if (!input.password || input.password.length < 8) throw ApiError.badRequest("密码至少 8 位");
+  if (!input.password || input.password.length < 8 || input.password.length > 128)
+    throw ApiError.badRequest("密码需为 8~128 位");
   if (!input.inviteCode?.trim()) throw ApiError.badRequest("请填写邀请码");
 
   const code = input.inviteCode.trim().toUpperCase();

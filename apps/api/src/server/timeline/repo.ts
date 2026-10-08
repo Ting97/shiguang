@@ -40,12 +40,6 @@ export const entriesRepo = {
     // 状态守卫：并发双 confirm（pending 快照在事务外读入）只有第一方真正置 applied，防重复落库
     return client.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1 and status = 'pending'`, [recId]);
   },
-  moodOf(entryId: string, userId: string) {
-    return pool.query(`select raw_text from entries where id = $1 and user_id = $2`, [entryId, userId]);
-  },
-  setMood(entryId: string, label: string, score: number) {
-    return pool.query(`update entries set mood = $1, mood_score = $2 where id = $3`, [label, score, entryId]);
-  },
   /** 子表清空（confirm/edit 重写前、DELETE 前共用；顺序即依赖顺序） */
   async clearDerived(client: import("pg").PoolClient | typeof pool, entryId: string, userId: string) {
     for (const t of ["interactions", "transactions", "todos", "time_blocks", "diet_records", "entry_recognitions"]) {
@@ -66,10 +60,6 @@ export const entriesRepo = {
   },
   deleteEntry(client: import("pg").PoolClient, entryId: string, userId: string) {
     return client.query(`delete from entries where id = $1 and user_id = $2`, [entryId, userId]);
-  },
-  async ownerExists(entryId: string, userId: string): Promise<boolean> {
-    const { rows } = await pool.query(`select id from entries where id = $1 and user_id = $2`, [entryId, userId]);
-    return Boolean(rows[0]);
   },
   setSpace(entryId: string, userId: string, spaceId: string | null) {
     return pool.query(`update entries set space_id = $1 where id = $2 and user_id = $3 returning id, space_id`, [

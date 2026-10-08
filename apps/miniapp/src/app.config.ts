@@ -5,7 +5,6 @@ export default defineAppConfig({
     "pages/finance/index",
     "pages/profile/index",
     "pages/login/index",
-    "pages/bind/index",
     "pages/agreement/index",
     "pages/manual/index",
   ],

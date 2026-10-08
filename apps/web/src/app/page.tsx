@@ -147,6 +147,24 @@ export default function Home() {
     await uploadAfterPublish(entryId, files);
   }
 
+  /** 识别完成延迟刷新（发布与编辑共用）：GLM 尾延可达 30s+，五轮兜到 60s（REQ-011 体验实测） */
+  const scheduleRecognitionRefresh = useCallback(() => {
+    for (const delay of [6000, 16000, 30000, 45000, 60000]) {
+      const t = setTimeout(() => {
+        void loadRef.current();
+        window.dispatchEvent(new CustomEvent("shiguang:entry-analyzed"));
+      }, delay);
+      refreshTimers.current.push(t);
+    }
+  }, []);
+
+  // 卡内编辑保存后后台重识别（fire-and-forget）：卡片派发事件 → 这里挂同一组刷新轮
+  useEffect(() => {
+    const h = () => scheduleRecognitionRefresh();
+    window.addEventListener("shiguang:entry-edited", h);
+    return () => window.removeEventListener("shiguang:entry-edited", h);
+  }, [scheduleRecognitionRefresh]);
+
   /** 发布一条动态（文字秒存上墙），返回 entry id；图片上传由调用方拿到 id 后自行并行处理（可重试） */
   async function publish(raw: string): Promise<string | null> {
     const t = raw.trim();
@@ -175,16 +193,12 @@ export default function Home() {
       if (window.innerWidth < 640) {
         setTimeout(() => feedTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
       }
-      // 识别通常数秒完成：安排两轮延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）。
+      // 识别通常数秒完成：安排延迟刷新把识别产物带上墙（经 loadRef 取最新参数；卸载时清理）。
       // 同时派发识别完成事件：今日行动等自取数区块（不走 use-home-data）联动刷新，
-      // 否则识别出的 todo 要手动刷新页面才出现（2026-10-04 用户反馈）
-      for (const delay of [6000, 16000]) {
-        const t2 = setTimeout(() => {
-          void loadRef.current();
-          window.dispatchEvent(new CustomEvent("shiguang:entry-analyzed"));
-        }, delay);
-        refreshTimers.current.push(t2);
-      }
+      // 否则识别出的 todo 要手动刷新页面才出现（2026-10-04 用户反馈）。
+      // REQ-011 体验实测：GLM 尾延实测 18s/33s 各一次，两轮/三轮刷新都会被长尾穿透 →
+      // 卡片永久停留「AI 识别中」。五轮兜到 60s（每轮只是一次列表拉取，代价可忽略）
+      scheduleRecognitionRefresh();
       return j.entry.id as string;
     } catch (e) {
       toast(`记录失败：${e instanceof Error ? e.message : e}`, "err");

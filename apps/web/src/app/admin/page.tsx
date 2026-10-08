@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { BarChart3, Bot, Lightbulb, Megaphone } from "lucide-react";
-import { api } from "@/shared/api";
+import { useSession } from "@/shared/session";
 import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
 import AdminAiPanel from "@/components/admin-ai-panel";
@@ -19,21 +19,9 @@ import { FilterChip, TagChip } from "@/components/tag-chip";
 type Tab = "ai" | "marketing" | "data";
 
 export default function AdminPage() {
-  const [me, setMe] = useState<{ nickname: string | null; isAdmin: boolean } | null>(null);
-  // 身份加载失败态：失败要落错误 + 重试入口（历史 bug：catch 空吞，永久「加载中…」）
-  const [meErr, setMeErr] = useState<string | null>(null);
+    // 会话走 useSession() 单源（session.tsx 约定：子页面禁止散拉 /api/auth/me——旧版与 Provider 双请求）
+  const { user: me, loading: meLoading } = useSession();
   const [tab, setTab] = useState<Tab>("ai");
-
-  const loadMe = useCallback(() => {
-    setMeErr(null);
-    api("/api/auth/me")
-      .then((j) => setMe(j))
-      .catch((e) => setMeErr(e instanceof Error ? e.message : String(e)));
-  }, []);
-
-  useEffect(() => {
-    loadMe();
-  }, [loadMe]);
 
   // 各管理面板统一经 notify 上报操作结果 → 全局 toast
   const notify = (text: string, ok = true) => toast(text, ok ? "ok" : "err");
@@ -69,16 +57,10 @@ export default function AdminPage() {
             </div>
 
             {!me ? (
-              meErr ? (
-                <div className="py-10 text-center">
-                  <p className="text-xs text-danger">加载失败：{meErr}</p>
-                  <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
-                    重试
-                  </button>
-                </div>
-              ) : (
+              // SessionProvider 自带 401 重定向与 loading 骨架语义：未加载完先出骨架
+              meLoading ? (
                 <Skeleton rows={3} className="py-2" />
-              )
+              ) : null
             ) : tab === "ai" ? (
               <section className="glass rounded-2xl p-5">
                 <p className="mb-4 flex items-center gap-1.5 text-micro text-ink-dim">

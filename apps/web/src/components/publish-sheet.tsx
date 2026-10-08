@@ -107,6 +107,9 @@ export default function PublishSheet({
   async function publish() {
     const t = value.trim();
     if (!t || busy || uploading) return;
+    // 动态已发出（lastEntryId 在）且仍有失败图：此时再「发布」会重复发一条同文动态——
+    // 按钮此时已改为「重传图片」语义（见下方 disabled/文案），这里兜底短路
+    if (lastEntryId.current && images.some((i) => i.status === "error")) return;
     const files = images.filter((i) => i.status !== "error").map((i) => i.file);
     const entryId = await onPublish(t);
     if (!entryId) {
@@ -285,11 +288,21 @@ export default function PublishSheet({
           </div>
           <button
             type="button"
-            onClick={() => void publish()}
-            disabled={busy || uploading || !value.trim()}
+            onClick={() => {
+              // 已发出动态但仍有失败图：此钮 = 只重传失败图片（不再发新动态）
+              if (lastEntryId.current && images.some((i) => i.status === "error")) void retryUpload();
+              else void publish();
+            }}
+            disabled={busy || uploading || (!value.trim() && !lastEntryId.current)}
             className="btn-primary rounded-xl px-7 py-2 text-sm font-medium"
           >
-            {busy ? "识别中…" : uploading ? "上传中…" : "发布"}
+            {busy
+              ? "识别中…"
+              : uploading
+                ? "上传中…"
+                : lastEntryId.current && images.some((i) => i.status === "error")
+                  ? "重传失败图片"
+                  : "发布"}
           </button>
         </div>
       </div>

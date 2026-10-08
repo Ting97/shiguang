@@ -211,6 +211,10 @@ export default function ReviewPage() {
   }, []);
 
   usePullDownRefresh(() => {
+    if (!getSessionToken()) {
+      Taro.stopPullDownRefresh(); // 游客态无服务端通道，直接收起动画
+      return;
+    }
     Promise.all([loadStatsData(), loadReview(false)]).finally(() => Taro.stopPullDownRefresh());
   });
 
@@ -218,7 +222,7 @@ export default function ReviewPage() {
   if (!getSessionToken()) {
     return (
       <PageShell active="finance">
-        <GuestGate title="交易复盘" desc="交易统计、权益曲线与 AI 归因复盘" />
+        <GuestGate title="收支复盘" desc="日周收支结构、分类占比与 AI 周报" />
       </PageShell>
     );
   }

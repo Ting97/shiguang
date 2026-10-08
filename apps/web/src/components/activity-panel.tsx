@@ -77,18 +77,23 @@ export default function ActivityPanel() {
     await load();
   }
 
+  const removingRef = useRef(false);
   async function remove(a: Activity) {
+    if (removingRef.current) return; // 快速双击「确认删除?」防双发（第二发 404 会再弹错误 toast）
+    removingRef.current = true;
     try {
       await api<any>(`/api/activities/${a.id}`, "DELETE");
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "删除失败" : e.message, "err"); return; }
+      if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "删除失败" : e.message, "err"); removingRef.current = false; return; }
       toast("网络异常，请稍后重试", "err");
+      removingRef.current = false;
       return;
     }
     toast(`🗑 已删除「${a.name}」`);
     setArmDeleteId(null);
     await load();
+    removingRef.current = false;
   }
 
   /** 删除两步确认（与 BlockEditor 同款）：首点进入待确认态，3 秒内再点才真删——

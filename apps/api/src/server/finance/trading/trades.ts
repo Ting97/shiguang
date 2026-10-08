@@ -84,15 +84,26 @@ export async function importTrades(userId: string, body: ImportBody) {
   validateRows(body.rows);
   const login = String(body.login ?? "").trim();
   if (!login) throw ApiError.badRequest("login 必填");
+  // login/nickname/fileName 直落 trade_accounts/trade_imports，无上限的串会进列表与批次记录
+  if (login.length > 64) throw ApiError.badRequest("login 最长 64 字符");
+  if (body.nickname != null && String(body.nickname).trim().length > 40) throw ApiError.badRequest("nickname 最长 40 字符");
+  if (body.fileName != null && String(body.fileName).length > 40) throw ApiError.badRequest("fileName 最长 40 字符");
   if (!["mt5_xlsx", "csv", "bitget_api"].includes(body.source)) throw ApiError.badRequest("source 需为 mt5_xlsx/csv/bitget_api");
 
-  const accountId = await ensureAccount(userId, login, body.nickname, body.source === "bitget_api" ? "bitget" : "mt5");
+  // dryRun 预览无副作用：只读查账户判重（旧版 ensureAccount 在 dryRun 分支前执行，预览即建档/覆写 nickname）
+  const ro = await pool.query(`select id from trade_accounts where user_id = $1 and login = $2`, [userId, login]);
+  const roAccountId: string | null = ro.rows[0]?.id ?? null;
   const tickets = body.rows.map((r) => String(r.ticket));
-  const existing = await pool.query(
-    `select ticket from trades where user_id = $1 and account_id = $2 and ticket = any($3::text[])`,
-    [userId, accountId, tickets],
+  const dupSet = new Set<string>(
+    roAccountId
+      ? (
+          await pool.query(
+            `select ticket from trades where user_id = $1 and account_id = $2 and ticket = any($3::text[])`,
+            [userId, roAccountId, tickets],
+          )
+        ).rows.map((r) => String(r.ticket))
+      : [],
   );
-  const dupSet = new Set(existing.rows.map((r) => String(r.ticket)));
   // 批内同 ticket 去重（CSV 合并场景）：保留首行、其余计入 rowsDup——
   // 不去重时批内重复/并发导入会撞 unique (user_id, account_id, ticket) → 23505 整批 500
   const seenBatch = new Set<string>();
@@ -120,6 +131,7 @@ export async function importTrades(userId: string, body: ImportBody) {
     };
   }
 
+  const accountId = await ensureAccount(userId, login, body.nickname, body.source === "bitget_api" ? "bitget" : "mt5");
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -135,7 +147,7 @@ export async function importTrades(userId: string, body: ImportBody) {
       const chunk = fresh.slice(i, i + CHUNK);
       const vals: unknown[] = [];
       const tuples = chunk.map((r) => {
-        vals.push(userId, accountId, imp.id, String(r.ticket), r.symbol ?? "XAUUSD", r.direction, r.openTime, r.closeTime, Number(r.lots), r.openPrice ?? null, r.closePrice ?? null, Number(r.profit ?? 0), Number(r.commission ?? 0), Number(r.swap ?? 0));
+        vals.push(userId, accountId, imp.id, String(r.ticket), r.symbol ?? "XAUUSD", r.direction, r.openTime, r.closeTime, Number(r.lots), r.openPrice == null ? null : Number(r.openPrice), r.closePrice == null ? null : Number(r.closePrice), Number(r.profit ?? 0), Number(r.commission ?? 0), Number(r.swap ?? 0));
         const b = vals.length;
         return `($${b - 13},$${b - 12},$${b - 11},$${b - 10},$${b - 9},$${b - 8},$${b - 7},$${b - 6},$${b - 5},$${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`;
       });
@@ -380,8 +392,8 @@ export async function listTrades(
      from trades
      where ${W()}
      order by close_time desc
-     limit ${limit} offset ${(page - 1) * limit}`,
-    vals,
+     limit $${vals.length + 1} offset $${vals.length + 2}`,
+    [...vals, limit, (page - 1) * limit],
   );
   return {
     total,

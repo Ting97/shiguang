@@ -81,7 +81,8 @@ function makeTitle(text: string): string {
     .trim()
     .replace(/(练了|聊了|看了|搞了|弄了|花了|用了)$/u, "")
     .trim();
-  return (cleaned || text).slice(0, 20);
+  // 码点级截断：UTF-16 码元 slice 会把骑边界的 emoji 切成孤代理对（落库变 U+FFFD）
+  return Array.from(cleaned || text).slice(0, 20).join("");
 }
 
 /**
@@ -122,7 +123,8 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
   }
   // N号/N日（裸日，前面不带 月/年 限定）：N 大于今天（未来）→ 往回找最近一个存在 N 日的月份
   // （补记上月的常见话术；旧版近似回退 30 天再取 N，N 大于上月天数时 Date.UTC 静默进位出未来日期）
-  const m = /(?<![月年\d])(\d{1,2})[号日]/.exec(text);
+  // lookbehind 追加量词/编号类：「3号球衣/5号工牌」的 N号 是编号非日期——误判把花销记错月份（宁缺勿错）
+  const m = /(?<![月年\d个件条辆间套位张台页只支])(\d{1,2})[号日]/.exec(text);
   if (m) {
     const n = Number(m[1]);
     if (n >= 1 && n <= 31) {
@@ -169,7 +171,13 @@ function ruleExtract(text: string, contactNames?: string[], now: Date = new Date
     finance: amount !== null
       ? {
           hasAmount: true,
-          direction: /收到|到账|工资|红包|奖金|进账|报销|退款|退了|入账/.test(text) ? ("in" as const) : ("out" as const),
+          // 「发红包/发了红包/包红包」是支出：先行判出，避免「红包」关键词把它顶成收入；
+          // 「(收到的)发的红包」定语形态不匹配（发+的），仍按收入
+          direction: /发了个?红包|发红包|包了?个?红包/.test(text)
+            ? ("out" as const)
+            : /收到|到账|工资|红包|奖金|进账|报销|退款|退了|入账/.test(text)
+              ? ("in" as const)
+              : ("out" as const),
           amountCents: amount,
           category: /随(礼|份子)|礼金|份子|红包/.test(text)
             ? "人情往来"
@@ -368,7 +376,7 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
       applicable: scheduleApplicableHybrid,
       activity,
       // applicable 但 GLM 未抽出标题 → 从原话兜底（v2 同语义：空标题日程不得入库）；超 30 字截断（ParseResult 契约）
-      title: scheduleApplicableHybrid && !(g.title ?? "").trim() ? makeTitle(text) : (g.title ?? "").slice(0, 30),
+      title: scheduleApplicableHybrid && !(g.title ?? "").trim() ? makeTitle(text) : Array.from(g.title ?? "").slice(0, 30).join(""),
       durationMin: g.durationMin ?? null,
       // 瘦身模型给出的起止（ISO）；mapAiResult 的确定性校验兜住不合法区间（域降级）
       start: g.start ?? null,
@@ -434,6 +442,40 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
 /** AI 结果 → ParseResult：确定性后处理（校验/换算），无规则语义 */
 function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm" | "llm-repaired" | "jev-hybrid"): ParseResultT {
   const future = ext.todo.applicable; // AI 判定即最终判定
+
+  // —— 确定性日程救回（REQ-011 三端体验实测）——
+  // 两类漏判都用规则引擎兜：「中午和老王吃饭花了260，吃得挺开心」（时段词+活动词+过去时）
+  // ① 小模型直接判否（prompt 示例俱全仍回「无事件信号」）；② 开闸但起止缺失（域降级为不适用）。
+  // 规则引擎此时能正确给出 12:00–13:00。命中时以 0.5 置信度转「待确认」（低于 0.6 直落阈值）：
+  // 不硬覆盖高置信结论，用户一键确认即落库，误救回忽略即可。未来话术（归 todo）不参与。
+  if (!future && !ext.todo.applicable && detectFuture(text) === null) {
+    const missingSchedule = !ext.schedule.applicable || !ext.schedule.start || !ext.schedule.end;
+    if (missingSchedule) {
+      const ruleExt = ruleExtract(text, undefined, now);
+      const hasExplicitTime =
+        parseClockRange(text, ruleExt.schedule.periodHint ?? null) !== null ||
+        /\d{1,2}\s*[点时]/.test(text) ||
+        detectPeriod(text) !== null ||
+        parseDuration(text) !== null ||
+        /刚(刚)?|完(了|成)/.test(text);
+      if (ruleExt.schedule.applicable && hasExplicitTime) {
+        const rescuedMin = ruleExt.schedule.durationMin ?? DEFAULT_ACTIVITY_MIN[ruleExt.schedule.activity] ?? 30;
+      const rescued = inferTimeBlock(text, now, rescuedMin, ruleExt.schedule.periodHint ?? undefined, false);
+        console.warn(`[ai] 日程救回：模型漏判/缺起止，规则引擎命中活动词+显式时间信号，转待确认（${text.slice(0, 24)}）`);
+        ext.schedule = {
+          applicable: true,
+          activity: ruleExt.schedule.activity,
+          title: makeTitle(text),
+          start: rescued.start.toISOString(),
+          end: rescued.end.toISOString(),
+          durationMin: rescued.durationMin,
+          periodHint: ruleExt.schedule.periodHint ?? null,
+          confidence: 0.5,
+        };
+      }
+    }
+  }
+
   // 日期锚定：话术无日期词时模型偶发把当天区间挪到明天（17:22 说"下午2点到6点"→次日），
   // 按用户规则「没写哪一天都按当天算」整天平移回今天（凌晨补记昨天除外）
   const rangeRaw = resolveExplicitRange(ext.schedule.start ?? null, ext.schedule.end ?? null, now);
@@ -442,7 +484,11 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
     console.warn(`[ai] 区间日期锚定：${rangeRaw.start.toISOString()} → ${range.start.toISOString()}（话术无日期词）`);
   }
   const dueRaw = resolveMoment(ext.todo.due ?? null, now);
-  const due = dueRaw ? anchorMomentToToday(dueRaw, text, now) : null;
+  let due = dueRaw ? anchorMomentToToday(dueRaw, text, now) : null;
+  // hybrid 合并层 todo 缺「future→due 必填」降级：Jev 判 future 而瘦身模型未抽出 due 时，
+  // tb 落 default 块（start=now-30min 过去），analyze 拿它当 dueAt → 立即弹过期待办。
+  // 与规则路径 inferFuture soon 分支同语义：due 兜底 now+1h（记下别忘，不产生过期提醒）
+  if (future && !due) due = new Date(now.getTime() + 3600_000);
 
   // 日程时刻：AI 区间为准；applicable 但区间不合法（超幅等，schema 已保证可解析）→ 该域降级为不适用并留痕
   let scheduleApplicable = !future && ext.schedule.applicable;
@@ -478,7 +524,7 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
     // 上游瘦身契约允许 40 字，超 30 会让 zod 抛错且无法降级 → 此处截断；
     // 纯花销/心情句模型给 title=null（宽容化后合法），兜底话术文本（与规则路径 makeTitle 同口径），
     // 否则 undefined 会让 ParseResult 校验抛错、整句被误判为 LLM 失败而降级（2026-10-03 实测踩坑）
-    title: ext.schedule.title?.trim().slice(0, 30) || text.slice(0, 30),
+    title: Array.from(ext.schedule.title?.trim() ?? "").slice(0, 30).join("") || Array.from(text).slice(0, 30).join(""),
     time: {
       mode: tb.mode,
       start: tb.start.toISOString(),
@@ -520,6 +566,9 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
 
 // ---------- 规则路径（原 v1 管线，灾难兜底时使用） ----------
 
+/** 活动默认时长（分钟）：无显式时长时的估计锚（规则路径与日程救回共用） */
+const DEFAULT_ACTIVITY_MIN: Record<string, number> = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30 };
+
 function rulesPipeline(
   text: string,
   now: Date,
@@ -527,7 +576,7 @@ function rulesPipeline(
   fallbackReason: string,
 ): ParseResultT {
   const ext = ruleExtract(text, opts.contactNames, now);
-  const defaults = { sleep: 480, fitness: 60, social: 60, chores: 60, work: 60, study: 60, fun: 30, commute: 30, other: 30, ...opts.defaults };
+  const defaults = { ...DEFAULT_ACTIVITY_MIN, ...opts.defaults };
   // ruleExtract 的 durationMin 已是 parseDuration(text)，无需重复计算
   const durationMin = ext.schedule.durationMin ?? defaults[ext.schedule.activity as keyof typeof defaults] ?? 30;
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
@@ -551,7 +600,7 @@ function rulesPipeline(
 
   return ParseResult.parse({
     activity: ext.schedule.activity,
-    title: ext.schedule.title?.trim().slice(0, 30) || makeTitle(text),
+    title: Array.from(ext.schedule.title?.trim() ?? "").slice(0, 30).join("") || makeTitle(text),
     time: {
       mode: tb.mode,
       start: tb.start.toISOString(),

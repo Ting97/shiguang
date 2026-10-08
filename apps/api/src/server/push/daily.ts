@@ -31,6 +31,8 @@ async function expoPushSend(to: string, title: string, body: string): Promise<vo
   try {
     const r = await fetch(EXPO_PUSH_URL, {
       method: "POST",
+      // 无超时时上游挂起可吊满 undici 默认 300s/token，逐 token 串行会把当日推送与巡检 tick 拖垮
+      signal: AbortSignal.timeout(10_000),
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ to, title, body }),
     });

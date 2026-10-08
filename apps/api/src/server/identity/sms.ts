@@ -23,30 +23,43 @@ export interface SmsSendResult {
 
 /** 发送验证码：限流（同号 60s/次、日 10 条）→ 落库（存 hash）→ 调通道 */
 export async function sendSmsCode(phone: string, purpose: "login" | "bind"): Promise<SmsSendResult> {
-  const recent = await pool.query(
-    `select created_at from sms_codes
-     where phone = $1 and purpose = $2 and created_at > now() - interval '60 seconds'`,
-    [phone, purpose],
-  );
-  if (recent.rows.length > 0) {
-    return { ok: false, status: 429, error: "发送太频繁，请 1 分钟后再试" };
-  }
-  const today = await pool.query(
-    `select count(*)::int as n from sms_codes
-     where phone = $1 and created_at > now() - interval '24 hours'`,
-    [phone],
-  );
-  if (today.rows[0].n >= DAILY_LIMIT) {
-    return { ok: false, status: 429, error: "今日发送次数已达上限" };
-  }
-
+  // 占位式原子限流：advisory lock 串行化同号并发后再判定（旧版 check-then-insert 两步，
+  // 并发穿透后单 IP 首轮 20 个请求全部通过 → 一批短信费用+骚扰面）
   const code = generateSmsCode();
-  const { rows } = await pool.query(
-    `insert into sms_codes (phone, code_hash, purpose, expires_at)
-     values ($1,$2,$3,$4) returning id`,
-    [phone, hashToken(code), purpose, new Date(Date.now() + CODE_TTL_MS)],
-  );
-  const codeId = rows[0].id;
+  const client = await pool.connect();
+  let codeId: string | null = null;
+  try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`sms-code:${phone}`]);
+    const recent = await client.query(
+      `select 1 from sms_codes
+       where phone = $1 and purpose = $2 and created_at > now() - interval '60 seconds' limit 1`,
+      [phone, purpose],
+    );
+    if (recent.rows.length > 0) {
+      await client.query("commit");
+      return { ok: false, status: 429, error: "发送太频繁，请 1 分钟后再试" };
+    }
+    const today = await client.query(
+      `select count(*)::int as n from sms_codes
+       where phone = $1 and created_at > now() - interval '24 hours'`,
+      [phone],
+    );
+    if (today.rows[0].n >= DAILY_LIMIT) {
+      await client.query("commit");
+      return { ok: false, status: 429, error: "今日发送次数已达上限" };
+    }
+    codeId = (
+      await client.query(
+        `insert into sms_codes (phone, code_hash, purpose, expires_at)
+         values ($1,$2,$3,$4) returning id`,
+        [phone, hashToken(code), purpose, new Date(Date.now() + CODE_TTL_MS)],
+      )
+    ).rows[0].id;
+    await client.query("commit");
+  } finally {
+    client.release();
+  }
 
   if (!smsConfigured()) {
     await pool.query(`delete from sms_codes where id = $1`, [codeId]);
@@ -109,6 +122,8 @@ async function tencentSendSms(phone: string, code: string): Promise<void> {
 
   const res = await fetch(`https://${host}/`, {
     method: "POST",
+    // 上游挂起时不设超时会吊满 undici 默认 300s，验证码请求被占死
+    signal: AbortSignal.timeout(10_000),
     headers: {
       "Content-Type": "application/json",
       "X-TC-Action": action,

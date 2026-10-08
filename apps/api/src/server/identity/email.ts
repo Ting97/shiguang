@@ -26,30 +26,42 @@ export interface EmailSendResult {
 
 /** 发送验证码：限流（同邮箱 60s/次、日 10 条）→ 落库（存 hash）→ SMTP 发送 */
 export async function sendEmailCode(email: string, purpose: "login" | "bind"): Promise<EmailSendResult> {
-  const recent = await pool.query(
-    `select created_at from email_codes
-     where email = $1 and purpose = $2 and created_at > now() - interval '60 seconds'`,
-    [email, purpose],
-  );
-  if (recent.rows.length > 0) {
-    return { ok: false, status: 429, error: "发送太频繁，请 1 分钟后再试" };
-  }
-  const today = await pool.query(
-    `select count(*)::int as n from email_codes
-     where email = $1 and created_at > now() - interval '24 hours'`,
-    [email],
-  );
-  if (today.rows[0].n >= DAILY_LIMIT) {
-    return { ok: false, status: 429, error: "今日发送次数已达上限" };
-  }
-
+  // 同 sms 口径：advisory lock 串行化同邮箱并发后再判定（check-then-insert 并发穿透封堵）
   const code = generateSmsCode();
-  const { rows } = await pool.query(
-    `insert into email_codes (email, code_hash, purpose, expires_at)
-     values ($1,$2,$3,$4) returning id`,
-    [email, hashToken(code), purpose, new Date(Date.now() + CODE_TTL_MS)],
-  );
-  const codeId = rows[0].id;
+  const client = await pool.connect();
+  let codeId: string | null = null;
+  try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`email-code:${email}`]);
+    const recent = await client.query(
+      `select 1 from email_codes
+       where email = $1 and purpose = $2 and created_at > now() - interval '60 seconds' limit 1`,
+      [email, purpose],
+    );
+    if (recent.rows.length > 0) {
+      await client.query("commit");
+      return { ok: false, status: 429, error: "发送太频繁，请 1 分钟后再试" };
+    }
+    const today = await client.query(
+      `select count(*)::int as n from email_codes
+       where email = $1 and created_at > now() - interval '24 hours'`,
+      [email],
+    );
+    if (today.rows[0].n >= DAILY_LIMIT) {
+      await client.query("commit");
+      return { ok: false, status: 429, error: "今日发送次数已达上限" };
+    }
+    codeId = (
+      await client.query(
+        `insert into email_codes (email, code_hash, purpose, expires_at)
+         values ($1,$2,$3,$4) returning id`,
+        [email, hashToken(code), purpose, new Date(Date.now() + CODE_TTL_MS)],
+      )
+    ).rows[0].id;
+    await client.query("commit");
+  } finally {
+    client.release();
+  }
 
   if (!emailConfigured()) {
     await pool.query(`delete from email_codes where id = $1`, [codeId]);
@@ -82,6 +94,10 @@ async function smtpSend(email: string, code: string): Promise<void> {
     port: smtp.port,
     secure: smtp.port === 465,
     auth: { user: smtp.user, pass: smtp.pass },
+    // 上游 SMTP 挂起时显式超时（不依赖默认无限等待）
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
   await transporter.sendMail({
     from: smtp.from,

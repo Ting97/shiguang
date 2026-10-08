@@ -28,7 +28,7 @@
 - **trade 侧改了需还矩阵（备付核心.js 的 RULES）后无需任何操作**：同步每日直接读服务器上的最新文件；TRADE_HOME 环境变量可覆盖 trade 目录
 - 编码→负债映射：`/opt/shiguangri_repo/scripts/trade-debt-mapping.json`（自动建档自学习写回；手工调整直接改此文件）
 - 未映射编码每次运行打印提醒；已建档负债：B3=中信银行信用卡、B4=招商银行信用卡B4、B5=中信银行信用卡B5、B6=招商银行信用卡B6、C5=工商银行C5、F1=网商银行F1、B1=华夏银行（名称来自 D:\ai\trade\资产\data.js 编码表）
-- 手动跑：`cd /opt/shiguangri_repo && node scripts/sync-debt-from-trade.mjs`（--dry 预览）
+- 手动跑：`cd /opt/shiguangri_repo && node scripts/ops/sync-debt-from-trade.mjs`（--dry 预览；脚本实际位于 scripts/ops/）
 
 ## 恢复演练（每季度跑一次）
 
@@ -48,3 +48,9 @@ curl -s https://shiguang.ting97.cn/api/health
 3. 拷贝 `shiguangri.service` → `systemctl enable --now shiguangri`；拷贝 `Caddyfile` → `systemctl reload caddy`
 4. `.env` 从密码管理器还原（含 DATABASE_URL/ZHIPUAI_API_KEY/JEV/短信/SMTP）
 5. `node scripts/deploy.mjs` 走一次标准发布校验全链路
+
+## 迁移前置依赖（一次性）
+
+- **045-entries-search-trgm.sql 需要 pg_trgm 扩展**（postgresql-contrib 包）。生产已在 2026-10-08 前装好并执行；
+  全新环境重建时需先 `yum install postgresqlXX-contrib && systemctl restart postgresql`，否则该迁移 fail-fast 挡发布
+  （039 迁移因缺 contrib 放弃了 btree_gist EXCLUDE 约束——同一前提）。

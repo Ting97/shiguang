@@ -84,6 +84,9 @@ function gateMessage(kind: ReviewKind, periodKey: string, ceiling: number, M: nu
         return past
           ? `该周交易周报生成次数已用完（上限 ${M} 次）`
           : `本周交易周报可用次数已用完（周日晚 20:00 后解锁预留的 2 次）`;
+      // trading 的 periodKey 是账号 UUID、上限每账号 5 次——挂「周小结」文案会把用户带偏
+      if (kind === "trading")
+        return `该账号交易复盘生成次数已用完（上限 ${M} 次）`;
       return past
         ? `该周小结生成次数已用完（上限 ${M} 次）`
         : `本周小结可用次数已用完（周日晚 20:00 后解锁预留的 2 次）`;

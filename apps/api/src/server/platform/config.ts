@@ -159,7 +159,10 @@ export function loadConfig(): AppConfig {
     },
     /** 每日提醒推送小时（REQ-009 9-D）：北京时间 PUSH_DAILY_HOUR，缺省/非法回退 9 */
     get pushDailyHour(): number {
-      const n = Number(process.env.PUSH_DAILY_HOUR);
+      // 空串 Number("")===0 会把推送静默变成 0 点——空值与未设一样按缺省 9 处理
+      const raw = process.env.PUSH_DAILY_HOUR;
+      if (raw == null || raw === "") return 9;
+      const n = Number(raw);
       return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 9;
     },
   };

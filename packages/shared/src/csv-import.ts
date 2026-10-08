@@ -13,6 +13,8 @@
  * - 「不计收支」与退款行跳过（退款不单独计账，避免重复）
  */
 
+import { yuan as financeYuan } from "./finance";
+
 export type Platform = "alipay" | "wechat";
 
 export interface ImportRow {
@@ -45,7 +47,8 @@ export function detectPlatform(text: string): Platform | null {
   return null;
 }
 
-/** 容错 CSV 行解析：支持引号内的逗号与换行 */
+/** 容错 CSV 行解析：支持引号内的逗号与换行。
+ *  引号仅在字段起始位开启（RFC 4180）：手改行里的裸引号（金额备注「30"管」）旧版会把后续逗号吞进单元格错列 */
 export function splitCsvLines(text: string): string[][] {
   const rows: string[][] = [];
   let cell = "";
@@ -58,7 +61,7 @@ export function splitCsvLines(text: string): string[][] {
         if (text[i + 1] === '"') { cell += '"'; i++; }
         else inQuotes = false;
       } else cell += ch;
-    } else if (ch === '"') {
+    } else if (ch === '"' && cell === "") {
       inQuotes = true;
     } else if (ch === ",") {
       row.push(cell); cell = "";
@@ -154,7 +157,9 @@ export function classify(platformType: string, counterparty: string, goods: stri
   return "其他";
 }
 
-const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+// 显示收敛 finance.yuan 单源（整数位运算，防浮点除法精度漂移）；此处补 ¥ 前缀
+
+const yuan = (cents: number) => `¥${financeYuan(cents)}`;
 
 /**
  * 解析账单文本 → 可导入行

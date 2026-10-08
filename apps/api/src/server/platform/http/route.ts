@@ -139,13 +139,49 @@ export function withModule(
   });
 }
 
+/** JSON body 读取（1MB 体量上限）：withSchema/withAuthSchema 是 login/register/setup/验证码发送等
+ *  认证前端点的共享基座，无上限时未登录者可流式投喂超大 body 打内存（req.json() 全量缓冲）。
+ *  content-length 超限直接 413；缺头（chunked）按流累计字节拒绝。 */
+async function readJsonCapped(req: NextRequest, capBytes = 1024 * 1024): Promise<unknown> {
+  const declared = Number(req.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > capBytes) {
+    throw new ApiError(413, "payload_too_large", "请求体过大");
+  }
+  if (Number.isFinite(declared) && declared >= 0) return req.json().catch(() => ({}));
+  const reader = req.body?.getReader();
+  if (!reader) return {};
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > capBytes) {
+      await reader.cancel().catch(() => {});
+      throw new ApiError(413, "payload_too_large", "请求体过大");
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    all.set(c, off);
+    off += c.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(all));
+  } catch {
+    return {};
+  }
+}
+
 /** zod body 校验（不鉴权场景） */
 export function withSchema<S extends z.ZodTypeAny>(
   schema: S,
   handler: Handler<RouteCtx & { valid: z.infer<S> }>,
 ): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
   return withRoute(async (req) => {
-    const raw = await req.json().catch(() => ({}));
+    const raw = await readJsonCapped(req);
     return handler(req, { req, log, valid: parseWith(schema, raw) });
   });
 }
@@ -156,7 +192,7 @@ export function withAuthSchema<S extends z.ZodTypeAny>(
   handler: Handler<AuthedCtx & { valid: z.infer<S> }>,
 ): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
   return withAuth(async (req, ctx) => {
-    const raw = await req.json().catch(() => ({}));
+    const raw = await readJsonCapped(req);
     return handler(req, { ...ctx, valid: parseWith(schema, raw) });
   });
 }

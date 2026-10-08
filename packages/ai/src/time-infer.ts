@@ -182,7 +182,7 @@ function atHour(base: Date, hour: number, minute = 0): Date {
  * 裸 N号/N日 与 parse.ts occurredDate 同款 lookbehind——「3号」是显式日期，
  * 缺此分支会让模型给对的区间被 anchorRangeToToday 整天平移到今天 */
 const EXPLICIT_DAY_RE =
-  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?<![月年\d])\d{1,2}\s*[号日])/;
+  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日])/;
 
 export function hasExplicitDayRef(text: string): boolean {
   return EXPLICIT_DAY_RE.test(text);
@@ -328,9 +328,11 @@ export function inferTimeBlock(
     return { mode: duration ? "explicit" : "relative", start: anchor, end, durationMin: dur };
   }
 
-  // 1) 有相对时段 → 锚点起 + 时长
+  // 1) 有相对时段 → 锚点起 + 时长；话术带显式钟点时优先钟点（与路径 0/0.6/未来推断同口径——
+  // 「下午3点开了个会」应 15:00 起，而不是泛化锚点 14:00）
   if (period && period !== "now") {
-    let anchor = atHour(now, PERIOD_ANCHORS[period]);
+    const clock = parseClock(text, period);
+    let anchor = clock ? atHour(now, clock.hour, clock.minute) : atHour(now, PERIOD_ANCHORS[period]);
     if (anchor > now && !periodOngoing(period, now)) {
       // 过去语境且锚点在今天尚未到来、且当下不在该时段窗口内 → 归昨天
       // （15:00 说"晚上刷了抖音"=昨晚；而 07:17 说"早上醒来…"时段正在进行，保留今天）

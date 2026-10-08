@@ -99,6 +99,25 @@ test("3-D 混合：闭集信 Jev、开放字段信 GLM，engine=jev-hybrid", asy
   if (restore) restore();
 });
 
+test("REQ-011 日程救回：Jev/GLM 都判否但规则命中活动词+时段词 → 0.5 置信转待确认日程", async () => {
+  mockFetch(
+    jevResponseFor({ sched_applicable: { noul: 0.9 } }), // Jev 判无日程
+    glmSlimResponse({
+      title: null, start: null, end: null, due: null, durationMin: null,
+      people: [{ name: "老王", event: "吃饭" }],
+      dietItems: [], mood: { label: "开心", score: 60 }, counterparty: "老王", amountCents: 26000,
+    }),
+  );
+  const r = await parseHybridInput("中午和老王吃饭花了260，吃得挺开心", { now: NOW });
+  // 救回：规则引擎命中 吃饭(活动词)+中午(时段词) → 待确认级日程（0.5 < 0.6 直落阈值）
+  assert.equal(r.scheduleApplicable, true);
+  assert.equal(r.scheduleConfidence, 0.5);
+  assert.equal(r.intent, "schedule");
+  // 时间块来自规则引擎的中午锚点（北京时间 12:00–13:00 = UTC 04:00–05:00）
+  assert.equal(new Date(r.time.start).toUTCString().slice(17, 22), "04:00");
+  assert.equal(new Date(r.time.end).toUTCString().slice(17, 22), "05:00");
+});
+
 test("3-D 混合：闭集否决 GLM 开放字段（mood/people/diet 关闸即空）", async () => {
   mockFetch(
     jevResponseFor({ mood_applicable: { noul: 0.1 }, people_applicable: { noul: 0.05 }, diet_applicable: { noul: 0.05 }, fin_applicable: { noul: 0.05 } }),

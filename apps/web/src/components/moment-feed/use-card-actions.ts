@@ -30,16 +30,18 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
   // delArmed 的镜像 ref：快速二次点击时两次事件都读到旧 state 闭包，只用 state 判断会两次都 arm
   const delArmedRef = useRef<string | null>(null);
 
-  const run = async (fn: () => Promise<string>) => {
-    if (runningRef.current) return;
+  const run = async (fn: () => Promise<string>): Promise<boolean> => {
+    if (runningRef.current) return false; // 受理失败：调用方（确认框）不应把确认态关掉
     runningRef.current = true;
     try {
       toast(await fn());
       await onRefresh();
       // 卡片内容变了（增删识别产物/待办），「今日行动」清单同步重拉（它只监听该事件）
       window.dispatchEvent(new CustomEvent("shiguang:entry-analyzed"));
+      return true;
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
+      return true; // 请求已发出并失败：确认态照常收尾
     } finally {
       runningRef.current = false;
     }

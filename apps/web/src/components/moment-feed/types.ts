@@ -21,7 +21,7 @@ export interface MomentFeedProps {
 }
 
 /** 卡内操作统一执行器：执行 fn → 成功/失败消息经全局 toast 提示 → 刷新 */
-export type RunFn = (fn: () => Promise<string>) => Promise<void>;
+export type RunFn = (fn: () => Promise<string>) => Promise<boolean>; // 返回是否受理（重入锁被占=false，确认框据此不静默关闭）
 
 /** 两步删除：首点 del(key) 进入待确认态（按钮变「确认删除？」，3 秒超时自动复位），
  *  待确认态下再点同一 key 才真正执行（替代原生 window.confirm——阻塞式弹窗与全站两步确认不一致） */

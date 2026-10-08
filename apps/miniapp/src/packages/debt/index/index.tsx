@@ -379,6 +379,10 @@ export default function DebtPage() {
   }, []);
 
   usePullDownRefresh(() => {
+    if (!getSessionToken()) {
+      Taro.stopPullDownRefresh(); // 游客态无服务端通道，直接收起动画（防 401 错误横幅/toast）
+      return;
+    }
     load().finally(() => Taro.stopPullDownRefresh());
   });
 
@@ -787,7 +791,7 @@ export default function DebtPage() {
           {ov!.wall.length > 0 && (
             <View className="wall-card">
               <View className="wall-head">
-                <Chip icon="⏳" label="到期墙" tone="amber" />
+                <Chip icon="hourglass" label="到期墙" tone="amber" />
                 <Text className="wall-sub">未来 6 个月内到期</Text>
               </View>
               {ov!.wall.map((w) => (

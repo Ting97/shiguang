@@ -16,7 +16,11 @@ export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "
     <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover/row:flex">
       {onEdit && (
         <button
-          onClick={onEdit}
+          onClick={(e) => {
+            // 触屏（hover:none 常显）下点击会冒泡到行 onClick 再弹 RowActionMenu，盖住刚打开的行内编辑表单
+            e.stopPropagation();
+            onEdit();
+          }}
           title={editTitle}
           className="tap-lg press rounded px-1 py-0.5 text-ink-dim hover:text-accent"
         >
@@ -25,7 +29,10 @@ export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "
       )}
       {onDelete && (
         <button
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           title={armed ? "3 秒内再点确认删除" : delTitle}
           className={`tap-lg press flex items-center rounded px-1 py-0.5 text-[10px] font-medium leading-none ${armed ? "bg-rose-500/15 text-danger" : "text-ink-dim hover:text-danger"}`}
         >

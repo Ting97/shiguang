@@ -35,6 +35,11 @@ export const POST = withDebtParams(async (req, { user, params }) => {
   if (!Number.isInteger(body.amountCents) || (body.amountCents ?? 0) <= 0) {
     throw ApiError.badRequest("还款金额需为正整数（分）");
   }
+  // 全站金钱口径（¥100 万）：缺上限时巨款会把余额 greatest(0, balance-巨款) 静默归零自动结清，
+  // 且带 accountId 联动记流水会撞 int4 22003 → 同一请求两种结局自相矛盾
+  if (body.amountCents! > 100_000_000) {
+    throw ApiError.badRequest("单笔还款不能超过 ¥100 万");
+  }
   const paidAt = body.paidAt ?? new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
   // 形状校验放行 2025-02-30 → PG date cast 500：需为真实日历日
   if (!isValidCalendarDate(paidAt)) {

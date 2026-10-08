@@ -89,17 +89,7 @@ export function yuan(cents: number): string {
   return neg ? `-${body}` : body;
 }
 
-/** 本月标识 YYYY-MM（本地时区） */
-export function monthKey(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
-/** 上一个月份标识 */
-export function prevMonthKey(key: string): string {
-  const [y, m] = key.split("-").map(Number);
-  const d = new Date(y, m - 2, 1);
-  return monthKey(d);
-}
 
 /** 环比变化百分比：(cur-prev)/prev ×100，prev 为 0 时 null */
 export function momChange(cur: number, prev: number): number | null {

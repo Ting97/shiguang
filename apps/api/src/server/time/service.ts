@@ -4,7 +4,7 @@
  * 倒挂时间 400、预设分类不可删 400 等）；重叠 409 响应体含 conflict 对象，由
  * overlapPayload 组装、路由原样透出。
  */
-import { findOverlap, overlapError } from "@/server/platform/db";
+import { findOverlap, overlapError, pool } from "@/server/platform/db";
 import { isParsableMoment, isValidCalendarDate } from "@/server/platform/http/datetime";
 import { ApiError } from "../platform/http/errors";
 import { activitiesRepo, blocksRepo, statsRepo } from "./repo";
@@ -60,6 +60,7 @@ export interface BlockWriteBody {
 export async function createBlock(userId: string, body: BlockWriteBody): Promise<BlockWriteResult> {
   // title 先验类型再验内容：非字符串（{title:123}）走 .trim() 是 TypeError → 500，应 400
   if (body.title != null && typeof body.title !== "string") throw ApiError.badRequest("标题需为字符串");
+  if (body.title != null && body.title.trim().length > 100) throw ApiError.badRequest("标题最长 100 字");
   if (!body.title?.trim() || !body.startAt || !body.endAt || !body.activityId) {
     throw ApiError.badRequest("标题、起止时间、类别均必填");
   }
@@ -72,17 +73,30 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
   if (Date.parse(body.endAt) <= Date.parse(body.startAt)) {
     throw ApiError.badRequest("结束时间必须晚于开始时间");
   }
-  const conflict = await findOverlap(userId, body.startAt, body.endAt);
-  if (conflict) return { conflict };
+  // 重叠预检与落库收进同一事务，事务首语句取 per-user advisory lock 串行化同用户时间块写路径：
+  // 生产 PG13 缺 btree_gist 无 EXCLUDE 约束兜底（见文件头注），无锁时两条并发创建可同时通过预检
+  // 各自落库（双重预约）；advisory lock 恒为首锁不改变既有「entry 行锁」顺序，无死锁面
+  const client = await pool.connect();
   try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
+    const conflict = await findOverlap(userId, body.startAt, body.endAt, undefined, undefined, client);
+    if (conflict) {
+      await client.query("rollback");
+      return { conflict };
+    }
     const block = (
-      await blocksRepo.insert(userId, body.activityId, body.title.trim(), body.startAt, body.endAt)
+      await blocksRepo.insert(userId, body.activityId, body.title.trim(), body.startAt, body.endAt, client)
     ).rows[0];
+    await client.query("commit");
     return { block };
   } catch (e) {
+    await client.query("rollback").catch(() => {});
     // 23503：activityId 不存在触发复合 FK time_blocks_activity_id_fkey，属可预期输入错误（与 updateBlock 的映射对齐）
     if (String(e).includes("time_blocks_activity_id_fkey")) throw ApiError.badRequest("类别不存在");
     mapBlockWriteError(e);
+  } finally {
+    client.release();
   }
 }
 
@@ -101,13 +115,11 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
     throw ApiError.badRequest("结束时间必须晚于开始时间");
   }
   // 注：activity_id 是 text 列，非 uuid 合法（预设分类）；不存在的 id 由 23503 FK 映射拦成 400
-  const conflict = await findOverlap(userId, newStart, newEnd, id);
-  if (conflict) return { conflict };
-
   const fields: Array<[string, unknown]> = [];
   if (body.title != null) {
     if (typeof body.title !== "string") throw ApiError.badRequest("标题需为字符串");
     if (!body.title.trim()) throw ApiError.badRequest("标题不能为空");
+    if (body.title.trim().length > 100) throw ApiError.badRequest("标题最长 100 字");
     fields.push(["title", body.title.trim()]);
   }
   if (body.startAt != null) fields.push(["start_at", body.startAt]);
@@ -115,13 +127,26 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
   if (body.activityId != null) fields.push(["activity_id", body.activityId]);
   if (fields.length === 0) throw ApiError.badRequest("没有可更新的字段");
 
+  // 与 createBlock 同款：重叠预检 + 更新同一事务 + advisory lock 串行化（TOCTOU 收口）
+  const client = await pool.connect();
   let updated: Record<string, unknown> | undefined;
   try {
-    updated = (await blocksRepo.updateFields(id, userId, fields)).rows[0];
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
+    const conflict = await findOverlap(userId, newStart, newEnd, id, undefined, client);
+    if (conflict) {
+      await client.query("rollback");
+      return { conflict };
+    }
+    updated = (await blocksRepo.updateFields(id, userId, fields, client)).rows[0];
+    await client.query("commit");
   } catch (e) {
+    await client.query("rollback").catch(() => {});
     const msg = String(e);
     if (msg.includes("time_blocks_activity_id_fkey")) throw ApiError.badRequest("类别不存在");
     mapBlockWriteError(e);
+  } finally {
+    client.release();
   }
   if (!updated) throw ApiError.notFound("日程不存在");
   return { block: updated };
@@ -166,6 +191,8 @@ export async function createActivity(userId: string, body: ActivityBody) {
   if (body.icon != null && typeof body.icon !== "string") throw ApiError.badRequest("图标需为字符串");
   const name = body.name?.trim();
   if (!name) throw ApiError.badRequest("名称必填");
+  // 与 AI 契约 name≤20 同口径：分类名会逐条拼进识别 prompt 的 catList（无上限 = token 成本×N）
+  if (name.length > 20) throw ApiError.badRequest("分类名最长 20 字");
   // NaN 防御：非整数 defaultMin 过 Math.min/max 仍得 NaN，直落 int 列 500（PATCH 路径同款在路由层 assertNumericBody）
   if (body.defaultMin != null && (typeof body.defaultMin !== "number" || !Number.isInteger(body.defaultMin))) {
     throw ApiError.badRequest("defaultMin 需为整数（分钟）");
@@ -175,7 +202,7 @@ export async function createActivity(userId: string, body: ActivityBody) {
     const created = (
       await activitiesRepo.create(userId, {
         name,
-        icon: body.icon?.trim() || "🏷",
+        icon: body.icon?.trim().slice(0, 8) || "🏷",
         color: body.color != null && /^#[0-9a-fA-F]{6}$/.test(body.color) ? body.color : "#64748b",
         defaultMin: Math.min(Math.max(body.defaultMin ?? 30, 5), 720),
       })
@@ -197,9 +224,10 @@ export async function updateActivity(userId: string, id: string, body: ActivityB
   // 空名与 create 口径对齐（activities.name 仅 not null 无 check，空串会存出无名分类）
   if (body.name != null) {
     if (!body.name.trim()) throw ApiError.badRequest("名称必填");
+    if (body.name.trim().length > 20) throw ApiError.badRequest("分类名最长 20 字");
     fields.push(["name", body.name.trim()]);
   }
-  if (body.icon != null) fields.push(["icon", body.icon.trim() || "🏷"]);
+  if (body.icon != null) fields.push(["icon", body.icon.trim().slice(0, 8) || "🏷"]);
   if (body.color != null && /^#[0-9a-fA-F]{6}$/.test(body.color)) fields.push(["color", body.color]);
   if (body.defaultMin != null) {
     if (typeof body.defaultMin !== "number" || !Number.isInteger(body.defaultMin)) {

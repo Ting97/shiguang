@@ -407,14 +407,15 @@ export const reflectionRepo = {
     ]);
   },
 
-  /** 归属校验：感悟 → 空间 → 用户 一条 JOIN 判定 */
-  async ownOf(rid: string, userId: string) {
+  /** 归属校验：感悟 → 空间 → 用户 一条 JOIN 判定；spaceId 传入时同时校验路径一致性
+   *  （rid 属同用户另一空间时，/spaces/A/reflections/<B的rid> 不应生效） */
+  async ownOf(rid: string, userId: string, spaceId?: string) {
     return (
       await pool.query(
         `select r.id from space_reflections r
          join goal_spaces s on s.id = r.space_id
-         where r.id = $1 and s.user_id = $2`,
-        [rid, userId],
+         where r.id = $1 and s.user_id = $2${spaceId ? " and s.id = $3" : ""}`,
+        spaceId ? [rid, userId, spaceId] : [rid, userId],
       )
     ).rows[0];
   },

@@ -64,6 +64,13 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     if (armTimerRef.current) clearTimeout(armTimerRef.current);
     armTimerRef.current = setTimeout(() => setArmKey(null), ms);
   }
+  // 卸载清理：面板关掉后定时器仍会 setArmKey（对已卸载组件 setState）
+  useEffect(
+    () => () => {
+      if (armTimerRef.current) clearTimeout(armTimerRef.current);
+    },
+    [],
+  );
   const loadVersions = useCallback(async (key: string) => {
     const seq = ++verSeq.current;
     try {

@@ -58,8 +58,10 @@ export function nextLunarBirthdaySolar(b: LunarBirthday, today = new Date()): Da
   return candidates.filter((d) => dayStart(d) >= t0).sort((a, z) => a.getTime() - z.getTime())[0] ?? null;
 }
 
-/** 农历生日 → 距下一次天数（0=今天）；无法换算返回 null */
+/** 农历生日 → 距下一次天数（0=今天）；无法换算返回 null。
+ *  求差必须用与 target 同帧的北京日历日：宿主原始帧在非 CST 设备上比北京慢最多 8 小时，
+ *  16:05 UTC（北京次日 00:05）会算出 1 天而不是 0 → 每日推送首个 tick 漏发当天农历生日 */
 export function lunarBirthdayCountdown(b: LunarBirthday, today = new Date()): number | null {
   const target = nextLunarBirthdaySolar(b, today);
-  return target ? Math.round((dayStart(target) - dayStart(today)) / 86_400_000) : null;
+  return target ? Math.round((dayStart(target) - dayStart(bjCalToday(today))) / 86_400_000) : null;
 }

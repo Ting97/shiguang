@@ -194,9 +194,10 @@ export async function queryDataset(
   const W = `where ${where.join(" and ")}`;
   const total = Number((await pool.query(`select count(*)::int as n from ${spec.table} ${W}`, vals)).rows[0].n);
   const cols = [pk, ...spec.columns.filter((c) => c !== pk)].join(", ");
+  // limit/offset 参数化（值虽经钳制，红线 2 要求不拼值）
   const { rows } = await pool.query(
-    `select ${cols} from ${spec.table} ${W} ${spec.timeCol ? `order by ${spec.timeCol} desc` : ""} limit ${limit} offset ${offset}`,
-    vals,
+    `select ${cols} from ${spec.table} ${W} ${spec.timeCol ? `order by ${spec.timeCol} desc` : ""} limit $${vals.length + 1} offset $${vals.length + 2}`,
+    [...vals, limit, offset],
   );
   return { total, items: rows };
 }

@@ -58,7 +58,8 @@ export function parseDuration(text: string): number | null {
     const n = /^\d+(?:\.\d+)?$/.test(m[1]) ? parseFloat(m[1]) : cnToNumber(m[1]);
     if (n === null || n === 0) continue;
     const isHour = /小时|钟头|^h$/.test(m[4]);
-    const half = m[3] === "半" && isHour ? 30 : 0; // "一个半小时"；"X分半"忽略
+    // "一个半小时" 与 "一小时半/两小时半" 两形态都补 30；"X分半"忽略
+    const half = m[3] === "半" && isHour ? 30 : isHour && /小时半(?!马)|钟头半/.test(norm) ? 30 : 0; // (?!马)：「两小时半马」是半程马拉松
     // 向上保底 1 分钟：「刷了0.4分钟」取整为 0 会撞 ParseResult durationMin>0 契约，
     // 且 rules 兜底路径无 LLM 路径的 max(1) 钳制 → zod 异常逃逸 parseInput（打卡入口不可失败的底线）
     const minutes = Math.max(1, isHour ? Math.round(n * 60) : Math.round(n)); // 小时允许小数 → 分钟取整
@@ -84,10 +85,13 @@ export function parseAmountCents(text: string): number | null {
   // NFKC 顺带把全角 ￥／２６０ 归一为半角
   const norm = text.normalize("NFKC").replace(/[,，]/g, "");
   const CAP = 100_000_000; // amount_cents 为 int4：与 AI 契约同上限（¥100 万），巨数直落会 22003
-  // 1) 带单位：260元 / 600块 / ¥99.9 / ¥99.9（¥ 前缀形态：金额跟在符号后，旧版只认后缀单位漏掉它）
-  const withUnit = norm.match(/(\d+(?:\.\d{1,2})?)\s*(块|元|¥)/);
+  // 1) 带单位：260元 / 600块 / ¥99.9 / 1万元 / 2千块（¥ 前缀形态：金额跟在符号后，旧版只认后缀单位漏掉它）
+  //    万/千量词：旧版 lookahead 类不含万千，"1万元" 回溯成裸 "1元"（静默缩小 1 万倍）
+  //    lookbehind 防抢跑："1万2千元" 不得从中间的 "2千元" 起配（前面是量词=大数未完，交给 noUnit 整体解析）
+  const withUnit = norm.match(/(?<![0-9.万千百])(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(块|元|¥)/);
   if (withUnit) {
-    const cents = toCents(withUnit[1]);
+    const mult = withUnit[2] === "万" ? 10_000 : withUnit[2] === "千" ? 1_000 : 1;
+    const cents = Math.round(parseFloat(withUnit[1]) * mult * 100);
     return cents > CAP ? CAP : cents;
   }
   const prefixed = norm.match(/¥\s*(\d+(?:\.\d{1,2})?)/);
@@ -96,16 +100,18 @@ export function parseAmountCents(text: string): number | null {
     return cents > CAP ? CAP : cents;
   }
   // 2) 动词暗示（无单位）："花了260""随了600""付了86"；负向断言排除时长/日期词
-  //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类）
+  //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类；
+  //    "万千百"也必须入——它们由量词组消费，留在原文意味着量词组匹配失败，整体应放弃而非缩水成裸数字）
   //    万/千量词："花了1万"=100万分（旧实现漏乘，静默缩小 100/10 倍）；
-  //    口语尾数："花了1万2"=12000分→120万分（旧版断言失败回溯成 "1" 元，静默缩小 120 倍）
+  //    口语尾数："花了1万2"=1.2万、"花了1万2千"=12000、"花了2千5"=2500
   const noUnit = norm.match(
-    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?(\d{1,2})?(?![\d.天日个月年时分秒块元小周])/,
+    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(?:(\d{1,2})(千|百)?)?(?![\d.天日个月年时分秒小周万千百])/,
   );
   if (noUnit) {
     const mult = noUnit[2] === "万" ? 10_000 : noUnit[2] === "千" ? 1_000 : 1;
-    const tail = noUnit[3] ? parseInt(noUnit[3], 10) : 0; // 「1万2」的尾数按 mult/10 位补足
-    const value = noUnit[2] ? parseFloat(noUnit[1]) * mult + tail * (mult / 10) : parseFloat(noUnit[1]);
+    const tailMult = noUnit[4] === "千" ? 1_000 : noUnit[4] === "百" ? 100 : mult / 10; // 「1万2」尾数按 mult/10 位补足
+    const tail = noUnit[3] ? parseInt(noUnit[3], 10) * tailMult : 0;
+    const value = noUnit[2] ? parseFloat(noUnit[1]) * mult + tail : parseFloat(noUnit[1]);
     const cents = Math.round(value * 100);
     return cents > CAP ? CAP : cents;
   }

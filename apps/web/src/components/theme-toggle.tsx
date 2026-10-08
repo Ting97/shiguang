@@ -38,7 +38,11 @@ export default function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMode(readMode());
+    try {
+      setMode(readMode());
+    } catch {
+      /* localStorage 不可用：维持默认 dark */
+    }
     setMounted(true);
     // 「跟随系统」时系统偏好变化 → 实时重解析（用户手动选过深/浅则不受影响）
     const mq = window.matchMedia("(prefers-color-scheme: light)");
@@ -52,8 +56,14 @@ export default function ThemeToggle() {
   const cycle = () => {
     const next = ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length];
     setMode(next);
-    localStorage.setItem(THEME_KEY, next);
+    // apply 先于 setItem：锁定模式 Safari 等 setItem 直接 throw——旧版图标已切而主题未变（半态），
+    // 且挂载 effect 内 readMode() 抛出会中断系统偏好监听注册
     apply(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      /* 存储不可用（隐私模式/锁定模式）：主题本次会话仍生效，仅不持久化 */
+    }
   };
 
   const Icon = mounted ? ICON[mode] : Moon; // 未挂载前固定图标，避免 hydration 不匹配

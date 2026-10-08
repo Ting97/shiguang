@@ -104,7 +104,19 @@ export async function bitgetGet<T>(
       }
       throw ApiError.upstream("Bitget 服务不可达（已重试 3 次），请稍后再试");
     }
-    const shell = parseShell(await res.text());
+    const text = await res.text();
+    let shell: WxShell;
+    try {
+      shell = JSON.parse(text) as WxShell;
+    } catch {
+      // 网关层非 JSON 响应（502/429 的 HTML 页等）与网络错误同策略：5xx/429 进退避重试，4xx 快速失败
+      if ((res.status === 429 || res.status >= 500) && attempt < RETRY_BACKOFF_MS.length) {
+        await sleep(RETRY_BACKOFF_MS[attempt]);
+        if (res.status === 429) onThrottle?.();
+        continue;
+      }
+      throw ApiError.upstream(`Bitget 服务异常（HTTP ${res.status}），请稍后再试`);
+    }
     if (shell.code === "429" && attempt < RETRY_BACKOFF_MS.length) {
       await sleep(RETRY_BACKOFF_MS[attempt]);
       onThrottle?.();
@@ -196,14 +208,6 @@ function qsOf(query: Record<string, string | number | undefined>): string {
     .filter(([, v]) => v !== undefined && v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
-}
-
-function parseShell(text: string): WxShell {
-  try {
-    return JSON.parse(text) as WxShell;
-  } catch {
-    throw ApiError.upstream("Bitget 响应解析失败");
-  }
 }
 
 const defaultFetch: FetchLike = (url, init) => fetch(url, init as never);

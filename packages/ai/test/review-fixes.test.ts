@@ -57,6 +57,32 @@ test("parseAmountCents：口语尾数「1万2」=120万分、「2千5」=25万�
   assert.equal(parseAmountCents("花了12"), 1200); // 裸数字不被拆成 1+2
 });
 
+/* ---- REQ-011 回归：N号 量词前缀不再误判日期 + 红包方向 + 一小时半 ---- */
+
+test("deterministicOccurredDate：「件3号球衣」的 3号 是编号不是日期（量词前缀宁缺勿错）", () => {
+  assert.equal(deterministicOccurredDate("买件3号球衣花了200", NOW), null);
+  assert.equal(deterministicOccurredDate("3号交了房租", NOW), "2026-10-03"); // 无量词前缀回归
+  // 记录待办：「领了5号工牌」类后置名词编号仍会误判（后向名词黑名单会误伤「3号生日」，需词性判断另起批次）
+});
+
+test("parseDuration：「一小时半/两小时半」补半 30 分钟；「两小时半马」不受影响", () => {
+  assert.equal(parseDuration("开了一小时半的会"), 90);
+  assert.equal(parseDuration("两小时半的课"), 150);
+  assert.equal(parseDuration("跑了两小时半马"), 120); // 半马非「半」
+});
+
+/* ---- REQ-011 P1：「N万/N千＋元/块」不再被 lookahead 回溯缩水成裸数字 ---- */
+
+test("parseAmountCents：'1万元'=100万分、'2千块'=20万分、'1万2千元'=120万分（带单位量词）", () => {
+  assert.equal(parseAmountCents("花了1万元"), 1_000_000); // 旧版回溯成 1 元（100 分）
+  assert.equal(parseAmountCents("花了2千元"), 200_000);
+  assert.equal(parseAmountCents("花了3千块"), 300_000);
+  assert.equal(parseAmountCents("充值1万元"), 1_000_000);
+  assert.equal(parseAmountCents("花了1.5万元"), 1_500_000); // 小数 + 量词
+  assert.equal(parseAmountCents("花了1万2千元"), 1_200_000); // 尾数千位：1万+2千
+  assert.equal(parseAmountCents("600块"), 60_000); // 无量词带单位回归
+});
+
 /* ---- P2：全角数字/符号归一 ---- */
 
 test("全角数字与全角￥：２６０元 / ￥26.8 正常解析", () => {

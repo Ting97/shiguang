@@ -8,6 +8,7 @@ export type ApiErrorCode =
   | "forbidden"
   | "not_found"
   | "conflict"
+  | "payload_too_large"
   | "quota"
   | "upstream"
   | "locked";

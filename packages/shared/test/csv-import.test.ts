@@ -60,6 +60,18 @@ test("CSV 容错解析：引号内逗号", () => {
   assert.deepEqual(rows, [["a", "b", "c"], ["x, y", "2", "多\n行"]]);
 });
 
+/* ---- REQ-011 回归：引号仅字段起始位开启（RFC 4180） ---- */
+
+test("splitCsvLines：字段中间的裸引号不再被当作引号起点吞掉后续逗号", () => {
+  // 手改行：备注含裸引号——旧版从中间开启引号态，把后续列吞进同一单元格
+  const rows = splitCsvLines('2026-10-01,早餐,30"管饱,12.00');
+  assert.equal(rows[0].length, 4);
+  assert.equal(rows[0][2], '30"管饱');
+  // 规范引号包裹 + 双写转义回归
+  const esc = splitCsvLines('"a,b","say ""hi""","c"');
+  assert.deepEqual(esc[0], ["a,b", 'say "hi"', "c"]);
+});
+
 test("支付宝解析：跳过退款/不计收支，分类与商家正确", () => {
   const { platform, rows, skips } = parseBill(ALIPAY_CSV);
   assert.equal(platform, "alipay");

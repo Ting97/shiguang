@@ -200,6 +200,11 @@ export default function ContactGraph({
       drag.current = null;
       setDraggingId(null);
       if (!d.moved) onOpen(n.id); // 未拖动 = 点击 → 进 TA 档案
+    } else if (d && !n) {
+      // pointerup 落在 svg 背景（setPointerCapture 失败时拖出画布松手）：清残拖，
+      // 否则 drag.current 残留——下次按住空白会被当节点拖动而非平移
+      drag.current = null;
+      setDraggingId(null);
     }
   }
 

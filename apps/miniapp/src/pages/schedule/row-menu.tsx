@@ -16,11 +16,12 @@ interface MenuItemProps {
   active?: boolean;
   disabled?: boolean;
   busy?: boolean;
+  onClose: () => void;
   onTap: () => void;
 }
 
 /** 菜单单项目：点击即关菜单再执行动作（danger 红、active 已开启徽标、busy 转圈文案） */
-function MenuItem({ icon, label, hint, extra, danger, active, disabled, busy, onTap }: MenuItemProps) {
+function MenuItem({ icon, label, hint, extra, danger, active, disabled, busy, onClose, onTap }: MenuItemProps) {
   return (
     <View
       className={`rm-item ${danger ? "danger" : ""} ${active ? "active" : ""} ${disabled ? "disabled" : ""}`}
@@ -28,6 +29,9 @@ function MenuItem({ icon, label, hint, extra, danger, active, disabled, busy, on
       hoverStayTime={80}
       onTap={() => {
         if (disabled) return;
+        // 先关菜单再执行（= web menu-item 的 closeMenu 语义；此前从不关闭，操作后弹层残留旧行数据——
+        // 列表已刷新而弹层还是删掉的条目，再点删除报错、「标记为今日」的 active 永远是旧值）
+        onClose();
         onTap();
       }}
     >
@@ -93,9 +97,10 @@ export function RowMenu({
         <View className="rm-list">
           {menuRow.isChild ? (
             <>
-              <MenuItem icon="pencil" label="编辑标题 / 描述" onTap={() => openNote(t)} />
+              <MenuItem onClose={onClose} icon="pencil" label="编辑标题 / 描述" onTap={() => openNote(t)} />
               {!isDone && (
                 <MenuItem
+                  onClose={onClose}
                   icon="repeat"
                   label={t.repeat_daily ? "关闭每日重复" : "每日重复（次日 6 点恢复）"}
                   active={t.repeat_daily}
@@ -105,6 +110,7 @@ export function RowMenu({
               )}
               {!isDone && (
                 <MenuItem
+                  onClose={onClose}
                   icon="sparkles"
                   label="AI 细化为更小行动"
                   hint="插入到该行动之后"
@@ -113,13 +119,14 @@ export function RowMenu({
                   onTap={() => void decompose(t, true)}
                 />
               )}
-              <MenuItem icon="trash_2" label="删除行动" danger onTap={() => void removeTodo(t, true)} />
+              <MenuItem onClose={onClose} icon="trash_2" label="删除行动" danger onTap={() => void removeTodo(t, true)} />
             </>
           ) : (
             <>
-              <MenuItem icon="pencil" label="编辑标题与时间" onTap={() => startEdit(t)} />
+              <MenuItem onClose={onClose} icon="pencil" label="编辑标题与时间" onTap={() => startEdit(t)} />
               {!isDone && (
                 <MenuItem
+                  onClose={onClose}
                   icon="star"
                   label={t.is_important ? "取消重要标记" : "标记为重要"}
                   active={t.is_important}
@@ -128,6 +135,7 @@ export function RowMenu({
               )}
               {!isDone && (
                 <MenuItem
+                  onClose={onClose}
                   icon="sun"
                   label={t.today_tag_date ? "移出今日" : "标记为今日"}
                   hint="今日标记跨零点自动失效"
@@ -135,11 +143,12 @@ export function RowMenu({
                   onTap={() => void patchTodo(t.id, { today: !t.today_tag_date }, t.today_tag_date ? "已移出今日" : "☀️ 已加入今日")}
                 />
               )}
-              <MenuItem icon="target" label="关联空间" onTap={() => onPickSpace(t)} />
-              {!isDone && t.kind === "todo" && <MenuItem icon="plus" label="添加行动" onTap={() => onAddAction(t)} />}
+              <MenuItem onClose={onClose} icon="target" label="关联空间" onTap={() => onPickSpace(t)} />
+              {!isDone && t.kind === "todo" && <MenuItem onClose={onClose} icon="plus" label="添加行动" onTap={() => onAddAction(t)} />}
               {!isDone &&
                 (pendingCount(t) === 0 ? (
                   <MenuItem
+                  onClose={onClose}
                     icon="sparkles"
                     label="AI 拆解为可执行的行动"
                     disabled={decomposingId === t.id}
@@ -151,6 +160,7 @@ export function RowMenu({
                     {/* 已有未完成行动：给出显式二选一（替代原 confirm 的双语义） */}
                     <Text className="rm-note">已有 {pendingCount(t)} 个未完成行动：</Text>
                     <MenuItem
+                  onClose={onClose}
                       icon="sparkles"
                       label="重新生成"
                       hint="清空未完成行动后重拆（已完成保留）"
@@ -159,6 +169,7 @@ export function RowMenu({
                       onTap={() => void decompose(t, false, "replace")}
                     />
                     <MenuItem
+                  onClose={onClose}
                       icon="plus"
                       label="追加到末尾"
                       hint="保留现有行动，新行动接在后面"
@@ -167,8 +178,8 @@ export function RowMenu({
                     />
                   </>
                 ))}
-              {isDone && <MenuItem icon="rotate_ccw" label="恢复为未完成" onTap={() => void patchTodo(t.id, { undone: true }, `↩️ 「${t.title}」已恢复`)} />}
-              <MenuItem icon="trash_2" label="删除 todo" hint="其下行动一并删除" danger onTap={() => void removeTodo(t, false)} />
+              {isDone && <MenuItem onClose={onClose} icon="rotate_ccw" label="恢复为未完成" onTap={() => void patchTodo(t.id, { undone: true }, `↩️ 「${t.title}」已恢复`)} />}
+              <MenuItem onClose={onClose} icon="trash_2" label="删除 todo" hint="其下行动一并删除" danger onTap={() => void removeTodo(t, false)} />
             </>
           )}
         </View>

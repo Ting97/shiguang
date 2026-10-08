@@ -77,6 +77,8 @@ export async function api<T = any>(
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    // 慢网/挂起请求不再无限等待（超时抛 TimeoutError，调用方按网络错误口径提示重试）
+    signal: AbortSignal.timeout(30_000),
   });
   return parseResponse<T>(r);
 }
@@ -111,6 +113,12 @@ export async function apiForm<T = any>(url: string, form: FormData, method = "PO
   const headers: Record<string, string> = {};
   const token = await store.get();
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const r = await fetch(apiBase() + url, { method, headers, body: form });
+  const r = await fetch(apiBase() + url, {
+    method,
+    headers,
+    body: form,
+    // 上传（多图/语音）弱网耗时更长，给 120s；JSON 通道 30s
+    signal: AbortSignal.timeout(120_000),
+  });
   return parseResponse<T>(r);
 }

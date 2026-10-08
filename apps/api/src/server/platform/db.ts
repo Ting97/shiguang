@@ -40,8 +40,10 @@ export async function findOverlap(
   endAt: string,
   excludeId?: string,
   excludeEntryId?: string,
+  /** 传入事务 client 时在同一事务/锁视野内判定（配合 pg_advisory_xact_lock 消除 check-then-insert 竞态） */
+  exec: Pick<typeof pool, "query"> = pool,
 ): Promise<{ id: string; title: string; start_at: string; end_at: string } | null> {
-  const { rows } = await pool.query(
+  const { rows } = await exec.query(
     `select id, title, start_at, end_at
      from time_blocks
      where user_id = $1

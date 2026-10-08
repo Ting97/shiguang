@@ -628,7 +628,12 @@ export default function MomentCard({
                 onClick={() =>
                   void rowMenu("人物往来", null, () =>
                     del(`people:${m.id}`, () =>
-                      Promise.all(people.map((p) => deleteInteraction(p.interactionId))).then(() => undefined)))
+                      // allSettled：部分失败时已删的照样从界面消失并提示成功数（all 一票否决会让界面与库不一致，重试再删 404）
+                      Promise.allSettled(people.map((p) => deleteInteraction(p.interactionId))).then((rs) => {
+                        const fails = rs.filter((r) => r.status === "rejected").length;
+                        if (fails) throw new Error(`${fails} 条往来删除失败，请重试`);
+                        return undefined;
+                      })))
                 }
               >
                 <TagChip lucide="users" label={people.map((p) => p.name).join("、")} tone="sky" size="sm" maxWidth />

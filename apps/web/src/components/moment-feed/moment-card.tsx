@@ -72,6 +72,8 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
         setTimeout(() => void onRefresh(), 6000),
         setTimeout(() => void onRefresh(), 14000),
       ];
+      // 重识别是后台 fire-and-forget：通知首页挂识别完成刷新轮（否则卡片停留「识别中」直到手动刷新）
+      window.dispatchEvent(new CustomEvent("shiguang:entry-edited"));
       return "✏️ 已保存，AI 正在重新识别全部信息…";
     });
 
@@ -83,7 +85,12 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
     return run(async () => {
       await api(`/api/feed/${m.id}`, "DELETE");
       return "🗑 已删除这条动态及其识别结果";
-    }).then(() => setConfirming(false)).finally(() => setDeleting(false));
+    })
+      .then((accepted) => {
+        // run 重入锁被占（卡内其他操作进行中）：保持确认框打开，静默关闭会让人以为已删除
+        if (accepted) setConfirming(false);
+      })
+      .finally(() => setDeleting(false));
   };
 
   return (
@@ -137,7 +144,7 @@ export default function MomentCard({ m, activities, onRefresh }: MomentFeedProps
                 onAI={recognizeDomain}
                 onManual={manualAdd}
                 onSetSpace={(spaceId) =>
-                  run(async () => {
+                  void run(async () => {
                     await api(`/api/feed/${m.id}`, "PATCH", { spaceId });
                     return spaceId ? `🎯 已归属空间` : "已移除空间归属";
                   })

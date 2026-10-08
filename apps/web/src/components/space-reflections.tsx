@@ -28,7 +28,7 @@ export default function SpaceReflections({
   spaceId: string;
   notify: (m: { ok: boolean; text: string } | null) => void;
   /** 点编辑：父组件打开编辑器（回填全文） */
-  onEdit: (item: { id: string; content: string }) => void;
+  onEdit: (id: string) => void; // 全文由编辑器打开时自行拉取（未展开的条目这里只有预览截断文）
   /** 增删改后通知父组件刷新统计 */
   onChanged: () => void;
   /** 外部刷新信号（FR-4.1：父侧保存成功后 bump，列表立即重拉） */
@@ -152,9 +152,7 @@ export default function SpaceReflections({
                     </p>
                     <span className="flex items-center gap-1">
                       <button
-                        onClick={() =>
-                          onEdit({ id: it.id, content: full ?? "" })
-                        }
+                        onClick={() => onEdit(it.id)}
                         title="编辑（打开时拉取全文）"
                         className="row-actions-hidden hidden rounded px-1.5 py-0.5 text-ink-mute hover:text-accent group-hover:block"
                       >

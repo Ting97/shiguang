@@ -23,6 +23,15 @@ test("未来话术 → todo（落待办）", async () => {
   assert.equal(r.scheduleApplicable, false); // 未来计划不生成日程块
 });
 
+test("规则兜底：「发红包」是支出不是收入；「收到红包/发的红包」仍是收入", async () => {
+  const out = await parse("给小侄子发了个红包花了88");
+  assert.equal(out.finance?.direction, "out");
+  const inc = await parse("收到红包188元");
+  assert.equal(inc.finance?.direction, "in");
+  const attr = await parse("收到外婆发的红包188元"); // 「发的红包」定语不触发支出规则
+  assert.equal(attr.finance?.direction, "in");
+});
+
 test("纯心情话术 → status（仅动态，不落日程）", async () => {
   const r = await parse("今天有点累");
   assert.equal(r.intent, "status");

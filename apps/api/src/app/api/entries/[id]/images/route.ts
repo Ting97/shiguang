@@ -15,10 +15,11 @@ export const POST = withAuthParams(async (req: NextRequest, { user, params }) =>
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   // body 上限前置预检（9 张 x 5MB + multipart 开销余量）：formData() 会把整个 body 缓进内存，
-  // 无预检时登录用户可用超大 body 打内存；413 让客户端明确失败而非 OOM
-  const declared = Number(req.headers.get("content-length") ?? 0);
-  if (Number.isFinite(declared) && declared > 50 * 1024 * 1024) {
-    throw ApiError.badRequest("上传内容过大（上限约 45MB）");
+  // 无预检时登录用户可用超大 body 打内存；413 让客户端明确失败而非 OOM。
+  // chunked（缺 content-length）同样拒绝：内存防线不能依赖"客户端自觉报长度"
+  const declared = req.headers.get("content-length");
+  if (declared === null || !Number.isFinite(Number(declared)) || Number(declared) > 50 * 1024 * 1024) {
+    throw ApiError.badRequest("上传内容过大或缺少长度声明（上限约 45MB）");
   }
   let form: FormData;
   try {

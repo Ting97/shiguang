@@ -7,14 +7,6 @@ import { request, upload } from "./request";
 
 /* ---------- 会话 ---------- */
 
-export interface SessionUser {
-  id: string;
-  nickname: string | null;
-  isAdmin?: boolean;
-  modules?: string[];
-  phoneVerified?: boolean;
-  wechatBound?: boolean;
-}
 
 /** 微信一键登录：服务端对未绑定 openid 自动建号（免绑手机号），始终返回 token */
 export function wechatLogin(code: string, profile?: { nickname?: string }) {
@@ -60,14 +52,6 @@ export interface WechatBindConflict {
   current: WechatBindConflict["owner"];
 }
 
-/** 微信绑定手机号（bindTicket + 短信验证码） */
-export function wechatBind(bindTicket: string, phone: string, smsCode: string) {
-  return request<{ ok: true; token: string; user: { id: string; nickname: string } }>(
-    "/api/auth/wechat/bind",
-    { method: "POST", body: { bindTicket, phone, smsCode }, noRedirect: true },
-  );
-}
-
 /** 发短信验证码（绑定页 purpose=bind；未配置通道 503） */
 export function sendSmsCode(phone: string, purpose: "login" | "bind" = "bind") {
   return request<{ ok: true }>("/api/auth/sms/send", { method: "POST", body: { phone, purpose }, noRedirect: true });
@@ -93,6 +77,14 @@ export function bindPhone(phone: string, smsCode: string) {
 
 export function fetchMe() {
   return request<SessionUser & { isAdmin: boolean; modules: string[] }>("/api/auth/me");
+
+/** /api/auth/me 的用户形态（fetchMe 内部消费；外部组件用 @/shared/session 的 SessionUser） */
+interface SessionUser {
+  id: string;
+  nickname: string | null;
+  phone: string | null;
+  phoneVerified: boolean;
+}
 }
 
 /* ---------- 动态 ---------- */
@@ -159,77 +151,22 @@ export interface Tx {
   account_icon?: string | null;
 }
 
-export function loadTransactions(month: string) {
-  return request<{ transactions: Tx[] }>(`/api/transactions?month=${month}`);
-}
 
 /** 确认待确认流水（流水不入账新口径：无账户参数） */
 export function confirmTx(id: string) {
   return request(`/api/transactions/${id}`, { method: "PATCH", body: { confirm: true } });
 }
 
-export interface DebtRow {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  balance_cents: number | string;
-  monthly_cents: number | string | null;
-  pay_day?: number | null;
-  due_date?: string | null;
-  [k: string]: unknown;
-}
 
-export function loadDebts() {
-  // 实际返回 {debts:[...]}（serializeDebt 口径）；分包负债页有 debts ?? liabilities 双兜底
-  return request<{ debts?: DebtRow[]; liabilities?: DebtRow[] }>("/api/debts");
-}
-
-export function loadDebtOverview() {
-  return request<Record<string, any>>("/api/debts/overview");
-}
-
-export function loadReserve(ym: string) {
-  return request<{ ym: string; items: { name: string; need: number; pay: number; extra: number; checked: boolean }[]; totalNeed: number; checkedNeed: number; savingsCents: number; coveragePct: number | null }>(
-    `/api/debts/reserve?ym=${ym}`,
-  );
-}
-
-export function setReserveCheck(ym: string, liabilityId: string, checked: boolean) {
-  return request("/api/debts/reserve", { method: "PUT", body: { ym, liabilityId, checked } });
-}
 
 /* ---------- 交易（只读，REQ-005 FR-1.8 同口径） ---------- */
 
-export function loadTradingAccounts() {
-  return request<{ accounts: any[] }>("/api/trading/accounts");
-}
 
-export function loadTradingDaily(accountId: string, from: string, to: string) {
-  return request<{ days: any[] }>(`/api/trading/daily?accountId=${accountId}&from=${from}&to=${to}`);
-}
 
-export function loadTradingEquity(accountId: string) {
-  return request<{ points: any[] }>(`/api/trading/equity?accountId=${accountId}`);
-}
 
-export function loadTradingTrades(accountId: string, page = 1) {
-  return request<{ trades: any[]; total?: number }>(`/api/trading/trades?accountId=${accountId}&page=${page}`);
-}
-
-export function loadTradingReview(accountId: string) {
-  return request<{ review?: string; digest?: unknown; fallback?: boolean }>(`/api/trading/review?accountId=${accountId}`);
-}
 
 /* ---------- 日程 / 待办 ---------- */
 
-export function loadTodos() {
-  return request<{ todos: any[] }>("/api/todos");
-}
-
-export function toggleTodo(id: string, done: boolean) {
-  return request(`/api/todos/${id}`, { method: "PATCH", body: { done } });
-}
 
 export function loadBlocksRange(from: string, to: string) {
   return request<{ blocks: any[] }>(`/api/blocks/range?from=${from}&to=${to}`);
@@ -241,9 +178,6 @@ export function loadSpaces() {
   return request<{ spaces: any[] }>("/api/spaces");
 }
 
-export function loadSpaceDetail(id: string) {
-  return request<Record<string, any>>(`/api/spaces/${id}`);
-}
 
 export function loadSpaceReflections(id: string) {
   // 实际返回 {items:[{id,preview,chars,created_at,...}], total}
@@ -258,9 +192,6 @@ export function loadContactDetail(id: string) {
   return request<Record<string, any>>(`/api/contacts/${id}`);
 }
 
-export function loadMonthReview(month: string) {
-  return request<Record<string, any>>(`/api/review?month=${month}`).catch(() => ({}));
-}
 
 /* ---------- 工具 ---------- */
 

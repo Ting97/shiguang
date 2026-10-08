@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { X } from "lucide-react";
 import { useDismiss } from "./dismissable";
 
@@ -37,19 +37,19 @@ export default function ReflectionEditor({
     return () => clearTimeout(t);
   }, [open, initial]);
 
+  // useCallback 稳定化：内联声明每渲染新建会让 useDismiss 每次击键都重订阅全局 pointerdown/keydown
+  // （publish-sheet 同款先例）；依赖用 value 而非下方 dirty（deps 需在渲染期可读）
+  const cancel = useCallback(() => {
+    // N3.5：有改动时轻提示「已取消，未保存」（不弹确认，保持轻量）
+    if (value !== initialRef.current) notify?.({ ok: true, text: "已取消，未保存" });
+    onCancel();
+  }, [value, notify, onCancel]);
+
   const panelRef = useDismiss<HTMLDivElement>(cancel, open);
   if (!open) return null;
 
   const chars = Array.from(value).length; // 码点计数，与 DB char_length 同口径
   const over = chars > 50_000;
-  const dirty = value !== initialRef.current;
-
-  function cancel() {
-    // N3.5：有改动时轻提示「已取消，未保存」（不弹确认，保持轻量）
-    if (dirty) notify?.({ ok: true, text: "已取消，未保存" });
-    onCancel();
-  }
-
   async function save() {
     if (over || busy || !value.trim()) return;
     const ok = await onSave(value.trim());
