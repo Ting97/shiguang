@@ -318,9 +318,6 @@ export default function SpaceListPage() {
         </View>
       )}
 
-      {/* 页脚徽章（REQ-全站页脚徽章，= web spaces footer 的共享组件形态） */}
-      <PageFooter icon="target" label="目标空间" />
-
       {/* 新建/编辑弹层（web 移动端=居中弹层 inset-x-4 top-1/2，非底部 sheet） */}
       {editing && (
         <View className="overlay" onClick={() => setEditing(null)} />
