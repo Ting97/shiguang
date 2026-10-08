@@ -219,7 +219,21 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            {/* 会话安全（4-B FR-C1.3 全端登出） */}
+            {/* 使用手册（REQ-使用手册） */}
+            <section className="glass rounded-2xl p-5">
+              <h2 className="mb-2 text-sm font-semibold text-ink-soft">使用手册</h2>
+              <p className="mb-3 text-micro text-ink-dim">
+                功能介绍与使用方式：一句话记录、AI 五域识别、各模块玩法与小贴士。
+              </p>
+              <a
+                href="/manual"
+                className="inline-flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-accent transition hover:bg-sky-500/20"
+              >
+                阅读使用手册
+              </a>
+            </section>
+
+                        {/* 会话安全（4-B FR-C1.3 全端登出） */}
             <section className="glass rounded-2xl p-5">
               <h2 className="mb-2 text-sm font-semibold text-ink-soft">会话安全</h2>
               <p className="mb-3 text-micro text-ink-dim">
@@ -327,6 +341,11 @@ export default function ProfilePage() {
             </section>
           </>
         )}
+        <footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">
+            拾光 · 我的
+          </span>
+        </footer>
       </div>
     </main>
   );

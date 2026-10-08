@@ -27,12 +27,17 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
   // （PATCH 双发、DELETE 第二次 404 会再弹一条错误 toast）
   const runningRef = useRef(false);
 
+  // delArmed 的镜像 ref：快速二次点击时两次事件都读到旧 state 闭包，只用 state 判断会两次都 arm
+  const delArmedRef = useRef<string | null>(null);
+
   const run = async (fn: () => Promise<string>) => {
     if (runningRef.current) return;
     runningRef.current = true;
     try {
       toast(await fn());
       await onRefresh();
+      // 卡片内容变了（增删识别产物/待办），「今日行动」清单同步重拉（它只监听该事件）
+      window.dispatchEvent(new CustomEvent("shiguang:entry-analyzed"));
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
@@ -66,14 +71,19 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
 
   /** 两步删除（全站规范）：首点 arm(key)，按钮呈「确认删除？」；3 秒内再点同一 key 执行 */
   const del = (key: string, fn: () => Promise<unknown>) => {
-    if (delArmed === key) {
+    if (delArmedRef.current === key) {
+      delArmedRef.current = null;
       setDelArmed(null);
       void run(async () => (await fn(), "🗑 已删除"));
       return;
     }
+    delArmedRef.current = key;
     setDelArmed(key);
     if (armTimer.current) clearTimeout(armTimer.current);
-    armTimer.current = setTimeout(() => setDelArmed(null), 3000);
+    armTimer.current = setTimeout(() => {
+      delArmedRef.current = null;
+      setDelArmed(null);
+    }, 3000);
   };
 
   return { busyDomain, run, recognizeDomain, manualAdd, del, delArmed };

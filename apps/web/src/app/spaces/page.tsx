@@ -229,7 +229,8 @@ export default function SpacesPage() {
               />
             </span>
                       <p className="mt-0.5 text-micro text-ink-dim">
-                        {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态{days ? ` · 第 ${days} 天` : ""}
+                        {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态 · 感悟 {s.reflection_count ?? 0}
+                        {days ? ` · 第 ${days} 天` : ""}
                         {s.target_date && (
                           <span className="whitespace-nowrap">
                             {" · "}

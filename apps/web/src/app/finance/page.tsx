@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
 import Skeleton from "@/components/skeleton";
-import BillImport from "@/components/bill-import";
 import FinanceTabs from "@/components/finance-tabs";
 import { yuan } from "@/lib/finance";
 import { api } from "@/shared/api";
@@ -30,7 +29,6 @@ export default function FinancePage() {
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false); // 确认提交中：防双击双发 PATCH
@@ -147,9 +145,6 @@ export default function FinancePage() {
             <button onClick={() => setMonth(shiftMonth(month, 1))} aria-label="下一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronRight size={13} /></button>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button onClick={() => setImporting(true)} className="flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-accent transition hover:bg-sky-500/20">
-              <Download size={13} aria-hidden /> 导入账单
-            </button>
             <button onClick={() => setAdding(true)} className="btn-primary flex items-center gap-1 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
               <Plus size={13} aria-hidden /> 记一笔
             </button>
@@ -240,15 +235,6 @@ export default function FinancePage() {
           </Modal>
         )}
 
-        {/* 账单导入弹层 */}
-        {importing && (
-          <BillImport
-            onClose={() => setImporting(false)}
-            onImported={async () => {
-              await load();
-            }}
-          />
-        )}
 
         {/* 账户管理弹层 */}
         {managingAccount && (

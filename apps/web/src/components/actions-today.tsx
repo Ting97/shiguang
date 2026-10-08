@@ -8,7 +8,7 @@ import { TodoRowMenu } from "@/components/todo";
 import { confirmDialog } from "@/shared/ui/confirm";
 import type { TodayAction } from "@/lib/types";
 import { api } from "@/shared/api";
-import { ArrowRight, Check, Ellipsis, FileText, Repeat, RotateCcw } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, FileText, Repeat, RotateCcw } from "lucide-react";
 
 /**
  * 首页「今日行动清单」（REQ-001 R3 + REQ-002 N6）：
@@ -218,6 +218,26 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     }
   }
 
+  // 整卡折叠（REQ-今日行动可收起）：默认展开，记住用户选择
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("shiguang_actions_collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      try {
+        localStorage.setItem("shiguang_actions_collapsed", !v ? "1" : "0");
+      } catch {
+        /* 存储失败只影响记忆 */
+      }
+      return !v;
+    });
+  }
+
   const pending = (actions ?? []).filter((a) => a.status === "pending");
   const done = (actions ?? []).filter((a) => a.status === "done");
 
@@ -239,8 +259,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
           }}
         />
       )}
-      {/* 标题行 */}
-      <div className="mb-2 flex items-center justify-between">
+      {/* 标题行（整行可点折叠/展开；规划链接单独 stopPropagation） */}
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        className="mb-2 flex w-full items-center justify-between text-left"
+        aria-expanded={!collapsed}
+      >
         <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
           <TodoLogo size={17} />
           <span>今日行动</span>
@@ -250,12 +275,19 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             </span>
           )}
         </h2>
-        <a href="/schedule?tab=todo" className="flex shrink-0 items-center gap-0.5 rounded-lg px-2.5 py-1 text-xs font-medium text-accent transition hover:bg-sky-500/10">
-          规划 <ArrowRight size={12} aria-hidden />
-        </a>
-      </div>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <a
+            href="/schedule?tab=todo"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1 text-xs font-medium text-accent transition hover:bg-sky-500/10"
+          >
+            规划 <ArrowRight size={12} aria-hidden />
+          </a>
+          {collapsed ? <ChevronDown size={14} className="text-ink-mute" /> : <ChevronUp size={14} className="text-ink-mute" />}
+        </span>
+      </button>
 
-      {actions === null ? (
+      {!collapsed && (actions === null ? (
         <p className="py-2 text-xs text-ink-dim">加载中…</p>
       ) : (
         <>
@@ -369,7 +401,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             </>
           )}
         </>
-      )}
+      ))}
     </section>
   );
 }

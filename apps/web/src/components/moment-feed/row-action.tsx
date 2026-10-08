@@ -1,9 +1,9 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
-import { useHoverCapable } from "./use-hover-capable";
 
-/** 行内小操作按钮（编辑/删除），悬停显示；删除为两步确认（armed 时按钮变「确认删除?」） */
+/** 行内小操作按钮（编辑/删除）：hover 设备悬停显示；触屏常显（CSS @media hover:none 强制，
+ *  此前触屏直接不渲染导致移动端删除入口不可达）。删除为两步确认（armed 时变「确认删除?」） */
 export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "删除", armed = false }: {
   onEdit?: () => void;
   onDelete?: () => void;
@@ -12,9 +12,6 @@ export function RowAction({ onEdit, onDelete, editTitle = "修改", delTitle = "
   /** 删除待确认态（3 秒内再点执行） */
   armed?: boolean;
 }) {
-  // 触摸设备无 hover：图标本就不该出现（sticky hover 会误显），点行走 RowActionMenu
-  const hoverOk = useHoverCapable();
-  if (!hoverOk) return null;
   return (
     <span className="row-actions hidden shrink-0 items-center gap-0.5 group-hover/row:flex">
       {onEdit && (

@@ -84,6 +84,11 @@ export default function SchedulePage() {
             <ActivityPanel />
           </div>
         )}
+        <footer className="mt-10 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">
+            拾光 · 日程
+          </span>
+        </footer>
       </div>
     </main>
   );
