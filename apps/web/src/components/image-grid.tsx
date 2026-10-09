@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageOff, X } from "lucide-react";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import type { FeedImage } from "@/lib/types";
 
 /**
@@ -66,11 +67,19 @@ export function ImageLightbox({
   const [zoomOrigin, setZoomOrigin] = useState("50% 50%");
   const swipeX = useRef<number | null>(null);
   const lastTap = useRef(0);
+  // body 滚动锁：预览挂载即全屏打开，关闭即卸载还原
+  useBodyScrollLock(true);
 
   const go = (delta: number) => {
+    if (!images.length) return; // 数组被清空时 % 0 会产生 NaN 游标
     setZoom(0);
     setCur((c) => (c + delta + images.length) % images.length);
   };
+
+  // images 数组缩短（父级删除动态等）时钳制游标，避免 images[cur] 越界取到 undefined 崩溃
+  useEffect(() => {
+    if (cur > images.length - 1) setCur(Math.max(0, images.length - 1));
+  }, [cur, images.length]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -92,7 +101,7 @@ export function ImageLightbox({
   }, [cur, images]);
 
   if (!images.length) return null;
-  const img = images[cur];
+  const img = images[Math.min(cur, images.length - 1)]; // 钳制取值：游标越界（数组缩短瞬间）也不取 undefined
 
   return (
     <div

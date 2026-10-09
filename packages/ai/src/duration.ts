@@ -110,7 +110,13 @@ export function parseAmountCents(text: string): number | null {
   const withUnit = norm.match(/(?<![0-9.万千百])(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(块|元|¥)/);
   if (withUnit) {
     const mult = withUnit[2] === "万" ? 10_000 : withUnit[2] === "千" ? 1_000 : 1;
-    const cents = Math.round(parseFloat(withUnit[1]) * mult * 100);
+    // 口语尾数守卫：「9块9」「35块5」= 9.9/35.5 元（旧版只取整块漏掉尾数，9块9 少算 90 分）。
+    // 尾数只认单位后紧跟的 1~2 位数字（「9块9角」同型并入=990 分，角/毛即 0.1 元）；
+    // 3 位以上是另一段数字（「12元5000」类量词/编号）不并，宁少勿错
+    const end = (withUnit.index ?? 0) + withUnit[0].length;
+    const tail = /^\d{1,2}(?!\d)/.exec(norm.slice(end));
+    const value = parseFloat(withUnit[1]) * mult + (tail ? parseInt(tail[0], 10) / 10 ** tail[0].length : 0);
+    const cents = Math.round(value * 100);
     return cents > CAP ? CAP : cents;
   }
   const prefixed = norm.match(/¥\s*(\d+(?:\.\d{1,2})?)/);

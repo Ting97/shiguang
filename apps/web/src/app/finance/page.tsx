@@ -23,7 +23,10 @@ import { DraftConfirmSection } from "../../components/finance/tx-confirm-list";
 import { ConfirmedTxSection } from "../../components/finance/tx-confirmed-list";
 
 export default function FinancePage() {
-  const [month, setMonth] = useState(nowMonth());
+  // SSG 防 hydration mismatch：nowMonth() 作初值会把构建月烤进静态导出 HTML，跨月后客户端水合必失配。
+  // 与日历四视图同款 mounted 骨架门：初始 null，mount 后再初始化当月，就绪前渲染骨架
+  const [month, setMonth] = useState<string | null>(null);
+  useEffect(() => setMonth(nowMonth()), []);
   const [ov, setOv] = useState<Overview | null>(null);
   const [txs, setTxs] = useState<Tx[]>([]);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
@@ -41,6 +44,7 @@ export default function FinancePage() {
   // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
   const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    if (!month) return; // mounted 前不取数（month 由 mount effect 初始化）
     const seq = ++loadSeq.current;
     setLoadErr(null);
     try {
@@ -107,7 +111,8 @@ export default function FinancePage() {
     }
   }
 
-  if (!ov) {
+  // mounted 门：month 未就绪时与首帧 SSG HTML 同构地渲染骨架（此时 loadErr 必为 null，不会误显错误态）
+  if (!month || !ov) {
     return (
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">

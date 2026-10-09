@@ -5,7 +5,7 @@
  * 取数（= web use-space-data）：GET /api/spaces（头卡从列表按 id 找，:id 无 GET）+ todos all/done
  * + feed?spaceId + activities 五路并行（allSettled，部分失败跳过）。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, Button } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
@@ -40,6 +40,9 @@ function backToList(url: string) {
 
 type SpaceTab = "todo" | "reflection" | "moments";
 
+/** 「动态」分区每页条数（loadFeed 的 limit，加载更多按页扩） */
+const MOMENTS_PAGE = 20;
+
 export default function SpaceDetailPage() {
   const router = Taro.useRouter();
   const id = router.params.id ?? "";
@@ -51,6 +54,11 @@ export default function SpaceDetailPage() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [doneTodos, setDoneTodos] = useState<TodoItem[]>([]);
   const [moments, setMoments] = useState<{ id: string; raw_text: string; created_at: string }[]>([]);
+  // 动态计数用接口 total（moments 只是已加载的前 N 条，恒取前 20 会让 tab 计数虚低）
+  const [momentsTotal, setMomentsTotal] = useState(0);
+  const [momentsLoadingMore, setMomentsLoadingMore] = useState(false);
+  // 「加载更多」页数不参与渲染，走 ref：若为 state 会在 loadMore 后再触发一次 effect 造成重复请求（= feed 页范式）
+  const momentsLimitRef = useRef(MOMENTS_PAGE);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [tab, setTab] = useState<SpaceTab>("todo");
   const [spaceMenu, setSpaceMenu] = useState(false);
@@ -65,7 +73,7 @@ export default function SpaceDetailPage() {
         loadSpaces(),
         loadTodoView("all"),
         loadTodoView("done"),
-        loadFeed(20, 0, "", id),
+        loadFeed(momentsLimitRef.current, 0, "", id),
         loadActivities(),
       ]);
       if (sj.status === "fulfilled") {
@@ -83,7 +91,10 @@ export default function SpaceDetailPage() {
       }
       if (tj.status === "fulfilled") setTodos((tj.value.todos ?? []).filter((t) => t.space_id === id));
       if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos ?? []) as TodoItem[]).filter((t) => t.space_id === id));
-      if (fj.status === "fulfilled") setMoments((fj.value.moments ?? []) as typeof moments);
+      if (fj.status === "fulfilled") {
+        setMoments((fj.value.moments ?? []) as typeof moments);
+        setMomentsTotal(fj.value.total ?? (fj.value.moments ?? []).length);
+      }
       if (aj.status === "fulfilled") setActivities(aj.value.activities ?? []);
     } catch (e: any) {
       setLoadErr(e?.message ?? "加载失败");
@@ -105,6 +116,23 @@ export default function SpaceDetailPage() {
     }
     load().finally(() => Taro.stopPullDownRefresh());
   });
+
+  /** 「动态」分区加载更多：limit 递增式只重拉 feed 一路（不重跑五路 load），失败回退 limit（= feed 页 loadMore 范式） */
+  async function loadMoreMoments() {
+    if (momentsLoadingMore) return;
+    setMomentsLoadingMore(true);
+    momentsLimitRef.current += MOMENTS_PAGE;
+    try {
+      const fj = await loadFeed(momentsLimitRef.current, 0, "", id);
+      setMoments((fj.moments ?? []) as typeof moments);
+      setMomentsTotal(fj.total ?? (fj.moments ?? []).length);
+    } catch (e: any) {
+      momentsLimitRef.current -= MOMENTS_PAGE; // 失败回退：旧版保持大值，下一次加载会多拉一页
+      showToast({ type: "err", text: e?.message ?? "加载更多失败，请稍后重试" });
+    } finally {
+      setMomentsLoadingMore(false);
+    }
+  }
 
   // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
   if (!getSessionToken()) {
@@ -230,7 +258,7 @@ export default function SpaceDetailPage() {
   const tabs: { key: SpaceTab; label: string; count: number }[] = [
     { key: "todo", label: "TODO·行动", count: todos.length },
     { key: "reflection", label: "感悟", count: space.reflection_count ?? 0 },
-    { key: "moments", label: "动态", count: moments.length },
+    { key: "moments", label: "动态", count: momentsTotal },
   ];
 
   return (
@@ -266,7 +294,14 @@ export default function SpaceDetailPage() {
 
       {/* 关联动态 */}
       {tab === "moments" && (
-        <MomentsTab spaceId={id} moments={moments} onChanged={() => void load()} />
+        <MomentsTab
+          spaceId={id}
+          moments={moments}
+          total={momentsTotal}
+          loadingMore={momentsLoadingMore}
+          onLoadMore={() => void loadMoreMoments()}
+          onChanged={() => void load()}
+        />
       )}
 
       {/* 空间操作菜单（⋯ 收纳归档/删除；= web SpaceMenuModal 移动端形态） */}

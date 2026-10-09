@@ -144,7 +144,11 @@ export function getReviewCache(accountId: string) {
 }
 /** POST 生成 AI 复盘 {accountId, refresh} */
 export function genReview(accountId: string, refresh = true) {
-  return request<ReviewGenResp>("/api/trading/review", { method: "POST", body: { accountId, refresh } });
+  return request<ReviewGenResp>("/api/trading/review", {
+    method: "POST",
+    body: { accountId, refresh },
+    timeout: 60000, // LLM 同步生成耗时长：突破全局 20s 默认超时
+  });
 }
 /** 一键同步前置：已绑定密钥列表 */
 export function loadBitgetKeys() {

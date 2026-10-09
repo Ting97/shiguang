@@ -88,12 +88,17 @@ export default function TodoBoard() {
     });
   }
 
-  /** 「⋯」菜单锚点（原行内逻辑原样搬移）：按钮下方 6px，右侧对齐 224 宽浮层；父 330 / 行动 300 视口余量 */
+  /** 「⋯」菜单锚点（原行内逻辑原样搬移）：按钮下方 6px，右侧对齐 224 宽浮层；父 330 / 行动 300 视口余量。
+   *  移动端不设锚点（menuPos=null）：TodoRowMenu 走底部弹层形态（moment-feed entry-menu 同口径） */
   function openMenu(e: React.MouseEvent, todo: TodoRow, isChild: boolean, parentTitle?: string) {
     const closed = menuClosedRef.current;
     if (closed && closed.todoId === todo.id && Date.now() - closed.at < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMenuPos({ top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - (isChild ? 300 : 330))), left: Math.max(8, r.right - 224) });
+    setMenuPos(
+      window.innerWidth >= 640
+        ? { top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - (isChild ? 300 : 330))), left: Math.max(8, r.right - 224) }
+        : null,
+    );
     setMenuRow({ todo, isChild, parentTitle });
   }
 

@@ -32,10 +32,11 @@ export interface ImportBody {
   rows: TradeRowInput[];
 }
 
-/** numeric 列宽上限：price/lots/commission/swap/profit 直插 numeric(12,5)/(10,2)/(12,2)，
- * 越界 22003 → 整批 500；NaN 经 node-pg 序列化成 'NaN' 落库会污染生成列与全部聚合 */
+/** numeric 列宽上限（037：price numeric(12,5)、lots numeric(10,2)、profit/commission/swap numeric(12,2)）：
+ * 上限须与列精度对齐——此前 price 1e9/lots 1e8/profit 1e10 放行越界值，落库 22003 → 整批 500 回滚；
+ * NaN 经 node-pg 序列化成 'NaN' 落库会污染生成列与全部聚合 */
 const TRADE_FIELD_LIMITS: Record<string, number> = {
-  openPrice: 1e9, closePrice: 1e9, lots: 1e8, profit: 1e10, commission: 1e9, swap: 1e9,
+  openPrice: 9_999_999, closePrice: 9_999_999, lots: 99_999_999, profit: 9_999_999_999, commission: 9_999_999_999, swap: 9_999_999_999,
 };
 function validateRows(rows: TradeRowInput[]) {
   if (!Array.isArray(rows) || rows.length === 0) throw ApiError.badRequest("rows 为空");
@@ -48,6 +49,10 @@ function validateRows(rows: TradeRowInput[]) {
       throw ApiError.badRequest(`第 ${i + 1} 行开/平仓时间非法`);
     if (Date.parse(r.openTime) > Date.parse(r.closeTime))
       throw ApiError.badRequest(`第 ${i + 1} 行开仓时间晚于平仓时间（负持仓时长）`);
+    // 归一为 UTC ISO：JS Date.parse 放行的格式（2024/01/05 10:00）PG timestamptz 拒绝 → 整批 500；
+    // 无时区后缀的串（2024-01-05 10:35:22）原样落库会按 DB 会话时区（生产 UTC）解析，北京时刻偏 8 小时
+    r.openTime = new Date(r.openTime).toISOString();
+    r.closeTime = new Date(r.closeTime).toISOString();
     if (!Number.isFinite(Number(r.lots)) || Number(r.lots) <= 0) throw ApiError.badRequest(`第 ${i + 1} 行手数非法`);
     for (const k of ["profit"] as const) {
       if (!Number.isFinite(Number(r[k]))) throw ApiError.badRequest(`第 ${i + 1} 行 profit 非法`);

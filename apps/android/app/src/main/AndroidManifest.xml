@@ -10,7 +10,8 @@
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false"
-        android:allowBackup="true">
+        <!-- WebView 会话 cookie 可随云备份提取，壳内无需要备份的本地资产：关闭备份 -->
+        android:allowBackup="false">
 
         <activity
             android:name=".MainActivity"

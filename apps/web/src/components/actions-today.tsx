@@ -139,14 +139,18 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   }
 
   /* ---- 行操作菜单（REQ-009 滚动：与 todo-board/空间详情同一菜单） ---- */
-  const [menu, setMenu] = useState<{ info: { todo: TodayAction; isChild: boolean; parentTitle: string | null }; pos: { top: number; left: number } } | null>(null);
+  const [menu, setMenu] = useState<{ info: { todo: TodayAction; isChild: boolean; parentTitle: string | null }; pos: { top: number; left: number } | null } | null>(null);
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
 
   function openMenu(a: TodayAction, el: HTMLElement) {
     const rect = el.getBoundingClientRect();
+    // 移动端不传锚点（pos=null）：TodoRowMenu 走底部弹层形态，锚定坐标会被 sm: 样式错位（entry-menu 同口径）
     setMenu({
       info: { todo: a, isChild: a.kind === "action" || !!a.parent_todo_id, parentTitle: a.parent_title },
-      pos: { top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 280)), left: Math.max(8, rect.right - 228) },
+      pos:
+        window.innerWidth >= 640
+          ? { top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 280)), left: Math.max(8, rect.right - 228) }
+          : null,
     });
   }
 

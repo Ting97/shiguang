@@ -232,7 +232,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`whitespace-nowrap rounded-full px-3 py-1 transition-all duration-200 sm:px-3.5 ${
+              className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-all duration-200 sm:px-3.5 sm:py-1 ${
                 view === v
                   ? "bg-gradient-to-r from-sky-500 to-indigo-500 font-medium text-white shadow-md shadow-sky-500/25"
                   : "text-ink-mute hover:bg-wash hover:text-ink"

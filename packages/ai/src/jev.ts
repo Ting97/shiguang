@@ -29,10 +29,10 @@ export function jevEnabled(): boolean {
 
 export const qChoice = (instructions: string, criteria: Record<string, string>) =>
   ({ type: "choice" as const, instructions, criteria });
-export const qScore = (instructions: string, criteria: string[]) =>
-  ({ type: "score" as const, instructions, criteria });
 export const qNoul = (instructions: string) =>
   ({ type: "noul" as const, instructions });
+// 注：score 原语构造器 qScore 已删除（全仓零引用的死代码）；score 答案的还原逻辑保留在 normalize——
+// 服务端按 JevQuestion 契约仍可能下发 score 型答案，属防御性解析而非死代码。
 
 export type JevQuestion =
   | { type: "choice"; instructions: string; criteria: Record<string, string> }

@@ -1,7 +1,9 @@
 /**
  * 底部标签栏（REQ-导航下移缩小）：6 项图标+小字（动态/目标/日程/人际/财务/我的），
  * fixed 吸底 + 安全区。主题切换挪到「我的」页（此栏只做页面导航）。
- * 页面切换用 redirectTo：等价 tab（栈深恒为 1，不会越叠越深）。
+ * 顶层 tab 互切用 redirectTo：等价 tab（栈深恒为 1，不会越叠越深）；
+ * 二级页（contact/space 详情、packages/calendar 等也挂本栏）点 tab 用 reLaunch 整体清栈——
+ * redirectTo 只会替换掉二级页本身，侧滑返回会落错页。
  */
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
@@ -30,7 +32,13 @@ export default function NavBar({ active }: { active?: NavKey }) {
   const go = (item: (typeof ITEMS)[number]) => {
     if (item.key === active || leaving) return;
     setLeaving(true);
-    Taro.redirectTo({ url: item.path, complete: () => setLeaving(false) });
+    // 栈深 >1 = 当前在二级页：reLaunch 清栈到目标 tab（url 格式与 redirectTo 相同），
+    // 避免详情页被 redirectTo 顶替后侧滑返回落错页；栈深 1 = 顶层 tab 互切，维持 redirectTo
+    if (Taro.getCurrentPages().length > 1) {
+      Taro.reLaunch({ url: item.path, complete: () => setLeaving(false) });
+    } else {
+      Taro.redirectTo({ url: item.path, complete: () => setLeaving(false) });
+    }
   };
 
   return (

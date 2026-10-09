@@ -54,10 +54,12 @@ export function detectPeriod(text: string): Exclude<PeriodHint, "now"> | null {
 export function detectFuture(text: string): FutureHint | null {
   if (/大后天/.test(text)) return "twoDaysAfter"; // 必须先于 /后天/ 判定，否则被吞成 +2
   if (/后天/.test(text)) return "dayAfter";
-  if (/明天|明早|明晚/.test(text)) return "tomorrow";
+  // 「明儿」对齐「明天」既有处理（+1 天 + 钟点/时段锚）：旧版混入 soon 桶 → now+1h
+  if (/明天|明早|明晚|明儿/.test(text)) return "tomorrow";
   if (/下周|下礼拜|下星期/.test(text)) return "nextWeek";
-  // 月底/下个月/明儿等未来词（"月底交房租""下个月还贷"旧版全落过去分支，锚定成当天）
-  if (/月底|月末|下个月|下个月份|明儿/.test(text)) return "soon";
+  // 月底/下个月等未来词（"月底交房租""下个月还贷"旧版全落过去分支，锚定成当天）；
+  // inferFuture 对它们给月历确定性锚，不再吃 soon 桶的 now+1h 兜底（对月级事项偏 30 天、提醒立即误报）
+  if (/月底|月末|下个月|下个月份/.test(text)) return "soon";
   if (/待会|等会|等一下|晚点|稍后/.test(text)) return "soon";
   // "一会儿"仅在未来语境算（"过一会儿再去"）；"刚做了一会儿拉伸"是过去
   if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
@@ -200,6 +202,25 @@ function cstHour(d: Date): number {
 }
 
 /**
+ * 月底/月末/下个月(份) 话术 → 确定性月历日锚（该北京日 00:00 的 Date，供 atHour 落钟点；无月历词 → null）。
+ * 「下个月底」两词同现 → 下个月的最后一天。旧版这些词落 soon 桶 now+1h：
+ * 「下个月还贷」「月底交房租」提前 30 天生成到期待办，提醒立即误报。
+ * 北京口径全用 UTC getter/setter 推算（禁本地 getter）——月序合成跨年自然进位。
+ */
+function monthDayBase(text: string, now: Date): Date | null {
+  const monthEnd = /月底|月末/.test(text);
+  const nextMonth = /下个月份?|下月份/.test(text);
+  if (!monthEnd && !nextMonth) return null;
+  const CST_MS = 8 * 3600_000;
+  const bj = new Date(now.getTime() + CST_MS);
+  const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() + (nextMonth ? 1 : 0); // 目标月序（0-based）
+  const y = Math.floor(m0 / 12);
+  const mo = m0 % 12;
+  const day = monthEnd ? new Date(Date.UTC(y, mo + 1, 0)).getUTCDate() : 1; // 月末 = 次月 0 日
+  return new Date(Date.UTC(y, mo, day) - CST_MS);
+}
+
+/**
  * AI 区间硬锚定到"今天"：话术无任何日期词且非未来话术时，模型偶发把当天区间
  * 挪到明天/昨天（如 17:22 说"下午2点到6点"被写成次日）——按整天平移保钟点。
  * 例外：凌晨（0-5 点）补记白天的区间归昨天，与提示词规则一致。
@@ -230,8 +251,12 @@ function inferFuture(
 
   let start: Date;
   if (future === "soon") {
-    // 待会儿/计划：有钟点且在今天未来 → 用之；否则 now + 1h
-    if (clock) {
+    // 月底/下个月：月历确定性锚（默认 20:00 回顾锚；话术带显式钟点/时段则让位，与下周X分支同口径）
+    const monthBase = monthDayBase(text, now);
+    if (monthBase) {
+      start = atHour(monthBase, clock ? clock.hour : period ? PERIOD_ANCHORS[period] : 20, clock?.minute ?? 0);
+    } else if (clock) {
+      // 待会儿/计划：有钟点且在今天未来 → 用之；否则 now + 1h
       start = atHour(now, clock.hour, clock.minute);
       if (start <= now) start = new Date(start.getTime() + 24 * 3600_000);
     } else {

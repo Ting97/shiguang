@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { FeedMoment } from "@/lib/types";
-import { TX_CATEGORIES } from "@/lib/finance";
+import { TX_CATEGORIES, yuanToCents } from "@/lib/finance";
 import { Coins } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
@@ -77,8 +77,8 @@ export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
               <button
                 onClick={() =>
                   run(async () => {
-                    const cents = Math.round(parseFloat(editTx.amount) * 100);
-                    if (!Number.isFinite(cents) || cents <= 0) throw new Error("金额必须大于 0");
+                    const cents = yuanToCents(editTx.amount);
+                    if (cents == null || cents <= 0) throw new Error("金额必须大于 0");
                     await api(`/api/transactions/${x.id}`, "PATCH", {
                       direction: editTx.direction,
                       amountCents: cents,

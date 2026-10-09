@@ -75,16 +75,16 @@ export function bindPhone(phone: string, smsCode: string) {
   return request<{ ok: true }>("/api/auth/phone/bind", { method: "POST", body: { phone, smsCode } });
 }
 
-export function fetchMe() {
-  return request<SessionUser & { isAdmin: boolean; modules: string[] }>("/api/auth/me");
-
-/** /api/auth/me 的用户形态（fetchMe 内部消费；外部组件用 @/shared/session 的 SessionUser） */
+/** /api/auth/me 的用户形态（fetchMe 返回值收窄用；外部组件用 @/shared/session 的 SessionUser） */
 interface SessionUser {
   id: string;
   nickname: string | null;
   phone: string | null;
   phoneVerified: boolean;
 }
+
+export function fetchMe() {
+  return request<SessionUser & { isAdmin: boolean; modules: string[] }>("/api/auth/me");
 }
 
 /* ---------- 动态 ---------- */
@@ -104,9 +104,10 @@ export interface FeedMoment {
   [k: string]: unknown;
 }
 
+/** GET /api/feed（服务端 listFeed 返回 {moments, total}；total 供「加载更多/计数」用） */
 export function loadFeed(limit = 20, offset = 0, q = "", spaceId = "all") {
   const p = new URLSearchParams({ limit: String(limit), offset: String(offset), q, spaceId });
-  return request<{ moments: FeedMoment[] }>(`/api/feed?${p.toString()}`);
+  return request<{ moments: FeedMoment[]; total?: number }>(`/api/feed?${p.toString()}`);
 }
 
 export function parseText(text: string) {
@@ -121,22 +122,9 @@ export function deleteEntry(id: string) {
   return request<{ ok: true }>(`/api/feed/${id}`, { method: "DELETE" });
 }
 
-/* ---------- 财务（只读 + 轻操作；导入类仅 PC） ---------- */
-
-export interface Overview {
-  month: string;
-  outCents: number;
-  inCents: number;
-  byCategory: Record<string, number>;
-  draftCount: number;
-  accounts: { id: string; name: string; icon: string; balanceCents: number | string; reserveTracked: boolean }[];
-  trend: { month: string; outCents: number; inCents: number; rate: number | null }[];
-  budget?: { monthly_limit_cents: number; alert_threshold: number };
-}
-
-export function loadOverview(month: string) {
-  return request<Overview>(`/api/finance/overview?month=${month}`);
-}
+/* ---------- 财务（只读 + 轻操作；导入类仅 PC） ----------
+ * 概览端点无 lib 封装：pages/finance/api.ts 就地重声明完整契约 loadFinOverview（lib 旧 loadOverview
+ * 类型缺 prev/budget，已删）。 */
 
 export interface Tx {
   id: string;
@@ -165,12 +153,9 @@ export function confirmTx(id: string) {
 
 
 
-/* ---------- 日程 / 待办 ---------- */
-
-
-export function loadBlocksRange(from: string, to: string) {
-  return request<{ blocks: any[] }>(`/api/blocks/range?from=${from}&to=${to}`);
-}
+/* ---------- 日程 / 待办 ----------
+ * blocks range 无 lib 封装：packages/calendar/index/api.ts 与 pages/schedule/api.ts 各有局部
+ * loadBlocksRange（lib 旧同名封装零调用，已删）。 */
 
 /* ---------- 空间 / 人际 / 复盘（分包页用） ---------- */
 
@@ -178,11 +163,6 @@ export function loadSpaces() {
   return request<{ spaces: any[] }>("/api/spaces");
 }
 
-
-export function loadSpaceReflections(id: string) {
-  // 实际返回 {items:[{id,preview,chars,created_at,...}], total}
-  return request<{ items: any[]; total?: number }>(`/api/spaces/${id}/reflections`);
-}
 
 export function loadContacts() {
   return request<{ contacts: any[] }>("/api/contacts");

@@ -45,8 +45,8 @@ export interface TodoMenuActions {
   addAction?: (t: TodoMenuTarget) => void;
 }
 
-/** 菜单单项：点击即关菜单再执行动作（danger 红、active 已开启徽标、busy 转圈、twoStep 两步确认） */
-export function MenuItem({ closeMenu, icon, label, hint, extra, danger, active, disabled, busy, armed, twoStep, onClick }: {
+/** 菜单单项：点击即关菜单再执行动作（danger 红、active 已开启徽标、busy 转圈） */
+export function MenuItem({ closeMenu, icon, label, hint, extra, danger, active, disabled, busy, onClick }: {
   closeMenu: () => void;
   /** 图标：emoji 或 lucide 组件（线性图标体系） */
   icon: React.ReactNode;
@@ -57,28 +57,22 @@ export function MenuItem({ closeMenu, icon, label, hint, extra, danger, active, 
   active?: boolean;
   disabled?: boolean;
   busy?: boolean;
-  /** 两步确认待确认态：高亮且不再关闭菜单 */
-  armed?: boolean;
-  /** 两步确认菜单项：首点（进入待确认态）不关菜单，执行动作时由 onClick 自行关闭 */
-  twoStep?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={() => {
         if (disabled) return;
-        if (!twoStep) closeMenu();
+        closeMenu();
         onClick();
       }}
       disabled={disabled}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition disabled:opacity-40 ${
-        armed
-          ? "bg-rose-500/10 font-medium text-danger"
-          : danger
-            ? "text-danger hover:bg-rose-500/10"
-            : active
-              ? "text-warn hover:bg-wash"
-              : "text-ink hover:bg-wash"
+        danger
+          ? "text-danger hover:bg-rose-500/10"
+          : active
+            ? "text-warn hover:bg-wash"
+            : "text-ink hover:bg-wash"
       }`}
     >
       <span className="w-5 shrink-0 text-center text-sm leading-none">{busy ? <Hourglass size={14} className="inline animate-pulse" /> : icon}</span>

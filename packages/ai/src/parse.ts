@@ -16,7 +16,7 @@ import {
 } from "./schema";
 import { jevAsk, jevEnabled, JevError } from "./jev";
 import { BASE_FIN_CATEGORY_CRITERIA, extractClosedSetQuestions } from "./questions/jev-sets";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment, anchorRangeToToday, anchorMomentToToday } from "./time-infer";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment, anchorRangeToToday, anchorMomentToToday, detectDayRef } from "./time-infer";
 import { parseAmountCents, parseDuration } from "./duration";
 import { ruleMood } from "./mood-rules";
 
@@ -89,6 +89,8 @@ function makeTitle(text: string): string {
  * 话术日期词 → 花销发生日（北京 YYYY-MM-DD，REQ-009 FR-E6 确定性防漂移）。
  * 实测（2026-10-03）：GLM 对相对日期推算不可靠（前天/上周五均算错一天以上），
  * 明确日期词一律以本确定性引擎为准覆盖模型输出；解析不出才信模型给的 occurredDate。
+ * 相对日词表与日程域 time-infer.detectDayRef 同源（大前天/前天/昨天系/周X/上礼拜X/上周）：
+ * 旧版自维护词表缺「礼拜」「昨夜/昨儿」，「上礼拜五随了600」按今天记账，与同句日程锚（上周五）分裂。
  * 注意：「M月N号/YYYY年M月N号」带月/年限定的日期不在此解析（历史上裸匹配只取到 N号，
  * 把模型算对的跨月日期错误覆盖成本月 N 日）——带限定时返回 null 交回模型输出。
  */
@@ -96,18 +98,10 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
   const bj = new Date(now.getTime() + 8 * 3600_000);
   const shift = (n: number) => ymd(new Date(bj.getTime() + n * 86_400_000));
-  if (/大前天/.test(text)) return shift(-3);
-  if (/前天/.test(text)) return shift(-2);
-  if (/昨天|昨晚/.test(text)) return shift(-1);
   if (/今天|今晚|今早|今晨|刚才|刚刚/.test(text)) return shift(0);
-  // 上周X：以本周一为基准回退一周（北京口径周一为一周之始）
-  const week = /(?:上周|上星期)([一二三四五六日天])/.exec(text);
-  if (week) {
-    const idx = week[1] === "天" ? 0 : "日一二三四五六".indexOf(week[1]);
-    const monday = new Date(bj.getTime() - ((bj.getUTCDay() + 6) % 7) * 86_400_000);
-    const lastWeekMonday = new Date(monday.getTime() - 7 * 86_400_000);
-    return ymd(new Date(lastWeekMonday.getTime() + (idx === 0 ? 6 : idx - 1) * 86_400_000));
-  }
+  // 相对日（过去/当日）：与 detectDayRef 同词表同偏移（周一为一周之始，北京口径）
+  const dayRef = detectDayRef(text, now);
+  if (dayRef !== null) return shift(dayRef);
   // M月N号/M月N日（可带 YYYY 年）：确定性换算（花销发生日必为过去——未带年份且落在中国今天之后 → 按去年）
   const md = /(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[号日]/.exec(text);
   if (md) {

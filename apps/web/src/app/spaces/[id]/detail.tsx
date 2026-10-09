@@ -27,7 +27,7 @@ import { useTodoActions } from "./detail/use-todo-actions";
  * 区块拆分见 detail/（头卡、todo 区、感悟区、动态区、各浮层；hooks 同目录）。
  */
 export default function Detail() {
-  const { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, activities, allSpaces, loadErr, load } = useSpaceData();
+  const { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, activities, allSpaces, loadErr, load } = useSpaceData();
   const [msg, setMsg] = useState<Msg>(null);
   // N2：分区 tab
   const [tab, setTab] = useState<SpaceTab>("todo");
@@ -106,7 +106,8 @@ export default function Detail() {
         <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1">
           <FilterChip label="TODO·行动" count={todos.length} active={tab === "todo"} onClick={() => setTab("todo")} />
           <FilterChip label="感悟" count={space.reflection_count ?? 0} active={tab === "reflection"} onClick={() => setTab("reflection")} />
-          <FilterChip label="动态" count={moments.length} active={tab === "moments"} onClick={() => setTab("moments")} />
+          {/* 动态计数用 feed total（未被 limit=20 封顶）；接口未带 total 时回退 header-card 的 entry_count 保持口径一致 */}
+          <FilterChip label="动态" count={momentsTotal ?? space.entry_count ?? 0} active={tab === "moments"} onClick={() => setTab("moments")} />
         </div>
 
         {/* 关联 TODO·行动 */}

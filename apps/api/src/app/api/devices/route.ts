@@ -18,21 +18,23 @@ const registerSchema = z.object({
  * 幂等 upsert：同一 token 重复注册刷新 last_seen_at；换号登录改属主（token 全局唯一）
  */
 export const POST = withAuthSchema(registerSchema, async (_req, { user, valid }) => {
-  // 属主守卫：token 已绑他人时不得静默顶掉（否则知悉 token 即可把受害者的设备改收攻击者账号的推送）
-  const held = await pool.query(`select user_id from device_tokens where token = $1`, [valid.token]);
-  if (held.rows[0] && held.rows[0].user_id !== user.id) {
-    throw ApiError.conflict("该设备推送已绑定其他账号，请先在原账号注销");
-  }
-  await pool.query(
+  // 属主守卫下推进 upsert 本体（check-then-upsert 两步在并发下可被顶掉）：
+  // 仅当 token 无属主或属主是本人时才更新，否则 0 行——按 rowCount 回查给 409
+  // （防知悉 token 即把受害者设备改收攻击者账号推送的属主抢占）
+  const upserted = await pool.query(
     `insert into device_tokens (user_id, platform, token)
      values ($1, $2, $3)
      on conflict (token) do update set
        user_id = excluded.user_id,
        platform = excluded.platform,
        enabled = true,
-       last_seen_at = now()`,
+       last_seen_at = now()
+     where device_tokens.user_id = excluded.user_id`,
     [user.id, valid.platform, valid.token],
   );
+  if (upserted.rowCount === 0) {
+    throw ApiError.conflict("该设备推送已绑定其他账号，请先在原账号注销");
+  }
   return NextResponse.json({ ok: true });
 });
 

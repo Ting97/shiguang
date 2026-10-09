@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, RefreshCw, X } from "lucide-react";
 import { uploadImages } from "@/lib/image";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { useDismiss } from "./dismissable";
 
 /**
@@ -48,7 +49,7 @@ export default function PublishSheet({
   // 触屏设备提供「拍照」入口（桌面无摄像头场景隐藏）
   const [canCapture, setCanCapture] = useState(false);
   useEffect(() => setCanCapture(window.matchMedia("(pointer: coarse)").matches), []);
-  // 最近发布的动态 id（重试用）
+  // 最近发布的动态 id（重试用）；重开面板时在 open effect 里复位（见下）
   const lastEntryId = useRef<string | null>(null);
   // 镜像当前图片列表：publish 回包后按最新列表圈定本批（state 闭包是发布前快照）
   const imagesRef = useRef<SheetImage[]>([]);
@@ -56,12 +57,18 @@ export default function PublishSheet({
     imagesRef.current = images;
   }, [images]);
 
+  // body 滚动锁：面板打开期间锁背景滚动，关闭/卸载还原
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     setValue(initialText);
     initialRef.current = initialText;
     setImages([]);
     setSheetMsg(null);
+    // 复位上次发布的动态 id：不复位则重开面板后「发布」钮被 lastEntryId 判定为重传语义，
+    // 空文案可点但点击后走 retryUpload 无效果（假可用）
+    lastEntryId.current = null;
     // 等挂载/键盘弹起后再聚焦，保证光标落在面板输入框
     const t = setTimeout(() => inputRef.current?.focus(), 80);
     return () => clearTimeout(t);

@@ -101,6 +101,8 @@ export function momChange(cur: number, prev: number): number | null {
  * 元字符串 → 分（整数）：「12.345」→1235（四舍五入到分）、「12.3」→1230、「12」→1200。
  * 用字符串解析而非 Math.round(parseFloat(x)*100)：1.115*100=111.49999… 系统性舍错
  * （type="digit" 键盘允许输三位小数，金额「分」铁律要求精确入账）。非法输入返回 null。
+ * 上限守卫：amount_cents 为 int4，超 ¥100 万返回 null（与 duration.ts/csv-import.ts 的 CAP 同源）——
+ * 旧版 `(…)|0` 在 ≥¥21,474,836.48 时 int32 回卷成错值静默入账。
  */
 export function yuanToCents(input: string): number | null {
   const s = (input ?? "").toString().trim().replace(/[¥￥,\s]/g, "");
@@ -111,5 +113,6 @@ export function yuanToCents(input: string): number | null {
   let cents = Number(int) * 100 + Number(((frac + "00").slice(0, 2) || "0"));
   // 第三位小数四舍五入（仅非负尾部；frac 第三位 ≥5 进 1）
   if (Number(frac[2] ?? "0") >= 5) cents += 1;
-  return (neg ? -cents : cents) | 0;
+  if (cents > 100_000_000) return null;
+  return neg ? -cents : cents;
 }

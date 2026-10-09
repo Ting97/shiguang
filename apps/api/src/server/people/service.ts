@@ -274,6 +274,8 @@ export async function updateInteraction(userId: string, id: string, body: Intera
     sets.push(`summary = $${vals.length}`);
   }
   if (body.occurredAt !== undefined) {
+    // 与 createInteraction 同口径 isParsableMoment 严格校验（弱 new Date() 把无时区串按宿主时区解释）
+    if (!isParsableMoment(body.occurredAt)) throw ApiError.badRequest("时间格式不正确");
     const t = new Date(body.occurredAt);
     if (isNaN(t.getTime())) throw ApiError.badRequest("时间格式不正确");
     vals.push(t.toISOString());

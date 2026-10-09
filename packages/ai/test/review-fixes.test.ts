@@ -6,13 +6,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseDuration, parseAmountCents } from "../src/duration.js";
-import { deterministicOccurredDate } from "../src/parse.js";
+import { deterministicOccurredDate, parseInput } from "../src/parse.js";
 import { classifyGlmFailure } from "../src/glm.js";
-import { anchorRangeToToday } from "../src/time-infer.js";
+import { anchorRangeToToday, inferTimeBlock } from "../src/time-infer.js";
 import { ruleMood } from "../src/mood-rules.js";
 import { ScheduleDraftV2 } from "../src/schema.js";
 
 const NOW = new Date("2026-10-08T15:00:00+08:00"); // 北京 2026-10-08（周四）15:00
+const CST = (s: string) => new Date(s).getTime(); // 参照：带偏移的 ISO 串的绝对时刻
 
 /* ---- P0：occurredDate 带月/年限定不再被裸「N号」覆盖成错误日期 ---- */
 
@@ -131,4 +132,39 @@ test("llmConfidence：null 回落 0.5 而非 0", () => {
     confidence: null,
   });
   assert.equal(r.confidence, 0.5);
+});
+
+/* ---- 检视：occurredDate 相对日词表与日程域 detectDayRef 同源 ----
+ * 旧版自维护词表缺「礼拜」「昨夜/昨儿」：「上礼拜五随了600」按今天记账，同句日程域却正确锚到上周五 —— 财务/日程分裂 */
+
+test("occurredDate：上礼拜五/上周一/上周日 与日程日锚同源（NOW=周四）", () => {
+  assert.equal(deterministicOccurredDate("上礼拜五随了600", NOW), "2026-10-02"); // 上周五
+  assert.equal(deterministicOccurredDate("上周一交了房租", NOW), "2026-09-28");
+  assert.equal(deterministicOccurredDate("上周日随了份子", NOW), "2026-10-04");
+});
+
+test("occurredDate：昨天/昨晚/大前天回归（同源替换后语义不变）", () => {
+  assert.equal(deterministicOccurredDate("昨天打车花了30", NOW), "2026-10-07");
+  assert.equal(deterministicOccurredDate("昨晚看电影花了50", NOW), "2026-10-07");
+  assert.equal(deterministicOccurredDate("大前天买的药", NOW), "2026-10-05");
+});
+
+test("occurredDate 与日程日锚同源：同句「上礼拜五随了600」日程块也落上周五 20:00", () => {
+  const tb = inferTimeBlock("上礼拜五随了600", NOW, 60);
+  assert.equal(tb.start.getTime(), CST("2026-10-02T20:00:00+08:00"));
+});
+
+test("规则兜底：「上礼拜五随了600」occurredDate=上周五（不再按今天记账）", async () => {
+  const r = await parseInput("上礼拜五随了600", { now: NOW, forceRules: true });
+  assert.equal(r.finance.hasAmount, true);
+  assert.equal(r.finance.amountCents, 60000);
+  assert.equal(r.finance.occurredDate, "2026-10-02");
+});
+
+/* ---- 检视：M月N号/裸N号 带月限定回归（相对日同源替换不得吞掉日期分支） ---- */
+
+test("occurredDate：月限定/裸N号 分支在 detectDayRef 同源后照常工作", () => {
+  assert.equal(deterministicOccurredDate("10月1号转了1000", NOW), "2026-10-01");
+  assert.equal(deterministicOccurredDate("5号交了水电费", NOW), "2026-10-05");
+  assert.equal(deterministicOccurredDate("买件3号球衣花了200", NOW), null); // 编号非日期
 });

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { BarChart3, Landmark, Target, TrendingUp } from "lucide-react";
 import { usePathname } from "next/navigation";
 import SubNav, { type SubNavItem } from "./sub-nav";
-import { api } from "@/shared/api";
+import { useSession } from "@/shared/session";
 
 /**
  * 财务二级 tab（REQ-003 3-F FR-C2.8；REQ-005 FR-4.4 更名 + R1 加交易）：概览 | 负债 | 收支复盘 | 交易。
@@ -13,14 +12,9 @@ import { api } from "@/shared/api";
  */
 export default function FinanceTabs() {
   const pathname = usePathname();
-  const [modules, setModules] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    api<{ modules?: string[] }>("/api/auth/me")
-      .then((j) => j.modules ?? [])
-      .then(setModules)
-      .catch(() => setModules([]));
-  }, []);
+  // 会话走 useSession() 单源（session.tsx 约定：组件禁止散拉 /api/auth/me——旧版每个财务页多发一次请求）
+  const { user } = useSession();
+  const modules = user?.modules ?? null;
 
   const has = (m: string) => modules?.includes(m) ?? false;
 

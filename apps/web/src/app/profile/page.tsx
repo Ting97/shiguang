@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, ChevronRight, Gem, Wrench } from "lucide-react";
 import { api } from "@/shared/api";
 import Skeleton from "@/components/skeleton";
@@ -8,16 +8,6 @@ import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
-
-interface Me {
-  id: string;
-  nickname: string | null;
-  phone: string | null;
-  isAdmin: boolean;
-  authDisabled: boolean;
-  phoneVerified: boolean;
-  createdAt: string | null;
-}
 
 const zhDate = (iso: string | null) => {
   if (!iso) return "—";
@@ -27,18 +17,18 @@ const zhDate = (iso: string | null) => {
 };
 
 export default function ProfilePage() {
-  const { refresh } = useSession();
+  // 会话走 useSession() 单源（session.tsx 约定：子页面禁止散拉 /api/auth/me——旧版与 Provider 双请求）
+  const { user: me, loading: meLoading, refresh } = useSession();
   const armLogout = useArmConfirm();
-  const [me, setMe] = useState<Me | null>(null);
-  // 身份加载失败态：失败要落错误 + 重试入口（历史 bug：catch 空吞，永久「加载中…」；同 admin 页 meErr 范式）
-  const [meErr, setMeErr] = useState<string | null>(null);
-  const [quotaErr, setQuotaErr] = useState<string | null>(null);
   const [nickname, setNickname] = useState("");
   const [savedNick, setSavedNick] = useState<string | null>(null);
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [busy, setBusy] = useState(false);
+  // 昵称草稿只随会话就绪回填一次（此后由输入/保存驱动，避免会话刷新覆盖正在编辑的内容）
+  const nicknameInitRef = useRef(false);
+  const [quotaErr, setQuotaErr] = useState<string | null>(null);
   const [quota, setQuota] = useState<{
     plan: string;
     used: number;
@@ -48,16 +38,13 @@ export default function ProfilePage() {
     byModel?: { model: string; all: { calls: number; promptTokens: number; completionTokens: number }; d30: { calls: number } }[];
   } | null>(null);
 
-  const loadMe = useCallback(() => {
-    setMeErr(null);
-    api<Me>("/api/auth/me")
-      .then((j) => {
-        setMe(j);
-        setNickname(j.nickname ?? "");
-        setSavedNick(j.nickname ?? "");
-      })
-      .catch((e) => setMeErr(e instanceof Error ? e.message : String(e)));
-  }, []);
+  useEffect(() => {
+    if (me && !nicknameInitRef.current) {
+      nicknameInitRef.current = true;
+      setNickname(me.nickname ?? "");
+      setSavedNick(me.nickname ?? "");
+    }
+  }, [me]);
 
   const loadQuota = useCallback(() => {
     setQuotaErr(null);
@@ -68,9 +55,8 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    loadMe();
     loadQuota();
-  }, [loadMe, loadQuota]);
+  }, [loadQuota]);
 
   async function saveNickname() {
     if (busy) return;
@@ -120,16 +106,10 @@ export default function ProfilePage() {
         <p className="mb-5 text-xs text-ink-dim">个性化你的账号信息</p>
 
         {!me ? (
-          meErr ? (
-            <div className="py-10 text-center">
-              <p className="text-xs text-danger">加载失败：{meErr}</p>
-              <button onClick={loadMe} className="btn-primary mt-2 rounded-lg px-4 py-1.5 text-micro font-medium">
-                重试
-              </button>
-            </div>
-          ) : (
+          // SessionProvider 自带 401 重定向与 loading 骨架语义：未加载完先出骨架（admin 页同款门）
+          meLoading ? (
             <Skeleton rows={3} className="py-2" />
-          )
+          ) : null
         ) : (
           <>
             {/* 账号资料 */}
@@ -161,7 +141,7 @@ export default function ProfilePage() {
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-badge text-ink-faint">加入于 {zhDate(me.createdAt)}</p>
+                  <p className="mt-0.5 text-badge text-ink-faint">加入于 {zhDate(me.createdAt ?? null)}</p>
                 </div>
               </div>
 

@@ -104,9 +104,13 @@ export default function MomentCard({
     },
     [],
   );
+  // onRefresh 经 ref 转发最新闭包（= voice-button 的 stopRef 范式）：setTimeout 捕获的是调度时刻的
+  // 旧闭包，父级切筛选/搜索后列表重排，旧回调仍指向过期取数参数 → 与用户操作竞态互踩
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
   const scheduleDelayedRefresh = () => {
     refreshTimers.current.forEach(clearTimeout);
-    refreshTimers.current = [setTimeout(onRefresh, 6000), setTimeout(onRefresh, 14000)];
+    refreshTimers.current = [setTimeout(() => onRefreshRef.current(), 6000), setTimeout(() => onRefreshRef.current(), 14000)];
   };
 
   // 删除执行（二次确认已由 rowMenu 的模态承担）；key 仅作语义占位

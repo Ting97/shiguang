@@ -45,3 +45,20 @@ test("显式时长：亚分钟向上保底 1 分钟（打卡入口不可失败�
   assert.equal(parseDuration("半小时"), 30); // 惯用语分支不受影响
   assert.equal(parseDuration("一个半小时"), 90);
 });
+
+// —— 检视回归：带单位口语尾数（「9块9」旧版只匹配「9块」漏掉尾数，少算 90 分） ——
+test("金额口语尾数：「9块9」「35块5」「12元5」并入为 X.9 元", () => {
+  assert.equal(parseAmountCents("花了9块9"), 990);
+  assert.equal(parseAmountCents("35块5"), 3550);
+  assert.equal(parseAmountCents("12元5"), 1250);
+  assert.equal(parseAmountCents("花了9块99"), 999); // 两位尾数同型（=9.99 元）
+});
+
+test("金额尾数形态：「9块9角」=990 分（角=0.1 元，同型并入即正确值）；3 位以上数字不并", () => {
+  assert.equal(parseAmountCents("花了9块9角"), 990);
+  // 3 位以上是另一段数字（量词/编号，如「12元5000步」）不并——宁少勿错
+  assert.equal(parseAmountCents("12元5000"), 1200);
+  // 无尾数回归不受影响
+  assert.equal(parseAmountCents("随了600块礼"), 60000);
+  assert.equal(parseAmountCents("花了3千块"), 300_000);
+});

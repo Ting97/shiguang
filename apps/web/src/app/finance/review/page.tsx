@@ -54,7 +54,11 @@ const bjMD = (iso: string) => {
 export default function FinanceReviewPage() {
   const [locked, setLocked] = useState(false);
   const [period, setPeriod] = useState<"day" | "week">("week");
-  const [anchor, setAnchor] = useState(bjToday());
+  // SSG 防 hydration mismatch：bjToday() 作初值会把构建日烤进静态导出 HTML（周区间文本 +
+  // 「下一日/周」按钮 disabled 都依赖 anchor），跨日后客户端水合必失配。
+  // 与日历四视图同款 mounted 骨架门：初始 null，mount 后再初始化锚点，就绪前渲染骨架
+  const [anchor, setAnchor] = useState<string | null>(null);
+  useEffect(() => setAnchor(bjToday()), []);
   const [stats, setStats] = useState<Stats | null>(null);
   // 统计加载失败态：给出重试入口，避免失败时静默停在骨架屏
   const [statsErr, setStatsErr] = useState<string | null>(null);
@@ -62,12 +66,13 @@ export default function FinanceReviewPage() {
   const [reviewMeta, setReviewMeta] = useState<{ cached: boolean; generatedAt: string; range: { from: string; to: string } } | null>(null);
   const [genBusy, setGenBusy] = useState(false);
 
-  const rangeFrom = period === "week" ? mondayOf(anchor) : anchor;
+  const rangeFrom = anchor ? (period === "week" ? mondayOf(anchor) : anchor) : ""; // anchor 未就绪时空串（不渲染）
 
   // 取数序号（use-home-data 同款）：快速翻周/切日视图时仅最新一次请求的响应可落地，
   // 避免慢响应晚到用旧周期的统计覆盖当前视图
   const statsSeq = useRef(0);
   const loadStats = useCallback(async () => {
+    if (!anchor) return; // mounted 前不取数（anchor 由 mount effect 初始化）
     const seq = ++statsSeq.current;
     setStatsErr(null);
     try {
@@ -92,6 +97,7 @@ export default function FinanceReviewPage() {
   const reviewSeq = useRef(0);
   const loadReview = useCallback(async (refresh = false) => {
     if (period !== "week") return;
+    if (!anchor) return; // mounted 前不取数（anchor 由 mount effect 初始化）
     if (refresh) {
       const seq = ++reviewSeq.current;
       setGenBusy(true);
@@ -141,6 +147,24 @@ export default function FinanceReviewPage() {
       <main className="min-h-screen text-ink">
         <div className="mx-auto max-w-2xl px-5 py-8">
           <ModuleLocked title="收支复盘" desc="该模块由管理员授权后开放，可联系管理员开通。" />
+        </div>
+      </main>
+    );
+  }
+
+  // mounted 门：anchor 未就绪时渲染与首帧 SSG HTML 同构的骨架（下方周区间文本/disabled 都依赖 anchor）
+  if (!anchor) {
+    return (
+      <main className="min-h-screen text-ink">
+        <div className="mx-auto max-w-2xl px-5 py-8">
+          <header className="mb-5 text-center">
+            <h1 className="text-gradient text-3xl font-bold tracking-wide sm:text-4xl">
+              拾光<span className="ml-2 align-middle text-sm font-normal tracking-normal text-ink-dim">收支复盘</span>
+            </h1>
+            <p className="mt-2 text-xs text-ink-dim">日/周收支结构与 AI 周报 —— 花在哪、怎么调</p>
+          </header>
+          <FinanceTabs />
+          <Skeleton rows={3} className="py-2" />
         </div>
       </main>
     );

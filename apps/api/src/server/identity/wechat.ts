@@ -34,9 +34,12 @@ function fallbackNickname(): string {
  * 自动建号空壳判定：绑定迁移前检查既有绑定方是否「无任何业务数据」。
  * 任一主业务表有数据即非空壳（保守：查询异常按非空壳处理，宁可拒绝迁移不可丢数据）。
  */
-async function isBusinessEmpty(userId: string): Promise<boolean> {
+async function isBusinessEmpty(
+  userId: string,
+  client: import("pg").PoolClient | typeof pool = pool,
+): Promise<boolean> {
   try {
-    const { rows } = await pool.query(
+    const { rows } = await client.query(
       `select (
         (select count(*) from public.entries where user_id = $1)
       + (select count(*) from public.transactions where user_id = $1)
@@ -152,6 +155,16 @@ export async function bindSessionByWechat(input: {
   try {
     await client.query("begin");
     if (owner) {
+      // 空壳判定在事务内复核：事务外的预检到解绑之间，空壳若并发产生业务数据会被无条件解绑，
+      // 数据挂在无法登录的账号上（违背文件头「宁可拒绝迁移不可丢数据」口径）——非空即回滚走冲突口子
+      if (!(await isBusinessEmpty(owner.id, client))) {
+        await client.query("rollback");
+        const [ownerSummary, currentSummary] = await Promise.all([
+          accountSummary(owner.id),
+          accountSummary(input.userId),
+        ]);
+        return { status: "conflict", owner: ownerSummary, current: currentSummary };
+      }
       // 回收空壳：解绑后把 openid 迁到当前账号（空壳无数据可丢）
       await client.query(`update profiles set wechat_openid = null, wechat_unionid = null where id = $1`, [owner.id]);
     }

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDismiss } from "@/components/dismissable";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { X } from "lucide-react";
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -72,14 +73,7 @@ export function Modal({
   }, [mounted]);
 
   // body 滚动锁：浮层打开期间锁背景滚动，卸载还原（scrim 是 fixed，指针落在遮罩上背景会跟手滚）
-  useEffect(() => {
-    if (!mounted) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [mounted]);
+  useBodyScrollLock(mounted);
 
   if (!mounted) return null;
   return createPortal(

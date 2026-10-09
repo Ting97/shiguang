@@ -7,11 +7,20 @@ export function ymd(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * @deprecated 宿主时区口径（getHours 系），海外设备与北京日历日错一天——一律改用 {@link bjToday}。
+ * 尚未删除的原因：apps/miniapp 日程页门面（src/pages/schedule/date.ts）仍具名 re-export 本函数，
+ * 删除会打断该端编译；待门面摘除后随下批清理。
+ */
 export function todayStr(): string {
   return ymd(new Date());
 }
 
-/** ISO 时间戳 → 本地日期键 YYYY-MM-DD（严禁用 iso.slice(0,10)，那是 UTC 日期） */
+/**
+ * @deprecated 宿主时区口径（严禁 iso.slice(0,10) 那是 UTC 日期，但本地化解释在海外设备日界错位）
+ * ——一律改用 {@link bjDateKey}（北京日历日键）。
+ * 尚未删除的原因：apps/miniapp 日程页门面仍具名 re-export 本函数，待门面摘除后随下批清理。
+ */
 export function localDateKey(iso: string): string {
   return ymd(new Date(iso));
 }

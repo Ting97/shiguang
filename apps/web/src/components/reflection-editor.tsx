@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { useDismiss } from "./dismissable";
 
 /**
@@ -46,6 +47,8 @@ export default function ReflectionEditor({
   }, [value, notify, onCancel]);
 
   const panelRef = useDismiss<HTMLDivElement>(cancel, open);
+  // body 滚动锁：抽屉打开期间锁背景滚动，关闭/卸载还原
+  useBodyScrollLock(open);
   if (!open) return null;
 
   const chars = Array.from(value).length; // 码点计数，与 DB char_length 同口径

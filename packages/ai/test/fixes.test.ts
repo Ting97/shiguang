@@ -322,7 +322,7 @@ test("2/29 生日：平年倒计时显式取 2/28（不再滚到 3/1），闰年
 
 /* ---- 回归9：检视修复（心情否定词 / 一百二 / 记得动词性） ---- */
 
-import { ruleMood } from "../src/mood-rules.js";
+import { ruleMood, negated } from "../src/mood-rules.js";
 import { cnToNumber } from "../src/duration.js";
 
 test("心情否定词：「不开心」不再判成 开心+60（GLM 熔断时规则兜底极性反转）", () => {
@@ -382,4 +382,27 @@ test("parseClock：「中午1点/两点半」指午后（noon 偏移 1~2 点 +12
   // 11/12 点仍是上午/正午
   assert.equal(parseClock("中午11点遛弯", "noon")?.hour, 11);
   assert.equal(parseClock("中午12点吃饭", "noon")?.hour, 12);
+});
+
+/* ---- 回归11：月底/下个月 规则兜底到期锚（旧版落 soon 桶 now+1h：月级事项提前 30 天弹过期提醒） ---- */
+
+test("规则兜底：「下个月还贷」due=下月1日20:00、「月底交房租」due=本月末20:00（北京）", async () => {
+  const r = await parseInput("下个月还贷", { now: NOW, forceRules: true });
+  assert.equal(r.intent, "todo");
+  assert.equal(r.time.mode, "future");
+  assert.equal(new Date(r.time.start).getTime(), CST("2026-10-01T20:00:00+08:00"));
+
+  const r2 = await parseInput("月底交房租", { now: NOW, forceRules: true });
+  assert.equal(r2.intent, "todo");
+  assert.equal(new Date(r2.time.start).getTime(), CST("2026-09-30T20:00:00+08:00"));
+});
+
+/* ---- 回归12：negated 的 g 版正则缓存（行为与现场编译一致，无 lastIndex 残留） ---- */
+
+test("negated：缓存 g 版多次调用结果一致（matchAll 克隆语义）", () => {
+  const re = /开心/;
+  assert.equal(negated(re, "不开心"), true);
+  assert.equal(negated(re, "今天很开心"), false);
+  assert.equal(negated(re, "不开心"), true); // 第二轮：缓存命中且无 lastIndex 残留
+  assert.equal(negated(re, "不开心但很开心"), false); // 存在未否定命中 → 规则成立
 });

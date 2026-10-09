@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Archive } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
-import { TX_CATEGORIES } from "@/lib/finance";
+import { TX_CATEGORIES, yuanToCents } from "@/lib/finance";
 import type { Account, Tx } from "./kit";
 import { api, toLocalInput, fromLocalInput } from "./kit";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
@@ -34,9 +34,9 @@ export function TxForm({
   /** 保存：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
   async function save() {
     if (busy || !amount) return;
-    const cents = Math.round(parseFloat(amount) * 100);
-    if (!Number.isFinite(cents) || cents <= 0) {
-      setErr("金额需大于 0"); // 0/负数/非数静默早退会让人以为已保存
+    const cents = yuanToCents(amount);
+    if (cents == null || cents <= 0) {
+      setErr("金额需大于 0"); // 0/负数/非法输入静默早退会让人以为已保存
       return;
     }
     setBusy(true);
@@ -206,8 +206,13 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 defaultValue={a.openingBalanceCents / 100}
                 title="当前余额（元）"
                 onBlur={async (e) => {
-                  const v = Math.round(parseFloat(e.target.value) * 100);
-                  if (Number.isFinite(v) && v !== a.openingBalanceCents) {
+                  const v = yuanToCents(e.target.value);
+                  if (v == null) {
+                    // 非法输入就地提示（原 parseFloat NaN 版静默忽略，会让人以为已保存）
+                    setRowErr((prev) => ({ ...prev, [a.id]: "金额格式不正确" }));
+                    return;
+                  }
+                  if (v !== a.openingBalanceCents) {
                     try {
                       await api(`/api/accounts/${a.id}`, "PATCH", { openingBalanceCents: v });
                       await onChanged();
@@ -289,8 +294,13 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
             setBusy(true);
             setAddErr(null);
             try {
-              const cents = opening ? Math.round(parseFloat(opening) * 100) : 0;
-              await api("/api/accounts", "POST", { name: name.trim(), icon, openingBalanceCents: Number.isFinite(cents) ? cents : 0 });
+              // 期初余额允许留空/为 0（原语义）；非法输入就地提示，不再静默按 0 入账
+              const cents = opening ? yuanToCents(opening) : 0;
+              if (cents == null) {
+                setAddErr("金额格式不正确");
+                return;
+              }
+              await api("/api/accounts", "POST", { name: name.trim(), icon, openingBalanceCents: cents });
               setName("");
               setOpening("");
               await onChanged();

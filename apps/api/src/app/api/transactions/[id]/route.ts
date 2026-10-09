@@ -91,7 +91,15 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
   if (sets.length === 0) {
     throw ApiError.badRequest("没有可更新的字段");
   }
+  // 复盘缓存水位含 max(updated_at)（051 迁移补列）：任何编辑都抬水位，命中缓存的复盘立即失效
+  sets.push(`updated_at = now()`);
   vals.push(id, user.id);
+
+  // 跨日改 occurred_at 时旧行离开原日期区间 → 旧日期的复盘水位看不到本行（编辑等于「没发生过」），
+  // 缓存被判仍新鲜回旧数据——与 DELETE 同款需按旧发生日显式失效
+  const oldOccurrence = body.occurredAt
+    ? (await pool.query(`select occurred_at from transactions where id = $1 and user_id = $2`, [id, user.id])).rows[0]
+    : null;
 
   const updated = (
     await pool.query(
@@ -101,6 +109,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     )
   ).rows[0];
   if (!updated) throw ApiError.notFound("流水不存在");
+  if (oldOccurrence) void invalidateReviewCachesForOccurrence(user.id, new Date(oldOccurrence.occurred_at));
   return NextResponse.json({ transaction: updated });
 });
 

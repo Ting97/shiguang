@@ -70,7 +70,12 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
   if (!isParsableMoment(body.startAt) || !isParsableMoment(body.endAt)) {
     throw ApiError.badRequest("起止时间格式不正确");
   }
-  if (Date.parse(body.endAt) <= Date.parse(body.startAt)) {
+  // 归一为带 Z 的 UTC ISO 再落库：无时区偏移的串（2025-01-01T10:00）JS 校验按宿主时区解释、
+  // PG 落库按 DB 会话时区解释，非 UTC 宿主上校验基准与存储值差 8 小时
+  //（appendManual/confirmPending 构造时已显式带 +08:00，此处对手工路由补齐同口径）
+  const startAt = new Date(body.startAt).toISOString();
+  const endAt = new Date(body.endAt).toISOString();
+  if (Date.parse(endAt) <= Date.parse(startAt)) {
     throw ApiError.badRequest("结束时间必须晚于开始时间");
   }
   // 重叠预检与落库收进同一事务，事务首语句取 per-user advisory lock 串行化同用户时间块写路径：
@@ -80,13 +85,13 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
   try {
     await client.query("begin");
     await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
-    const conflict = await findOverlap(userId, body.startAt, body.endAt, undefined, undefined, client);
+    const conflict = await findOverlap(userId, startAt, endAt, undefined, undefined, client);
     if (conflict) {
       await client.query("rollback");
       return { conflict };
     }
     const block = (
-      await blocksRepo.insert(userId, body.activityId, body.title.trim(), body.startAt, body.endAt, client)
+      await blocksRepo.insert(userId, body.activityId, body.title.trim(), startAt, endAt, client)
     ).rows[0];
     await client.query("commit");
     return { block };
@@ -106,6 +111,9 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
   if ((body.startAt != null && !isParsableMoment(body.startAt)) || (body.endAt != null && !isParsableMoment(body.endAt))) {
     throw ApiError.badRequest("起止时间格式不正确");
   }
+  // 归一为带 Z 的 UTC ISO 再落库（与 createBlock 同口径：无偏移串的宿主/会话时区双解释差 8 小时）
+  const startIso = body.startAt != null ? new Date(body.startAt).toISOString() : undefined;
+  const endIso = body.endAt != null ? new Date(body.endAt).toISOString() : undefined;
   // 注：activity_id 是 text 列，非 uuid 合法（预设分类）；不存在的 id 由 23503 FK 映射拦成 400
   const fields: Array<[string, unknown]> = [];
   if (body.title != null) {
@@ -114,8 +122,8 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
     if (body.title.trim().length > 100) throw ApiError.badRequest("标题最长 100 字");
     fields.push(["title", body.title.trim()]);
   }
-  if (body.startAt != null) fields.push(["start_at", body.startAt]);
-  if (body.endAt != null) fields.push(["end_at", body.endAt]);
+  if (startIso != null) fields.push(["start_at", startIso]);
+  if (endIso != null) fields.push(["end_at", endIso]);
   if (body.activityId != null) fields.push(["activity_id", body.activityId]);
   if (fields.length === 0) throw ApiError.badRequest("没有可更新的字段");
 
@@ -129,8 +137,8 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
     // 重叠预检与落库会基于过期基准（与 createBlock 同强度）
     const cur = await blocksRepo.timesOf(id, userId, client);
     if (!cur) throw ApiError.notFound("日程不存在");
-    const newStart = body.startAt ?? cur.start_at;
-    const newEnd = body.endAt ?? cur.end_at;
+    const newStart = startIso ?? cur.start_at;
+    const newEnd = endIso ?? cur.end_at;
     if (Date.parse(newEnd) <= Date.parse(newStart)) {
       throw ApiError.badRequest("结束时间必须晚于开始时间");
     }
@@ -231,7 +239,12 @@ export async function updateActivity(userId: string, id: string, body: ActivityB
     fields.push(["name", body.name.trim()]);
   }
   if (body.icon != null) fields.push(["icon", body.icon.trim().slice(0, 8) || "🏷"]);
-  if (body.color != null && /^#[0-9a-fA-F]{6}$/.test(body.color)) fields.push(["color", body.color]);
+  // 非法色显式 400（与 create 的默认色回落是两种入口语义；旧版静默忽略会让「仅改色」得到
+  // 「没有可更新的字段」的误导性 400）
+  if (body.color != null) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(body.color)) throw ApiError.badRequest("颜色格式需为 #RRGGBB");
+    fields.push(["color", body.color]);
+  }
   if (body.defaultMin != null) {
     if (typeof body.defaultMin !== "number" || !Number.isInteger(body.defaultMin)) {
       throw ApiError.badRequest("defaultMin 需为整数（分钟）");

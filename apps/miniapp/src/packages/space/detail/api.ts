@@ -1,8 +1,7 @@
 /**
  * 空间详情页局部端点（契约 grep 查证：apps/api/src/server/goal/service.ts + timeline/feed 路由）：
  * - 感悟：GET/POST /api/spaces/:id/reflections、GET/PATCH/DELETE /api/spaces/:id/reflections/:rid
- *   ⚠ 坑：lib/api.ts 的 loadSpaceReflections 返回类型标错（{reflections}，实际 {items,total}），
- *   该文件禁改，本页用局部封装。
+ *   （lib/api.ts 曾有 loadSpaceReflections 封装但返回类型标错 {reflections}，实际 {items,total}，本页用局部封装）
  * - todo：GET /api/todos?view=all|done（web use-space-data 同款）、POST /api/todos {title,spaceId|parentId}、
  *   PATCH /api/todos/:id（done/undone/title/dueAt/activityId/note/repeatDaily/spaceId）、
  *   DELETE /api/todos/:id、POST /api/todos/:id/decompose {mode?:"replace"|"append"} → {actions:[]}

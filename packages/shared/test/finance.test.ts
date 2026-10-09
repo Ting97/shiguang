@@ -4,9 +4,10 @@ import {
   budgetTone,
   categoryBreakdown,
   momChange,
-  
+
   savingsRate,
   yuan,
+  yuanToCents,
 } from "../src/finance.ts";
 
 test("分类占比：按金额降序且百分比合计 100", () => {
@@ -44,4 +45,22 @@ test("环比：正增长/下降/基数为零", () => {
   assert.equal(momChange(11000, 10000), 10);
   assert.equal(momChange(8000, 10000), -20);
   assert.equal(momChange(100, 0), null);
+});
+
+test("元转分：常规/三位小数四舍五入/负数/非法入参", () => {
+  assert.equal(yuanToCents("12.345"), 1235); // 1.115*100 浮点舍错回归口径：字符串解析精确到分
+  assert.equal(yuanToCents("12.3"), 1230);
+  assert.equal(yuanToCents("12"), 1200);
+  assert.equal(yuanToCents("-5.5"), -550);
+  assert.equal(yuanToCents("¥1,234.5"), 123450);
+  assert.equal(yuanToCents("abc"), null);
+  assert.equal(yuanToCents(""), null);
+});
+
+test("元转分上限守卫：超 ¥100 万返回 null（旧版 |0 在 ≥¥21,474,836.48 时 int32 回卷成错值）", () => {
+  assert.equal(yuanToCents("1000000"), 100_000_000); // 恰在上限内（=CAP，不拒）
+  assert.equal(yuanToCents("1000000.01"), null); // 超 ¥100 万
+  assert.equal(yuanToCents("21474836.48"), null); // 旧版 |0 回卷成 -2147483648
+  assert.equal(yuanToCents("99999999999"), null);
+  assert.equal(yuanToCents("-99999999.99"), null); // 负向同上限（按绝对值判）
 });

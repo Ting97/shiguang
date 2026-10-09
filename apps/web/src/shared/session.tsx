@@ -19,6 +19,8 @@ export interface SessionUser {
   phoneVerified: boolean;
   /** 本地开发后门（AUTH_DISABLED=1）时为 true：导航栏隐藏账号/登出入口 */
   authDisabled?: boolean;
+  /** 账号创建时间（ISO，可 null）——/api/auth/me 原样返回，profile 页「加入于」展示用 */
+  createdAt?: string | null;
 }
 
 interface SessionValue {

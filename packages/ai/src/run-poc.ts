@@ -33,6 +33,7 @@ interface Case {
 }
 
 const durationTolerance = 15; // 分钟容差
+const PASS_LINE = 85; // 通过线（%）：docs/07 评测口径，≥85%（17/20）达标
 let pass = 0;
 const rows: string[] = [];
 
@@ -97,5 +98,7 @@ for (const c of set.cases as Case[]) {
 console.log(`\n引擎：${live ? "GLM（实测）" : "规则引擎（dry-run，未配 Key 或未加 ZHIPUAI_LIVE=1）"}`);
 console.log(rows.join("\n"));
 const pct = ((pass / set.cases.length) * 100).toFixed(0);
-console.log(`\n结果：${pass}/${set.cases.length}（${pct}%）  通过线 85% → ${Number(pct) >= 85 ? "🎉 达标" : "未达标"}`);
-process.exit(0);
+const ok = Number(pct) >= PASS_LINE;
+console.log(`\n结果：${pass}/${set.cases.length}（${pct}%）  通过线 ${PASS_LINE}% → ${ok ? "🎉 达标" : "未达标"}`);
+// 未达标退出 1：CI/脚本据此判定评测失败（旧版恒 exit 0，未达标也绿灯）
+process.exit(ok ? 0 : 1);

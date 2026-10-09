@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DEBT_TYPES, DEBT_TYPE_META, type DebtType } from "@/lib/finance";
+import { DEBT_TYPES, DEBT_TYPE_META, yuanToCents, type DebtType } from "@/lib/finance";
 import type { Debt, Account } from "./kit";
 import { fmt, bjToday, api } from "./kit";
 
@@ -40,17 +40,21 @@ export function DebtForm({
     setBusy(true);
     setErr(null);
     try {
-      const cents = (v: string, fallback: number | null = null) => {
-        const n = Math.round(parseFloat(v) * 100);
-        return Number.isFinite(n) ? n : fallback;
-      };
+      // 金额解析统一走 yuanToCents：非法输入返回 null，就地提示（原 parseFloat NaN 版静默按 0 入账）
+      const principalCents = yuanToCents(principal);
+      const balanceCents = balance ? yuanToCents(balance) : null;
+      const monthlyCents = monthly ? yuanToCents(monthly) : null;
+      if (principalCents == null || (balance && balanceCents == null) || (monthly && monthlyCents == null)) {
+        setErr("金额格式不正确");
+        return;
+      }
       await onSubmit({
         name: name.trim(),
         type,
-        principalCents: cents(principal, 0),
-        ...(balance ? { balanceCents: cents(balance, 0) } : {}),
+        principalCents,
+        ...(balance ? { balanceCents } : {}),
         ratePct: Number.isFinite(parseFloat(rate)) ? parseFloat(rate) : 0,
-        monthlyCents: monthly ? cents(monthly, 0) : null,
+        monthlyCents: monthly ? monthlyCents : null,
         payDay: payDay ? Number(payDay) : null,
         dueDate: dueDate || null,
         priority: Number.isFinite(Number(priority)) ? Number(priority) : 0,
@@ -150,9 +154,9 @@ export function PaymentForm({
   /** 确认还款：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
   async function save() {
     if (busy || !amount) return;
-    const cents = Math.round(parseFloat(amount) * 100);
-    if (!Number.isFinite(cents) || cents <= 0) {
-      onError("金额需大于 0"); // 0/负数/非数静默早退会让人以为已还款
+    const cents = yuanToCents(amount);
+    if (cents == null || cents <= 0) {
+      onError("金额需大于 0"); // 0/负数/非法输入静默早退会让人以为已还款
       return;
     }
     setBusy(true);

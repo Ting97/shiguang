@@ -54,7 +54,8 @@ export function TodoCard({
               onChange={(e) => edit.setEditTitle(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) edit.saveEdit();
-                if (e.key === "Escape") edit.setEditingId(null);
+                // Esc 与点空白同口径：走 closeEdit 的脏检查（直接置 null 会绕过「有改动轻提示」）
+                if (e.key === "Escape") edit.closeEdit(t);
               }}
               className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
             />

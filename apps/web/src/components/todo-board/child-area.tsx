@@ -83,7 +83,11 @@ export function ChildArea({
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) sub.add(t.id);
-              if (e.key === "Escape") sub.close();
+              // Esc 与 onBlur 同口径：有未提交内容轻提示（旧版静默丢弃）
+              if (e.key === "Escape") {
+                if (sub.title.trim()) toast("已取消，未保存", "info");
+                sub.close();
+              }
             }}
             placeholder="行动，回车添加（Esc 结束）"
             maxLength={200}

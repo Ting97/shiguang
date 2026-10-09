@@ -25,6 +25,10 @@ export function useSpaceData() {
   // 已完成的关联 todo（默认收起展示）
   const [doneTodos, setDoneTodos] = useState<TodoItem[]>([]);
   const [moments, setMoments] = useState<FeedMoment[]>([]);
+  // 「动态」tab 计数：feed 接口响应的 total（该空间动态总数，count(*) over () 口径）。
+  // moments 数组本身被 limit=20 封顶，直接用 length 会让 tab 永远最多显示 20；
+  // null=接口未带 total（降级由调用方用 space.entry_count 兜底）
+  const [momentsTotal, setMomentsTotal] = useState<number | null>(null);
   // 数据加载失败态（网络抖动/接口异常）：给出重试入口，避免永远停在"加载中"
   const [loadErr, setLoadErr] = useState<string | null>(null);
   // 活动分类（编辑器下拉用）
@@ -73,7 +77,11 @@ export function useSpaceData() {
         if (tj.status === "fulfilled") setTodos(((tj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id)); // ?? [] 与 done 视图同口径：畸形 200 不再把已成功的空间加载打成整页失败
         // 已完成的关联 todo（done 视图按完成时间倒序）
         if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
-        if (fj.status === "fulfilled") setMoments(fj.value.moments as FeedMoment[]);
+        if (fj.status === "fulfilled") {
+          setMoments(fj.value.moments as FeedMoment[]);
+          // total=该空间动态总数（未被 limit 封顶）；畸形 200 无 total 时落 null 走 entry_count 兜底
+          setMomentsTotal(typeof fj.value.total === "number" ? fj.value.total : null);
+        }
         if (aj.status === "fulfilled") setActivities(aj.value.activities ?? []);
       });
     } catch (e) {
@@ -86,7 +94,7 @@ export function useSpaceData() {
     if (id) void load();
   }, [id, load]);
 
-  return { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, activities, allSpaces, loadErr, load };
+  return { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, activities, allSpaces, loadErr, load };
 }
 
 export type SpaceData = ReturnType<typeof useSpaceData>;

@@ -12,7 +12,7 @@ export default function MomentLinkModal(opts: {
   const { open, momentLink } = opts;
   const {
     setMomentLinkOpen,
-    momentItems, momentTotal, momentQuery, onMomentQueryChange, momentLoading,
+    momentItems, momentTotal, momentQuery, momentQueryApplied, onMomentQueryChange, momentLoading,
     loadUnlinkedMoments, linkMoment,
   } = momentLink;
   if (!open) return null;
@@ -58,7 +58,8 @@ export default function MomentLinkModal(opts: {
       </div>
       {momentItems.length < momentTotal && (
         <button
-          onClick={() => void loadUnlinkedMoments(momentQuery, momentItems.length)}
+          /* 翻页必须用防抖落定的生效查询（momentQueryApplied）：实时输入词做 offset 会拿新词偏移翻旧词的页 */
+          onClick={() => void loadUnlinkedMoments(momentQueryApplied, momentItems.length)}
           className="mt-2 w-full rounded-lg border border-line-soft py-1.5 text-micro text-ink-mute transition hover:bg-soft"
         >
           加载更多（还有 {momentTotal - momentItems.length} 条）

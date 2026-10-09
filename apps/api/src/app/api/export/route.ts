@@ -5,8 +5,6 @@ import { withAuth } from "@/server/platform/http/route";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TZ = "Asia/Shanghai";
-
 /**
  * GET /api/export?format=json|md —— 导出我的全部数据（docs/06 P8：数据可携带）
  * json=全量备份（所有表）；md=可读的动态日记。生产环境建议定期下载 json 备份。
@@ -32,9 +30,9 @@ export const GET = withAuth(async (req, { user }) => {
     { sql: `select title, status, due_at, done_at, created_at from todos where user_id = $1 order by created_at`, vals: [user.id] },
     { sql: `select direction, amount_cents, category, counterparty, note, occurred_at, is_draft, account_id
        from transactions where user_id = $1 order by occurred_at`, vals: [user.id] },
-    { sql: `select d.meal, d.items, d.total_kcal, (e.created_at at time zone $2) as recorded_at
+    { sql: `select d.meal, d.items, d.total_kcal, e.created_at as recorded_at
        from diet_records d join entries e on e.id = d.entry_id
-       where d.user_id = $1 order by e.created_at`, vals: [user.id, TZ] },
+       where d.user_id = $1 order by e.created_at`, vals: [user.id] },
     { sql: `select name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, intimacy, notes
        from contacts where user_id = $1 order by created_at`, vals: [user.id] },
     { sql: `select c.name as contact, i.type, i.summary, i.occurred_at
@@ -66,6 +64,25 @@ export const GET = withAuth(async (req, { user }) => {
       `> 导出时间：${new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 16).replace("T", " ")}（北京时间） · 共 ${entries.rows.length} 条动态`,
       ``,
     ];
+    // 日程块按天预分组一次（跨天块按交集归属，与日视图口径一致）：
+    // 此前在动态循环内逐条 filter，同一天有多条动态时当天块重复输出 E 遍且 O(E×B) 反复解析日期
+    const blocksByDay = new Map<string, any[]>();
+    const DAY_MS = 24 * 3600_000;
+    // bj 后的 UTC 日期即北京墙上日期，对齐到当日 0 点（日界地板）后逐天枚举覆盖块交集的每一天
+    const dayFloor = (ms: number) => Math.floor(ms / DAY_MS) * DAY_MS;
+    for (const b of blocks.rows) {
+      if (!b.start_at) continue;
+      const startMs = bj(b.start_at).getTime();
+      const endMs = b.end_at ? Math.max(bj(b.end_at).getTime(), startMs) : startMs;
+      // 最多枚举 60 天（防病态超长跨天块），正常块只落 1~2 天
+      for (let t = dayFloor(startMs), i = 0; t <= dayFloor(endMs) && i < 60; t += DAY_MS, i++) {
+        const d = new Date(t);
+        const day = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+        let list = blocksByDay.get(day);
+        if (!list) blocksByDay.set(day, (list = []));
+        list.push(b);
+      }
+    }
     let lastDay = "";
     for (const e of entries.rows) {
       const day = localYmd(e.created_at);
@@ -76,8 +93,7 @@ export const GET = withAuth(async (req, { user }) => {
       const clock = localClock(e.created_at);
       const mood = e.mood ? `（心情：${e.mood}）` : "";
       lines.push(`- **${clock}** ${e.raw_text}${mood}`);
-      // 当天日程块（跨天块按交集归属，与日视图口径一致）
-      for (const b of blocks.rows.filter((b: any) => b.start_at && (localYmd(b.start_at) === day || localYmd(b.end_at) === day))) {
+      for (const b of blocksByDay.get(day) ?? []) {
         const startTime = localClock(b.start_at);
         const endTime = localClock(b.end_at);
         lines.push(`  - 🕒 ${b.activity ?? ""} ${b.title}（${startTime}–${endTime}，${b.duration_min} 分钟）`);

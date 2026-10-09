@@ -80,7 +80,7 @@ export function RawTextSection({
             setMenuOpen((v) => !v); // 菜单开着时再点=关闭：pointerdown 已被 trigger 豁免，不会先关后开
           }}
           title="点击打开识别菜单"
-          className={`mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-title leading-relaxed text-ink transition-colors hover:text-white ${isLongText && !textExpanded ? "line-clamp-6" : ""}`}
+          className={`mt-1.5 cursor-pointer whitespace-pre-wrap break-words text-title leading-relaxed text-ink transition-colors hover:text-accent ${isLongText && !textExpanded ? "line-clamp-6" : ""}`}
         >
           {m.raw_text}
         </p>

@@ -1,6 +1,6 @@
 /**
  * 财务页局部端点与纯函数（= web components/finance/kit.ts + lib/finance 展示函数的小程序版）。
- * lib/api.ts 的 loadOverview 类型缺 prev/budget（本页环比与预算条要用），故就地重声明完整契约；
+ * 概览端点就地重声明完整契约 loadFinOverview（lib 旧 loadOverview 类型缺 prev/budget，已删）；
  * 建/改/删流水、预算、账户管理 lib 均未封装，按 README 约定在本页目录局部补齐（不改公共文件）。
  * 契约 grep apps/api/src/app/api/{transactions,budget,accounts}/route.ts 确认。
  */

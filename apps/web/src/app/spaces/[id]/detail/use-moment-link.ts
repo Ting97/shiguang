@@ -13,6 +13,9 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
   const [momentItems, setMomentItems] = useState<FeedMoment[]>([]);
   const [momentTotal, setMomentTotal] = useState(0);
   const [momentQuery, setMomentQuery] = useState("");
+  // 当前生效查询（防抖落定、真正生成 momentItems 的那个词）：「加载更多」必须复用它翻页，
+  // 用未防抖的实时输入词做 offset 会拿新词的偏移去翻旧词的页（错位混排）
+  const [momentQueryApplied, setMomentQueryApplied] = useState("");
   const [momentLoading, setMomentLoading] = useState(false);
   // seq 守卫：逐字符搜索时慢的旧响应可能后到，只让最新请求落地（同 use-home-data/trades-section 范式）；
   // 翻页 offset 只在查询签名一致时追加，改词后旧翻页结果不再混入新列表
@@ -26,6 +29,7 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
     try {
       const j = await api<any>(`/api/feed?spaceId=none&limit=20&offset=${Math.max(0, offset)}${q ? `&q=${encodeURIComponent(q)}` : ""}`, "GET");
       if (seq !== seqRef.current) return; // 过期响应丢弃
+      setMomentQueryApplied(q); // 记录本批列表对应的生效查询（「加载更多」翻页复用）
       const list = (j.moments as FeedMoment[]) ?? [];
       setMomentTotal(j.total ?? list.length);
       setMomentItems((prev) => (append ? [...prev, ...list] : list));
@@ -51,6 +55,7 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
   /** C1：打开关联动态浮层（重置搜索与列表） */
   function openMomentLink() {
     setMomentQuery("");
+    setMomentQueryApplied("");
     setMomentItems([]);
     setMomentTotal(0);
     setMomentLinkOpen(true);
@@ -78,7 +83,7 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
 
   return {
     momentLinkOpen, setMomentLinkOpen,
-    momentItems, momentTotal, momentQuery, onMomentQueryChange, momentLoading,
+    momentItems, momentTotal, momentQuery, momentQueryApplied, onMomentQueryChange, momentLoading,
     loadUnlinkedMoments, openMomentLink, linkMoment,
   };
 }

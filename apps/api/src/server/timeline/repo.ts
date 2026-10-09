@@ -34,7 +34,8 @@ export const entriesRepo = {
     ).rows[0];
   },
   ignoreRecognition(recId: string) {
-    return pool.query(`update entry_recognitions set status = 'none', updated_at = now() where id = $1`, [recId]);
+    // 状态守卫：pending → none 才生效（与 applyRecognition 对称），防并发 confirm 已 applied 后被回写
+    return pool.query(`update entry_recognitions set status = 'none', updated_at = now() where id = $1 and status = 'pending'`, [recId]);
   },
   applyRecognition(recId: string, client: import("pg").PoolClient | typeof pool = pool) {
     // 状态守卫：并发双 confirm（pending 快照在事务外读入）只有第一方真正置 applied，防重复落库
@@ -79,8 +80,11 @@ export const entriesRepo = {
     return pool.query(`select id from goal_spaces where id = $1 and user_id = $2`, [spaceId, userId]);
   },
   setMoodByEntry(entryId: string, userId: string, label: string | null, score: number | null) {
+    // 同句打点 analyzed_at（与 stampAnalyzedAt 同口径）：心情手设/清除 = 用户已落定数据，
+    // 否则飞行中/巡检补跑的识别会用 analyze 的无条件心情回写把用户设置覆盖掉（静默丢失）
     return pool.query(
-      `update entries set mood = $1, mood_score = $2 where id = $3 and user_id = $4 returning id, mood, mood_score`,
+      `update entries set mood = $1, mood_score = $2, analyzed_at = coalesce(analyzed_at, now())
+       where id = $3 and user_id = $4 returning id, mood, mood_score`,
       [label, score, entryId, userId],
     );
   },

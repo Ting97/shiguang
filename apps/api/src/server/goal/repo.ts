@@ -109,10 +109,10 @@ export const todoRepo = {
     return pool.query(`select id from activities where user_id = $1 order by (id = 'other') desc, sort_order limit 1`, [userId]);
   },
 
-  /** 行动插入式定位：afterId（同父行动）锚点 */
-  async sortAnchor(afterId: string, userId: string, parentId: string) {
+  /** 行动插入式定位：afterId（同父行动）锚点；exec 供调用方在事务/锁内读 */
+  async sortAnchor(afterId: string, userId: string, parentId: string, exec: Pick<typeof pool, "query"> = pool) {
     return (
-      await pool.query(`select sort from todos where id = $1 and user_id = $2 and parent_todo_id = $3`, [
+      await exec.query(`select sort from todos where id = $1 and user_id = $2 and parent_todo_id = $3`, [
         afterId,
         userId,
         parentId,
@@ -120,18 +120,18 @@ export const todoRepo = {
     ).rows[0];
   },
 
-  /** 锚点之后的行动 sort 平移 */
-  shiftSortAfter(userId: string, parentId: string, sort: number) {
-    return pool.query(`update todos set sort = sort + 1 where user_id = $1 and parent_todo_id = $2 and sort > $3`, [
+  /** 锚点之后的行动 sort 平移；exec 供调用方在事务/锁内写 */
+  shiftSortAfter(userId: string, parentId: string, sort: number, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(`update todos set sort = sort + 1 where user_id = $1 and parent_todo_id = $2 and sort > $3`, [
       userId,
       parentId,
       sort,
     ]);
   },
 
-  async maxSort(userId: string, parentId: string) {
+  async maxSort(userId: string, parentId: string, exec: Pick<typeof pool, "query"> = pool) {
     return (
-      await pool.query(`select coalesce(max(sort), 0)::int as m from todos where user_id = $1 and parent_todo_id = $2`, [
+      await exec.query(`select coalesce(max(sort), 0)::int as m from todos where user_id = $1 and parent_todo_id = $2`, [
         userId,
         parentId,
       ])
@@ -155,8 +155,9 @@ export const todoRepo = {
       repeatDaily: boolean;
       kind: string;
     },
+    exec: Pick<typeof pool, "query"> = pool,
   ) {
-    return pool.query(
+    return exec.query(
       `insert into todos (user_id, title, activity_id, source, parent_todo_id, is_important, today_tag_date, due_at, remind_at, note, space_id, sort, repeat_daily, kind)
        values ($1, $2, $3, 'manual', $4, $5,
                ${p.markToday ? BJ_TODAY : "null"},
@@ -313,11 +314,15 @@ export const spaceRepo = {
     color: string | null,
     startedAt: string | null,
     targetDate: string | null,
+    maxActive?: number,
   ) {
+    // 上限守卫并入 insert 单语句：check-then-insert 两步在并发下可击穿（两请求同读 19 各建第 21 个）
     return pool.query(
       `insert into goal_spaces (user_id, name, description, icon, color, started_at, target_date)
-       values ($1,$2,$3,coalesce($4,'🎯'),coalesce($5,'#38bdf8'),$6,$7) returning *`,
-      [userId, name, description, icon, color, startedAt, targetDate],
+       select $1,$2,$3,coalesce($4,'🎯'),coalesce($5,'#38bdf8'),$6,$7
+       where ($8::int is null or (select count(*) from goal_spaces where user_id = $1 and status = 'active') < $8::int)
+       returning *`,
+      [userId, name, description, icon, color, startedAt, targetDate, maxActive ?? null],
     );
   },
 

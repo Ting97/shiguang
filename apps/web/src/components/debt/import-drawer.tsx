@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, FileText, X } from "lucide-react";
 import { api } from "@/shared/api";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { fmt } from "./kit";
 
 /**
@@ -64,6 +65,9 @@ export default function DebtImportDrawer({
       setDoneMsg(null);
     }
   }, [open]);
+
+  // body 滚动锁：抽屉打开期间锁背景滚动，关闭/卸载还原
+  useBodyScrollLock(open);
 
   if (!open) return null;
 

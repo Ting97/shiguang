@@ -6,7 +6,7 @@ import { TagChip } from "@/components/tag-chip";
 
 // REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
 export { Modal } from "@/components/ui/modal";
-import { yuan } from "@/lib/finance";
+import { yuan, yuanToCents } from "@/lib/finance";
 import type { Tx } from "./kit";
 import type { Overview } from "./kit";
 import { api, zhDay } from "./kit";
@@ -148,8 +148,13 @@ export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel
             setBusy(true);
             setMsg(null);
             try {
-              const cents = limit ? Math.round(parseFloat(limit) * 100) : 0;
-              await api("/api/budget", "PUT", { monthlyLimitCents: Number.isFinite(cents) ? cents : 0, alertThreshold: threshold });
+              // 上限允许留空/为 0（0 = 不设上限，原语义）；非法输入就地提示，不再静默按 0 入账
+              const cents = limit ? yuanToCents(limit) : 0;
+              if (cents == null) {
+                setMsg("金额格式不正确");
+                return;
+              }
+              await api("/api/budget", "PUT", { monthlyLimitCents: cents, alertThreshold: threshold });
               await onSaved();
             } catch (e) {
               // 失败就地提示（无 catch 会 unhandled rejection 且弹层卡在编辑态没有反馈）

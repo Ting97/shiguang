@@ -16,7 +16,10 @@ export interface AiProfile {
 }
 
 export function generateAiProfile(id: string) {
-  return request<{ profile: AiProfile }>(`/api/contacts/${id}/ai-profile`, { method: "POST" });
+  return request<{ profile: AiProfile }>(`/api/contacts/${id}/ai-profile`, {
+    method: "POST",
+    timeout: 60000, // 通读往来提炼耗时长（见文件头注释）：突破全局 20s 默认超时
+  });
 }
 
 export function addInteraction(

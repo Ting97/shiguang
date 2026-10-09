@@ -271,3 +271,35 @@ test("锚定：话术带裸「3号」→ 模型给对的历史区间不再被平
   assert.equal(r.start.getDate(), 3);
   assert.equal(r.start.getHours(), 14);
 });
+
+// —— 检视回归：月底/下个月/明儿 不再吃 soon 桶的 now+1h（「下个月还贷」曾提前 30 天生成到期待办，提醒立即误报） ——
+// 断言全部用 +08:00 锚定的绝对时刻：月历锚按北京 UTC 推算，任何宿主时区下逐毫秒成立
+const CST = (s: string) => new Date(s).getTime();
+
+test("月底/月末 → 本月最后一天 20:00（北京月历锚）", () => {
+  const tb = inferTimeBlock("月底交房租", NOW, 30);
+  assert.equal(tb.mode, "future");
+  assert.equal(tb.start.getTime(), CST("2026-09-30T20:00:00+08:00")); // 9 月 30 天
+  assert.equal(inferTimeBlock("月末还信用卡", NOW, 30).start.getTime(), CST("2026-09-30T20:00:00+08:00"));
+});
+
+test("下个月 → 下月 1 日 20:00；「下个月底」= 下月最后一天；跨年自然进位", () => {
+  assert.equal(inferTimeBlock("下个月还贷", NOW, 30).start.getTime(), CST("2026-10-01T20:00:00+08:00"));
+  assert.equal(inferTimeBlock("下个月份交房租", NOW, 30).start.getTime(), CST("2026-10-01T20:00:00+08:00"));
+  assert.equal(inferTimeBlock("下个月底交房租", NOW, 30).start.getTime(), CST("2026-10-31T20:00:00+08:00"));
+  const dec = new Date("2026-12-15T15:00:00+08:00");
+  assert.equal(inferTimeBlock("下个月开始存钱", dec, 30).start.getTime(), CST("2027-01-01T20:00:00+08:00"));
+});
+
+test("明儿 → 对齐「明天」：+1 天 + 默认 9 点锚（不再混入 soon 桶）", () => {
+  assert.equal(detectFuture("明儿去买菜"), "tomorrow");
+  const tb = inferTimeBlock("明儿去买菜", NOW, 30);
+  assert.equal(tb.mode, "future");
+  assert.equal(tb.start.getTime(), CST("2026-09-18T09:00:00+08:00"));
+});
+
+test("月历锚带显式钟点/时段时让位（与下周X分支同口径）；soon 桶原语义不受影响", () => {
+  assert.equal(inferTimeBlock("月底上午9点交房租", NOW, 30).start.getTime(), CST("2026-09-30T09:00:00+08:00"));
+  // 「待会儿」类真 soon 仍 now+1h
+  assert.equal(inferTimeBlock("待会儿记得倒垃圾", NOW, 30).start.getTime(), NOW.getTime() + 3600_000);
+});

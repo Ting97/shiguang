@@ -13,6 +13,7 @@ import {
   resolveActivityValue,
 } from "@/server/ai/user-vocab";
 import { inferInteractionType } from "@shiguangri/shared/social";
+import { yuanToCents } from "@shiguangri/shared/finance";
 import { checkAiQuota } from "@/server/ai/quota";
 import { writeAuditRecord } from "../ai/audit";
 import { assembleUserPrompt, getPromptBundle, type PromptKey } from "../ai/prompts";
@@ -85,7 +86,10 @@ export async function confirmPending(
   if (!rec) throw ApiError.notFound("没有待确认的识别结果");
 
   if (ignore) {
-    await entriesRepo.ignoreRecognition(rec.id);
+    // 状态守卫：只允许 pending → none。并发下 confirm 已把快照置 applied 时，ignore 不再回写状态
+    // （否则 applied → none 会让「已确认」在登记簿上变回待确认）
+    const ignored = await entriesRepo.ignoreRecognition(rec.id);
+    if (ignored.rowCount === 0) throw ApiError.conflict("识别结果已处理，请刷新");
     return { ok: true as const, domain, ignored: true };
   }
 
@@ -100,6 +104,14 @@ export async function confirmPending(
     if (!entry) {
       await client.query("rollback");
       throw ApiError.notFound("动态不存在");
+    }
+    // 状态守卫前置为事务内首写并检查 rowCount：pending 快照在事务外读入，期间可能已被
+    // 并发 confirm 置 applied / 被编辑重识别清掉 / 被 ignore 置 none——按陈旧快照继续落库
+    // 会把过期日程块/流水永久挂在改写后的动态上（且 apply 的 0 行守卫被无视后无人察觉）
+    const applied = await entriesRepo.applyRecognition(rec.id, client);
+    if (applied.rowCount === 0) {
+      await client.query("rollback");
+      throw ApiError.conflict("识别结果已失效，请刷新后重试");
     }
     // 用户确认 = 在动态上落定数据：打点 analyzed_at（幂等），巡检不再补跑识别清掉本条
     await entriesRepo.stampAnalyzedAt(client, entryId);
@@ -163,10 +175,12 @@ export async function confirmPending(
       case "finance": {
         if (result.amountCents != null) {
           // 快照防御：脏 occurredAt 落 ::timestamptz 会 500，与 schedule/todo 分支同口径 400
-          // 话术带日期的花销 → 记对应日期（REQ-009 FR-E6）；无则沿用快照/当前口径
+          // 话术带日期的花销 → 记对应日期（REQ-009 FR-E6）；无则按动态发生时刻（与 analyze 主路径
+          // `?? r.time.end` 同口径）——FinanceDraft 快照无 occurredAt 字段，此前回落 now()，
+          // 次日才确认的话钱会被记到确认日（日账/月视图错天）
           const occurredAt =
             resolveFinanceOccurredAt((result as { occurredDate?: string | null }).occurredDate, entry.created_at) ??
-            (result.occurredAt ?? new Date().toISOString());
+            new Date(entry.created_at).toISOString();
           if (Number.isNaN(new Date(occurredAt).getTime())) {
             throw ApiError.badRequest("识别快照时间无效，请重新识别");
           }
@@ -200,7 +214,7 @@ export async function confirmPending(
       }
     }
 
-    await entriesRepo.applyRecognition(rec.id, client);
+    // applyRecognition 已在事务内前置完成（状态守卫 + 防重复落库），此处直接提交
     await client.query("commit");
     return { ok: true as const, domain };
   } catch (e) {
@@ -229,7 +243,11 @@ export async function listFeed(userId: string, query: FeedQuery) {
   const spaceParamIndex = q ? 5 : 4;
   // 是否带空间过滤必须与实参数组用同一谓词，否则绑定参数数量与占位符不一致 → bind message 500；
   // uuid 形状用严格 8-4-4-4-12（宽松 36 位会放行无连字符串 → PG ::uuid cast 500）
-  const spaceFiltered = spaceId !== "none" && spaceId !== "all" && UUID_RE.test(spaceId);
+  // 非法值此前静默按「全部」处理（过滤意图被吞），与 patchFeed 的 isUuid 预检口径对齐改 400
+  if (spaceId !== "none" && spaceId !== "all" && !UUID_RE.test(spaceId)) {
+    throw ApiError.badRequest("spaceId 参数不合法");
+  }
+  const spaceFiltered = spaceId !== "none" && spaceId !== "all";
   if (spaceId === "none") spaceSql = ` and e.space_id is null`;
   else if (spaceFiltered) spaceSql = ` and e.space_id = $${spaceParamIndex}::uuid`;
 
@@ -444,7 +462,9 @@ export async function appendManual(
         if (end <= start) {
           throw ApiError.badRequest("结束时间必须晚于开始时间");
         }
-        const conflict = await findOverlap(userId, start, end, undefined, undefined, client);
+        // 排除本 entry 自己的块：AI 已为该动态落过日程块时，用户手动补充修正时段
+        // （与本块重叠）不应 409 死锁——与 confirmPending/reRecognize 同口径
+        const conflict = await findOverlap(userId, start, end, undefined, entryId, client);
         if (conflict) {
           throw ApiError.conflict(overlapError(conflict));
         }
@@ -481,12 +501,14 @@ export async function appendManual(
         break;
       }
       case "finance": {
-        const yuan = Number(p.yuan);
-        if (!Number.isFinite(yuan) || yuan <= 0) {
+        // 金额经 yuanToCents 字符串解析（x.xx5 元浮点乘法系统性舍错 1 分——web/miniapp 客户端
+        // 已统一走该函数，此处收口服务端最后一条直传 Number 的通道；兼容历史客户端 number 形态）
+        const cents = yuanToCents(typeof p.yuan === "string" ? p.yuan : String(p.yuan));
+        if (cents == null || cents <= 0) {
           throw ApiError.badRequest("金额需大于 0");
         }
         // 上限与 AI 契约对齐：amount_cents 为 int4，巨款直落 22003 → 500
-        if (Math.round(yuan * 100) > MAX_AMOUNT_CENTS) {
+        if (cents > MAX_AMOUNT_CENTS) {
           throw ApiError.badRequest("单笔金额超出上限（¥100 万）");
         }
         const direction = p.direction === "in" ? "in" : "out";
@@ -499,14 +521,14 @@ export async function appendManual(
           `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at, is_draft)
            values ($1,$2,$3,$4,$5,$6,$7,$8,true)`,
           [
-            userId, entryId, direction, Math.round(yuan * 100),
+            userId, entryId, direction, cents,
             category,
             counterparty,
             entry.raw_text, new Date().toISOString(),
           ],
         );
-        result = { direction, yuan };
-        message = `💰 已手动添加${direction === "out" ? "支出" : "收入"} ¥${yuan}（待确认）`;
+        result = { direction, yuan: cents / 100 };
+        message = `💰 已手动添加${direction === "out" ? "支出" : "收入"} ¥${(cents / 100).toFixed(2)}（待确认）`;
         break;
       }
       case "mood": {
@@ -682,14 +704,14 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
   if (domain === "schedule") {
     r.activity = resolveActivityValue(r.activity, userActs);
   }
-  // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型
-  void writeAuditRecord({
-    userId, entryId, stage: "parse",
+  // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型。
+  // 按落库结果补记（此前在 DB 事务前固定 ok:true——409 冲突/陈旧文本失败也计入配额口径）
+  const auditBase = {
+    userId, entryId, stage: "parse" as const,
     model: r.engine !== "rules" || promptTokens > 0 ? activeModel() : null,
     engine: r.engine,
-    latencyMs: Date.now() - t0, ok: true,
     promptTokens, completionTokens,
-  });
+  };
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -887,9 +909,12 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     );
 
     await client.query("commit");
+    void writeAuditRecord({ ...auditBase, latencyMs: Date.now() - t0, ok: true });
     return { ok: true as const, applied, domain, message: `${domain === "people" ? "关系" : DOMAIN_LABELS[domain as Domain]}：${message}` };
   } catch (e) {
     await client.query("rollback").catch(() => {});
+    // LLM 调用已发生（token 已耗）：失败也如实落审计（ok:false 不计配额，与 analyze 失败路径同口径）
+    void writeAuditRecord({ ...auditBase, latencyMs: Date.now() - t0, ok: false });
     if (e instanceof ApiError) throw e;
     throw ApiError.upstream("重识别失败", String(e).slice(0, 200));
   } finally {

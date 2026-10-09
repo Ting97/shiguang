@@ -65,16 +65,34 @@ export default function TradingPage() {
         setBitgetOpen(true);
         return;
       }
+      // 逐 key try/catch：单把密钥失败（限频/网络）不拖垮其余密钥，成功的计入摘要、失败的最后汇总
       const parts: string[] = [];
+      const failedLabels: string[] = [];
       for (const label of labels) {
-        const r = await api<{ rowsNew: number; rowsDup: number; fromUsed: string; toUsed: string }>(
-          "/api/trading/bitget/sync",
-          "POST",
-          { keyLabel: label, dryRun: false },
-        );
-        parts.push(`「${label}」${r.fromUsed}~${r.toUsed} 新增 ${r.rowsNew} · 重复 ${r.rowsDup}`);
+        try {
+          // 与 bitget-drawer 同口径：客户端超时放宽到 300s，避免服务端仍在同步而客户端先报「同步失败」
+          const r = await api<{ rowsNew: number; rowsDup: number; fromUsed: string; toUsed: string }>(
+            "/api/trading/bitget/sync",
+            "POST",
+            { keyLabel: label, dryRun: false },
+            undefined,
+            { timeoutMs: 300_000 },
+          );
+          parts.push(`「${label}」${r.fromUsed}~${r.toUsed} 新增 ${r.rowsNew} · 重复 ${r.rowsDup}`);
+        } catch {
+          failedLabels.push(label);
+        }
       }
-      toast(`✅ 同步完成：${parts.join("；")}`);
+      if (failedLabels.length === labels.length) {
+        // 全部失败才走既有错误 toast（部分成功仍刷新数据）
+        toast("同步失败，请稍后再试", "err");
+        return;
+      }
+      if (failedLabels.length > 0) {
+        toast(`⚠️ 同步完成：成功 ${parts.length} 个 / 失败 ${failedLabels.length} 个（${failedLabels.map((l) => `「${l}」`).join("、")}）`, "err");
+      } else {
+        toast(`✅ 同步完成：${parts.join("；")}`);
+      }
       await load();
       // bump rev 刷新四个数据区（每日/权益/逐笔/统计挂在 key=accountId-rev 上，
       // 只 load() 刷新账号汇总卡，同步新增的平仓记录不会出现在下方区块）

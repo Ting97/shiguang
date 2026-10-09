@@ -7,7 +7,7 @@ import { assertLoginAllowed, recordLoginAttempt, clientIp } from "../platform/se
 import { timingSafeEqual } from "node:crypto";
 import { loadConfig } from "@/server/platform/config";
 import { createSession, destroySession } from "@/server/identity/auth";
-import { verifyPassword, hashPassword, isValidPhone } from "@/server/identity/auth-crypto";
+import { verifyPassword, hashPassword, isValidPhone, generateInviteCode } from "@/server/identity/auth-crypto";
 import { isValidEmail, verifyEmailCode, emailConfigured, sendEmailCode } from "@/server/identity/email";
 import { verifySmsCode, smsConfigured, sendSmsCode } from "@/server/identity/sms";
 import { PRESET_ACTIVITIES } from "@/server/time/seed";
@@ -204,7 +204,8 @@ export function validateRegisterIdentity(input: { phone?: string; email?: string
 
 /**
  * setup 一次性令牌校验（FR-C2.3）：配置了 SETUP_TOKEN 即强制。
- * 校验通过才消费（一次性）；输错不烧令牌——否则一次手滑就永久作废，只能改 env 重置。
+ * 只校验不消费（消费由 setup 在最后一个可能失败的写步骤成功后显式调用）；
+ * 输错不烧令牌——否则一次手滑就永久作废，只能改 env 重置。
  */
 export async function assertSetupToken(tokenHeader: string | null) {
   const expect = loadConfig().setupToken;
@@ -216,7 +217,6 @@ export async function assertSetupToken(tokenHeader: string | null) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     throw new ApiError(403, "forbidden", "初始化令牌不正确");
   }
-  await consumeSetupToken();
 }
 
 /** 消费一次性令牌：insert returning 判定成败——旧版 on conflict do nothing 不看结果，
@@ -244,13 +244,39 @@ export async function setup(input: { nickname?: string; phone?: string; password
     throw ApiError.forbidden("管理员已存在，请直接登录");
   }
   await assertSetupToken(tokenHeader);
+  // 先完成最后一个可能失败的写步骤，成功后才消费一次性令牌：
+  // 旧序 consume 在 claimDevAdmin 之前，种子行缺失（update 0 行）报「初始化失败」时令牌已被烧掉
   const { rows } = await profilesRepo.claimDevAdmin(input.nickname.trim(), input.phone, hashPassword(input.password));
   if (!rows[0]) throw ApiError.upstream("初始化失败");
+  await consumeSetupToken();
   const token = await createSession(rows[0].id, userAgent ?? undefined);
   return { ok: true as const, token, user: rows[0] };
 }
 
 export { isValidPhone, hashPassword, clientIp };
+
+/** 邀请码管理实现（GET/POST 由 /api/admin/invites 与旧地址 /api/auth/invites 共用，防双份漂移） */
+export async function listInvites() {
+  const { rows } = await pool.query(
+    `select i.code, i.used_by, i.expires_at, i.created_at, p.nickname as used_by_name
+     from invite_codes i left join profiles p on p.id = i.used_by
+     order by i.created_at desc limit 50`,
+  );
+  return rows;
+}
+
+export async function createInvite(userId: string, days: number) {
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    throw ApiError.badRequest("days 需为 1~365 的整数");
+  }
+  const code = generateInviteCode();
+  const expires = new Date(Date.now() + days * 86_400_000);
+  const { rows } = await pool.query(
+    `insert into invite_codes (code, created_by, expires_at) values ($1,$2,$3) returning code, expires_at`,
+    [code, userId, expires],
+  );
+  return rows[0];
+}
 
 export interface RegisterInput {
   phone?: string;

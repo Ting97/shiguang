@@ -111,8 +111,9 @@ export const POST = withModule("trade_review", async (req, { user }) => {
   const facts = factLines.join("\n");
 
   // ---- 流水明细（可关；cap 下沉 SQL LIMIT + 截断注记）----
+  // cap 语义对齐 review-ctx 家族口径：0=不设限（不下沉 LIMIT 全量注入），>0 才截断
   let txDetail = "";
-  if (injectTx && txCap !== 0) {
+  if (injectTx) {
     const rows = (
       await pool.query(
         `select to_char((occurred_at at time zone $2)::date, 'MM-DD') as d, direction, amount_cents, category, counterparty, note
@@ -120,8 +121,8 @@ export const POST = withModule("trade_review", async (req, { user }) => {
          where user_id = $1 and is_draft = false
            and (occurred_at at time zone $2)::date between $3::date and $4::date
          order by occurred_at
-         limit $5`,
-        [user.id, TZ, from, to, txCap],
+         ${txCap > 0 ? `limit $5` : ""}`,
+        txCap > 0 ? [user.id, TZ, from, to, txCap] : [user.id, TZ, from, to],
       )
     ).rows;
     const total = (

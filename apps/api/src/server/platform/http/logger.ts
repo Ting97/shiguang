@@ -26,6 +26,12 @@ export function currentRequestId(): string | null {
   return als.getStore()?.requestId ?? null;
 }
 
+/** 鉴权成功后回填 userId（store 为可变对象，此后本请求所有日志行即带 userId 贯穿） */
+export function setRequestUserId(userId: string) {
+  const ctx = als.getStore();
+  if (ctx) ctx.userId = userId;
+}
+
 type Level = "debug" | "info" | "warn" | "error";
 
 function emit(level: Level, msg: string, fields?: Record<string, unknown>) {

@@ -23,8 +23,26 @@ const NEGATORS = /[不没别]$|没(?=[什么怎这])/;
 /** 程度副词白名单：紧邻命中词时是修饰不是否定（「特别」以 别$ 落进 NEGATORS 的 3 字符窗口，误伤「特别累/特别开心」） */
 const DEGREE_ADVERBS = /(?:特别|格外|尤其|超|太|好|真|挺)$/;
 
+/** 规则表的 g 版正则（模块顶层预构建，与 MOOD_RULES 同序）：旧版 negated 每次调用对命中规则
+ *  new RegExp(re.source,"g") 重编译——ruleMood 每次打卡最多重编 13 条。matchAll 按规范克隆正则迭代
+ * （lastIndex 推进发生在克隆体上，缓存版无状态），缓存可安全复用 */
+const MOOD_RULES_G: RegExp[] = MOOD_RULES.map(([re]) => new RegExp(re.source, "g"));
+/** 规则表之外的任意 re（negated 是导出 API）：惰性缓存，行为同现场编译 */
+const AD_HOC_G = new WeakMap<RegExp, RegExp>();
+
+function cachedG(re: RegExp): RegExp {
+  const i = MOOD_RULES.findIndex(([r]) => r === re); // 规则表内直取预构建版
+  if (i >= 0) return MOOD_RULES_G[i];
+  let g = AD_HOC_G.get(re);
+  if (!g) {
+    g = new RegExp(re.source, "g");
+    AD_HOC_G.set(re, g);
+  }
+  return g;
+}
+
 export function negated(re: RegExp, text: string): boolean {
-  for (const m of text.matchAll(new RegExp(re.source, "g"))) {
+  for (const m of text.matchAll(cachedG(re))) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 3), m.index);
     if (DEGREE_ADVERBS.test(before)) return false; // 程度副词修饰 → 本义，非否定
     if (!NEGATORS.test(before)) return false; // 存在未否定的命中 → 该规则成立

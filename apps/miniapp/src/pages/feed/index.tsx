@@ -175,6 +175,23 @@ export default function Feed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, spaceFilter]);
 
+  // 从日程页/详情页返回重拉（范式同 packages/contact/list、packages/space/list 的 useDidShow）：
+  // feed 跳日程页完成/新增 todo、补录块后返回，今日行动/今日日程全陈旧 → 非首次显示时静默重拉
+  // （经 loadRef.current 以最新筛选/搜索/limit 取数，seq 竞态守卫由 load 内部承接）；
+  // 空间过滤 chips 一并刷新（新建/归档空间后返回 chips 同步），失败静默——同挂载口径切换条隐藏
+  const shownOnceRef = useRef(false);
+  Taro.useDidShow(() => {
+    if (!shownOnceRef.current) {
+      shownOnceRef.current = true; // 首次 show 不重拉：挂载 effect 已拉过，防双发
+      return;
+    }
+    if (!getSessionToken()) return;
+    void loadRef.current();
+    loadActiveSpaces()
+      .then((j) => setSpaces((j.spaces ?? []).filter((s) => s.status === "active")))
+      .catch(() => setSpaces([]));
+  });
+
   /** 「加载更多」：显式再拉一页；try/finally 保证失败时加载态必复位 */
   async function loadMore() {
     if (loadingMore) return;

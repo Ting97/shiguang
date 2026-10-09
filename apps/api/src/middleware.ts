@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractBearerToken } from "@shiguangri/shared/bearer";
 import { resolveCors } from "@shiguangri/shared/cors";
+import { loadConfig } from "@/server/platform/config";
 import { verifyWriteOrigin } from "@/server/platform/security/csrf";
 
 /**
@@ -21,7 +22,8 @@ export function middleware(req: NextRequest) {
     if (cors.preflight) {
       return new NextResponse(null, { status: 204, headers: cors.headers });
     }
-    if (process.env.AUTH_DISABLED === "1") {
+    // AUTH_DISABLED 判定走 config 单源（本文件被 edge runtime 一并编译，config.ts 无 node 依赖可安全 import）
+    if (loadConfig().authDisabled) {
       const resp = NextResponse.next();
       for (const [k, v] of Object.entries(cors.headers)) resp.headers.set(k, v);
       // 本地联调：反射任意 origin（仅 AUTH_DISABLED 开发模式）
@@ -64,7 +66,7 @@ export function middleware(req: NextRequest) {
     return resp;
   }
 
-  if (process.env.AUTH_DISABLED === "1") return NextResponse.next();
+  if (loadConfig().authDisabled) return NextResponse.next();
 
   if (PUBLIC_PAGES.some((p) => pathname.startsWith(p))) return NextResponse.next();
   if (req.cookies.has("shiguang_session")) return NextResponse.next();

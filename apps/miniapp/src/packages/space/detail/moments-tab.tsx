@@ -14,13 +14,18 @@ import "./moments-tab.scss";
 export default function MomentsTab(opts: {
   spaceId: string;
   moments: SpaceMoment[];
+  /** 服务端 total（moments 只是已加载的前 N 条，计数以 total 为准） */
+  total: number;
   onChanged: () => void;
+  /** 主列表「加载更多」（limit 递增式，取数在详情页 loadMoreMoments；= feed 页 mf-more 形态） */
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }) {
-  const { spaceId, moments, onChanged } = opts;
-  // 未归属动态池（关联弹层）
+  const { spaceId, moments, total, onChanged, loadingMore, onLoadMore } = opts;
+  // 未归属动态池（关联弹层）；poolTotal=池计数（与主列表 total prop 区名）
   const [linkOpen, setLinkOpen] = useState(false);
   const [items, setItems] = useState<SpaceMoment[]>([]);
-  const [total, setTotal] = useState(0);
+  const [poolTotal, setPoolTotal] = useState(0);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   // seq 守卫：逐字搜索时慢的旧响应可能后到，只让最新请求落地（= web use-moment-link 范式）
@@ -35,7 +40,7 @@ export default function MomentsTab(opts: {
       const j = await loadUnlinkedFeed(20, Math.max(0, offset), q);
       if (seq !== seqRef.current) return;
       const list = j.moments ?? [];
-      setTotal(j.total ?? list.length);
+      setPoolTotal(j.total ?? list.length);
       setItems((prev) => (append ? [...prev, ...list] : list));
     } catch (e: any) {
       if (seq !== seqRef.current) return;
@@ -55,7 +60,7 @@ export default function MomentsTab(opts: {
   function openPool() {
     setQuery("");
     setItems([]);
-    setTotal(0);
+    setPoolTotal(0);
     setLinkOpen(true);
     void loadPool("", 0);
   }
@@ -69,7 +74,7 @@ export default function MomentsTab(opts: {
       return;
     }
     setItems((list) => list.filter((m) => m.id !== id));
-    setTotal((n) => Math.max(0, n - 1));
+    setPoolTotal((n) => Math.max(0, n - 1));
     showToast({ type: "ok", text: "🌱 动态已关联到本空间" });
     onChanged();
   }
@@ -85,7 +90,7 @@ export default function MomentsTab(opts: {
           <LucideIcon name="sprout" size={11} color="var(--success)" />
           <Text>相关动态</Text>
         </View>
-        <Text className="mm-count">{moments.length} 条</Text>
+        <Text className="mm-count">{total} 条</Text>
         <View className="mm-link-btn ico-row" onClick={openPool}>
           <LucideIcon name="link_2" size={11} color="var(--accent)" />
           <Text>关联动态</Text>
@@ -106,13 +111,27 @@ export default function MomentsTab(opts: {
         </View>
       )}
 
+      {/* 主列表「加载更多」（还有未加载的关联动态时显示；= feed 页 mf-more） */}
+      {moments.length > 0 && total > moments.length && onLoadMore ? (
+        <View
+          className={`mm-more${loadingMore ? " disabled" : ""}`}
+          hoverClass="press"
+          hoverStayTime={80}
+          onClick={() => {
+            if (!loadingMore) onLoadMore();
+          }}
+        >
+          <Text>{loadingMore ? "加载中…" : `加载更多（还有 ${total - moments.length} 条）`}</Text>
+        </View>
+      ) : null}
+
       {/* 未归属动态池弹层（= MomentLinkModal 移动端底部弹层） */}
       {linkOpen && <View className="overlay" onClick={() => setLinkOpen(false)} />}
       {linkOpen && (
         <View className="sheet mm-pool safe-bottom">
           <View className="mm-pool-head">
             <Text className="mm-pool-title">关联未归属动态</Text>
-            <Text className="mm-pool-count">{total} 条未归属</Text>
+            <Text className="mm-pool-count">{poolTotal} 条未归属</Text>
           </View>
           <Input
             className="input mm-pool-search"
@@ -135,12 +154,12 @@ export default function MomentsTab(opts: {
             )}
             {loading && <Text className="mm-pool-empty">加载中…</Text>}
           </View>
-          {items.length < total && (
+          {items.length < poolTotal && (
             <Button
               className="btn-reset mm-pool-more"
               onClick={() => void loadPool(query, items.length)}
             >
-              加载更多（还有 {total - items.length} 条）
+              加载更多（还有 {poolTotal - items.length} 条）
             </Button>
           )}
           <Button className="btn-reset mm-pool-more" onClick={() => setLinkOpen(false)}>

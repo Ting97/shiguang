@@ -63,6 +63,22 @@
   color: var(--ink-soft);
 }
 
+/* 主列表「加载更多」（= feed 页 mf-more 同款胶囊钮） */
+.mm-more {
+  margin: 24px auto 0;
+  width: 420px;
+  text-align: center;
+  border: 1px solid var(--line-soft);
+  background: var(--input-bg);
+  border-radius: 999px;
+  padding: 16px 0;
+  font-size: 24px;
+  color: var(--accent);
+}
+.mm-more.disabled {
+  opacity: 0.5;
+}
+
 /* ---- 未归属动态池弹层 ---- */
 .mm-pool {
   background: var(--elevated);

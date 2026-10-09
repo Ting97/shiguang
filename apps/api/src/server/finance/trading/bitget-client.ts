@@ -131,32 +131,6 @@ export async function bitgetGet<T>(
   }
 }
 
-/** 分页拉全：idLessThan 游标 + limit，按返回列表最后一条 id 前翻，直到取空/越过 fromTime/页数上限。
- * T 不约束 id/ts 形状（流水与订单字段不同），游标取值处按位取。 */
-export async function pagedGetAll<T>(
-  cred: BitgetCred,
-  path: string,
-  base: Record<string, string | number | undefined>,
-  opts: { fromTimeMs: number; maxPages?: number; fetcher?: FetchLike },
-): Promise<T[]> {
-  const limit = 50; // 实测这些接口 limit 上限 50，>50 报 40020（文档写的 500 与实际不符）
-  const out: T[] = [];
-  let cursor: string | undefined;
-  const maxPages = opts.maxPages ?? 200; // 50/页 × 200 = 1 万条封顶，防死循环
-  for (let i = 0; i < maxPages; i++) {
-    const page = await bitgetGet<T[]>(cred, path, { ...base, idLessThan: cursor, limit }, opts.fetcher);
-    const list = Array.isArray(page) ? page : [];
-    if (list.length === 0) break;
-    out.push(...list);
-    const last = list.at(-1) as { id?: string; ts?: string | number } | undefined;
-    const lastTs = Number(last?.ts ?? 0);
-    // 短页=末页；游标无进展（同 id 重复）兜底防死循环；越过窗口起点可停
-    if (list.length < limit || !last?.id || last.id === cursor || (lastTs > 0 && lastTs <= opts.fromTimeMs)) break;
-    cursor = last.id;
-  }
-  return out;
-}
-
 /** CFD 资金流水翻页（/api/v3/cfd/account/financial-records，生产实测）：
  * - 响应 {list, cursor} 嵌套；请求游标参数为 cursor（idLessThan 实测被忽略）；
  *   limit 上限 50（>50 报 40020）；无 90 天限制（资金流水，可翻到账户开通起）

@@ -67,8 +67,10 @@ if (!skipMigrate) {
     { quiet: true },
   );
   sh(
-    // tsx 钉版本：未钉的 npx 现场解析会随 registry 波动（网络抖动=迁移步卡死，发布失败）
-    `ssh tencent "cd /opt/shiguangri_repo && DATABASE_URL=\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2-) npx -y tsx@4.23.13 packages/db/runner.ts"`,
+    // tsx 钉版本：未钉的 npx 现场解析会随 registry 波动（网络抖动=迁移步卡死，发布失败）。
+    // 连接串仅提取 DATABASE_URL 单变量 export（.env 其余行有未加引号值，整体 source 会语法报错）；
+    // 值落在远端进程 environ（root 专属 /proc 可读），不进任何进程 argv（ps 对全体用户可见）
+    `ssh tencent "cd /opt/shiguangri_repo && export DATABASE_URL=\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2-) && npx -y tsx@4.23.13 packages/db/runner.ts"`,
   );
 } else {
   console.log("[deploy] --skip-migrate：跳过数据库迁移");

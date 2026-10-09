@@ -89,7 +89,12 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
       if (key === "schedule") payload = { title: text, startTime: start, endTime: end, activityId: activities.find((a) => a.id === "other")?.id ?? activities[0]?.id ?? "other" }; // 默认归「其他」而非任意首个分类
       // due 是 datetime-local 裸值：直发会被服务端按宿主时区解析（UTC 容器上统一错 8 小时），显式按北京口径转 ISO
       else if (key === "todo") payload = { title: text, dueAt: bjInputToIso(due) };
-      else if (key === "finance") payload = { direction, yuan: Number(yuan), category };
+      else if (key === "finance") {
+        // 手动记收支不允许 0/负金额（对齐 finance/forms 的保存口径；按钮 disabled 之外的兜底）
+        const v = Number(yuan);
+        if (!Number.isFinite(v) || v <= 0) return;
+        payload = { direction, yuan: v, category };
+      }
       else if (key === "mood") payload = { label: mood };
       else if (key === "diet") payload = { meal, text, kcal: null };
       else if (key === "people") payload = { name: text, type: pType };
@@ -162,7 +167,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
             </div>
             <div className="flex items-end gap-1.5">
               {wrap("金额（元）", <input type="number" min="0" step="0.01" value={yuan} onChange={(e) => setYuan(e.target.value)} className={`${inputCls} w-24 flex-none`} />)}
-              <button onClick={() => submitManual(key)} disabled={busy || !yuan} className={`${btnMini} mb-0.5`}>
+              {/* 0/负金额禁提交（手动记收支必须为正，对齐 finance/forms 口径） */}
+              <button onClick={() => submitManual(key)} disabled={busy || !yuan || Number(yuan) <= 0} className={`${btnMini} mb-0.5`}>
                 <Plus size={12} /> 添加
               </button>
             </div>

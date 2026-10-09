@@ -42,8 +42,9 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
   const beforeRef = useRef<string | null>(null);
   const [historyBefore, setHistoryBefore] = useState<string | null>(null);
 
-  const load = useCallback(async (opts?: { limit?: number; query?: string; spaceId?: string; before?: string | null }): Promise<boolean> => {
-    // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
+  const load = useCallback(async (opts?: { limit?: number; query?: string; spaceId?: string; before?: string | null }): Promise<"ok" | "stale" | "error"> => {
+    // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）。
+    // 三态返回：ok=落地 / stale=被更新请求或卸载取代（非错误）/ error=真失败——loadMore 只对 error 提示
     const seq = ++seqRef.current;
     const lim = opts?.limit ?? feedLimitRef.current;
     const q = opts?.query !== undefined ? opts.query : query;
@@ -58,7 +59,7 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
         api("/api/reminders").catch(() => null),
       ]);
       // 已卸载或已有更新的请求发出：丢弃过期响应，避免旧数据覆盖新视图（连续快切空间场景）
-      if (!aliveRef.current || seq !== seqRef.current) return false;
+      if (!aliveRef.current || seq !== seqRef.current) return "stale";
       beforeRef.current = bf ?? null;
       setHistoryBefore(bf ?? null);
       setTodos(j.todos ?? []);
@@ -69,12 +70,12 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
       setMoments(f.moments ?? []);
       setFeedTotal(f.total ?? 0);
       setReminderItems(rj ? pickReminders((rj.contacts ?? []) as ReminderContact[], (rj.todos ?? []) as ReminderTodo[]) : []);
-      return true;
+      return "ok";
     } catch (e) {
-      if (!aliveRef.current || seq !== seqRef.current) return false;
+      if (!aliveRef.current || seq !== seqRef.current) return "stale";
       // 失败不停在静默空态：置 loadErr（页面展示错误 + 重试按钮）；不向上抛，调用方多为 fire-and-forget
       setLoadErr(e instanceof Error ? e.message : String(e));
-      return false;
+      return "error";
     } finally {
       // 本次取数周期落幕即复位「加载更多」；若已被更新的请求取代，则由那个周期的 finally 负责复位
       if (aliveRef.current && seq === seqRef.current) setLoadingMore(false);
@@ -124,8 +125,9 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
     setLoadingMore(true);
     feedLimitRef.current += FEED_PAGE_SIZE;
     try {
-      const ok = await load();
-      if (!ok) notifyError?.("加载更多失败，请稍后重试");
+      const r = await load();
+      // stale = 本次请求已被新请求/卸载取代（非错误），只有真失败才提示
+      if (r === "error") notifyError?.("加载更多失败，请稍后重试");
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);

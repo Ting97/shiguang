@@ -305,14 +305,20 @@ export default function SpacesPage() {
           <Modal
             title={editingId ? "编辑空间" : "新建目标空间"}
             onClose={() => {
-              // dirty 判定覆盖全部草稿字段（旧版只比 name，改图标/颜色/日期/描述被静默丢弃）
+              // dirty 判定覆盖全部草稿字段（旧版只比 name，改图标/颜色/日期/描述被静默丢弃）。
+              // 新建以「EMPTY + 默认开始日（北京今天）」为基线：一打开就关闭不再误报「已取消，未保存」
               const base = spaces?.find((s) => s.id === editingId);
-              const dirty =
-                !editingId ||
-                editing.name.trim() !== (base?.name ?? "") ||
-                editing.description !== (base?.description ?? "") ||
-                editing.icon !== (base?.icon ?? "") ||
-                editing.color !== (base?.color ?? "");
+              const dirty = editingId
+                ? editing.name.trim() !== (base?.name ?? "") ||
+                  editing.description !== (base?.description ?? "") ||
+                  editing.icon !== (base?.icon ?? "") ||
+                  editing.color !== (base?.color ?? "")
+                : !!editing.name.trim() ||
+                  editing.description !== EMPTY.description ||
+                  editing.icon !== EMPTY.icon ||
+                  editing.color !== EMPTY.color ||
+                  editing.startedAt !== bjToday() ||
+                  editing.targetDate !== EMPTY.targetDate;
               if (dirty) toast("已取消，未保存", "info");
               setEditing(null);
             }}

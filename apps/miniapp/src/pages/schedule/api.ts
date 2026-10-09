@@ -126,5 +126,6 @@ export const generateReview = (
   return request<{ review: ReviewBody; generatedAt: string | null }>(`/api/review/${kind}`, {
     method: "POST",
     body,
+    timeout: 60000, // LLM 同步生成耗时长：突破全局 20s 默认超时
   });
 };

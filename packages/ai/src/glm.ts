@@ -120,8 +120,12 @@ export async function chat(opts: ChatOptions): Promise<string> {
 
   // 免费档高峰拥塞有两种形态：秒回 429、连接挂起——都按总预算重试，超预算即失败（上层降级规则引擎）。
   // legacy 与 sdk 共用同一套 attempt 循环（次数/退避/可重试判定一致），差异只在单次传输实现。
+  // SDK provider 按 chat() 调用构建一次复用（旧版每次尝试重建——重试+降级模型一个预算内最多白建 10 次）；
+  // AbortSignal 仍由 sdkOnce 每次尝试新建。fetch 补丁行为不变（扩展按请求体实际 model 现算，见 createSdkProvider）。
+  let sdkProvider: ReturnType<typeof createSdkProvider> | undefined;
+  const sdkProviderOnce = () => (sdkProvider ??= createSdkProvider(base, key, opts));
   const chatOnce = glmTransport() === "sdk"
-    ? (m: string, deadline: number) => chatWithRetry(m, deadline, () => sdkOnce(m, deadline, opts))
+    ? (m: string, deadline: number) => chatWithRetry(m, deadline, () => sdkOnce(m, deadline, opts, sdkProviderOnce()))
     : (m: string, deadline: number) => chatWithRetry(m, deadline, () => legacyOnce(m, deadline, opts, body));
 
   /** 重试驱动（legacy/sdk 共用）：总尝试 5 次，指数退避 1500ms*2^n（不超剩余预算）。
@@ -333,11 +337,12 @@ async function transcribeOnce(opts: TranscribeOptions): Promise<string> {
   }
 }
 
-/** SDK 单次调用（Vercel AI SDK）：GLM 私有扩展经 body 补丁 fetch 注入；结构化错误 → GlmError 分类 */
-async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<string> {
-  const key = process.env.ZHIPUAI_API_KEY as string;
-  const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
-  const provider = createOpenAICompatible({
+/** SDK provider（Vercel AI SDK）构建：chat() 顶层每调用一次，全部尝试（主模型重试+降级模型）复用。
+ * GLM 私有扩展经 body 补丁 fetch 注入——扩展按请求体里的实际 model 现算（generateText 恒带 model 字段，
+ * 与旧版「逐次构建、兜底取本次尝试的 m」在线上行为等价），保证降级模型不继承主模型的 5.x 扩展；
+ * AbortSignal 不在此构建——由 sdkOnce 每次尝试新建（重试/超时各自独立）。 */
+function createSdkProvider(base: string, key: string, opts: ChatOptions) {
+  return createOpenAICompatible({
     name: "glm",
     baseURL: base,
     apiKey: key,
@@ -345,9 +350,10 @@ async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<
       if (init?.body && typeof init.body === "string") {
         try {
           const parsed = JSON.parse(init.body);
-          const target = typeof parsed.model === "string" ? parsed.model : m;
-          Object.assign(parsed, glmExtensions(target, base, opts));
-          init = { ...init, body: JSON.stringify(parsed) };
+          if (typeof parsed.model === "string") {
+            Object.assign(parsed, glmExtensions(parsed.model, base, opts));
+            init = { ...init, body: JSON.stringify(parsed) };
+          }
         } catch {
           /* 非 JSON body 原样透传 */
         }
@@ -355,7 +361,15 @@ async function sdkOnce(m: string, deadline: number, opts: ChatOptions): Promise<
       return fetch(input, init);
     },
   });
+}
 
+/** SDK 单次调用（Vercel AI SDK）：provider 由 chat() 复用传入；结构化错误 → GlmError 分类 */
+async function sdkOnce(
+  m: string,
+  deadline: number,
+  opts: ChatOptions,
+  provider: ReturnType<typeof createSdkProvider>,
+): Promise<string> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), Math.max(0, deadline - Date.now()));
   try {

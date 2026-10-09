@@ -60,12 +60,14 @@ export const blocksRepo = {
 };
 
 /** 区间内是否有时间块以外的可复盘数据（动态/非草稿流水/已完成 todo，口径对齐复盘管线取数）。
- *  复盘卡「有记录」判定用：只记了账或心情而没记时间块的日子/周，生成按钮不应被禁。 */
+ *  复盘卡「有记录」判定用：只记了账或心情而没记时间块的日子/周，生成按钮不应被禁。
+ *  界谓词用 sargable 写法（列裸比较，走 idx_*_user_time 前导索引）：
+ *  旧 `(col at time zone $2)::date between` 对列套表达式，每次区间查询顺序扫描用户全量数据 */
 export async function hasReviewablesInRange(userId: string, tz: string, from: string, to: string) {
   const { rows } = await pool.query(
-    `select exists (select 1 from entries where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date)
-      or exists (select 1 from transactions where user_id = $1 and is_draft = false and (occurred_at at time zone $2)::date between $3::date and $4::date)
-      or exists (select 1 from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date)
+    `select exists (select 1 from entries where user_id = $1 and created_at >= $3::date::timestamp at time zone $2 and created_at < ($4::date + 1)::timestamp at time zone $2)
+      or exists (select 1 from transactions where user_id = $1 and is_draft = false and occurred_at >= $3::date::timestamp at time zone $2 and occurred_at < ($4::date + 1)::timestamp at time zone $2)
+      or exists (select 1 from todos where user_id = $1 and status = 'done' and done_at >= $3::date::timestamp at time zone $2 and done_at < ($4::date + 1)::timestamp at time zone $2)
       as has_extras`,
     [userId, tz, from, to],
   );

@@ -27,6 +27,8 @@ interface Options {
   body?: unknown;
   /** 401 时只抛错不跳登录（登录页自身用） */
   noRedirect?: boolean;
+  /** 请求超时毫秒数（默认 20000 不变；LLM 同步生成等长耗时端点传 60000） */
+  timeout?: number;
 }
 
 function postProcessToken(data: unknown) {
@@ -50,13 +52,14 @@ export async function request<T = unknown>(path: string, opts: Options = {}): Pr
       method: opts.method ?? "GET",
       data: opts.body as never,
       header,
-      timeout: 20000,
+      timeout: opts.timeout ?? 20000,
     });
   } catch (err) {
     const msg = (err as { errMsg?: string; message?: string })?.errMsg
       || (err instanceof Error ? err.message : "")
       || "网络异常，请稍后重试";
-    throw new ApiError(msg, 0);
+    // 超时（status 0 / fail errMsg 含 timeout）统一映射中文文案，其余错误保持原文案
+    throw new ApiError(/timeout/i.test(msg) ? "请求超时，请稍后重试" : msg, 0);
   }
   const status = res.statusCode;
   const data = res.data as T & { error?: string; token?: string };

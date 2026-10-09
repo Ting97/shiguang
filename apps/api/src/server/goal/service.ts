@@ -157,40 +157,57 @@ async function createTodo(userId: string, body: TodoCreateInput) {
     throw ApiError.badRequest("dueAt 需为合法时间（ISO 格式，如 2025-06-01T09:00）");
   }
 
-  // 行动插入式定位：afterId（同父行动）之后插入，后续行动 sort 平移；无 afterId 追加尾部
-  let sort: number;
-  if (parentId) {
-    if (body.afterId) {
-      // 引用字段 uuid 预检（同 parentId：非 uuid 落 SQL 会 22P02 → 500）
-      if (!isUuid(body.afterId)) throw ApiError.badRequest("afterId 参数不合法");
-      const anchor = await todoRepo.sortAnchor(body.afterId, userId, parentId);
-      if (!anchor) throw ApiError.badRequest("插入位置不存在");
-      await todoRepo.shiftSortAfter(userId, parentId, anchor.sort);
-      sort = anchor.sort + 1;
+  // 排序写段收进事务 + per-user advisory lock：sortAnchor→shift→insert / maxSort→insert
+  // 原为独立自动提交语句，并发给同父插行动会同读 max 造成重复 sort、平移与插入交错错序
+  const client = await pool.connect();
+  let todo: Record<string, any>;
+  try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`todos:${userId}`]);
+    let sort: number;
+    if (parentId) {
+      if (body.afterId) {
+        // 引用字段 uuid 预检（同 parentId：非 uuid 落 SQL 会 22P02 → 500）
+        if (!isUuid(body.afterId)) throw ApiError.badRequest("afterId 参数不合法");
+        const anchor = await todoRepo.sortAnchor(body.afterId, userId, parentId, client);
+        if (!anchor) throw ApiError.badRequest("插入位置不存在");
+        await todoRepo.shiftSortAfter(userId, parentId, anchor.sort, client);
+        sort = anchor.sort + 1;
+      } else {
+        const max = await todoRepo.maxSort(userId, parentId, client);
+        sort = max.m + 1;
+      }
     } else {
-      const max = await todoRepo.maxSort(userId, parentId);
-      sort = max.m + 1;
+      sort = 0;
     }
-  } else {
-    sort = 0;
-  }
 
-  const todo = (
-    await todoRepo.insert(userId, {
-      title,
-      activityId,
-      parentId,
-      important: marked && body.important ? true : false,
-      markToday: marked && !!body.today,
-      dueAt,
-      remindAt: dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000).toISOString() : null,
-      note,
-      spaceId,
-      sort,
-      repeatDaily: parentId || kind === "action" ? body.repeatDaily === true : false,
-      kind: parentId ? "action" : kind,
-    })
-  ).rows[0];
+    todo = (
+      await todoRepo.insert(
+        userId,
+        {
+          title,
+          activityId,
+          parentId,
+          important: marked && body.important ? true : false,
+          markToday: marked && !!body.today,
+          dueAt,
+          remindAt: dueAt ? new Date(new Date(dueAt).getTime() - 15 * 60_000).toISOString() : null,
+          note,
+          spaceId,
+          sort,
+          repeatDaily: parentId || kind === "action" ? body.repeatDaily === true : false,
+          kind: parentId ? "action" : kind,
+        },
+        client,
+      )
+    ).rows[0];
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
   return { todo };
 }
 
@@ -337,13 +354,13 @@ async function createSpace(userId: string, body: SpaceCreateInput) {
   if (desc && desc.length > 500) throw ApiError.badRequest("描述最长 500 字");
   // 与 time 域同口径：#RRGGBB 之外的串直落库会原样下发前端渲染（CSS 注入面/脏数据）
   const safeColor = color != null && /^#[0-9a-fA-F]{6}$/.test(color) ? color : null;
-  const { rows: active } = await spaceRepo.countActive(userId);
-  if (active[0].n >= MAX_ACTIVE_SPACES) {
-    throw ApiError.badRequest(`进行中的空间已达 ${MAX_ACTIVE_SPACES} 个，请先归档`);
-  }
   const started = calendarDateOrNull(startedAt, "开始日期");
   const target = calendarDateOrNull(targetDate, "目标日期");
-  const { rows } = await spaceRepo.insert(userId, trimmed, desc, icon?.trim() || null, safeColor, started, target);
+  // 上限守卫并入 insert 单语句（并发下 check-then-insert 可击穿）；0 行 = 触顶
+  const { rows } = await spaceRepo.insert(userId, trimmed, desc, icon?.trim() || null, safeColor, started, target, MAX_ACTIVE_SPACES);
+  if (!rows[0]) {
+    throw ApiError.badRequest(`进行中的空间已达 ${MAX_ACTIVE_SPACES} 个，请先归档`);
+  }
   return { ok: true as const, space: rows[0] };
 }
 

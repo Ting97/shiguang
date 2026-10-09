@@ -12,7 +12,7 @@ import { z } from "zod";
 import { getCurrentUser, type SessionUser } from "@/server/identity/auth";
 import { getModuleUser, type ModuleKey } from "@/server/platform/modules";
 import { ApiError, toApiError } from "./errors";
-import { log, newRequestId, runWithRequestContext } from "./logger";
+import { log, newRequestId, runWithRequestContext, setRequestUserId } from "./logger";
 
 export interface RouteCtx {
   req: NextRequest;
@@ -80,6 +80,7 @@ export function withAuth(handler: Handler<AuthedCtx>): (req: NextRequest, arg: {
   return withRoute(async (req) => {
     const user = await getCurrentUser();
     if (!user) throw ApiError.unauthorized();
+    setRequestUserId(user.id);
     return handler(req, { req, user, log });
   });
 }
@@ -91,6 +92,7 @@ export function withAuthParams(
   return withRoute<{ params: Promise<any> }>(async (req, arg) => {
     const user = await getCurrentUser();
     if (!user) throw ApiError.unauthorized();
+    setRequestUserId(user.id);
     return handler(req, { req, user, log, params: arg!.params });
   });
 }
@@ -122,6 +124,7 @@ export function withModuleParams(
     const user = await getModuleUser(module);
     if (user === "unauthenticated") throw ApiError.unauthorized();
     if (!user) throw new ApiError(403, "forbidden", "未开通该模块");
+    setRequestUserId(user.id);
     return handler(req, { req, user, log, params: arg!.params });
   });
 }
@@ -135,6 +138,7 @@ export function withModule(
     const user = await getModuleUser(module);
     if (user === "unauthenticated") throw ApiError.unauthorized();
     if (!user) throw new ApiError(403, "forbidden", "未开通该模块");
+    setRequestUserId(user.id);
     return handler(req, { req, user, log });
   });
 }

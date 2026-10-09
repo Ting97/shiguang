@@ -1,4 +1,4 @@
-import type { TodoItem, TodoRow } from "@/lib/types";
+import type { TodoItem } from "@/lib/types";
 import type { Draft, View } from "./types";
 
 /** todo-board 小工具（勾选圆圈/日期工具等与 todo-bits.tsx 共用的件直接引用既有文件，不复制） */
@@ -17,9 +17,6 @@ export const EMPTY_DRAFT: Draft = { title: "", important: false, today: false, d
 export function isChildId(id: string, todos: TodoItem[]): boolean {
   return todos.some((t) => t.children.some((c) => c.id === id));
 }
-
-/** 行是否已完成（菜单分支用） */
-export const isDoneRow = (t: TodoRow) => t.status === "done";
 
 /** 各视图空态文案 */
 export const EMPTY_TEXT: Record<View, string> = {
