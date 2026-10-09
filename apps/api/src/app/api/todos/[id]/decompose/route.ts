@@ -47,7 +47,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
 
   // ---- 行动上下文（空间名/描述、父待办、已有行动清单用于去重） ----
   const space = todo.space_id
-    ? (await pool.query(`select name, description from goal_spaces where id = $1`, [todo.space_id])).rows[0]
+    ? (await pool.query(`select name, description from goal_spaces where id = $1 and user_id = $2`, [todo.space_id, user.id])).rows[0]
     : null;
   const parent = isAction && hasParent
     ? (await pool.query(`select title, note, due_at from todos where id = $1`, [todo.parent_todo_id])).rows[0]

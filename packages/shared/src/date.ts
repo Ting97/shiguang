@@ -72,9 +72,11 @@ export function bjToday(): string {
   return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 }
 
-/** 北京日历日加 n 天 */
+/** 北京日历日加 n 天；非法入参原值返回（NaN.toISOString() 会抛 Invalid time value，对齐 combineHM 守卫口径） */
 export function bjAddDays(dateStr: string, n: number): string {
-  return new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const t = Date.parse(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(t)) return dateStr;
+  return new Date(t + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** 北京日历日所属周的周一（周一为周界） */

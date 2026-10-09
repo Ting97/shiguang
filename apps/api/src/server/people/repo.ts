@@ -94,7 +94,7 @@ export const contactsRepo = {
       await pool.query(`select id from contacts where id = $1 and user_id = $2`, [id, userId])
     ).rows[0];
   },
-  updateFields(id: string, userId: string, fields: readonly UpdateField[]) {
+  updateFields(id: string, userId: string, fields: readonly UpdateField[], exec: Pick<typeof pool, "query"> = pool) {
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [col, v] of fields) {
@@ -102,7 +102,7 @@ export const contactsRepo = {
       sets.push(`${col} = $${vals.length}`);
     }
     vals.push(id, userId);
-    return pool.query(
+    return exec.query(
       `with upd as (
          update contacts set ${sets.join(", ")}
          where id = $${vals.length - 1} and user_id = $${vals.length}

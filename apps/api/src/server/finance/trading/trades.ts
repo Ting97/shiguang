@@ -46,6 +46,8 @@ function validateRows(rows: TradeRowInput[]) {
     if (r.direction !== "buy" && r.direction !== "sell") throw ApiError.badRequest(`第 ${i + 1} 行方向需为 buy/sell`);
     if (!r.openTime || !r.closeTime || Number.isNaN(Date.parse(r.openTime)) || Number.isNaN(Date.parse(r.closeTime)))
       throw ApiError.badRequest(`第 ${i + 1} 行开/平仓时间非法`);
+    if (Date.parse(r.openTime) > Date.parse(r.closeTime))
+      throw ApiError.badRequest(`第 ${i + 1} 行开仓时间晚于平仓时间（负持仓时长）`);
     if (!Number.isFinite(Number(r.lots)) || Number(r.lots) <= 0) throw ApiError.badRequest(`第 ${i + 1} 行手数非法`);
     for (const k of ["profit"] as const) {
       if (!Number.isFinite(Number(r[k]))) throw ApiError.badRequest(`第 ${i + 1} 行 profit 非法`);

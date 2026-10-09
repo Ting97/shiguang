@@ -5,7 +5,7 @@
  * todo 进度条 h-1.5 填充 space.color + 百分比）→ 归档折叠区（恢复/两步删除）
  * → 新建/编辑居中弹层（图标/颜色/日期选择）→ 卡片 ⋯ 底部弹层（编辑/归档/两步删除）。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { View, Text, Input, Textarea, Button, Picker } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
@@ -49,6 +49,7 @@ export default function SpaceListPage() {
   const [showArchived, setShowArchived] = useState(false);
   const armDelete = useArmConfirm();
   const [inited, setInited] = useState(false);
+  const initedRef = useRef(false);
 
   async function load() {
     setLoadErr(null);
@@ -66,9 +67,16 @@ export default function SpaceListPage() {
   useEffect(() => {
     if (inited || !getSessionToken()) return;
     setInited(true);
+    initedRef.current = true;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 详情页归档/删除/重命名后 navigateBack 回列表：列表只在挂载拉一次，返回即陈旧
+  // （卡片停在原位，点进已删空间才见「不存在」）。非首次显示时静默重拉
+  Taro.useDidShow(() => {
+    if (initedRef.current && getSessionToken()) void load();
+  });
 
   usePullDownRefresh(() => {
     if (!getSessionToken()) {
@@ -265,11 +273,14 @@ export default function SpaceListPage() {
                         </View>
                       </View>
                     )}
-                    <Text className="sp-meta">
-                      {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态 · 感悟 {s.reflection_count ?? 0}
-                      {days != null ? ` · 第 ${days} 天` : ""}
-                      {s.target_date ? ` · ⏳ ${bjDate(s.target_date).slice(5)}` : ""}
-                    </Text>
+                    {/* meta 分段 nowrap：Text 整段按字符断行会把「12-06」截成两行（web 端 whitespace-nowrap 同款保护） */}
+                    <View className="sp-meta">
+                      <Text className="sp-meta-seg">
+                        {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态 · 感悟 {s.reflection_count ?? 0}
+                      </Text>
+                      {days != null && <Text className="sp-meta-seg">· 第 {days} 天</Text>}
+                      {s.target_date && <Text className="sp-meta-seg">· ⏳ {bjDate(s.target_date).slice(5)}</Text>}
+                    </View>
                   </View>
                   <Text
                     className="sp-more"

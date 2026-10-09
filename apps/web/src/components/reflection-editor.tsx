@@ -71,7 +71,8 @@ export default function ReflectionEditor({
           value={value}
           onChange={(e) => {
             const next = e.target.value;
-            if ([...next].length > 50_000) {
+            // length ≥ 码点数：未超限不做 O(n) 码点展开（5 万字长文每键全展开是纯浪费）
+            if (next.length > 50_000 && [...next].length > 50_000) {
               setValue(Array.from(next).slice(0, 50_000).join(""));
               return;
             }
@@ -79,7 +80,7 @@ export default function ReflectionEditor({
           }}
           onPaste={(e) => {
             const pasted = e.clipboardData.getData("text");
-            if (pasted && [...(value + pasted)].length > 50_000) {
+            if (pasted && (value + pasted).length > 50_000 && [...(value + pasted)].length > 50_000) {
               e.preventDefault();
               const merged = Array.from(value + pasted).slice(0, 50_000).join("");
               setValue(merged);

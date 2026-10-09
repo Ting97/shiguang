@@ -33,9 +33,10 @@ export default function FinancePage() {
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false); // 确认提交中：防双击双发 PATCH
   const [editing, setEditing] = useState<Tx | null>(null);
-  // 删除流水两步确认：待确认的流水 id + 超时复位定时器
+  // 删除流水两步确认：待确认的流水 id + 超时复位定时器（卸载清理，防卸载后 setState）
   const [armDel, setArmDel] = useState<string | null>(null);
   const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); }, []);
 
   // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
   const loadSeq = useRef(0);

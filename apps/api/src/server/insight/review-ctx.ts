@@ -334,6 +334,7 @@ async function buildLatest(userId: string, kind: ReviewContentKind, period: Revi
          (select max(created_at) from entries where user_id = $1 and created_at >= $2::timestamptz and created_at < $3::timestamptz),
          (select max(done_at) from todos where user_id = $1 and status = 'done' and done_at >= $2::timestamptz and done_at < $3::timestamptz),
          (select max(occurred_at) from transactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz and occurred_at <= now()),
+         (select max(updated_at) from transactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz),
          (select max(start_at) from time_blocks where user_id = $1 and start_at >= $2::timestamptz and start_at < $3::timestamptz and start_at <= now()),
          (select max(occurred_at) from interactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz and occurred_at <= now())
        ) as latest`,
@@ -362,6 +363,7 @@ async function buildLatest(userId: string, kind: ReviewContentKind, period: Revi
        (select max(created_at) from entries where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date),
        (select max(done_at) from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date),
        (select max(occurred_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date and occurred_at <= now()),
+       (select max(updated_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date),
        (select max(start_at) from time_blocks where user_id = $1 and (start_at at time zone $2)::date between $3::date and $4::date and start_at <= now()),
        (select max(occurred_at) from interactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date and occurred_at <= now())
      ) as latest`,

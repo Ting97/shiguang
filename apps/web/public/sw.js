@@ -48,6 +48,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   // API：network-first，失败回最近副本（只缓存 200 JSON）
+  // 例外：/api/export 是全量个人数据备份（高敏大 payload），不落 Cache Storage（共用设备可离线读取）
+  if (url.pathname.startsWith("/api/export")) {
+    event.respondWith(fetch(req));
+    return;
+  }
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(req)

@@ -42,6 +42,7 @@ import {
   type FinAccount,
 } from "./api";
 import "./index.scss";
+import { yuanToCents } from "@shiguangri/shared";
 
 /* ---------- 二级 pill 导航（= web finance-tabs.tsx + sub-nav.tsx） ---------- */
 
@@ -247,6 +248,7 @@ function TxForm({
           onInput={(e) => setCounterparty(e.detail.value)}
           placeholder="对方（可空）"
           placeholderClass="input-placeholder"
+          maxlength={30}
         />
         <Input
           className="input txform-note"
@@ -254,6 +256,7 @@ function TxForm({
           onInput={(e) => setNote(e.detail.value)}
           placeholder="备注（可空）"
           placeholderClass="input-placeholder"
+          maxlength={100}
         />
       </View>
       {err ? <Text className="txform-err">{err}</Text> : null}
@@ -266,7 +269,7 @@ function TxForm({
           disabled={busy || !amount}
           hoverClass="press"
           onClick={async () => {
-            const cents = Math.round(parseFloat(amount) * 100);
+            const cents = yuanToCents(amount) ?? NaN;
             if (!Number.isFinite(cents) || cents <= 0) return;
             setBusy(true);
             setErr(null);
@@ -308,7 +311,9 @@ function BudgetEditor({
   const limitCents = Number(ov.budget?.monthly_limit_cents ?? 0);
   const [limit, setLimit] = useState(limitCents > 0 ? String(limitCents / 100) : "");
   const [threshold, setThreshold] = useState(Number(ov.budget?.alert_threshold ?? 80));
-  const THRESHOLDS = [50, 60, 70, 80, 90];
+  // 阈值不在五档预设（如服务端存 85%）时并入档位列表：否则 picker 定位第 0 档，
+  // 显示 85% 而点「确定」即被静默改写成 50%
+  const THRESHOLDS = Array.from(new Set([50, 60, 70, 80, 90, Number(ov.budget?.alert_threshold ?? 80)])).sort((a, b2) => a - b2);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -350,7 +355,7 @@ function BudgetEditor({
               setBusy(true);
               setMsg(null);
               try {
-                const cents = limit ? Math.round(parseFloat(limit) * 100) : 0;
+                const cents = limit ? yuanToCents(limit) ?? NaN : 0;
                 await saveBudget(Number.isFinite(cents) ? cents : 0, threshold);
                 await onSaved();
               } catch (e) {
@@ -412,8 +417,12 @@ function AccountManager({
   async function saveBalance(a: FinAccount) {
     const raw = balDrafts[a.id];
     if (raw === undefined) return;
-    const v = Math.round(parseFloat(raw) * 100);
-    if (!Number.isFinite(v) || v === Number(a.openingBalanceCents)) return;
+    const v = yuanToCents(raw) ?? NaN;
+    if (Number.isNaN(v)) {
+      showToast({ type: "info", text: "请输入有效金额" });
+      return;
+    }
+    if (v === Number(a.openingBalanceCents)) return;
     try {
       await patchAccount(a.id, { openingBalanceCents: v });
       await onChanged();
@@ -522,7 +531,7 @@ function AccountManager({
             setAddBusy(true);
             setAddErr(null);
             try {
-              const cents = newOpening ? Math.round(parseFloat(newOpening) * 100) : 0;
+              const cents = newOpening ? yuanToCents(newOpening) ?? NaN : 0;
               await createAccount({ name: newName.trim(), icon: newIcon, openingBalanceCents: Number.isFinite(cents) ? cents : 0 });
               setNewName("");
               setNewOpening("");

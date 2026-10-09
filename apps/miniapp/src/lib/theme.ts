@@ -73,7 +73,9 @@ export function syncNativeBackground(theme: Theme) {
  * 页面要等缓存过期后的下一次渲染才跟随 */
 export function applySysTheme(theme: Theme) {
   sysThemeCache = { theme, at: Date.now() };
-  syncNativeBackground(theme);
+  // 仅 system 模式跟随刷原生底色：固定深/浅时页面主题不随系统变，
+  // 无条件同步会让下拉/回弹露出的原生底色与页面主题相反
+  if (getThemeMode() === "system") syncNativeBackground(theme);
   Taro.eventCenter.trigger(SYS_THEME_EVT, theme);
 }
 

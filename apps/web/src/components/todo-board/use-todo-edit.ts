@@ -38,7 +38,8 @@ export function useTodoEdit({ todos, patchTodo }: TodoEditCtx) {
 
   /** N3：点空白/Esc 取消，有改动轻提示 */
   function closeEdit(t: TodoRow) {
-    const dirty = editTitle !== t.title || editDue !== isoToLocalInput(t.due_at) || editActivity !== (t.activity_id ?? "other");
+    // 脏检查含「每日重复」（漏掉时切了重复再点空白，改动被静默丢弃且无提示）
+    const dirty = editTitle !== t.title || editDue !== isoToLocalInput(t.due_at) || editActivity !== (t.activity_id ?? "other") || editRepeat !== !!t.repeat_daily;
     if (dirty) toast("已取消，未保存", "info");
     setEditingId(null);
   }

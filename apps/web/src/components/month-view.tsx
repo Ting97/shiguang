@@ -29,7 +29,7 @@ export default function MonthView({ month, stats, activities, onPickDay }: Props
   let grand = 0;
   let recordedDays = 0;
   for (const s of stats.values()) {
-    recordedDays++;
+    if (s.totalMin > 0) recordedDays++; // 0 分钟的擦边日不计（对齐 year-view 口径，否则「N 天有记录」注水）
     grand += s.totalMin;
     for (const [id, min] of Object.entries(s.byActivity)) totals[id] = (totals[id] ?? 0) + min;
   }

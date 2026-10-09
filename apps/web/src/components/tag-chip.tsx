@@ -98,6 +98,7 @@ export function FilterChip({
   title,
   chipRef,
   className = "",
+  as = "button",
 }: {
   label: ReactNode;
   icon?: ReactNode;
@@ -109,6 +110,8 @@ export function FilterChip({
   title?: string;
   chipRef?: Ref<HTMLButtonElement>;
   className?: string;
+  /** "span"：嵌在 <Link> 内的展示形态（交互元素不得套交互元素：button 嵌 a 非法 DOM + 双 tab 停留点） */
+  as?: "button" | "span";
 }) {
   const size =
     variant === "board"
@@ -121,12 +124,30 @@ export function FilterChip({
     : variant === "filter"
       ? "border border-line-soft bg-surface/60 text-ink-mute hover:bg-wash hover:text-ink"
       : "text-ink-mute hover:bg-wash hover:text-ink";
+  const cls = `flex shrink-0 items-center whitespace-nowrap transition-all duration-200 ${size} ${state} ${className}`;
+  if (as === "span") {
+    return (
+      <span title={title} className={cls} aria-current={active ? "page" : undefined}>
+        {icon}
+        {label}
+        {count !== undefined && (
+          <span
+            className={`min-w-5 rounded-full px-1.5 text-center text-micro tabular-nums ${
+              active ? "bg-white/25 text-white" : "bg-elevated text-ink-dim"
+            }`}
+          >
+            {count}
+          </span>
+        )}
+      </span>
+    );
+  }
   return (
     <button
       ref={chipRef}
       onClick={onClick}
       title={title}
-      className={`flex shrink-0 items-center whitespace-nowrap transition-all duration-200 ${size} ${state} ${className}`}
+      className={cls}
     >
       {icon}
       {label}

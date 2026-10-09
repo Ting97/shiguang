@@ -14,45 +14,34 @@ const TZ = "Asia/Shanghai";
 export const GET = withAuth(async (req, { user }) => {
   const format = new URL(req.url).searchParams.get("format") ?? "json";
 
-  const [entries, blocks, todos, transactions, diets, contacts, interactions, accounts, budgets] = await Promise.all([
-    pool.query(
-      // 不再 at time zone 预转北京墙上时间：pg 会按宿主本地时区解析该 timestamp，再被上方 bj 的 +8h 二次偏移；
-      // 统一取绝对时刻（timestamptz），展示层统一 +8h 换算（与其他表列口径一致）
-      `select id, raw_text, source, mood, mood_score, created_at
-       from entries where user_id = $1 order by created_at`,
-      [user.id],
-    ),
-    pool.query(
-      `select b.title, b.activity_id, a.name as activity, b.start_at, b.end_at, b.duration_min, b.time_mode, b.source
+  // 串行取数（同一连接逐条复用）：单请求并发 9 条全量查询会占满连接池（max 10），
+  // 3 人并发导出即让全站请求排队。单用户串行慢一点无感（导出本就低频），全站吞吐优先。
+  const serial = async (queries: { sql: string; vals: unknown[] }[]) => {
+    const out: { rows: any[] }[] = [];
+    for (const q of queries) out.push(await pool.query(q.sql, q.vals));
+    return out;
+  };
+  const [entries, blocks, todos, transactions, diets, contacts, interactions, accounts, budgets] = await serial([
+    // 不再 at time zone 预转北京墙上时间：pg 会按宿主本地时区解析该 timestamp，再被上方 bj 的 +8h 二次偏移；
+    // 统一取绝对时刻（timestamptz），展示层统一 +8h 换算（与其他表列口径一致）
+    { sql: `select id, raw_text, source, mood, mood_score, created_at
+       from entries where user_id = $1 order by created_at`, vals: [user.id] },
+    { sql: `select b.title, b.activity_id, a.name as activity, b.start_at, b.end_at, b.duration_min, b.time_mode, b.source
        from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
-       where b.user_id = $1 order by b.start_at`,
-      [user.id],
-    ),
-    pool.query(`select title, status, due_at, done_at, created_at from todos where user_id = $1 order by created_at`, [user.id]),
-    pool.query(
-      `select direction, amount_cents, category, counterparty, note, occurred_at, is_draft, account_id
-       from transactions where user_id = $1 order by occurred_at`,
-      [user.id],
-    ),
-    pool.query(
-      `select d.meal, d.items, d.total_kcal, (e.created_at at time zone $2) as recorded_at
+       where b.user_id = $1 order by b.start_at`, vals: [user.id] },
+    { sql: `select title, status, due_at, done_at, created_at from todos where user_id = $1 order by created_at`, vals: [user.id] },
+    { sql: `select direction, amount_cents, category, counterparty, note, occurred_at, is_draft, account_id
+       from transactions where user_id = $1 order by occurred_at`, vals: [user.id] },
+    { sql: `select d.meal, d.items, d.total_kcal, (e.created_at at time zone $2) as recorded_at
        from diet_records d join entries e on e.id = d.entry_id
-       where d.user_id = $1 order by e.created_at`,
-      [user.id, TZ],
-    ),
-    pool.query(
-      `select name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, intimacy, notes
-       from contacts where user_id = $1 order by created_at`,
-      [user.id],
-    ),
-    pool.query(
-      `select c.name as contact, i.type, i.summary, i.occurred_at
+       where d.user_id = $1 order by e.created_at`, vals: [user.id, TZ] },
+    { sql: `select name, alias, group_tag, birthday, birthday_cal, lunar_month, lunar_day, lunar_leap, anniversary, importance, intimacy, notes
+       from contacts where user_id = $1 order by created_at`, vals: [user.id] },
+    { sql: `select c.name as contact, i.type, i.summary, i.occurred_at
        from interactions i join contacts c on c.id = i.contact_id
-       where i.user_id = $1 order by i.occurred_at`,
-      [user.id],
-    ),
-    pool.query(`select name, icon, opening_balance_cents, archived from accounts where user_id = $1`, [user.id]),
-    pool.query(`select monthly_limit_cents, alert_threshold from budgets where user_id = $1`, [user.id]),
+       where i.user_id = $1 order by i.occurred_at`, vals: [user.id] },
+    { sql: `select name, icon, opening_balance_cents, archived from accounts where user_id = $1`, vals: [user.id] },
+    { sql: `select monthly_limit_cents, alert_threshold from budgets where user_id = $1`, vals: [user.id] },
   ]);
 
   const stamp = new Date().toISOString().slice(0, 10);

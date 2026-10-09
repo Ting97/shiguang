@@ -107,6 +107,9 @@ export function parseClock(text: string, period: PeriodHint | null): { hour: num
   if (minute > 59) return null;
   // "下午三点"→15、"晚上八点"→20（小时制+下午/晚上偏移）
   if (hour < 12 && (period === "afternoon" || period === "evening" || period === "night")) hour += 12;
+  // "中午1点/中午两点半"→13:00/14:30：中文「中午」的 1~2 点指午后（11/12 点仍是上午/正午不加），
+  // 旧实现 noon 不在 +12 偏移表里，规则兜底路径会把「中午1点和老王吃饭」落成凌晨 01:00 块
+  if (hour >= 1 && hour <= 2 && period === "noon") hour += 12;
   // "晚上12点"是午夜非正午：映射为 24（=次日 0 点）——atHour 的 setUTCHours(24) 自然进位到次日凌晨，
   // 「明天晚上12点睡觉」落次日零点而非当天正午
   if (hour === 12 && (period === "evening" || period === "night")) hour = 24;

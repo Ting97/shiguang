@@ -146,7 +146,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     const rect = el.getBoundingClientRect();
     setMenu({
       info: { todo: a, isChild: a.kind === "action" || !!a.parent_todo_id, parentTitle: a.parent_title },
-      pos: { top: Math.min(rect.bottom + 6, window.innerHeight - 280), left: Math.max(8, rect.right - 228) },
+      pos: { top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 280)), left: Math.max(8, rect.right - 228) },
     });
   }
 

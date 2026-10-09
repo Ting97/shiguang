@@ -12,6 +12,7 @@ import { isValidEmail, verifyEmailCode, emailConfigured, sendEmailCode } from "@
 import { verifySmsCode, smsConfigured, sendSmsCode } from "@/server/identity/sms";
 import { PRESET_ACTIVITIES } from "@/server/time/seed";
 import { pool } from "@/server/platform/db";
+import { hashToken } from "@/server/identity/auth-crypto";
 import { profilesRepo } from "./repo";
 
 /** 登录防护记录失败不影响主流程：悬空 Promise 的 rejection 在 Node ≥15 会崩进程，必须就地兜底 */
@@ -56,6 +57,9 @@ export async function login(input: LoginInput) {
 
   if (!user) {
     void noteAttempt(identity, input.ip, false);
+    // 验证码登录（无密码）对未注册号也回验证码口径：否则「密码不正确」vs「验证码错误」
+    // 两种文案构成账号存在性 oracle（违背本文件「不暴露账号存在性」不变量）
+    if (!input.password) throw ApiError.unauthorized("验证码错误或已过期");
     throw fuzzyFail();
   }
 
@@ -98,6 +102,17 @@ export async function logout() {
   return { ok: true as const };
 }
 
+/** 吊销当前会话以外的全部会话（改密/换绑手机号后的盗号收敛）；keepToken 为空则全吊销 */
+export async function revokeOtherSessions(userId: string, keepToken: string | null) {
+  if (keepToken) {
+    await pool.query(`delete from sessions where user_id = $1 and token_hash <> $2`, [
+      userId, hashToken(keepToken),
+    ]);
+  } else {
+    await pool.query(`delete from sessions where user_id = $1`, [userId]);
+  }
+}
+
 /** 全端登出：吊销该用户全部会话（FR-C1.3） */
 export async function logoutAll(userId: string) {
   await pool.query(`delete from sessions where user_id = $1`, [userId]);
@@ -134,8 +149,8 @@ export interface ProfileInput {
   newPassword?: string;
 }
 
-/** 改昵称/改密码（从未设过密码的账号可免填当前密码） */
-export async function updateProfile(userId: string, body: ProfileInput) {
+/** 改昵称/改密码（从未设过密码的账号可免填当前密码）；改密后吊销其余会话（keepToken=当前会话 token） */
+export async function updateProfile(userId: string, body: ProfileInput, opts?: { keepToken?: string | null }) {
   const wantsNickname = body.nickname !== undefined;
   const wantsPassword = body.newPassword !== undefined;
   let nickname: string | undefined;
@@ -166,6 +181,9 @@ export async function updateProfile(userId: string, body: ProfileInput) {
   if (nickname !== undefined) await profilesRepo.setNickname(userId, nickname);
   if (newHash !== undefined) {
     await profilesRepo.setPasswordHash(userId, newHash);
+    // 改密后吊销其余会话（保留当前会话）：被盗号后受害者改密，攻击者既有 Bearer/cookie
+    // 若不清理仍可存活最长 30 天。token 缺失（理论上不会：双通道必有一个）时退化为全吊销。
+    await revokeOtherSessions(userId, opts?.keepToken ?? null);
     message = "密码已更新";
   }
 

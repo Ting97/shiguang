@@ -41,6 +41,7 @@ import EntryMenu from "./entry-menu";
 import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import { rowMenu } from "../../lib/row-menu";
 import "./moment-card.scss";
+import { yuanToCents } from "@shiguangri/shared";
 
 
 export default function MomentCard({
@@ -320,7 +321,7 @@ export default function MomentCard({
             </View>
             <Text
               className="mc-conflict-go"
-              onClick={() => Taro.redirectTo({ url: `/pages/schedule/index?date=${bjDateKey(m.created_at)}` })}
+              onClick={() => Taro.navigateTo({ url: `/pages/schedule/index?date=${bjDateKey(m.created_at)}` })} /* navigateTo 保留 feed 在栈底：redirectTo 后侧滑返回即退出小程序 */
             >
               去调整 →
             </Text>
@@ -575,7 +576,7 @@ export default function MomentCard({
                       className="mc-edit-save"
                       onClick={() =>
                         run(async () => {
-                          const cents = Math.round(parseFloat(editTx.amount) * 100);
+                          const cents = yuanToCents(editTx.amount) ?? NaN;
                           if (!Number.isFinite(cents) || cents <= 0) throw new Error("金额必须大于 0");
                           await patchTransaction(x.id, {
                             direction: editTx.direction,

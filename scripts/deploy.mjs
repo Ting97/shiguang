@@ -67,7 +67,8 @@ if (!skipMigrate) {
     { quiet: true },
   );
   sh(
-    `ssh tencent "cd /opt/shiguangri_repo && DATABASE_URL=\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2-) npx tsx packages/db/runner.ts"`,
+    // tsx 钉版本：未钉的 npx 现场解析会随 registry 波动（网络抖动=迁移步卡死，发布失败）
+    `ssh tencent "cd /opt/shiguangri_repo && DATABASE_URL=\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2-) npx -y tsx@4.23.13 packages/db/runner.ts"`,
   );
 } else {
   console.log("[deploy] --skip-migrate：跳过数据库迁移");
@@ -139,8 +140,14 @@ async function smoke(label, cmd, check) {
 }
 const health = await smoke("health", "curl -s -m 10 https://shiguang.ting97.cn/api/health", (o) => o.includes('"ok":true'));
 const login = await smoke("login", "curl -s -o /dev/null -w '%{http_code}' -m 10 https://shiguang.ting97.cn/login", (o) => o === "200");
-if (!health.ok || !login.ok) {
-  rollback(`冒烟失败：health=${health.out.slice(0, 80)} login=${login.out}`);
+// 鉴权 API 探测：未带凭证必须 401——middleware/会话链路被打挂时 health/login 仍全绿（「API 健康而页面 404」的对称缺口）
+const meAuth = await smoke(
+  "auth/me(401)",
+  "curl -s -o /dev/null -w '%{http_code}' -m 10 https://shiguang.ting97.cn/api/auth/me",
+  (o) => o === "401",
+);
+if (!health.ok || !login.ok || !meAuth.ok) {
+  rollback(`冒烟失败：health=${health.out.slice(0, 80)} login=${login.out} me=${meAuth.out}`);
 }
 const rev = sh("git log --oneline -1", { quiet: true });
-console.log(`[deploy] ✓ 完成：health ok，login 200，当前代码 ${rev}`);
+console.log(`[deploy] ✓ 完成：health ok，login 200，me 401，当前代码 ${rev}`);

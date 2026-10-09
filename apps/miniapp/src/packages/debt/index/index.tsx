@@ -45,6 +45,7 @@ import {
   type SimResult,
 } from "./api";
 import "./index.scss";
+import { yuanToCents } from "@shiguangri/shared";
 
 /* ---------- 二级 pill 导航（= web finance-tabs.tsx；与 pages/finance 同款，分包各自持有副本避免跨包依赖） ---------- */
 
@@ -207,7 +208,7 @@ function DebtForm({
             try {
               // 元→分 + 可选字段收敛（= web DebtForm 提交 payload 完全同构）
               const cents = (v: string, fallback: number | null = null) => {
-                const n = Math.round(parseFloat(v) * 100);
+                const n = yuanToCents(v) ?? NaN;
                 return Number.isFinite(n) ? n : fallback;
               };
               await onSubmit({
@@ -294,7 +295,7 @@ function PaymentForm({
           disabled={busy || !amount}
           hoverClass="press"
           onClick={async () => {
-            const cents = Math.round(parseFloat(amount) * 100);
+            const cents = yuanToCents(amount) ?? NaN;
             if (!Number.isFinite(cents) || cents <= 0) return;
             setBusy(true);
             try {

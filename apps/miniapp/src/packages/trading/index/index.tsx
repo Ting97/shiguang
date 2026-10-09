@@ -226,10 +226,10 @@ function DailySection({ accountId }: { accountId: string }) {
         <Text className="sec-sub">{filtered ? `${fromSel || "…"} ~ ${toSel || "今天"}` : "按北京时区切日"}</Text>
         {/* 日/周分段（= web ml-auto 分段钮：选中 sky/15 底 + sky 字） */}
         <View className="seg">
-          <View className={`seg-btn ${mode === "day" ? "seg-on" : ""}`} onTap={() => setMode("day")}>
+          <View className={`seg-btn ${mode === "day" ? "seg-on" : ""}`} onTap={() => { setMode("day"); setSelIdx(null); /* selIdx 与 view 数组耦合：切口径不清会拿日的索引套在周数组上 */ }}>
             日
           </View>
-          <View className={`seg-btn ${mode === "week" ? "seg-on" : ""}`} onTap={() => setMode("week")}>
+          <View className={`seg-btn ${mode === "week" ? "seg-on" : ""}`} onTap={() => { setMode("week"); setSelIdx(null); }}>
             周
           </View>
         </View>

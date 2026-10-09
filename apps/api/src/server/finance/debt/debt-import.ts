@@ -70,8 +70,8 @@ function validateRows(data: ImportPayload) {
 }
 
 /** 预览/提交共用：判重（name+type）+ 对账口径 */
-async function planRows(userId: string, data: ImportPayload) {
-  const existing = await pool.query(
+async function planRows(userId: string, data: ImportPayload, exec: Pick<typeof pool, "query"> = pool) {
+  const existing = await exec.query(
     `select name, type, balance_cents from liabilities where user_id = $1`,
     [userId],
   );
@@ -98,7 +98,7 @@ async function planRows(userId: string, data: ImportPayload) {
     };
   });
 
-  const existingAccounts = await pool.query(`select name from accounts where user_id = $1`, [userId]);
+  const existingAccounts = await exec.query(`select name from accounts where user_id = $1`, [userId]);
   const accountNames = new Set(existingAccounts.rows.map((r) => r.name));
   const accountRows = (data.accounts ?? []).map((a) => ({
     ...a,
@@ -129,13 +129,16 @@ export async function importDebtsPreview(userId: string, data: ImportPayload) {
   return { rows, accountRows, summary };
 }
 
-/** commit：单事务写入（仅 create 行）；幂等——重复提交时全部 skip 零写入 */
+/** commit：单事务写入（仅 create 行）；幂等——重复提交时全部 skip 零写入。
+ * 判重（planRows）必须在同一事务内 + per-user advisory lock 下进行：判重在事务外时
+ * 并发双击两次 commit 都判 create → 重复负债档案；accounts 分支的 23505 也无人接成 500 */
 export async function importDebtsCommit(userId: string, data: ImportPayload) {
   validateRows(data);
-  const { rows, accountRows, summary } = await planRows(userId, data);
   const client = await pool.connect();
   try {
     await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`debt-import:${userId}`]);
+    const { rows, accountRows, summary } = await planRows(userId, data, client);
     let created = 0;
     for (const r of rows) {
       if (r.action !== "create") continue;

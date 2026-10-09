@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseDuration, parseAmountCents } from "../src/duration.js";
 import { extractJson } from "../src/glm.js";
-import { inferTimeBlock, resolveMoment, resolveExplicitRange, detectDayRef } from "../src/time-infer.js";
+import { inferTimeBlock, resolveMoment, resolveExplicitRange, detectDayRef, parseClock } from "../src/time-infer.js";
 
 const CST = (s: string) => new Date(s).getTime(); // 参照：带偏移的 ISO 串的绝对时刻
 
@@ -364,4 +364,22 @@ test("detectFuture：「记得」排除回忆性搭配（记得小时候…是�
   assert.equal(detectFuture("记得去倒垃圾"), "soon");
   assert.equal(detectFuture("记得把报告交了"), "soon");
   assert.equal(detectFuture("记得要交房租"), "soon");
+});
+
+test("parseDuration：复合时长「X小时Y分」累加（旧实现首段即返回少算尾数）", () => {
+  assert.equal(parseDuration("开会1小时30分"), 90);
+  assert.equal(parseDuration("学习2小时45分钟"), 165);
+  // 回归守护：单式与远距分段仍取首段/首匹配
+  assert.equal(parseDuration("开了3小时会"), 180);
+  assert.equal(parseDuration("开了2小时会，讨论了30分钟"), 120);
+  // 「N时50分」钟点上下文不误判为时长（「时」回看「小」区分 1小时30分）
+  assert.equal(parseDuration("下午3时50分开始"), null);
+});
+
+test("parseClock：「中午1点/两点半」指午后（noon 偏移 1~2 点 +12）", () => {
+  assert.equal(parseClock("中午1点和老王吃饭", "noon")?.hour, 13);
+  assert.equal(parseClock("中午两点半开会", "noon")?.hour, 14);
+  // 11/12 点仍是上午/正午
+  assert.equal(parseClock("中午11点遛弯", "noon")?.hour, 11);
+  assert.equal(parseClock("中午12点吃饭", "noon")?.hour, 12);
 });

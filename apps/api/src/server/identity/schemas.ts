@@ -5,7 +5,8 @@ export const loginSchema = z
   .object({
     phone: z.string().optional(),
     email: z.string().optional(),
-    password: z.string().optional(),
+    // 上限 128（对齐 updateProfile）：多 MB 密码串直进 scryptSync 是未认证 CPU/内存放大面
+    password: z.string().max(128).optional(),
     smsCode: z.string().optional(),
     emailCode: z.string().optional(),
   })
@@ -14,7 +15,7 @@ export const loginSchema = z
 export const registerSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
-  password: z.string().min(1).optional(),
+  password: z.string().min(1).max(128).optional(),
   inviteCode: z.string().optional(),
   smsCode: z.string().optional(),
   emailCode: z.string().optional(),

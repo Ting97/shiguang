@@ -76,6 +76,9 @@ export default function TradingPage() {
       }
       toast(`✅ 同步完成：${parts.join("；")}`);
       await load();
+      // bump rev 刷新四个数据区（每日/权益/逐笔/统计挂在 key=accountId-rev 上，
+      // 只 load() 刷新账号汇总卡，同步新增的平仓记录不会出现在下方区块）
+      setRev((r) => r + 1);
     } catch (e) {
       toast(e instanceof ApiClientError ? e.message : "同步失败，请稍后再试", "err");
     } finally {

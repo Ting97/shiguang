@@ -49,7 +49,8 @@ export const POST = withAuth(async (req, { user }) => {
     ).rows[0];
     return NextResponse.json({ account: created });
   } catch (e) {
-    if (String(e).includes("accounts_user_id_name_key")) {
+    // 050 起唯一约束是部分索引（仅未归档行），违例报索引名；兼容旧约束名
+    if (String(e).includes("accounts_user_id_name_key") || String(e).includes("accounts_user_id_name_active_uidx")) {
       throw ApiError.badRequest("已存在同名账户");
     }
     throw e;

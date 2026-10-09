@@ -126,7 +126,8 @@ export const OpenVocabExtraction = z.object({
     .max(10)
     .nullish(),
   dietItems: z
-    .array(z.object({ name: z.string().min(1).max(20), amount: z.string().max(20).nullish(), kcal: z.coerce.number().int().positive().max(5000).nullish() }))
+    // name 截到 16 对齐 DietItemV2/提示词（2-16字）：OpenVocab 20 字条目会穿透成另一形态落库
+    .array(z.object({ name: z.string().min(1).max(20).transform((v) => capCodepoints(v, 16)), amount: z.string().max(20).nullish(), kcal: z.coerce.number().int().positive().max(5000).nullish() }))
     .max(20)
     .nullish(),
   mood: z.object({ label: z.string().max(10).nullish(), score: z.coerce.number().int().min(-100).max(100).nullish() }).nullish(),
@@ -230,8 +231,10 @@ export const FinanceDraftV2 = z
     hasAmount: llmBoolean,
     direction: z.enum(["out", "in"]).nullish(),
     amountCents: z.coerce.number().int().max(100_000_000).nullish(),
-    category: z.string().nullish(),
-    counterparty: z.string().nullish(),
+    // 截断到手动补录路径同款上限（分类/对方 ≤30）：模型抽风超长词直落流水列表/409 文案/AI 画像 prompt。
+    // 用 transform 而非 max——max 会打回重问，整次抽取失败的代价远大于静默截断（title 同款取舍）
+    category: z.string().nullish().transform((v) => capCodepoints(v, 30)),
+    counterparty: z.string().nullish().transform((v) => capCodepoints(v, 30)),
     /** 话术带日期的花销 → 发生日 YYYY-MM-DD；畸形值静默置 null（可选字段不打回重问） */
     occurredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().catch(null),
     confidence: llmConfidence,
@@ -246,10 +249,18 @@ export const FinanceDraftV2 = z
     }
   });
 
+/** 按码点截断（Array.from）：超长 AI 字段静默收敛到手动路径同款上限，防 UTF-16 码元截半 */
+function capCodepoints(v: string, n: number): string;
+function capCodepoints(v: string | null | undefined, n: number): string | null | undefined;
+function capCodepoints(v: string | null | undefined, n: number): string | null | undefined {
+  if (!v || v.length <= n) return v;
+  return Array.from(v).slice(0, n).join("");
+}
+
 /** 严格心情域：有 label → score 必填 */
 export const MoodDraftV2 = z
   .object({
-    label: z.string().nullish(),
+    label: z.string().nullish().transform((v) => capCodepoints(v, 20)),
     score: z.coerce.number().int().min(-100).max(100).nullish(),
     confidence: llmConfidence,
   })
@@ -291,7 +302,8 @@ export const PersonDraftV2 = z.object({
     .min(1)
     .max(20)
     .refine((n) => !/^(省略|无|没有|null|none)$/i.test(n.trim()), { message: "people[].name 不能是占位词" }),
-  event: z.string().nullish(),
+  // 摘要截断到手动往来同款上限（≤30）：interactions.summary 直落时间轴与画像输入
+  event: z.string().nullish().transform((v) => capCodepoints(v, 30)),
 });
 
 /** 全量抽取（发动态/编辑）：五域 + 人物，全部必答（不适用给 applicable=false） */

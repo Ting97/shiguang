@@ -99,9 +99,11 @@ export default function ContactGraph({
   const posOf = (n: GraphNode) => overrides.get(n.id) ?? { x: n.x, y: n.y };
 
   function onNodePointerDown(e: React.PointerEvent, n: GraphNode) {
-    if (drag.current || pinch.current) return;
-    e.stopPropagation(); // 节点事件不触发背景平移
+    // 登记必须在早退守卫之前：第二指落在节点上时若不登记，pointers.size 停在 1，
+    // pinch 分支（size>=2）永不触发——「两指都在节点上」捏合失效、第一指继续拖节点
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    e.stopPropagation(); // 节点事件不触发背景平移
+    if (drag.current || pinch.current) return;
     const p = posOf(n);
     drag.current = { id: n.id, startClient: { x: e.clientX, y: e.clientY }, origin: p, moved: false };
     try {

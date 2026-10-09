@@ -15,6 +15,7 @@ import CalendarPanel from "./calendar-panel";
 import TodoBoard from "./todo-board";
 import ActivityPanel from "./activity-panel";
 import "./index.scss";
+import GuestGate from "@/components/guest-gate";
 
 type Tab = "calendar" | "todo" | "categories";
 /** tab 图标 = lucide 对应（🏷️ 分类缺 tag 图标，就近用 clipboard_list） */
@@ -57,9 +58,7 @@ export default function Schedule() {
             </Text>
           </View>
           <Text className="hero-sub">时间去了哪、todo 推进如何 —— 日历 · 看板 · 分类</Text>
-          <View className="empty-state">
-            <Text>未登录，请先登录</Text>
-          </View>
+          <GuestGate title="日程" desc="时间去了哪、todo 推进如何 —— 日历 · 看板 · 分类" />
         </View>
       </PageShell>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { FeedMoment } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
@@ -40,6 +40,8 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
 
   /** C1：搜索框 onChange（400ms 防抖，输入停顿才请求；重查第一页） */
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 卸载清理：防抖挂起时关弹层/切页仍会发请求并 setState
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
   function onMomentQueryChange(q: string) {
     setMomentQuery(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);

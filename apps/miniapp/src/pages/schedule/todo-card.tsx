@@ -317,8 +317,8 @@ export default function TodoCard({
                     onInput={(e) => sub.setTitle(e.detail.value)}
                     onConfirm={() => sub.add(t.id)}
                     onBlur={() => {
-                      // 键盘收起即"点空白"：有未提交内容提示（web blur 同款）；输入行保留由 ✕ 显式关闭
-                      if (sub.title.trim()) showToast({ type: "info", text: "已取消，未保存" });
+                      // 键盘收起：内容未提交但输入行保留、仍可点 ＋ 提交——「已取消」会误导用户以为内容已丢
+                      if (sub.title.trim()) showToast({ type: "info", text: "尚未保存，点 ＋ 提交" });
                     }}
                   />
                   <View className="child-add-close" onTap={() => sub.close()}>

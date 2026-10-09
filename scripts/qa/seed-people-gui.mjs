@@ -25,7 +25,8 @@ const bjDate = (offset) => {
 const bjIso = (offset, hm = "12:00") => `${bjDate(offset)}T${hm}:00+08:00`;
 
 const wipe = process.argv.includes("--wipe");
-if (wipe) {
+
+const cleanupQa = async () => {
   const { contacts } = await j("GET", "/api/contacts");
   for (const c of contacts ?? []) {
     if (!c.name.startsWith("QA·")) continue;
@@ -42,9 +43,15 @@ if (wipe) {
       if (t.counterparty?.startsWith("QA·")) await j("DELETE", `/api/transactions/${t.id}`).catch(() => {});
     }
   }
+};
+
+if (wipe) {
+  await cleanupQa();
   console.log("[seed] 已清理 QA· 联系人、往来与人情流水");
   process.exit(0);
 }
+// 幂等：残留的 QA· 数据会让创建撞「已有联系人」——先清再种
+await cleanupQa();
 
 // 1. 联系人档案 ×5（覆盖：有往来/只有人情账/农历生日/今天生日/纪念日/仅档案无往来）
 const wang = await j("POST", "/api/contacts", {
@@ -94,16 +101,16 @@ void stranger; void lin;
 
 // 2. 手动补往来 ×4（不同类型/时间分布：今天/昨天/上周/上月）
 await j("POST", `/api/contacts/${wang.contact.id}/interactions`, {
-  type: "聚会", summary: "羽毛球局 2 小时，赢了三局", occurredAt: bjIso(0, "19:30"),
+  type: "见面", summary: "羽毛球局 2 小时，赢了三局", occurredAt: bjIso(0, "19:30"),
 });
 await j("POST", `/api/contacts/${wang.contact.id}/interactions`, {
-  type: "吃饭", summary: "打了球一起吃烧烤", occurredAt: bjIso(-1, "21:00"),
+  type: "请客", summary: "打了球一起吃烧烤", occurredAt: bjIso(-1, "21:00"),
 });
 await j("POST", `/api/contacts/${chen.contact.id}/interactions`, {
-  type: "互助", summary: "帮我 review 了发版 PR", occurredAt: bjIso(-2, "15:00"),
+  type: "帮忙", summary: "帮我 review 了发版 PR", occurredAt: bjIso(-2, "15:00"),
 });
 await j("POST", `/api/contacts/${zhao.contact.id}/interactions`, {
-  type: "会谈", summary: "Q4 续约沟通，意向积极", occurredAt: bjIso(-30, "10:00"),
+  type: "见面", summary: "Q4 续约沟通，意向积极", occurredAt: bjIso(-30, "10:00"),
 });
 
 // 3. 人情账（财务流水：对方=联系人名，分类=人情往来）×3

@@ -211,6 +211,10 @@ export default function Profile() {
         url: `${API_BASE}/api/export?format=${format}`,
         header: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (res.statusCode === 401) {
+        toLogin(); // downloadFile 绕过 request 层：401 收敛在此补上（清 token + 回登录）
+        return;
+      }
       if (res.statusCode !== 200) throw new Error(`导出失败（${res.statusCode}）`);
       try {
         await Taro.shareFileMessage({

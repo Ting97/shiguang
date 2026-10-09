@@ -40,6 +40,18 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     sets.push(`opening_balance_cents = $${vals.length}`);
   }
   if (body.archived != null) {
+    // 恢复守卫：归档期名字已释放，可能已被同名新账户占用——恢复前先查重，撞名 400 而非 23505 裸 500
+    if (body.archived === false) {
+      const self = await pool.query(`select name from accounts where id = $1 and user_id = $2`, [id, user.id]);
+      const name = self.rows[0]?.name;
+      if (name) {
+        const clash = await pool.query(
+          `select 1 from accounts where user_id = $1 and name = $2 and archived = false and id <> $3`,
+          [user.id, name, id],
+        );
+        if (clash.rows[0]) throw ApiError.badRequest(`无法恢复：已存在同名未归档账户「${name}」`);
+      }
+    }
     vals.push(body.archived);
     sets.push(`archived = $${vals.length}`);
   }
@@ -61,7 +73,8 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
     if (!updated) throw ApiError.notFound("账户不存在");
     return NextResponse.json({ account: updated });
   } catch (e) {
-    if (String(e).includes("accounts_user_id_name_key")) {
+    // 050 起唯一约束是部分索引（仅未归档行），违例报索引名；兼容旧约束名
+    if (String(e).includes("accounts_user_id_name_key") || String(e).includes("accounts_user_id_name_active_uidx")) {
       throw ApiError.badRequest("已存在同名账户");
     }
     throw e;

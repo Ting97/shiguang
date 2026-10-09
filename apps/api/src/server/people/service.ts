@@ -179,23 +179,32 @@ export async function updateContact(userId: string, id: string, body: ContactUps
 
   try {
     // 改名级联：更新前取旧名，改名成功后把历史人情账一起改（transactions 按 counterparty=name 精确
-    // 匹配关联联系人）——不级联则 moneyOf/净额/画像输入全部断链。本方法无既有事务，顺序执行，
-    // 失败走下方既有 catch（与原错误语义一致）
-    const oldName = body.name?.trim()
-      ? ((await pool.query(`select name from contacts where id = $1 and user_id = $2`, [id, userId])).rows[0]?.name as
-          | string
-          | undefined)
-      : undefined;
-    const updated = (await contactsRepo.updateFields(id, userId, fields)).rows[0];
-    if (!updated) throw ApiError.notFound("联系人不存在");
-    const newName = body.name?.trim();
-    if (newName && oldName && oldName !== newName) {
-      await pool.query(
-        `update transactions set counterparty = $1 where user_id = $2 and counterparty = $3`,
-        [newName, userId, oldName],
-      );
+    // 匹配关联联系人）——不级联则 moneyOf/净额/画像输入全部断链。
+    // 三步收进单事务：级联若与改名分属两条自动提交语句，第二条闪断即永久断链且无自愈路径
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const oldName = body.name?.trim()
+        ? ((await client.query(`select name from contacts where id = $1 and user_id = $2 for update`, [id, userId]))
+            .rows[0]?.name as string | undefined)
+        : undefined;
+      const updated = (await contactsRepo.updateFields(id, userId, fields, client)).rows[0];
+      if (!updated) throw ApiError.notFound("联系人不存在");
+      const newName = body.name?.trim();
+      if (newName && oldName && oldName !== newName) {
+        await client.query(
+          `update transactions set counterparty = $1 where user_id = $2 and counterparty = $3`,
+          [newName, userId, oldName],
+        );
+      }
+      await client.query("commit");
+      return { contact: updated };
+    } catch (inner) {
+      await client.query("rollback").catch(() => {});
+      throw inner;
+    } finally {
+      client.release();
     }
-    return { contact: updated };
   } catch (e) {
     if (e instanceof ApiError) throw e;
     if (String(e).includes("contacts_user_id_name_key")) {

@@ -17,7 +17,7 @@ import LucideIcon from "@/components/lucide-icon";
 import { showToast } from "@/components/toast";
 import { parseText } from "@/lib/api";
 import { request } from "@/lib/request";
-import { getSessionToken, isGuest } from "@/lib/session";
+import { getSessionToken, isGuest, toLogin } from "@/lib/session";
 import { loadActiveSpaces, loadFeedPage, loadToday, type Activity, type FeedMomentFull, type SpaceRow, type TodayBlock } from "./api";
 import { FilterChip } from "./chip";
 import MomentCard from "./moment-card";
@@ -369,6 +369,7 @@ export default function Feed() {
               placeholder="🔍 搜索：原文/日程/todo/金额/联系人"
               placeholderClass="input-placeholder"
               confirmType="search"
+              maxlength={50}
               onInput={(e) => setSearchInput(e.detail.value)}
             />
             {searchInput ? (
@@ -477,12 +478,22 @@ export default function Feed() {
 
 
       {/* 移动端发布入口：底部悬浮圆圈（点按打字 / 长按说话，转写后回填面板预览；反馈统一 toast） */}
+      {/* 游客态发布主入口同样收口（ActionsToday 添加行已按 token 隐藏）：放行只会让用户
+          打 2000 字/录满 30 秒后收 401，纯浪费输入的死胡同 */}
       <CaptureButton
         onTap={() => {
+          if (!getSessionToken()) {
+            toLogin();
+            return;
+          }
           setVoiceDraft("");
           setSheetOpen(true);
         }}
         onVoiceText={(t) => {
+          if (!getSessionToken()) {
+            toLogin();
+            return;
+          }
           setVoiceDraft(t);
           setSheetOpen(true);
         }}

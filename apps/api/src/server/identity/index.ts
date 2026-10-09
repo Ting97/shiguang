@@ -3,3 +3,4 @@ export * from "./schemas";
 export * from "./service";
 export * from "./wechat";
 export { generateInviteCode } from "./auth-crypto";
+export { SESSION_COOKIE } from "./auth";

@@ -93,7 +93,7 @@ export default function TodoBoard() {
     const closed = menuClosedRef.current;
     if (closed && closed.todoId === todo.id && Date.now() - closed.at < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - (isChild ? 300 : 330)), left: Math.max(8, r.right - 224) });
+    setMenuPos({ top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - (isChild ? 300 : 330))), left: Math.max(8, r.right - 224) });
     setMenuRow({ todo, isChild, parentTitle });
   }
 

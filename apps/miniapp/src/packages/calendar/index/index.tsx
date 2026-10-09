@@ -14,6 +14,7 @@ import ReviewCard from "@/pages/schedule/review-card";
 import { loadBlocksRange, loadStatsRange } from "./api";
 import { addDays, bjMondayOf, bjToday, startOfYear, weekName, zhDate } from "@/pages/schedule/date";
 import "./index.scss";
+import GuestGate from "@/components/guest-gate";
 
 type Kind = "day" | "week" | "month" | "year";
 
@@ -129,11 +130,7 @@ export default function CalendarReviewPage() {
   if (!getSessionToken()) {
     return (
       <PageShell active="schedule">
-        <View className="cr-wrap">
-          <View className="empty-state">
-            <Text>未登录，请先登录</Text>
-          </View>
-        </View>
+        <GuestGate title="日历" desc="日 / 周 / 月 / 年四视图时间轴与 AI 复盘" />
       </PageShell>
     );
   }

@@ -146,7 +146,7 @@ export const POST = withModule("trade_review", async (req, { user }) => {
   // 数据新鲜度：本周流水最后一次入库时间
   const latest = (
     await pool.query(
-      `select max(created_at) as t from transactions
+      `select greatest(max(created_at), max(updated_at)) as t from transactions
        where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date`,
       [user.id, TZ, from, to],
     )

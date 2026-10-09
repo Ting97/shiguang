@@ -159,7 +159,7 @@ export default function TradingImportDrawer({
                 账号 Login
                 <input
                   value={login}
-                  onChange={(e) => setLogin(e.target.value)}
+                  onChange={(e) => { setLogin(e.target.value); setPreview(null); /* 预览属旧 login：不失效会让确认页展示他人查重数字 */ }}
                   placeholder="从文件名识别失败，请手填"
                   className="w-32 rounded-lg border border-line-strong bg-surface px-2 py-1 tabular-nums outline-none focus:border-sky-500"
                 />

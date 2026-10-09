@@ -91,6 +91,8 @@ export function ContactDetailPage() {
   // 往来时间线单条删除：重入锁（deletingId）+ 两步确认（armDelId 3 秒窗口）
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [armDelId, setArmDelId] = useState<string | null>(null);
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); }, []);
   // load 竞态序号：只允许最新一次请求落地（见 load 内说明）
   const loadSeqRef = useRef(0);
 
@@ -181,7 +183,9 @@ export function ContactDetailPage() {
     if (deletingId) return;
     if (armDelId !== id) {
       setArmDelId(id);
-      setTimeout(() => setArmDelId((cur) => (cur === id ? null : cur)), 3000); // 与 useArmConfirm 同款 3 秒窗口
+      // 与 useArmConfirm 同款 3 秒窗口；句柄入 ref 供卸载清理（裸 setTimeout 会在卸载后 setState）
+      armTimerRef.current && clearTimeout(armTimerRef.current);
+      armTimerRef.current = setTimeout(() => setArmDelId((cur) => (cur === id ? null : cur)), 3000);
       return;
     }
     setDeletingId(id);

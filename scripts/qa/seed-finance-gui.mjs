@@ -33,7 +33,8 @@ const wipe = process.argv.includes("--wipe");
 if (wipe) {
   const accounts = await j("GET", "/api/accounts");
   for (const a of accounts.accounts ?? []) await j("DELETE", `/api/accounts/${a.id}`).catch(() => {});
-  console.log("[seed] 已清账户(级联流水)");
+  // DELETE 是软归档（archived=true），流水不级联删——此脚本仅限本地测试环境使用
+  console.log("[seed] 已归档全部账户（软删，历史流水保留）");
   process.exit(0);
 }
 
@@ -90,7 +91,7 @@ console.log("[seed] 预算 8000/月");
 // 4. 负债 ×3 + 一笔还款
 const debts = [
   { name: "招行信用卡分期", type: "credit_card", principalCents: 3600000, balanceCents: 234500, ratePct: 7.2, monthlyCents: 300000, payDay: 25 },
-  { name: "房贷-首套", type: "mortgage", principalCents: 168000000, balanceCents: 96000000, ratePct: 3.85, monthlyCents: 820000, payDay: 15 },
+  { name: "房贷-首套", type: "mortgage", principalCents: 98000000, balanceCents: 56000000, ratePct: 3.85, monthlyCents: 320000, payDay: 15 },
   { name: "备用金", type: "consumer_loan", principalCents: 2000000, balanceCents: 800000, ratePct: 14.6, monthlyCents: 200000, payDay: 28 },
 ];
 for (const d of debts) {

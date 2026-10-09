@@ -4,6 +4,7 @@ import { withAuthParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam, optionalTrimmed } from "@/server/platform/http/validate";
 import { isParsableMoment } from "@/server/platform/http/datetime";
+import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
@@ -107,12 +108,13 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
 export const DELETE = withAuthParams(async (_req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
-  const deleted = (
-    await pool.query(
-      `delete from transactions where id = $1 and user_id = $2 returning id`,
-      [id, user.id],
-    )
+  // 先取 occurred_at 再删：删除会让复盘水位（max）回退、缓存被判「仍新鲜」，需按发生日显式失效
+  const row = (
+    await pool.query(`delete from transactions where id = $1 and user_id = $2 returning id, occurred_at`, [
+      id, user.id,
+    ])
   ).rows[0];
-  if (!deleted) throw ApiError.notFound("流水不存在");
+  if (!row) throw ApiError.notFound("流水不存在");
+  void invalidateReviewCachesForOccurrence(user.id, new Date(row.occurred_at));
   return NextResponse.json({ ok: true });
 });

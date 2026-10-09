@@ -365,7 +365,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     if (r.intent === "todo") {
       await recordRecognition(client, userId, entryId, "schedule", "none", { reason: "未来计划不占时间轴" }, r.scheduleConfidence, r.engine);
     } else if (r.scheduleApplicable && r.scheduleConfidence >= CONFIDENCE_THRESHOLD) {
-      const conflict = await findOverlap(userId, r.time.start, r.time.end);
+      const conflict = await findOverlap(userId, r.time.start, r.time.end, undefined, undefined, client);
       if (conflict) {
         // 冲突降级为纯动态（保留心情/金额/人物草稿），原因写登记簿供卡片展示
         conflictTitle = conflict.title;

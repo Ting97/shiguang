@@ -105,10 +105,14 @@ export function useTodoActions(opts: {
     await load();
   }
 
-  /** 未完成行动数（行 ✨ 与菜单据此给出「重新生成 / 追加」显式选择） */
+  /** 未完成行动数（行 ✨ 与菜单据此给出「重新生成 / 追加」显式选择）。
+   *  子行动不在顶层 todos 里：旧行为对行动恒返 0 → 菜单误判「直接拆解」→ 服务端 409 needMode 死路，
+   *  报错还被兜底文案替换成「AI 拆解失败」。改为命中子行动时统计同父兄弟的 pending 数 */
   function pendingCount(t: { id: string }): number {
     const parent = todos.find((x) => x.id === t.id);
-    return parent?.children.filter((c) => c.status === "pending").length ?? 0;
+    if (parent) return parent.children.filter((c) => c.status === "pending").length;
+    const owner = todos.find((x) => x.children.some((c) => c.id === t.id));
+    return owner?.children.filter((c) => c.status === "pending").length ?? 0;
   }
 
   /** AI 拆解：待办→≤10 行动；行动→≤3 同级细化（插入其后）。
@@ -124,8 +128,18 @@ export function useTodoActions(opts: {
           timeoutMs: 120_000,
         });
       } catch (e) {
-        // 含网络错误就地消化（外抛会经 unhandledrejection 触发整页刷新）
+        // 含网络错误就地消化（外抛会经 unhandledrejection 触发整页刷新）；
+        // 409=已有未完成行动需显式选模式——真实文案代替「AI 拆解失败」兜底
+        if (e instanceof ApiClientError && e.status === 409) {
+          setMsg({ ok: false, text: "已有未完成的行动：请在 ✨ 菜单选择「追加」或「重新生成」" });
+          return;
+        }
         setMsg({ ok: false, text: e instanceof ApiClientError && e.message !== "操作失败" ? e.message : "AI 拆解失败，请稍后重试" });
+        return;
+      }
+      // 响应形状防御：约定形状之外的 2xx（代理/网关注入）直接裸取会 TypeError → unhandledrejection 整页刷新
+      if (!Array.isArray(j?.actions)) {
+        setMsg({ ok: false, text: "服务异常，请稍后重试" });
         return;
       }
       setMsg({ ok: true, text: `✨ AI 拆出 ${j.actions.length} 个行动${t.isAction ? "，已插入原行动之后" : ""}` });

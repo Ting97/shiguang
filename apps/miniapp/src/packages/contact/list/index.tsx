@@ -5,7 +5,7 @@
  * 生日倒计时 text-ai + 右侧 N 次 + 最近往来 relTime·summary + 人情往来金额）
  * 或 图谱视图（canvas 星图）→ 建档弹层（form-modal）。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import LucideIcon from "@/components/lucide-icon";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
@@ -37,6 +37,7 @@ export default function ContactListPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<ContactRow | "new" | null>(null);
   const [inited, setInited] = useState(false);
+  const initedRef = useRef(false);
 
   async function load() {
     setLoadErr(null);
@@ -52,9 +53,15 @@ export default function ContactListPage() {
   useEffect(() => {
     if (inited || !getSessionToken()) return;
     setInited(true);
+    initedRef.current = true;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 详情页删除/编辑后返回：非首次显示静默重拉（挂载只拉一次，返回即陈旧）
+  Taro.useDidShow(() => {
+    if (initedRef.current && getSessionToken()) void load();
+  });
 
   usePullDownRefresh(() => {
     if (!getSessionToken()) {

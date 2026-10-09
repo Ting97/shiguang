@@ -185,7 +185,7 @@ export default function ActionsToday({ refreshKey = 0 }: { refreshKey?: number }
           ) : null}
         </View>
         <View className="at-head-right ico-row">
-          <Text className="at-plan" onClick={(e) => { e.stopPropagation(); Taro.redirectTo({ url: "/pages/schedule/index" }); }}>
+          <Text className="at-plan" onClick={(e) => { e.stopPropagation(); Taro.navigateTo({ url: "/pages/schedule/index" }); }} /* 同上：保留返回栈 */>
             规划 →
           </Text>
           <LucideIcon name={collapsed ? "chevron_down" : "chevron_up"} size={13} color="var(--ink-mute)" />

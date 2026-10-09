@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
+import { ApiError } from "@/server/platform/http/errors";
 import { withAuth, withAuthSchema } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
@@ -17,6 +18,11 @@ const registerSchema = z.object({
  * 幂等 upsert：同一 token 重复注册刷新 last_seen_at；换号登录改属主（token 全局唯一）
  */
 export const POST = withAuthSchema(registerSchema, async (_req, { user, valid }) => {
+  // 属主守卫：token 已绑他人时不得静默顶掉（否则知悉 token 即可把受害者的设备改收攻击者账号的推送）
+  const held = await pool.query(`select user_id from device_tokens where token = $1`, [valid.token]);
+  if (held.rows[0] && held.rows[0].user_id !== user.id) {
+    throw ApiError.conflict("该设备推送已绑定其他账号，请先在原账号注销");
+  }
   await pool.query(
     `insert into device_tokens (user_id, platform, token)
      values ($1, $2, $3)

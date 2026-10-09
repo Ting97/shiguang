@@ -23,6 +23,10 @@ import { combineHM, zhTime } from "@/lib/bj-time";
 export default function CalendarPanel({ initialAnchor }: { initialAnchor?: string }) {
   const [view, setView] = useState<"day" | "week" | "month" | "year">("week"); // 默认周视图（2026-10-04 用户偏好）：一周安排一屏可见
   const [anchor, setAnchor] = useState<string>(bjToday()); // 当前锚定日期（北京口径，海外设备的本地日会错 8 小时）
+  // SSG 防 hydration mismatch：服务端/客户端首帧都渲染同一骨架，mount 后再渲染带日期的真内容
+  // （theme-toggle 同款防法；不做此门，bjToday() 初值让标题/高亮每日构建日≠访问日必现 mismatch）
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // ?date= 直达锚定：参数在父层 useEffect 里才解析出来（晚于本组件首帧），定义后一次性采纳
   const anchoredRef = useRef(false);
   useEffect(() => {
@@ -201,6 +205,18 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     view === "week" ? `${range.from.slice(0, 4)}年${zhDate(range.from)} – ${zhDate(range.to)}` :
     view === "month" ? `${anchor.slice(0, 4)}年${Number(anchor.slice(5, 7))}月` :
     `${anchor.slice(0, 4)}年`;
+
+  if (!mounted) {
+    return (
+      <div className="animate-pulse" aria-hidden>
+        <div className="glass mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
+          <div className="h-8 w-44 rounded-lg bg-elevated" />
+          <div className="h-8 w-56 rounded-full bg-elevated" />
+        </div>
+        <div className="glass h-64 rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <>

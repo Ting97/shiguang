@@ -123,7 +123,7 @@ export async function confirmPending(
           //（与 createBlock/appendManual/reRecognize 对齐，否则确认路径可绕过「一个时刻只做一件事」）。
           // 排除本 entry 自己的块：识别 pending 期间用户已手动补录过同条动态时，替换式写入（下方 delete+insert）
           // 语义本就是覆盖自己——命中自己的块报 409 会让确认流死锁（与 reRecognize 同根，009 轮补齐）
-          const conflict = await findOverlap(userId, result.startAt, result.endAt, undefined, entryId);
+          const conflict = await findOverlap(userId, result.startAt, result.endAt, undefined, entryId, client);
           if (conflict) {
             throw ApiError.conflict(overlapError(conflict, {
               title: result.title, start: result.startAt, end: result.endAt,
@@ -444,7 +444,7 @@ export async function appendManual(
         if (end <= start) {
           throw ApiError.badRequest("结束时间必须晚于开始时间");
         }
-        const conflict = await findOverlap(userId, start, end);
+        const conflict = await findOverlap(userId, start, end, undefined, undefined, client);
         if (conflict) {
           throw ApiError.conflict(overlapError(conflict));
         }

@@ -52,9 +52,15 @@ export function parseDuration(text: string): number | null {
   //    显式数字时长优先于惯用语——「周一下午开了3小时会」应得 120 而非 240
   const re =
     /(\d+(?:\.\d+)?|[零一二两俩三四五六七八九十百]+)\s*(个)?\s*(半)?\s*(个小时|小时|钟头|h|分钟|分|min)/g;
-  for (const m of norm.matchAll(re)) {
-    // 钟点上下文的 "X点Y分"（如 "下午3点50分开会"）不是时长：前一字符为 点/时 且单位为分 → 跳过
-    if (/分|min/.test(m[4]) && m.index > 0 && /[点时]/.test(norm[m.index - 1])) continue;
+  const matches = [...norm.matchAll(re)];
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    // 钟点上下文的 "X点Y分"（如 "下午3点50分开会"）不是时长：前一字符为 点/时 且单位为分 → 跳过。
+    // 「时」须回看前一字：N时50分 是钟点，1小时30分 的「时」属于「小时」复合时长
+    if (/分|min/.test(m[4]) && m.index > 0) {
+      const prev = norm[m.index - 1];
+      if (prev === "点" || (prev === "时" && norm[m.index - 2] !== "小")) continue;
+    }
     const n = /^\d+(?:\.\d+)?$/.test(m[1]) ? parseFloat(m[1]) : cnToNumber(m[1]);
     if (n === null || n === 0) continue;
     const isHour = /小时|钟头|^h$/.test(m[4]);
@@ -63,6 +69,19 @@ export function parseDuration(text: string): number | null {
     // 向上保底 1 分钟：「刷了0.4分钟」取整为 0 会撞 ParseResult durationMin>0 契约，
     // 且 rules 兜底路径无 LLM 路径的 max(1) 钳制 → zod 异常逃逸 parseInput（打卡入口不可失败的底线）
     const minutes = Math.max(1, isHour ? Math.round(n * 60) : Math.round(n)); // 小时允许小数 → 分钟取整
+    // 复合时长「X小时Y分」：紧邻（间隔≤1字）的小时段+分段累加——旧实现首段即 return，1小时30分→60 少算 30 分
+    if (isHour) {
+      const nxt = matches[i + 1];
+      const gap = nxt && nxt.index !== undefined && m.index !== undefined ? nxt.index - (m.index + m[0].length) : 99;
+      if (nxt && gap <= 1 && /分|min/.test(nxt[4])) {
+        const prevNxt = nxt.index ? norm[nxt.index - 1] : "";
+        const clockCtx = prevNxt === "点" || (prevNxt === "时" && norm[nxt.index - 2] !== "小");
+        if (!clockCtx) {
+          const n2 = /^\d+(?:\.\d+)?$/.test(nxt[1]) ? parseFloat(nxt[1]) : cnToNumber(nxt[1]);
+          if (n2 !== null && n2 > 0) return minutes + half + Math.round(n2);
+        }
+      }
+    }
     return minutes + half;
   }
 

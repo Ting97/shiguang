@@ -101,7 +101,8 @@ export const POST = withAuth(async (req, { user }) => {
     const { rows: exist } = await pool.query(
       `select (occurred_at at time zone 'Asia/Shanghai')::text as t, amount_cents, counterparty, direction, source
        from transactions
-       where user_id = $1 and source in ('csv_import','manual')
+       -- 指纹判重不限 source：先随手记（parse）后导账单的同笔流水也要拦双计
+       where user_id = $1
          and occurred_at between $2::timestamptz and $3::timestamptz`,
       [user.id, times[0], times[times.length - 1]],
     );

@@ -96,3 +96,20 @@ export function momChange(cur: number, prev: number): number | null {
   if (prev <= 0) return null;
   return Math.round(((cur - prev) / prev) * 1000) / 10;
 }
+
+/**
+ * 元字符串 → 分（整数）：「12.345」→1235（四舍五入到分）、「12.3」→1230、「12」→1200。
+ * 用字符串解析而非 Math.round(parseFloat(x)*100)：1.115*100=111.49999… 系统性舍错
+ * （type="digit" 键盘允许输三位小数，金额「分」铁律要求精确入账）。非法输入返回 null。
+ */
+export function yuanToCents(input: string): number | null {
+  const s = (input ?? "").toString().trim().replace(/[¥￥,\s]/g, "");
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const neg = s.startsWith("-");
+  const body = neg ? s.slice(1) : s;
+  const [int, frac = ""] = body.split(".");
+  let cents = Number(int) * 100 + Number(((frac + "00").slice(0, 2) || "0"));
+  // 第三位小数四舍五入（仅非负尾部；frac 第三位 ≥5 进 1）
+  if (Number(frac[2] ?? "0") >= 5) cents += 1;
+  return (neg ? -cents : cents) | 0;
+}

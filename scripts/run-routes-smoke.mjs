@@ -21,7 +21,7 @@ const testDb =
     .match(/^DATABASE_URL=(.+)$/m)?.[1].trim() // 锚定行首：注释行（# DATABASE_URL=...）不再抢先命中
     ?.trim()
     .replace(/^"|"$/g, "")
-    .replace(/\/[^/]+$/, "/shiguangri_test");
+    .replace(/\/[^/?]+(?=\?|$)/, "/shiguangri_test"); // 只换库名段，保留 ?sslmode=… 等 query（旧正则 \[^/]+$ 会连 query 一起吞）
 
 if (!testDb) {
   console.error("[smoke] 未找到测试库连接串（SHIGUANGRI_TEST_DB 或 .env DATABASE_URL）");

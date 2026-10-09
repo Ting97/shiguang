@@ -37,7 +37,7 @@ export default function SubNav({
         {items.map((it) =>
           it.href ? (
             <Link key={it.key} href={it.href}>
-              <FilterChip label={it.label} icon={it.icon} active={value === it.key} variant="pill" />
+              <FilterChip label={it.label} icon={it.icon} active={value === it.key} variant="pill" as="span" />
             </Link>
           ) : (
             <FilterChip

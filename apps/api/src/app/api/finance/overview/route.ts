@@ -40,7 +40,7 @@ export const GET = withAuth(async (req, { user }) => {
     );
     const byCat: Record<string, number> = {};
     const cats = await pool.query(
-      `select category, sum(amount_cents)::int as cents
+      `select category, sum(amount_cents)::bigint as cents
        from transactions
        where user_id = $1 and is_draft = false and direction = 'out'
          and occurred_at >= $2 and occurred_at < $3

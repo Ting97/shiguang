@@ -42,7 +42,10 @@ export class GlmError extends Error {
 /** 从智谱响应体/错误串解析业务错误码 → 失败分类（1113 资源包耗尽、1302 余额不足、1002/401 鉴权…） */
 export function classifyGlmFailure(status: number | null, bodyText: string): GlmErrorKind {
   const code = bodyText.match(/"code"\s*:\s*"?(\d{3,4})"?/)?.[1] ?? "";
-  if (["1113", "1302", "1301"].includes(code)) return "quota"; // 资源包用尽/欠费/并发超限
+  // 1113 资源包耗尽 / 1302 余额不足是持久欠费 → quota（触发 5 分钟全局熔断止血）；
+  // 1301 并发超限是瞬时限流，与 429 同性质 → rate（重试+降级模型），归 quota 会让高峰期全站误熔断 5 分钟
+  if (["1113", "1302"].includes(code)) return "quota";
+  if (code === "1301") return "rate";
   if (code === "429" || status === 429) return "rate";
   if (["1000", "1001", "1002", "1003", "1005", "1006", "401"].includes(code) || status === 401 || status === 403) return "auth";
   if (status !== null && status >= 500) return "server";

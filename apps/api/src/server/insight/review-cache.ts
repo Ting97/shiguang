@@ -89,3 +89,31 @@ export async function getOrGenerateReview(
   }
   return { review, cached: false, generatedAt: new Date().toISOString() };
 }
+
+/**
+ * 删除周期内记录后失效该发生日覆盖的四档小结缓存（day/week/month/year）。
+ * 删除会让 max(occurred_at) 水位回退、缓存被判「仍新鲜」——buildLatest 的 updated_at 水位
+ * 只能覆盖编辑/转正（行还在），覆盖不了删除（行没了），必须显式清。
+ */
+export async function invalidateReviewCachesForOccurrence(userId: string, occurredAt: Date): Promise<void> {
+  try {
+    // 北京日历日（UTC getter + 8h，禁本地 getter）
+    const d = new Date(occurredAt.getTime() + 8 * 3600_000);
+    if (Number.isNaN(d.getTime())) return;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dayKey = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+    // 该日所在周的周一（北京日历周，与 review 路由 week 键一致）
+    const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000);
+    const weekKey = `${monday.getUTCFullYear()}-${pad(monday.getUTCMonth() + 1)}-${pad(monday.getUTCDate())}`;
+    const monthKey = dayKey.slice(0, 7);
+    const yearKey = dayKey.slice(0, 4);
+    await pool.query(
+      `delete from review_caches
+       where user_id = $1
+         and (kind, period_key) in (('day',$2),('week',$3),('month',$4),('year',$5),('trade_week',$3))`,
+      [userId, dayKey, weekKey, monthKey, yearKey],
+    );
+  } catch (e) {
+    console.error("[review-cache] 失效失败（降级为可能旧缓存）:", e);
+  }
+}

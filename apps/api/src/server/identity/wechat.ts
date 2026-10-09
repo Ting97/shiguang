@@ -239,6 +239,8 @@ export async function bindSessionSwitchToOwner(input: { code: string; userAgent?
   );
   const owner = rows[0];
   if (!owner) throw ApiError.badRequest("该微信尚未绑定任何账号，无需切换");
+  // 与 issueSessionFor 同口径：被禁用账号不得经换登路径重新拿到会话
+  if (owner.status !== "active") throw ApiError.forbidden("账号已被禁用");
   const token = await createSession(owner.id, input.userAgent ?? "miniapp");
   await pool.query(`update profiles set last_login_at = now() where id = $1`, [owner.id]);
   void unionid;

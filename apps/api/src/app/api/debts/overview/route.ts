@@ -31,12 +31,12 @@ export const GET = withModule("debt", async (_req, { user }) => {
         ) / 100
       : 0;
 
-  // 净资产 = 资产账户动态余额合计 − 总负债（含亲友口径）
+  // 净资产 = 资产账户余额合计 − 总负债（含亲友口径）。
+  // 余额口径与 /api/accounts、/api/finance/overview 对齐：期初即余额，账户联动流水不入账
+  // （旧版把流水也折进来 → 记一笔联动还款后账户卡不变而净资产双动，两页数字对不上）
   const assets = (
     await pool.query(
-      `select coalesce(sum(a.opening_balance_cents + coalesce((
-          select sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)
-          from transactions t where t.account_id = a.id and t.is_draft = false), 0)), 0)::bigint as balance
+      `select coalesce(sum(a.opening_balance_cents), 0)::bigint as balance
        from accounts a where a.user_id = $1 and a.archived = false`,
       [user.id],
     )

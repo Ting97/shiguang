@@ -244,18 +244,26 @@ export default function ContactGraph(opts: { contacts: ContactRow[]; onOpen: (id
     ctx.fillText("我", g.center.x, g.center.y + 1);
   }
 
-  /** 点节点进 TA 档案（命中半径 = 节点半径 + 12px 容差） */
+  /** 点节点进 TA 档案（命中半径 = 节点半径 + 12px 容差）。
+   *  rect 必须点击时实时查：boundingClientRect 是视口相对值，重绘时快照的 top 在页面滚动后
+   *  系统性偏移滚动量 → 命中错位（点 A 开出 B）或不响应 */
   function handleTap(e: any) {
     const touch = e?.changedTouches?.[0];
-    if (!touch || !rectRef.current) return;
-    const x = touch.clientX - rectRef.current.left;
-    const y = touch.clientY - rectRef.current.top;
-    let best: { nd: GraphNode; d: number } | null = null;
-    for (const nd of nodesRef.current) {
-      const d = Math.hypot(nd.x - x, nd.y - y);
-      if (d <= nd.r + 12 && (!best || d < best.d)) best = { nd, d };
-    }
-    if (best) onOpen(best.nd.id);
+    if (!touch) return;
+    Taro.createSelectorQuery()
+      .select("#ct-graph")
+      .boundingClientRect((rect: any) => {
+        if (!rect) return;
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        let best: { nd: GraphNode; d: number } | null = null;
+        for (const nd of nodesRef.current) {
+          const d = Math.hypot(nd.x - x, nd.y - y);
+          if (d <= nd.r + 12 && (!best || d < best.d)) best = { nd, d };
+        }
+        if (best) onOpen(best.nd.id);
+      })
+      .exec();
   }
 
   return (

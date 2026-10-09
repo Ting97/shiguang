@@ -172,7 +172,8 @@ export async function reserveOverview(userId: string, ym: string) {
     totalNeed,
     checkedNeed,
     savingsCents,
-    coveragePct: totalNeed > 0 ? Math.round((savingsCents / totalNeed) * 100) : null,
+    // 分母并回 trade 镜像已覆盖部分的应还（needTotal）：items 被镜像过滤后 totalNeed 近 0，直接作分母会虚高到 >100%
+    coveragePct: totalNeed + needTotal > 0 ? Math.round((savingsCents / (totalNeed + needTotal)) * 100) : null,
     sources: sourceRows.map((r) => ({
       name: String(r.name),
       plannedCents: Number(r.planned_cents ?? 0),
@@ -237,7 +238,7 @@ export async function setReserveCheck(
       client.release();
     }
   }
-  if (body.all !== undefined) {
+  if (body.all === true) { // 严格 true：误传 all:false 不得触发一键全勾
     const { rows } = await pool.query(
       `select id from liabilities where user_id = $1 and status = 'active'`,
       [userId],

@@ -75,13 +75,17 @@ export default function SpacesPage() {
     setEditingId(null);
   }
   function openEdit(s: Space) {
+    // 日期必须转 YYYY-MM-DD 再进 <input type="date">：API 返回 pg date 列的 JSON 形态
+    // （"…T16:00:00.000Z"）会被日期输入净化成空串——旧版两个日期框恒空，保存时把原始串
+    // 原样 PATCH 回去被服务端 400（有日期的空间改任何字段都保存失败）
+    const bjDay = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10) : "");
     setEditing({
       name: s.name,
       description: s.description ?? "",
       icon: s.icon,
       color: s.color,
-      startedAt: s.started_at ?? "",
-      targetDate: s.target_date ?? "",
+      startedAt: bjDay(s.started_at),
+      targetDate: bjDay(s.target_date),
     });
     setEditingId(s.id);
   }
@@ -301,9 +305,15 @@ export default function SpacesPage() {
           <Modal
             title={editingId ? "编辑空间" : "新建目标空间"}
             onClose={() => {
-              if (editing.name.trim() !== (spaces?.find((s) => s.id === editingId)?.name ?? "")) {
-                toast("已取消，未保存", "info");
-              }
+              // dirty 判定覆盖全部草稿字段（旧版只比 name，改图标/颜色/日期/描述被静默丢弃）
+              const base = spaces?.find((s) => s.id === editingId);
+              const dirty =
+                !editingId ||
+                editing.name.trim() !== (base?.name ?? "") ||
+                editing.description !== (base?.description ?? "") ||
+                editing.icon !== (base?.icon ?? "") ||
+                editing.color !== (base?.color ?? "");
+              if (dirty) toast("已取消，未保存", "info");
               setEditing(null);
             }}
           >
