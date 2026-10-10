@@ -22,6 +22,8 @@ export default function PublishSheet({
   open,
   initialText,
   busy,
+  voiceSeconds,
+  onRemoveVoice,
   onPublish,
   onClose,
   notify,
@@ -29,6 +31,9 @@ export default function PublishSheet({
   open: boolean;
   /** 打开时带入的初始文字（语音转写结果或空串） */
   initialText: string;
+  /** 语音动态：暂存录音秒数（null=无）；chip 展示，× 移除 */
+  voiceSeconds?: number | null;
+  onRemoveVoice?: () => void;
   busy: boolean;
   /** 发布文字动态；返回 entry id（供图片上传），失败/无图返回 null */
   onPublish: (text: string) => Promise<string | null>;
@@ -206,6 +211,16 @@ export default function PublishSheet({
             <X size={14} />
           </button>
         </div>
+        {voiceSeconds != null && (
+          <p className="mb-2 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-micro text-accent">
+            🎤 语音已附加 {Math.floor(voiceSeconds / 60)}:{String(voiceSeconds % 60).padStart(2, "0")}
+            {onRemoveVoice && (
+              <button onClick={onRemoveVoice} title="移除语音" className="rounded-full bg-black/30 px-1 leading-none text-white">
+                ✕
+              </button>
+            )}
+          </p>
+        )}
         <textarea
           ref={inputRef}
           value={value}

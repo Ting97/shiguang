@@ -2,4 +2,4 @@
 export * from "./service";
 export * as analyze from "./analyze";
 export { listContactNames } from "./analyze";
-export { storagePath, mimeForPath } from "./storage";
+export { storagePath, mimeForPath, sniffWavMime, newStorageKey, saveImageFile, deleteImageFile } from "./storage";

@@ -5,6 +5,7 @@ import type { FeedMoment } from "@/lib/types";
 import { moodEmoji } from "@/lib/mood";
 import { TagChip } from "../tag-chip";
 import { ImageGrid, ImageLightbox } from "../image-grid";
+import VoicePlayer from "./voice-player";
 import EntryMenu from "../entry-menu";
 import { createPortal } from "react-dom";
 import { ArrowRight, Bot, ClipboardList, Clock, NotebookPen, Sparkles, TriangleAlert, X } from "lucide-react";
@@ -133,6 +134,8 @@ function MomentCard({ m, activities, onRefresh }: MomentFeedProps & { m: FeedMom
         {m.images?.length > 0 && !editRaw && (
           <ImageGrid images={m.images} onOpen={(i) => setLightbox(i)} />
         )}
+        {/* 语音动态回放（编辑原文态也显示：语音不参与编辑） */}
+        {m.audio_url && <VoicePlayer storageKey={m.audio_url} />}
 
         {/* 识别与补充菜单：portal 渲染到 body——卡片 hover 位移会让 fixed 遮罩失效、后续卡片盖住菜单；点空白关闭由 EntryMenu 内部 useDismiss 处理（N3） */}
         {menuOpen &&

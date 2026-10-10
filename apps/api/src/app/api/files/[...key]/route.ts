@@ -18,9 +18,13 @@ export const GET = withAuthParams(async (req, { user, params }) => {
   const { key } = (await params) as { key: string[] };
   const storageKey = (key ?? []).join("/");
 
-  const row = (
-    await pool.query(`select id, user_id, mime from entry_images where storage_key = $1`, [storageKey])
+  // 图片行优先；查不到回查语音动态（entries.audio_url 存 storage_key）
+  let row = (
+    await pool.query(`select user_id, mime from entry_images where storage_key = $1`, [storageKey])
   ).rows[0];
+  if (!row) {
+    row = (await pool.query(`select user_id, null::text as mime from entries where audio_url = $1`, [storageKey])).rows[0];
+  }
   if (!row) throw new ApiError(404, "not_found", "文件不存在");
   if (row.user_id !== user.id) throw ApiError.forbidden("无权访问");
 

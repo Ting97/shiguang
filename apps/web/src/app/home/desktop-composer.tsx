@@ -16,6 +16,10 @@ interface Props {
   onAddImages: (files: File[]) => void;
   onRemoveImage: (index: number) => void;
   onRetryUpload: () => Promise<void>;
+  /** 语音动态：暂存的录音秒数（null=无）；chip 展示与移除 */
+  voiceSeconds: number | null;
+  onRemoveVoice: () => void;
+  onVoiceAudio: (wav: Blob, seconds: number) => void;
 }
 
 /** 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */
@@ -30,6 +34,9 @@ export default function DesktopComposer({
   onAddImages,
   onRemoveImage,
   onRetryUpload,
+  voiceSeconds,
+  onRemoveVoice,
+  onVoiceAudio,
 }: Props) {
   return (
     <section className="mb-3 hidden sm:block">
@@ -70,6 +77,7 @@ export default function DesktopComposer({
           </label>
           <VoiceButton
             onText={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))}
+            onAudio={onVoiceAudio}
             onError={(m) => toast(m, "err")}
             onHint={(m) => toast(m)}
           />
@@ -91,6 +99,17 @@ export default function DesktopComposer({
           </button>
         </div>
       </div>
+      {/* 语音动态 chip：录音已暂存，随发布上传（可移除） */}
+      {voiceSeconds != null && (
+        <div className="mt-2">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-micro text-accent">
+            🎤 语音已附加 {Math.floor(voiceSeconds / 60)}:{String(voiceSeconds % 60).padStart(2, "0")}
+            <button onClick={onRemoveVoice} title="移除语音" className="tap-lg rounded-full bg-black/30 px-1 leading-none text-white">
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
       {/* 已选图片缩略条（可移除；上传失败可重试） */}
       {images.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">

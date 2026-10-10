@@ -12,8 +12,11 @@ export default function VoiceButton({
   onText,
   onError,
   onHint,
+  onAudio,
 }: {
   onText: (text: string) => void;
+  /** 语音动态：转写成功时回传 wav blob（透传 recorder） */
+  onAudio?: (wav: Blob, seconds: number) => void;
   onError: (msg: string) => void;
   /** 中性提示（如录满自动结束），缺省复用 onError */
   onHint?: (msg: string) => void;
@@ -26,6 +29,7 @@ export default function VoiceButton({
       onState: setState,
       onTick: setSeconds,
       onText,
+      onAudio,
       onError,
       onHint: onHint ?? onError,
     });

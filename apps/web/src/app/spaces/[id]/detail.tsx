@@ -27,7 +27,7 @@ import { useTodoActions } from "./detail/use-todo-actions";
  * 区块拆分见 detail/（头卡、todo 区、感悟区、动态区、各浮层；hooks 同目录）。
  */
 export default function Detail() {
-  const { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, activities, allSpaces, loadErr, load } = useSpaceData();
+  const { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, momentsLoadingMore, loadMoreMoments, activities, allSpaces, loadErr, load } = useSpaceData();
   const [msg, setMsg] = useState<Msg>(null);
   // N2：分区 tab
   const [tab, setTab] = useState<SpaceTab>("todo");
@@ -121,7 +121,15 @@ export default function Detail() {
         )}
 
         {/* 关联动态 */}
-        {tab === "moments" && <MomentsSection moments={moments} momentLink={momentLink} />}
+        {tab === "moments" && (
+          <MomentsSection
+            moments={moments}
+            total={momentsTotal}
+            loadingMore={momentsLoadingMore}
+            onLoadMore={loadMoreMoments}
+            momentLink={momentLink}
+          />
+        )}
 
         {/* 行操作菜单卡片：点行右侧「⋯」弹出（桌面锚定浮层 / 移动端底部弹层）；点空白关闭由 useDismiss 处理（N3） */}
         {todoActions.menuRow && (

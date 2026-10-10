@@ -17,9 +17,22 @@ export const IMAGE_MIME_EXT: Record<string, string> = {
   "image/gif": "gif",
 };
 
+/** 音频 MIME → 扩展名（语音动态：前端固定转 16k 单声道 wav 后上传） */
+export const AUDIO_MIME_EXT: Record<string, string> = {
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+};
+
 /** 上传根目录：UPLOAD_DIR（config 集中读取）；开发缺省 apps/api 运行目录下 .uploads/ */
 export function uploadDir(): string {
   return loadConfig().uploadDir ?? join(process.cwd(), ".uploads");
+}
+
+/** wav 魔数嗅探：RIFF....WAVE */
+export function sniffWavMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WAVE") return "audio/wav";
+  return null;
 }
 
 /** 魔数白名单嗅探（防改后缀）：jpeg/png/webp/gif；未知返回 null */
@@ -35,7 +48,7 @@ export function sniffImageMime(buf: Buffer): string | null {
 
 /** 生成 storage_key：yyyy/mm/uuid.ext（北京时间取年月） */
 export function newStorageKey(mime: string): string {
-  const ext = IMAGE_MIME_EXT[mime] ?? "jpg";
+  const ext = IMAGE_MIME_EXT[mime] ?? AUDIO_MIME_EXT[mime] ?? "jpg";
   const now = new Date(Date.now() + 8 * 3600_000);
   const yyyy = now.getUTCFullYear();
   const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -44,7 +57,7 @@ export function newStorageKey(mime: string): string {
 
 /** key → 磁盘路径；key 必须严格匹配生成规则（防目录穿越） */
 export function storagePath(key: string): string {
-  if (!/^\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|gif)$/.test(key)) {
+  if (!/^\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|gif|wav)$/.test(key)) {
     throw new Error("illegal storage key");
   }
   return join(uploadDir(), key);

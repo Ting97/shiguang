@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import TodoLogo from "./todo-logo";
 import { TodoCircle, dueTag, isoToLocalInput, localInputToIso } from "./todo-bits";
 import { Dismissable } from "./dismissable";
 import { TodoRowMenu } from "@/components/todo";
 import { confirmDialog } from "@/shared/ui/confirm";
 import type { TodayAction } from "@/lib/types";
+import SpacePicker from "./space-picker";
 import { api, ApiClientError } from "@/shared/api";
 import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, FileText, Repeat, RotateCcw } from "lucide-react";
 
@@ -18,12 +20,29 @@ import { ArrowRight, Check, ChevronDown, ChevronUp, Ellipsis, FileText, Repeat, 
  * - 数据自取 /api/todos?view=today-actions（06:00 记录日惰性日切在服务端读取时触发）
  */
 /** 行动行（独立行动无父上下文行）：模块级定义——组件体内定义会在每次渲染重挂载子树 */
-function ActionRow({ a, onMenu }: { a: TodayAction; onMenu: (a: TodayAction, el: HTMLElement) => void }) {
+function ActionRow({
+  a,
+  space,
+  onMenu,
+}: {
+  a: TodayAction;
+  space?: { name: string; icon: string; color: string };
+  onMenu: (a: TodayAction, el: HTMLElement) => void;
+}) {
   const tag = dueTag(a.due_at) ?? dueTag(a.parent_due);
   return (
     <div className="min-w-0 flex-1">
       <p className="flex min-w-0 items-center gap-2">
         <span className="min-w-0 truncate text-sm text-ink">{a.title}</span>
+        {space && (
+          <span
+            className="flex shrink-0 items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-badge font-medium"
+            style={{ backgroundColor: `${space.color}22`, color: space.color }}
+            title={`已关联空间「${space.name}」`}
+          >
+            {space.icon} {space.name}
+          </span>
+        )}
         {!a.parent_title && (
           <span className="shrink-0 rounded-lg bg-slate-500/15 px-1.5 py-0.5 text-badge font-medium text-ink-dim" title="独立行动（不属于任何 todo）">
             行动
@@ -78,6 +97,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     } catch (e) {
       setActions([]);
       notify({ ok: false, text: `行动清单加载失败：${e instanceof Error ? e.message : e}` });
+    }
+    // 空间列表（徽标 + 归类选择器）：失败不阻塞行动清单
+    try {
+      const sp = await api<{ spaces?: Array<{ id: string; name: string; icon: string; color: string; status: string }> }>("/api/spaces");
+      setSpaces((sp.spaces ?? []).filter((x) => x.status === "active"));
+    } catch {
+      /* 空间列表挂了只影响徽标/归类入口 */
     }
   }, [notify]);
 
@@ -139,6 +165,8 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   }
 
   /* ---- 行操作菜单（REQ-009 滚动：与 todo-board/空间详情同一菜单） ---- */
+  const [spaces, setSpaces] = useState<Array<{ id: string; name: string; icon: string; color: string; status: string }>>([]);
+  const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
   const [menu, setMenu] = useState<{ info: { todo: TodayAction; isChild: boolean; parentTitle: string | null }; pos: { top: number; left: number } | null } | null>(null);
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
 
@@ -273,9 +301,31 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
             // 有行动的父 todo 永远渲染单项「AI 拆解」→ 服务端 409 needMode 死路
             pendingCount: (t) => (actions ?? []).filter((x) => x.parent_todo_id === t.id && x.status === "pending").length,
             startEdit: (t) => startEdit(t as TodayAction),
+            pickSpace: (t) => {
+              setPickerRow({ id: t.id, spaceId: (t as { space_id?: string | null }).space_id ?? null });
+              setMenu(null);
+            },
           }}
         />
       )}
+      {pickerRow &&
+        createPortal(
+          <SpacePicker
+            spaces={spaces}
+            currentId={pickerRow.spaceId}
+            busy={false}
+            onPick={async (sid) => {
+              setPickerRow(null);
+              await patchTodo(pickerRow.id, { spaceId: sid }, "🎯 已关联空间");
+            }}
+            onRemove={async () => {
+              setPickerRow(null);
+              await patchTodo(pickerRow.id, { spaceId: null }, "已移除空间归属");
+            }}
+            onClose={() => setPickerRow(null)}
+          />,
+          document.body,
+        )}
       {/* 标题行（整行可点折叠/展开；规划链接单独 stopPropagation） */}
       <button
         type="button"
@@ -386,7 +436,7 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                       ) : (
                         <>
                           <TodoCircle size="md" done={false} disabled={busyId === a.id} onClick={() => toggleDone(a)} />
-                          <ActionRow a={a} onMenu={openMenu} />
+                          <ActionRow a={a} space={spaces.find((sp) => sp.id === a.space_id)} onMenu={openMenu} />
                           {/* 编辑/删除收进 ⋯ 菜单（REQ-009 滚动：行面只留打卡与菜单入口） */}
                         </>
                       )}

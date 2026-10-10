@@ -6,6 +6,7 @@ import ActionsToday from "@/components/actions-today";
 import { useDesktopPublisher } from "./home/use-desktop-publisher";
 import type { Notify } from "./home/types";
 import DesktopComposer from "./home/desktop-composer";
+import { uploadEntryAudio } from "@/lib/voice-attachment";
 import CaptureButton from "@/components/capture-button";
 import PublishSheet from "@/components/publish-sheet";
 import { api } from "@/shared/api";
@@ -142,8 +143,16 @@ export default function Home() {
 
   async function submit() {
     const files = desktopImages.filter((i) => i.status !== "error").map((i) => i.file);
-    const entryId = await publish(text);
+    const entryId = await publish(text, pendingVoice ? "voice" : undefined);
     if (!entryId) return;
+    if (pendingVoice) {
+      try {
+        await uploadEntryAudio(entryId, pendingVoice.blob);
+      } catch (e) {
+        forwardMsg({ ok: false, text: `动态已发布；语音上传失败：${e instanceof Error ? e.message : e}` });
+      }
+      setPendingVoice(null);
+    }
     await uploadAfterPublish(entryId, files);
   }
 
@@ -165,13 +174,16 @@ export default function Home() {
     return () => window.removeEventListener("shiguang:entry-edited", h);
   }, [scheduleRecognitionRefresh]);
 
+  // 语音动态：录音→ASR 成功后暂存 wav，随发布上传（source=voice）
+  const [pendingVoice, setPendingVoice] = useState<{ blob: Blob; seconds: number } | null>(null);
+
   /** 发布一条动态（文字秒存上墙），返回 entry id；图片上传由调用方拿到 id 后自行并行处理（可重试） */
-  async function publish(raw: string): Promise<string | null> {
+  async function publish(raw: string, source?: "voice"): Promise<string | null> {
     const t = raw.trim();
     if (!t || busy) return null;
     setBusy(true);
     try {
-      const j = await api<any>("/api/parse", "POST", { text: t });
+      const j = await api<any>("/api/parse", "POST", { text: t, ...(source ? { source } : {}) });
       // 防御非约定响应（结构变更）：给出可读原因，而不是 TypeError
       if (!j?.entry) throw new Error("服务异常，请稍后重试");
       // 动态已秒存上墙；五域识别在后台进行，完成后由延迟刷新呈现
@@ -239,6 +251,9 @@ export default function Home() {
           onAddImages={addDesktopImages}
           onRemoveImage={removeDesktopImage}
           onRetryUpload={retryDesktopUpload}
+          voiceSeconds={pendingVoice?.seconds ?? null}
+          onRemoveVoice={() => setPendingVoice(null)}
+          onVoiceAudio={(blob, seconds) => setPendingVoice({ blob, seconds })}
         />
 
         {loadErr && (
@@ -329,6 +344,7 @@ export default function Home() {
           setVoiceDraft(t);
           setSheetOpen(true);
         }}
+        onVoiceAudio={(blob, seconds) => setPendingVoice({ blob, seconds })}
         onError={(m) => toast(m, "err")}
         onHint={(m) => toast(m)}
       />
@@ -336,7 +352,20 @@ export default function Home() {
         open={sheetOpen}
         initialText={voiceDraft}
         busy={busy}
-        onPublish={publish}
+        voiceSeconds={pendingVoice?.seconds ?? null}
+        onRemoveVoice={() => setPendingVoice(null)}
+        onPublish={async (t) => {
+          const entryId = await publish(t, pendingVoice ? "voice" : undefined);
+          if (entryId && pendingVoice) {
+            try {
+              await uploadEntryAudio(entryId, pendingVoice.blob);
+            } catch (e) {
+              forwardMsg({ ok: false, text: `动态已发布；语音上传失败：${e instanceof Error ? e.message : e}` });
+            }
+            setPendingVoice(null);
+          }
+          return entryId;
+        }}
         onClose={() => setSheetOpen(false)}
         notify={forwardMsg}
       />

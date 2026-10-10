@@ -22,6 +22,8 @@ export interface VoiceRecorderHandlers {
   /** 录音中每秒回调一次累计秒数 */
   onTick?: (seconds: number) => void;
   onText: (text: string) => void;
+  /** 语音动态：转写成功时回传 16k wav blob（与 onText 同一批），由调用方暂存随动态上传 */
+  onAudio?: (wav: Blob, seconds: number) => void;
   onError: (msg: string) => void;
   /** 中性提示（误触/已录满/已取消），缺省复用 onError */
   onHint?: (msg: string) => void;
@@ -165,7 +167,10 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
       const j = await apiForm<{ text?: string }>("/api/asr", form);
       if (!j.text) throw new Error("没有听清内容，请再试一次");
       backToIdle();
-      if (!dead) h.onText(String(j.text));
+      if (!dead) {
+        h.onAudio?.(wav, Math.max(1, Math.round(heldMs / 1000)));
+        h.onText(String(j.text));
+      }
     } catch (e) {
       live?.getTracks().forEach((t) => t.stop());
       backToIdle();

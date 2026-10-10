@@ -1,6 +1,7 @@
 "use client";
 
 import { Link2, Sprout } from "lucide-react";
+import { useState } from "react";
 import { TagChip } from "@/components/tag-chip";
 import type { FeedMoment } from "@/lib/types";
 import type { MomentLinkActions } from "./use-moment-link";
@@ -12,13 +13,20 @@ const bjStamp = (iso: string) => {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 };
 
-/** 关联动态区块（自 detail.tsx 拆出）：相关动态列表 + 关联动态入口 */
+/** 关联动态区块（自 detail.tsx 拆出）：相关动态列表 + 关联动态入口 + 加载更多分页 */
 export default function MomentsSection(opts: {
   moments: FeedMoment[];
+  /** 该空间动态总数（feed 接口 total；null=未知，不显示进度） */
+  total: number | null;
+  loadingMore: boolean;
+  /** 返回是否还有更多（false = 已到底） */
+  onLoadMore: () => Promise<boolean>;
   momentLink: MomentLinkActions;
 }) {
-  const { moments, momentLink } = opts;
+  const { moments, total, loadingMore, onLoadMore, momentLink } = opts;
   const { openMomentLink } = momentLink;
+  const [exhausted, setExhausted] = useState(false);
+  const hasMore = !exhausted && (total == null || moments.length < total);
   return (
     <section className="glass rounded-2xl p-5">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
@@ -44,6 +52,21 @@ export default function MomentsSection(opts: {
             </li>
           ))}
         </ul>
+      )}
+      {moments.length > 0 && hasMore && (
+        <button
+          onClick={async () => {
+            const more = await onLoadMore();
+            if (!more) setExhausted(true);
+          }}
+          disabled={loadingMore}
+          className="mt-3 min-h-[44px] w-full rounded-xl border border-line-soft text-xs text-ink-mute transition hover:border-emerald-500/40 hover:text-accent disabled:opacity-50"
+        >
+          {loadingMore ? "加载中…" : total != null ? `加载更多（已看 ${moments.length} / 共 ${total} 条）` : "加载更多"}
+        </button>
+      )}
+      {moments.length > 0 && !hasMore && total != null && total > 20 && (
+        <p className="mt-3 text-center text-micro text-ink-faint">已看完全部 {total} 条</p>
       )}
     </section>
   );

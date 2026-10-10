@@ -26,9 +26,11 @@ export function useSpaceData() {
   const [doneTodos, setDoneTodos] = useState<TodoItem[]>([]);
   const [moments, setMoments] = useState<FeedMoment[]>([]);
   // 「动态」tab 计数：feed 接口响应的 total（该空间动态总数，count(*) over () 口径）。
-  // moments 数组本身被 limit=20 封顶，直接用 length 会让 tab 永远最多显示 20；
   // null=接口未带 total（降级由调用方用 space.entry_count 兜底）
   const [momentsTotal, setMomentsTotal] = useState<number | null>(null);
+  // 动态 tab 分页：首页 20 条由 load() 拉，更多走 loadMoreMoments()（offset 追加）
+  const [momentsLoadingMore, setMomentsLoadingMore] = useState(false);
+  const momentsOffsetRef = useRef(0);
   // 数据加载失败态（网络抖动/接口异常）：给出重试入口，避免永远停在"加载中"
   const [loadErr, setLoadErr] = useState<string | null>(null);
   // 活动分类（编辑器下拉用）
@@ -51,7 +53,7 @@ export function useSpaceData() {
         api<any>("/api/spaces", "GET"),
         api<any>("/api/todos?view=all", "GET"),
         api<any>("/api/todos?view=done", "GET"),
-        api<any>("/api/feed?limit=20&spaceId=" + id, "GET"),
+        api<any>("/api/feed?limit=20&offset=0&spaceId=" + id, "GET"),
         api<any>("/api/activities", "GET"),
       ]);
       if (seq !== seqRef.current) return; // 过期响应丢弃
@@ -79,6 +81,7 @@ export function useSpaceData() {
         if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
         if (fj.status === "fulfilled") {
           setMoments(fj.value.moments as FeedMoment[]);
+          momentsOffsetRef.current = (fj.value.moments as FeedMoment[]).length;
           // total=该空间动态总数（未被 limit 封顶）；畸形 200 无 total 时落 null 走 entry_count 兜底
           setMomentsTotal(typeof fj.value.total === "number" ? fj.value.total : null);
         }
@@ -90,11 +93,34 @@ export function useSpaceData() {
     }
   }, [id]);
 
+  /** 动态 tab「加载更多」：offset 追加；返回是否还有更多（按本页条数判断，少于 20 即到底） */
+  const loadMoreMoments = useCallback(async (): Promise<boolean> => {
+    if (momentsLoadingMore) return false;
+    setMomentsLoadingMore(true);
+    try {
+      const seq = ++seqRef.current;
+      const j = await api<any>(`/api/feed?limit=20&offset=${momentsOffsetRef.current}&spaceId=${id}`, "GET");
+      if (seq !== seqRef.current) return true;
+      const batch = (j.moments as FeedMoment[]) ?? [];
+      setMoments((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        return [...prev, ...batch.filter((m) => !seen.has(m.id))];
+      });
+      momentsOffsetRef.current += batch.length;
+      if (typeof j.total === "number") setMomentsTotal(j.total);
+      return batch.length >= 20;
+    } catch {
+      return true; // 失败保留原状，允许重试
+    } finally {
+      setMomentsLoadingMore(false);
+    }
+  }, [id, momentsLoadingMore]);
+
   useEffect(() => {
     if (id) void load();
   }, [id, load]);
 
-  return { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, activities, allSpaces, loadErr, load };
+  return { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, momentsLoadingMore, loadMoreMoments, activities, allSpaces, loadErr, load };
 }
 
 export type SpaceData = ReturnType<typeof useSpaceData>;

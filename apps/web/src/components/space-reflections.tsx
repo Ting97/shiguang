@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NotebookPen, Pencil, Trash2 } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
+import MarkdownView from "@/components/markdown-view";
 
 /** 列表条目：预览 300 字 + 字数（GET 列表不回全文，FR-N2.4） */
 export interface ReflectionItem {
@@ -167,13 +168,21 @@ export default function SpaceReflections({
                       </button>
                     </span>
                   </div>
-                  <p
-                    onClick={() => void toggleExpand(it)}
-                    title="点击展开/收起全文"
-                    className={`mt-1 cursor-pointer whitespace-pre-wrap text-xs leading-relaxed text-ink-soft ${full === undefined ? "line-clamp-4" : ""}`}
-                  >
-                    {full ?? it.preview}
-                  </p>
+                  {full !== undefined ? (
+                    // 展开态：markdown 渲染（点击收起）
+                    <div onClick={() => void toggleExpand(it)} title="点击收起" className="cursor-pointer">
+                      <MarkdownView value={full} />
+                    </div>
+                  ) : (
+                    // 折叠态：纯文本 preview（后端截 300 字会切碎 markdown 语法，保持原样 + line-clamp）
+                    <p
+                      onClick={() => void toggleExpand(it)}
+                      title="点击展开全文"
+                      className="mt-1 line-clamp-4 cursor-pointer whitespace-pre-wrap text-xs leading-relaxed text-ink-soft"
+                    >
+                      {it.preview}
+                    </p>
+                  )}
                   {/* 「已编辑」只在时间行展示一次，这里不再重复缀字数行尾 */}
                   <p className="mt-1 text-right text-badge text-ink-faint">{it.chars} 字</p>
                 </li>

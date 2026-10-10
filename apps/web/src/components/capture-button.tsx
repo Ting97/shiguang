@@ -19,6 +19,7 @@ const HINT_SEEN_KEY = "shiguang.captureHintSeen";
 export default function CaptureButton({
   onTap,
   onVoiceText,
+  onVoiceAudio,
   onError,
   onHint,
 }: {
@@ -26,6 +27,8 @@ export default function CaptureButton({
   onTap: () => void;
   /** 长按说话松开且转写成功 → 父级打开面板并带入文字 */
   onVoiceText: (text: string) => void;
+  /** 语音动态：转写成功时回传 wav blob（透传 recorder） */
+  onVoiceAudio?: (wav: Blob, seconds: number) => void;
   onError: (msg: string) => void;
   /** 中性提示（已取消/没听到内容），父级可用非错误样式展示 */
   onHint?: (msg: string) => void;
@@ -44,6 +47,7 @@ export default function CaptureButton({
       onState: setState,
       onTick: setSeconds,
       onText: onVoiceText,
+      onAudio: onVoiceAudio,
       onError,
       onHint,
     });

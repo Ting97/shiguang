@@ -127,6 +127,8 @@ export interface FeedMoment {
     totalKcal: number | null;
   } | null;
   images: FeedImage[];
+  /** 语音动态音频（storage key，经 /api/files 访问；null=非语音动态；键名与 SQL 列一致蛇形） */
+  audio_url: string | null;
   space: { id: string; name: string; icon: string; color: string } | null;
   recognitions: Partial<Record<string, { status: "applied" | "pending" | "none"; confidence: number; reason?: string | null; reasonDismissed?: boolean; engine?: string | null }>>;
   /** 五域识别完成时间；为空 = 仍在后台识别（卡片显示「AI 识别中」） */

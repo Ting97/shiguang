@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X } from "lucide-react";
+import MarkdownView from "./markdown-view";
 import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { useDismiss } from "./dismissable";
 
@@ -27,6 +28,7 @@ export default function ReflectionEditor({
   onSave: (content: string) => Promise<boolean>;
 }) {
   const [value, setValue] = useState("");
+  const [tab, setTab] = useState<"edit" | "preview">("edit");
   const taRef = useRef<HTMLTextAreaElement>(null);
   const initialRef = useRef("");
 
@@ -66,9 +68,35 @@ export default function ReflectionEditor({
         className="glass safe-bottom flex max-h-[88dvh] w-full flex-col rounded-t-2xl p-5 sm:max-w-2xl sm:rounded-2xl"
       >
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink">{initialRef.current ? "编辑感悟" : "写感悟"}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-ink">{initialRef.current ? "编辑感悟" : "写感悟"}</h3>
+            {/* 编辑 | 预览 切换（markdown 实时渲染） */}
+            <div className="flex overflow-hidden rounded-lg border border-line-soft text-micro">
+              <button
+                onClick={() => setTab("edit")}
+                className={`px-2.5 py-1 transition ${tab === "edit" ? "bg-sky-500/15 text-accent" : "text-ink-mute hover:text-ink"}`}
+              >
+                编辑
+              </button>
+              <button
+                onClick={() => setTab("preview")}
+                className={`px-2.5 py-1 transition ${tab === "preview" ? "bg-sky-500/15 text-accent" : "text-ink-mute hover:text-ink"}`}
+              >
+                预览
+              </button>
+            </div>
+          </div>
           <button onClick={cancel} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
         </div>
+        {tab === "preview" ? (
+          <div className="min-h-[40vh] w-full flex-1 overflow-y-auto rounded-xl border border-line-soft bg-surface/60 px-3 py-2.5">
+            {value.trim() ? (
+              <MarkdownView value={value} />
+            ) : (
+              <p className="text-xs text-ink-faint">暂无内容 —— 回到「编辑」写点什么</p>
+            )}
+          </div>
+        ) : (
         <textarea
           ref={taRef}
           value={value}
@@ -89,9 +117,10 @@ export default function ReflectionEditor({
               setValue(merged);
             }
           }}
-          placeholder="记录阶段心得、踩坑复盘、自我对话……（纯文本，单篇 ≤50000 字）"
+          placeholder="记录阶段心得、踩坑复盘、自我对话……（支持 Markdown：# 标题、**粗体**、列表、表格、代码，单篇 ≤50000 字）"
           className="input-glow min-h-[40vh] w-full flex-1 resize-none rounded-xl border border-line-soft bg-surface/60 px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-ink-faint"
         />
+        )}
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className={`text-micro tabular-nums ${over ? "text-danger" : chars > 45_000 ? "text-warn" : "text-ink-faint"}`}>
             {chars}/50000{over ? " · 超出上限" : ""}

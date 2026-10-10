@@ -17,7 +17,7 @@ import { yuanToCents } from "@shiguangri/shared/finance";
 import { checkAiQuota } from "@/server/ai/quota";
 import { writeAuditRecord } from "../ai/audit";
 import { assembleUserPrompt, getPromptBundle, type PromptKey } from "../ai/prompts";
-import { deleteImageFile, sniffImageMime, IMAGE_MIME_EXT, newStorageKey, saveImageFile } from "@/server/timeline/storage";
+import { deleteImageFile, sniffImageMime, sniffWavMime, IMAGE_MIME_EXT, newStorageKey, saveImageFile } from "@/server/timeline/storage";
 import { ApiError } from "../platform/http/errors";
 import { isUuid } from "../platform/http/validate";
 import { enforceUgcText } from "../platform/wechat";
@@ -53,7 +53,7 @@ async function assertActivityExists(client: import("pg").PoolClient, userId: str
 }
 
 /** POST /api/parse：动态本体先落地秒回 + 配额 + 后台五域识别（fire-and-forget，成败都打 analyzed_at） */
-export async function ingest(userId: string, text: string) {
+export async function ingest(userId: string, text: string, source: "keyboard" | "voice" = "keyboard") {
   // UGC 内容安全门禁（微信 msgSecCheck，docs/15 审核硬门槛；降级放行）——
   // 仅绑定了微信的用户且通道可用时真正检测，web/Expo 用户无 openid 天然跳过
   await enforceUgcText(userId, text);
@@ -64,7 +64,7 @@ export async function ingest(userId: string, text: string) {
       q,
     );
   }
-  const entry = (await entriesRepo.insert(userId, "keyboard", text.trim())).rows[0];
+  const entry = (await entriesRepo.insert(userId, source, text.trim())).rows[0];
   // FR-C2.4：识别失败不再打 analyzed_at（失败留痕由巡检补跑）；成功路径 analyzeAndPersist 内部落 analyzed_at
   void analyzeAndPersist(userId, entry.id, text.trim())
     .catch((e) => {
@@ -301,6 +301,7 @@ export async function listFeed(userId: string, query: FeedQuery) {
          from interactions i join contacts c on c.id = i.contact_id
          where i.entry_id = e.id
        ), '[]') as people,
+       e.audio_url,
        coalesce((
          select jsonb_agg(jsonb_build_object(
            'id', g.id, 'storageKey', g.storage_key, 'mime', g.mime, 'width', g.width, 'height', g.height, 'sort', g.sort
@@ -1055,6 +1056,25 @@ export async function dismissScheduleConflict(userId: string, entryId: string) {
   return { ok: true as const };
 }
 
+/**
+ * POST /api/entries/:id/audio：语音动态音频（16k wav，≤5MB，一条动态一个语音）
+ * 属主校验 → 魔数嗅探 → 删旧音频文件 → 写盘 → 落 entries.audio_url（写盘失败不落库由调用顺序保证：先写盘再 update）
+ */
+export async function setEntryAudio(userId: string, entryId: string, data: Buffer): Promise<{ ok: true; audioUrl: string }> {
+  const own = await pool.query(`select id from entries where id = $1 and user_id = $2`, [entryId, userId]);
+  if (!own.rows[0]) throw ApiError.notFound("动态不存在");
+  const mime = sniffWavMime(data);
+  if (!mime) throw ApiError.badRequest("仅支持 wav 格式语音");
+  if (data.length > 5 * 1024 * 1024) throw ApiError.badRequest("音频超过 5MB 上限");
+  // 旧音频先取后删（替换录音场景）：行更新成功后清盘上旧文件
+  const prev = (await pool.query(`select audio_url from entries where id = $1`, [entryId])).rows[0]?.audio_url ?? null;
+  const key = newStorageKey(mime);
+  await saveImageFile(key, data);
+  await pool.query(`update entries set audio_url = $1 where id = $2 and user_id = $3`, [key, entryId, userId]);
+  if (prev) void deleteImageFile(prev);
+  return { ok: true, audioUrl: key };
+}
+
 /** DELETE /api/feed/:id：删除动态及全部识别产物（子表显式清理，盘上图片异步清） */
 export async function deleteFeed(userId: string, entryId: string) {
   const client = await pool.connect();
@@ -1070,6 +1090,8 @@ export async function deleteFeed(userId: string, entryId: string) {
     if (imageKeys.length) {
       await client.query(`delete from entry_images where entry_id = $1 and user_id = $2`, [entryId, userId]);
     }
+    // 语音附件（entries.audio_url）随行删除，盘上文件一并清
+    const audioKey = (await client.query(`select audio_url from entries where id = $1 and user_id = $2`, [entryId, userId])).rows[0]?.audio_url ?? null;
     await entriesRepo.clearDerived(client, entryId, userId);
     const { rowCount } = await entriesRepo.deleteEntry(client, entryId, userId);
     if (!rowCount) {
@@ -1078,6 +1100,7 @@ export async function deleteFeed(userId: string, entryId: string) {
     }
     await client.query("commit");
     for (const k of imageKeys) void deleteImageFile(k);
+    if (audioKey) void deleteImageFile(audioKey);
     return { ok: true as const };
   } catch (e) {
     await client.query("rollback").catch(() => {});
