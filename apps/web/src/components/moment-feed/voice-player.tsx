@@ -46,6 +46,45 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
     };
   }, []);
 
+  // 轨道 seek：原生 pointer 监听（点击/拖拽；React 合成事件在部分渲染树里不触发的场景兜底）
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const seekToClient = (clientX: number) => {
+      const a = audioRef.current;
+      if (!a || !dur) return;
+      const r = track.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      a.currentTime = ratio * dur;
+      setCur(a.currentTime);
+    };
+    const down = (e: PointerEvent) => {
+      draggingRef.current = true;
+      try {
+        track.setPointerCapture(e.pointerId);
+      } catch {
+        /* 合成事件 pointerId 无效 */
+      }
+      seekToClient(e.clientX);
+    };
+    const move = (e: PointerEvent) => {
+      if (draggingRef.current) seekToClient(e.clientX);
+    };
+    const up = () => {
+      draggingRef.current = false;
+    };
+    track.addEventListener("pointerdown", down);
+    track.addEventListener("pointermove", move);
+    track.addEventListener("pointerup", up);
+    track.addEventListener("pointercancel", up);
+    return () => {
+      track.removeEventListener("pointerdown", down);
+      track.removeEventListener("pointermove", move);
+      track.removeEventListener("pointerup", up);
+      track.removeEventListener("pointercancel", up);
+    };
+  }, [dur]);
+
   function toggle() {
     const a = audioRef.current;
     if (!a || err) return;
@@ -55,16 +94,6 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
     } else {
       void a.play().then(() => setPlaying(true)).catch(() => setErr(true));
     }
-  }
-
-  function seekTo(clientX: number) {
-    const a = audioRef.current;
-    const track = trackRef.current;
-    if (!a || !track || !dur) return;
-    const r = track.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    a.currentTime = ratio * dur;
-    setCur(a.currentTime);
   }
 
   return (
@@ -105,20 +134,7 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
               aria-valuenow={Math.round(cur)}
               tabIndex={0}
               className="group flex h-5 cursor-pointer touch-none select-none items-center"
-              onPointerDown={(e) => {
-                draggingRef.current = true;
-                e.currentTarget.setPointerCapture(e.pointerId);
-                seekTo(e.clientX);
-              }}
-              onPointerMove={(e) => {
-                if (draggingRef.current) seekTo(e.clientX);
-              }}
-              onPointerUp={() => {
-                draggingRef.current = false;
-              }}
-              onPointerCancel={() => {
-                draggingRef.current = false;
-              }}
+              // pointer 事件用原生监听（useEffect 挂载）：点击/拖拽均可 seek
             >
               <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-elevated">
                 <div
