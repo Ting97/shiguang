@@ -15,6 +15,7 @@ export {
   bjInputToIso,
   isoToBjInput,
   combineHM,
+  combineHmEndCrossDay,
   zhDuration,
   zhTime as bjClock,
   TX_CATEGORIES,

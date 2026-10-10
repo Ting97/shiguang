@@ -2,4 +2,4 @@
  * 本文件此前是分叉副本，combineHM 缺非法输入守卫（清空时间输入保存会 Invalid time value 抛错），
  * shared 版已有守卫与测试（date-bj.test.ts），这里纯转发防再分叉 */
 
-export { zhTime, combineHM, isoToBjInput, bjInputToIso, bjDateKey } from "@shiguangri/shared";
+export { zhTime, combineHM, combineHmEndCrossDay, isoToBjInput, bjInputToIso, bjDateKey } from "@shiguangri/shared";

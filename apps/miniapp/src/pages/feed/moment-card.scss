@@ -389,6 +389,15 @@
   font-size: 24px;
   color: var(--ink-dim);
 }
+/* 跨日程提示：结束≤开始时保存自动按次日 +1 */
+.mc-cross-hint {
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 2px 8px;
+  font-size: 20px;
+  color: var(--accent);
+}
 .mc-edit-actions {
   display: flex;
   justify-content: flex-end;

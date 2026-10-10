@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { combineHM, isoToBjInput, zhTime } from "../src/date.js";
+import { combineHM, combineHmEndCrossDay, isoToBjInput, zhTime } from "../src/date.js";
 
 const ISO = "2026-10-08T04:30:00.000Z"; // 北京 12:30
 
@@ -31,4 +31,23 @@ test("combineHM：负数钟点保持原值（setUTCHours(-1) 回卷一天）", (
   assert.equal(combineHM(ISO, "-1:30"), ISO);
   assert.equal(combineHM(ISO, "12:-5"), ISO);
   assert.equal(combineHM(ISO, "23:59") !== ISO, true); // 合法值仍正常换算
+});
+
+test("combineHmEndCrossDay：结束晚于开始同日", () => {
+  // 北京 12:30 开始，结束 14:00 → 同日 06:00Z
+  assert.equal(combineHmEndCrossDay(ISO, "14:00", ISO), "2026-10-08T06:00:00.000Z");
+});
+
+test("combineHmEndCrossDay：结束早于开始自动 +1 天（23:00–06:00 睡眠块）", () => {
+  const start = "2026-10-08T15:00:00.000Z"; // 北京 23:00
+  assert.equal(combineHmEndCrossDay(start, "06:00", start), "2026-10-08T22:00:00.000Z"); // 北京 10-09 06:00
+});
+
+test("combineHmEndCrossDay：结束等于开始也 +1 天（满 24h 块）", () => {
+  assert.equal(combineHmEndCrossDay(ISO, "12:30", ISO), "2026-10-09T04:30:00.000Z");
+});
+
+test("combineHmEndCrossDay：非法 hm 回退原结束", () => {
+  assert.equal(combineHmEndCrossDay(ISO, "", ISO), ISO);
+  assert.equal(combineHmEndCrossDay(ISO, "25:00", ISO), ISO);
 });

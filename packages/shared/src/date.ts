@@ -128,6 +128,18 @@ export function combineHM(originalIso: string, hm: string): string {
   return new Date(d.getTime() - 8 * 3600_000).toISOString();
 }
 
+/** 「开始时刻 + 结束 HH:MM」跨日组合：结束先按开始的北京日历日拼接，≤ 开始自动 +1 天
+ * （如 23:00–06:00 的睡眠块）。hm 非法 → 回退 fallbackEndIso（结束保持原值不动）。 */
+export function combineHmEndCrossDay(startIso: string, endHm: string, fallbackEndIso: string): string {
+  const [h, m] = endHm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || m < 0 || h > 23 || m > 59) return fallbackEndIso;
+  const s = new Date(new Date(startIso).getTime() + 8 * 3600_000);
+  const e = new Date(s);
+  e.setUTCHours(h, m, 0, 0);
+  if (e.getTime() <= s.getTime()) e.setUTCDate(e.getUTCDate() + 1);
+  return new Date(e.getTime() - 8 * 3600_000).toISOString();
+}
+
 /** ISO → 北京墙上时间输入值 YYYY-MM-DDTHH:mm（编辑框回填用） */
 export function isoToBjInput(iso: string | null | undefined): string {
   if (!iso) return "";

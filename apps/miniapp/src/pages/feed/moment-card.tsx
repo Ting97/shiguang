@@ -38,7 +38,7 @@ import {
 import { TagChip, type Tone } from "./chip";
 import LucideIcon, { type LucideIconName } from "../../components/lucide-icon";
 import EntryMenu from "./entry-menu";
-import { bjClock, bjDateKey, bjInputToIso, combineHM, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
+import { bjClock, bjDateKey, bjInputToIso, combineHM, combineHmEndCrossDay, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import { rowMenu } from "../../lib/row-menu";
 import "./moment-card.scss";
 import { yuanToCents } from "@shiguangri/shared";
@@ -395,6 +395,7 @@ export default function MomentCard({
                       <View className="mc-edit-pick">{editBlock.start || "开始"}</View>
                     </Picker>
                     <Text className="mc-edit-sep">至</Text>
+                    {editBlock.end <= editBlock.start ? <Text className="mc-cross-hint">次日</Text> : null}
                     <Picker mode="time" value={editBlock.end} onChange={(e) => setEditBlock({ ...editBlock, end: e.detail.value })}>
                       <View className="mc-edit-pick">{editBlock.end || "结束"}</View>
                     </Picker>
@@ -424,7 +425,11 @@ export default function MomentCard({
                           await patchBlock(b.id, {
                             title: editBlock.title.trim() || b.title,
                             startAt: combineHM(b.startAt ?? new Date().toISOString(), editBlock.start),
-                            endAt: combineHM(b.endAt ?? b.startAt ?? new Date().toISOString(), editBlock.end),
+                            endAt: combineHmEndCrossDay(
+                              combineHM(b.startAt ?? new Date().toISOString(), editBlock.start),
+                              editBlock.end,
+                              b.endAt ?? b.startAt ?? new Date().toISOString(),
+                            ),
                             activityId: editBlock.activityId,
                           });
                           setEditBlock(null);

@@ -13,7 +13,7 @@ import Taro from "@tarojs/taro";
 import { rowMenu } from "../../lib/row-menu";
 import { TagChip } from "./chip";
 import LucideIcon from "../../components/lucide-icon";
-import { bjClock, bjToday, combineHM, zhDuration, bjNowMin } from "./kit";
+import { bjClock, bjToday, combineHM, combineHmEndCrossDay, zhDuration, bjNowMin } from "./kit";
 
 /** web 0.75px/分钟 → 750 稿 1.5 单位/分钟；一天高 2160，容器高 960（= web 1080px/480px） */
 const UNIT_PER_MIN = 1.5;
@@ -132,18 +132,16 @@ export default function TodaySchedule({
 
   async function saveEdit() {
     if (!editing || saving) return;
-    if (editing.end <= editing.start) {
-      showToast({ type: "err", text: "结束时间必须晚于开始时间" });
-      return;
-    }
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
     setSaving(true);
     try {
+      const startAt = combineHM(b.start_at, editing.start);
       await apiPatchBlock(editing.id, {
         title: editing.title.trim() || b.title,
-        startAt: combineHM(b.start_at, editing.start),
-        endAt: combineHM(b.end_at, editing.end),
+        startAt,
+        // 跨日程：结束早于开始自动按次日（如 23:30–06:30）
+        endAt: combineHmEndCrossDay(startAt, editing.end, b.end_at),
         activityId: editing.activityId,
       });
       setEditing(null);
@@ -370,6 +368,7 @@ export default function TodaySchedule({
                     <Picker mode="time" value={editing.end} onChange={(e) => setEditing({ ...editing, end: e.detail.value })}>
                       <View className="at-edit-pick">{editing.end}</View>
                     </Picker>
+                    {editing.end <= editing.start ? <Text className="mc-cross-hint">次日</Text> : null}
                     <Picker
                       mode="selector"
                       range={activities.map((a) => `${a.icon} ${a.name}`)}

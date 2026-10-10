@@ -458,9 +458,10 @@ export async function appendManual(
         const base = new Date(entry.created_at);
         const day = new Date(base.getTime() + 8 * 3600_000).toISOString().slice(0, 10);
         const start = new Date(`${day}T${startHM}:00+08:00`).toISOString();
-        const end = new Date(`${day}T${endHM}:00+08:00`).toISOString();
+        // 跨日程：结束按同一北京日拼接，≤ 开始自动 +1 天（如 23:00–06:00 睡眠块）
+        let end = new Date(`${day}T${endHM}:00+08:00`).toISOString();
         if (end <= start) {
-          throw ApiError.badRequest("结束时间必须晚于开始时间");
+          end = new Date(new Date(end).getTime() + 86_400_000).toISOString();
         }
         // 排除本 entry 自己的块：AI 已为该动态落过日程块时，用户手动补充修正时段
         // （与本块重叠）不应 409 死锁——与 confirmPending/reRecognize 同口径

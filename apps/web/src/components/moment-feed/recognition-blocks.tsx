@@ -6,7 +6,7 @@ import { api } from "@/shared/api";
 import { RowAction } from "./row-action";
 import { RowActionMenu, type RowMenuState } from "./row-action-menu";
 import { useHoverCapable } from "./use-hover-capable";
-import { combineHM } from "@/lib/bj-time"; // 北京口径版：本地 setHours 在海外设备会偏 8 小时（与日程页同源）
+import { combineHM, combineHmEndCrossDay } from "@/lib/bj-time"; // 北京口径版：本地 setHours 在海外设备会偏 8 小时（与日程页同源）
 import { dayPrefix, zhClock } from "./kit";
 import type { DelFn, RunFn } from "./types";
 
@@ -51,7 +51,10 @@ export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps)
               onChange={(e) => setEditBlock({ ...editBlock, start: e.target.value })}
               className="rounded border border-line-strong bg-surface px-1.5 py-1 text-xs tabular-nums outline-none focus:border-sky-500"
             />
-            <span className="text-ink-dim">至</span>
+            <span className="text-ink-dim" title="结束早于开始自动按次日（跨日程）">至</span>
+            {editBlock.end <= editBlock.start && (
+              <span className="rounded bg-sky-500/15 px-1 text-badge text-accent" title="结束早于开始，保存后自动 +1 天">次日 +1</span>
+            )}
             <input
               type="time"
               value={editBlock.end}
@@ -72,11 +75,11 @@ export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps)
               <button
                 onClick={() =>
                   run(async () => {
-                    if (editBlock.end <= editBlock.start) throw new Error("结束时间必须晚于开始时间");
+                    const startAt = combineHM(b.startAt, editBlock.start);
                     await api(`/api/blocks/${b.id}`, "PATCH", {
                       title: editBlock.title.trim() || b.title,
-                      startAt: combineHM(b.startAt, editBlock.start),
-                      endAt: combineHM(b.endAt, editBlock.end),
+                      startAt,
+                      endAt: combineHmEndCrossDay(startAt, editBlock.end, b.endAt),
                       activityId: editBlock.activityId,
                     });
                     setEditBlock(null);
