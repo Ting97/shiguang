@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { Mic, Pause, Play } from "lucide-react";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -97,7 +97,7 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
   }
 
   return (
-    <div className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-sky-500/25 bg-gradient-to-r from-sky-500/[0.08] to-indigo-500/[0.06] px-3 py-2.5 sm:w-[340px]">
+    <div className="mt-1.5 flex w-full items-center gap-2.5 rounded-xl border border-sky-500/25 bg-gradient-to-r from-sky-500/[0.08] to-indigo-500/[0.06] px-2.5 py-1.5 sm:w-[300px]">
       {err ? (
         <p className="min-w-0 flex-1 text-micro text-ink-faint">🎤 语音加载失败（文件可能已过期）</p>
       ) : (
@@ -105,50 +105,49 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
           <button
             onClick={toggle}
             aria-label={playing ? "暂停语音" : "播放语音"}
-            className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/30"
+            className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-md shadow-sky-500/25"
           >
-            {playing ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+            {playing ? <Pause size={13} /> : <Play size={13} className="ml-0.5" />}
           </button>
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center justify-between text-[10px] leading-none tabular-nums text-ink-faint">
-              {playing ? (
-                <span className="flex h-2.5 items-end gap-[2px]" aria-hidden>
-                  <i className="vp-eq inline-block h-full w-[3px] rounded-sm bg-accent" style={{ animationDelay: "0ms" }} />
-                  <i className="vp-eq inline-block h-full w-[3px] rounded-sm bg-accent" style={{ animationDelay: "180ms" }} />
-                  <i className="vp-eq inline-block h-full w-[3px] rounded-sm bg-accent" style={{ animationDelay: "360ms" }} />
-                </span>
-              ) : (
-                <span>🎤 语音</span>
-              )}
-              <span>
-                {fmt(cur)} / {dur ? fmt(dur) : "--:--"}
-              </span>
-            </div>
-            {/* 轨道：点击/拖拽 seek；h-5 热区内视觉条 h-1.5，播放头 hover/拖拽时放大 */}
-            <div
-              ref={trackRef}
-              role="slider"
-              aria-label="播放进度"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(dur)}
-              aria-valuenow={Math.round(cur)}
-              tabIndex={0}
-              className="group flex h-5 cursor-pointer touch-none select-none items-center"
-              // pointer 事件用原生监听（useEffect 挂载）：点击/拖拽均可 seek
-            >
-              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-elevated">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-400"
-                  style={{ width: dur ? `${Math.min(100, (cur / dur) * 100)}%` : "0%" }}
-                />
-              </div>
-              <span
-                className={`pointer-events-none -ml-[7px] h-3.5 w-3.5 rounded-full bg-white shadow-md shadow-scrim/50 transition-transform ${
-                  playing || draggingRef.current ? "scale-100" : "scale-0 group-hover:scale-100"
-                }`}
+          {/* 播放中：微型均衡器；静止：麦） */}
+          <span className="flex h-3 w-[10px] shrink-0 items-end justify-center gap-[2px]" aria-hidden>
+            {playing ? (
+              <>
+                <i className="vp-eq inline-block h-full w-[2px] rounded-sm bg-accent" style={{ animationDelay: "0ms" }} />
+                <i className="vp-eq inline-block h-full w-[2px] rounded-sm bg-accent" style={{ animationDelay: "180ms" }} />
+                <i className="vp-eq inline-block h-full w-[2px] rounded-sm bg-accent" style={{ animationDelay: "360ms" }} />
+              </>
+            ) : (
+              <Mic size={10} className="text-ink-faint" />
+            )}
+          </span>
+          {/* 轨道：点击/拖拽 seek；h-4 热区内视觉条 h-1，播放头 hover/拖拽时放大 */}
+          <div
+            ref={trackRef}
+            role="slider"
+            aria-label="播放进度"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(dur)}
+            aria-valuenow={Math.round(cur)}
+            tabIndex={0}
+            className="group flex h-4 min-w-0 flex-1 cursor-pointer touch-none select-none items-center"
+            // pointer 事件用原生监听（useEffect 挂载）：点击/拖拽均可 seek
+          >
+            <div className="relative h-1 w-full overflow-hidden rounded-full bg-elevated">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-400"
+                style={{ width: dur ? `${Math.min(100, (cur / dur) * 100)}%` : "0%" }}
               />
             </div>
+            <span
+              className={`pointer-events-none -ml-[5px] h-2.5 w-2.5 rounded-full bg-white shadow-md shadow-scrim/50 transition-transform ${
+                playing || draggingRef.current ? "scale-100" : "scale-0 group-hover:scale-100"
+              }`}
+            />
           </div>
+          <span className="shrink-0 text-[10px] leading-none tabular-nums text-ink-faint">
+            {fmt(cur)}/{dur ? fmt(dur) : "--:--"}
+          </span>
         </>
       )}
       <audio
