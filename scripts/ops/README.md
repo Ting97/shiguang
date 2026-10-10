@@ -30,6 +30,16 @@
 - 未映射编码每次运行打印提醒；已建档负债：B3=中信银行信用卡、B4=招商银行信用卡B4、B5=中信银行信用卡B5、B6=招商银行信用卡B6、C5=工商银行C5、F1=网商银行F1、B1=华夏银行（名称来自 D:\ai\trade\资产\data.js 编码表）
 - 手动跑：`cd /opt/shiguangri_repo && node scripts/ops/sync-debt-from-trade.mjs`（--dry 预览；脚本实际位于 scripts/ops/）
 
+## E2E 测试账号（线上测试专用）
+
+- **专用测试账号：phone `13900000001`（昵称 E2E 测试，pro 计划）**——所有针对线上环境的
+  自动化/浏览器测试一律使用它，**禁止用真实用户账号测试**
+- 签发临时会话：`bash scripts/ops/e2e-session.sh [小时数=2]` → 输出 TOKEN
+  （浏览器：`document.cookie = "shiguang_session=<TOKEN>; path=/; max-age=..."`；
+  curl：`-H "Authorization: Bearer <TOKEN>"`）
+- 测试产生的数据（动态/感悟/行动等）测试完成后须删除；预设九分类账号自带，
+  测试空间等夹具按需创建、随测随清
+
 ## 恢复演练（每季度跑一次）
 
 ```bash
