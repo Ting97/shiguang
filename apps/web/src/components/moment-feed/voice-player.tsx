@@ -1,17 +1,148 @@
 "use client";
 
-import { Mic } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Pause, Play } from "lucide-react";
+
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /**
- * 语音动态回放（moment-card 内与图片网格并排）：
- * - <audio controls> 自带手势播放（iOS/安卓同源 cookie 鉴权天然可用），preload=none 避免列表批量拉音频
- * - PC 限宽 320px；移动端全宽、原生控件高度 40px 触控友好
+ * 语音动态回放（自绘控件，替代原生 audio 灰条）：
+ * - 渐变圆钮播放/暂停 + 可点可拖的进度条 + 时长（tabular-nums）
+ * - 播放中 Mic 换三段均衡器动效（.vp-eq，globals.css keyframes）
+ * - <audio> 隐藏承载播放；同源 cookie 鉴权天然可用；error 态降级文案
+ * - PC 限宽 340px；移动端全宽（进度轨道 h-5 触控热区，拖拽 seek）
  */
 export default function VoicePlayer({ storageKey }: { storageKey: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  const [playing, setPlaying] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const onTime = () => setCur(a.currentTime);
+    const onMeta = () => setDur(Number.isFinite(a.duration) ? a.duration : 0);
+    const onEnd = () => {
+      setPlaying(false);
+      setCur(0);
+      a.currentTime = 0;
+    };
+    const onErr = () => setErr(true);
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("loadedmetadata", onMeta);
+    a.addEventListener("durationchange", onMeta);
+    a.addEventListener("ended", onEnd);
+    a.addEventListener("error", onErr);
+    return () => {
+      a.removeEventListener("timeupdate", onTime);
+      a.removeEventListener("loadedmetadata", onMeta);
+      a.removeEventListener("durationchange", onMeta);
+      a.removeEventListener("ended", onEnd);
+      a.removeEventListener("error", onErr);
+    };
+  }, []);
+
+  function toggle() {
+    const a = audioRef.current;
+    if (!a || err) return;
+    if (playing) {
+      a.pause();
+      setPlaying(false);
+    } else {
+      void a.play().then(() => setPlaying(true)).catch(() => setErr(true));
+    }
+  }
+
+  function seekTo(clientX: number) {
+    const a = audioRef.current;
+    const track = trackRef.current;
+    if (!a || !track || !dur) return;
+    const r = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    a.currentTime = ratio * dur;
+    setCur(a.currentTime);
+  }
+
   return (
-    <div className="mt-2 flex w-full items-center gap-2 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2 sm:w-[320px]">
-      <Mic size={14} aria-hidden className="shrink-0 text-accent" />
-      <audio controls preload="none" src={`/api/files/${storageKey}`} className="h-10 w-full min-w-0" />
+    <div className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-sky-500/25 bg-gradient-to-r from-sky-500/[0.08] to-indigo-500/[0.06] px-3 py-2.5 sm:w-[340px]">
+      {err ? (
+        <p className="min-w-0 flex-1 text-micro text-ink-faint">🎤 语音加载失败（文件可能已过期）</p>
+      ) : (
+        <>
+          <button
+            onClick={toggle}
+            aria-label={playing ? "暂停语音" : "播放语音"}
+            className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-500/30"
+          >
+            {playing ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center justify-between text-[10px] leading-none tabular-nums text-ink-faint">
+              {playing ? (
+                <span className="flex h-2.5 items-end gap-[2px]" aria-hidden>
+                  <i className="vp-eq inline-block h-full w-[3px] rounded-sm bg-accent" style={{ animationDelay: "0ms" }} />
+                  <i className="vp-eq inline-block h-full w-[3px] rounded-sm bg-accent" style={{ animationDelay: "180ms" }} />
+                  <i className="vp-eq inline-block h-full w-[3px] rounded-sm bg-accent" style={{ animationDelay: "360ms" }} />
+                </span>
+              ) : (
+                <span>🎤 语音</span>
+              )}
+              <span>
+                {fmt(cur)} / {dur ? fmt(dur) : "--:--"}
+              </span>
+            </div>
+            {/* 轨道：点击/拖拽 seek；h-5 热区内视觉条 h-1.5，播放头 hover/拖拽时放大 */}
+            <div
+              ref={trackRef}
+              role="slider"
+              aria-label="播放进度"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(dur)}
+              aria-valuenow={Math.round(cur)}
+              tabIndex={0}
+              className="group flex h-5 cursor-pointer touch-none select-none items-center"
+              onPointerDown={(e) => {
+                draggingRef.current = true;
+                e.currentTarget.setPointerCapture(e.pointerId);
+                seekTo(e.clientX);
+              }}
+              onPointerMove={(e) => {
+                if (draggingRef.current) seekTo(e.clientX);
+              }}
+              onPointerUp={() => {
+                draggingRef.current = false;
+              }}
+              onPointerCancel={() => {
+                draggingRef.current = false;
+              }}
+            >
+              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-elevated">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-400"
+                  style={{ width: dur ? `${Math.min(100, (cur / dur) * 100)}%` : "0%" }}
+                />
+              </div>
+              <span
+                className={`pointer-events-none -ml-[7px] h-3.5 w-3.5 rounded-full bg-white shadow-md shadow-scrim/50 transition-transform ${
+                  playing || draggingRef.current ? "scale-100" : "scale-0 group-hover:scale-100"
+                }`}
+              />
+            </div>
+          </div>
+        </>
+      )}
+      <audio
+        ref={audioRef}
+        src={`/api/files/${storageKey}`}
+        preload="metadata"
+        className="hidden"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+      />
     </div>
   );
 }

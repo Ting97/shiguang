@@ -533,6 +533,16 @@ body {
 }
 
 /* 区块入场：一次性淡入上移（挂页面主区块/卡片） */
+/* 语音动态播放中均衡器（voice-player 三段跳动条） */
+@keyframes vp-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.vp-eq {
+  transform-origin: bottom;
+  animation: vp-eq 0.9s ease-in-out infinite;
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;
