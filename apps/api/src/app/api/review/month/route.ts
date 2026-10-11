@@ -50,7 +50,7 @@ export const POST = withAuth(async (req, { user }) => {
         const parsed = await chatReviewJson<Partial<MonthReview>>({
           system: bundle.system,
           user: userPrompt,
-          maxTokens: 12000,
+          maxTokens: 6000,
           timeoutMs: 180_000,
           onUsage: capture,
         });
