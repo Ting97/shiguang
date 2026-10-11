@@ -591,7 +591,7 @@ export async function appendManual(
         await client.query(
           `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
            values ($1,$2,$3,$4,$5,$6)`,
-          [userId, c.id, entryId, type, entry.raw_text.slice(0, 60), new Date().toISOString()],
+          [userId, c.id, entryId, type, entry.raw_text, new Date().toISOString()],
         );
         result = { name, type };
         message = `👥 已记录与「${name}」的往来`;

@@ -84,7 +84,7 @@ export default function DigestSection({ accountId }: { accountId: string }) {
         fallback?: boolean;
         fallbackReason?: string;
         digest?: Digest | null;
-      }>("/api/trading/review", "POST", { accountId, refresh: true });
+      }>("/api/trading/review", "POST", { accountId, refresh: true }, undefined, { timeoutMs: 130_000 });
       if (j.fallback) {
         setReview({ kind: "fallback", reason: j.fallbackReason ?? "AI 暂不可用", digest: j.digest ?? null });
       } else if (j.review) {

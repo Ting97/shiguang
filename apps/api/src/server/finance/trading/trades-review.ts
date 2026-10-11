@@ -164,18 +164,19 @@ export async function generateTradingReview(userId: string, accountId: string, r
         const parsed = await chatReviewJson<Partial<TradingReview>>({
           system: bundle.system,
           user: userPrompt,
-          maxTokens: 900,
-          timeoutMs: 45_000,
+          maxTokens: 6000,
+          timeoutMs: 120_000,
           onUsage: capture,
         });
-        const arr = (v: unknown, n: number) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 60)).filter(Boolean).slice(0, n) : []);
+        // 字数不限（与复盘系列同口径）：只 trim 清洗，不做长度/条数截断
+        const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : []);
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().slice(0, 160)
+              ? parsed.summary.trim()
               : "交易样本还少，继续导入账单后再来看复盘结论",
-          highlights: arr(parsed.highlights, 3),
-          suggestions: arr(parsed.suggestions, 3),
+          highlights: arr(parsed.highlights),
+          suggestions: arr(parsed.suggestions),
         };
       } catch (e) {
         // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）

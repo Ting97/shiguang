@@ -116,7 +116,7 @@ export function ContactDetailPage() {
     if (profiling) return;
     setProfiling(true);
     try {
-      const j = await api(`/api/contacts/${id}/ai-profile`, "POST");
+      const j = await api(`/api/contacts/${id}/ai-profile`, "POST", undefined, undefined, { timeoutMs: 100_000 });
       setContact((c) => (c ? { ...c, ai_profile: j.profile, ai_profile_at: new Date().toISOString() } : c));
       toast("✨ 交往画像已更新");
     } catch (e) {

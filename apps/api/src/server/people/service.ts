@@ -358,9 +358,9 @@ export async function generateAiProfile(userId: string, id: string) {
       : "",
   ].filter(Boolean);
 
-  const system = `你是个人经营助手，帮用户提炼与某位联系人的「交往画像」。只依据给出的真实记录归纳，**严禁编造**记录里没有的信息；记录太少就少说，每类最多 3 条。严格输出 JSON：
+  const system = `你是个人经营助手，帮用户提炼与某位联系人的「交往画像」。只依据给出的真实记录归纳，**严禁编造**记录里没有的信息；记录太少就少说（**字数与条数不限**：按往来记录的丰富程度充分展开，禁止凑条凑字）。严格输出 JSON：
 {
-  "summary": "一句话交往风格总结（≤40字，基于记录）",
+  "summary": "交往风格总结（基于记录，字数不限）",
   "likes": ["TA 明显喜欢/在意的事（来自记录）"],
   "dislikes": ["TA 的忌讳/反感/雷区（来自记录，没有就空数组）"],
   "facts": ["值得记住的重要事实（如家人生日、口味、约定）"]
@@ -393,14 +393,14 @@ export async function generateAiProfile(userId: string, id: string) {
       system,
       user: lines.join("\n"),
       temperature: 0.3,
-      maxTokens: 600,
-      timeoutMs: 45_000,
+      maxTokens: 3000,
+      timeoutMs: 90_000,
       onUsage: (u) => { usage = u; },
     });
     const parsed = extractJson(raw) as Partial<AiProfile>;
-    const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).slice(0, 40)).filter(Boolean).slice(0, 3) : []);
+    const arr = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : []);
     profile = {
-      summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim().slice(0, 60) : "记录还太少，多记几次再来提炼会更准",
+      summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : "记录还太少，多记几次再来提炼会更准",
       likes: arr(parsed.likes),
       dislikes: arr(parsed.dislikes),
       facts: arr(parsed.facts),
