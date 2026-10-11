@@ -26,7 +26,7 @@ export function entryLines(rows: EntryRow[]): string[] {
   return rows.map((r) => {
     const d = bj(r.created_at);
     const mood = r.mood ? `(心情:${r.mood}${r.mood_score != null ? ` ${r.mood_score > 0 ? "+" : ""}${r.mood_score}` : ""})` : "";
-    return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} 「${clip(r.raw_text)}」${mood}`;
+    return `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} 「${r.raw_text}」${mood}`;
   });
 }
 
@@ -74,7 +74,7 @@ export function blockLines(rows: BlockRow[]): string[] {
     const day = `${pad2(s.getUTCMonth() + 1)}-${pad2(s.getUTCDate())}`;
     const hm = (d: Date) => `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     const span = sameDay ? `${hm(s)}-${hm(e)}` : `${hm(s)}-次日${hm(e)}`;
-    return `${day} ${span} ${r.icon}${r.name}${r.title && r.title !== r.name ? `·${clip(r.title, 16)}` : ""}`;
+    return `${day} ${span} ${r.icon}${r.name}${r.title && r.title !== r.name ? `·${r.title}` : ""}`;
   });
 }
 
@@ -89,7 +89,7 @@ export function todoDoneLines(rows: TodoRow[]): string[] {
     .filter((r) => r.done_at)
     .map((r) => {
       const d = bj(r.done_at!);
-      return `✅ ${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} ${clip(r.title, 30)}`;
+      return `✅ ${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} ${r.title}`;
     });
 }
 
@@ -152,7 +152,7 @@ function validProfile(p: unknown, budgetMax = 40): UserProfileShape | null {
   for (const [k] of PROFILE_BUCKETS) {
     const list = (p as Record<string, unknown>)[k];
     if (Array.isArray(list)) {
-      const items = list.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => clip(x.trim(), 40));
+      const items = list.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
       if (items.length) {
         (out[k] as string[]) = items;
         total += items.length;
@@ -234,8 +234,8 @@ export async function updateProfileFromReview(
     const userPrompt = await assembleUserPrompt("profile_merge", bundle, {
       oldProfile: old ?? "（暂无，首次建立）",
       period,
-      factsText: clip(factsText, 1600),
-      reviewText: clip(reviewText, 1200),
+      factsText,
+      reviewText,
     }, { userId });
     // 审计计量（成本监控，与 ai_profile 画像提炼同口径；9-E 记账补漏：profile_merge 此前
     // 不传 onUsage 也不写审计，token 恒 0 成本失真）。不进配额：getQuota 只按 parse/review/asr 计费

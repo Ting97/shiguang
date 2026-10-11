@@ -345,7 +345,7 @@ export async function generateAiProfile(userId: string, id: string) {
     `人物：${contact.name}${contact.alias ? `（备注名 ${contact.alias}）` : ""}，分组 ${contact.group_tag}`,
     // birthday 是 date 列（Date 对象）：直接内插得 "Wed Sep 23..." 脏串，必须先归一化成北京日历日
     contact.birthday ? `生日 ${bjDateStr(contact.birthday)}` : "",
-    contact.notes ? `档案备注：${String(contact.notes).slice(0, 500)}` : "", // 兜底截断：存量超长备注不放大 token
+    contact.notes ? `档案备注：${contact.notes}` : "",
     interactions.length
       ? `往来记录（最近 ${interactions.length} 条）：\n${interactions
           .map((i: Record<string, unknown>) => `- [${i.type}] ${i.summary ?? ""}${i.occurred_at ? `（${bjDateStr(i.occurred_at)}）` : ""}`)

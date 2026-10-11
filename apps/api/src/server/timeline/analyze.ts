@@ -45,7 +45,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
         const t0 = Date.now();
         const jevCandidates: Record<string, string> = {};
         for (const s of spaces) jevCandidates[s.id] = `${s.name}${s.description ? `：${s.description}` : ""}`;
-        const state = `用户随口记录了一句话：\n「${rawText.slice(0, 500)}」`;
+        const state = `用户随口记录了一句话：\n「${rawText}」`;
         const res = await jevAsk(state, spaceClassifyQuestions(jevCandidates));
         const belongs = res.answers["space_belongs"];
         const which = res.answers["space_which"];
@@ -88,7 +88,7 @@ async function classifySpace(userId: string, entryId: string, rawText: string): 
     }
 
     const candidates = spaces.map((s) => `- ${s.id}：${s.name}${s.description ? `（${s.description.slice(0, 200)}）` : ""}`).join("\n");
-    const userPrompt = await assembleUserPrompt("space_classify", bundle, { candidates, text: rawText.slice(0, 500) }, { userId });
+    const userPrompt = await assembleUserPrompt("space_classify", bundle, { candidates, text: rawText }, { userId });
     const t0 = Date.now();
     // 9-E 记账补漏：space_classify 此前不传 onUsage，token 恒 0（计费口径失真）
     let usage: { prompt_tokens: number; completion_tokens: number } | null = null;

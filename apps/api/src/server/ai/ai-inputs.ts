@@ -190,25 +190,25 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     userTemplate: REVIEW_TEMPLATE(""),
     placeholders: ["facts", "entryDetail", "blockDetail", "todoDetail", "profileBlock"],
     injects: [...REVIEW_INJECTS(false), ...REVIEW_REQUIRED],
-    caps: REVIEW_CAPS(500, 0, 0),
+    caps: REVIEW_CAPS(0, 0, 0), // 输入不限制：0=全量（capLines 对 0 不裁剪）
   },
   review_week: {
     userTemplate: REVIEW_TEMPLATE_CHAIN,
     placeholders: ["facts", "chainBlock", "entryDetail", "blockDetail", "todoDetail", "profileBlock"],
     injects: [...REVIEW_INJECTS(true), ...REVIEW_REQUIRED],
-    caps: REVIEW_CAPS(200, 100, 100),
+    caps: REVIEW_CAPS(0, 0, 0),
   },
   review_month: {
     userTemplate: REVIEW_TEMPLATE_CHAIN,
     placeholders: ["facts", "chainBlock", "entryDetail", "blockDetail", "todoDetail", "profileBlock"],
     injects: [...REVIEW_INJECTS(true), ...REVIEW_REQUIRED],
-    caps: REVIEW_CAPS(300, 150, 150),
+    caps: REVIEW_CAPS(0, 0, 0),
   },
   review_year: {
     userTemplate: REVIEW_TEMPLATE_CHAIN,
     placeholders: ["facts", "chainBlock", "entryDetail", "blockDetail", "todoDetail", "profileBlock"],
     injects: [...REVIEW_INJECTS(true), ...REVIEW_REQUIRED],
-    caps: REVIEW_CAPS(60, 100, 100),
+    caps: REVIEW_CAPS(0, 0, 0),
   },
   trading_review: {
     userTemplate: `{facts}`,
