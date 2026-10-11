@@ -108,7 +108,8 @@ export default function FinanceReviewPage() {
         setReviewMeta({ cached: j.cached, generatedAt: j.generatedAt, range: j.range });
       } catch (e) {
         if (seq !== reviewSeq.current) return;
-        toast(e instanceof Error ? e.message : String(e), "err");
+        const msg = e instanceof Error ? e.message : String(e);
+        toast(/timed out|timeout|aborted/i.test(msg) ? "生成超时：内容较多时需要 1~3 分钟，请再试一次" : msg, "err");
       } finally {
         setGenBusy(false);
       }

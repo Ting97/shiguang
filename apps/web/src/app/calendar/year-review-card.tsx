@@ -30,7 +30,8 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {
-      notify(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      notify(/timed out|timeout|aborted/i.test(msg) ? "生成超时：内容较多时需要 1~3 分钟，请再试一次" : msg);
     } finally {
       setBusy(false);
     }
