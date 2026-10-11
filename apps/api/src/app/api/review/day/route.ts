@@ -54,17 +54,18 @@ export const POST = withAuth(async (req, { user }) => {
           onUsage: capture,
         });
         // GLM 偶发把全角引号吐进返回串，页面渲染出 `","` 残渣——字符串统一剥引号
-        const arr = (v: unknown, n: number) =>
+        // 字数不限（提示词同口径）：只清洗引号残渣，不做长度/条数截断
+        const arr = (v: unknown) =>
           Array.isArray(v)
-            ? v.map((x) => String(x).replace(/["“”„]/g, "").slice(0, 30)).filter(Boolean).slice(0, n)
+            ? v.map((x) => String(x).replace(/["“”„]/g, "").trim()).filter(Boolean)
             : [];
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().replace(/["“”„]/g, "").slice(0, 80)
+              ? parsed.summary.trim().replace(/["“”„]/g, "")
               : "这一天记录还很少，多记几句再来复盘会更有料",
-          highlights: arr(parsed.highlights, 2),
-          suggestions: arr(parsed.suggestions, 2),
+          highlights: arr(parsed.highlights),
+          suggestions: arr(parsed.suggestions),
         };
       } catch (e) {
         // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）

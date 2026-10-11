@@ -175,17 +175,17 @@ export const POST = withModule("trade_review", async (req, { user }) => {
           onUsage: capture,
         });
         // GLM 偶发把全角引号吐进数组元素，页面渲染出 `","` 残渣——字符串统一剥引号
-        const arr = (v: unknown, n: number) =>
+        const arr = (v: unknown) =>
           Array.isArray(v)
-            ? v.map((x) => String(x).replace(/["“”„]/g, "").slice(0, 34)).filter(Boolean).slice(0, n)
+            ? v.map((x) => String(x).replace(/["“”„]/g, "").trim()).filter(Boolean)
             : [];
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().replace(/["“”„]/g, "").slice(0, 120)
+              ? parsed.summary.trim().replace(/["“”„]/g, "")
               : "本周流水还很少，多记几笔再来复盘会更有料",
-          highlights: arr(parsed.highlights, 3),
-          suggestions: arr(parsed.suggestions, 2),
+          highlights: arr(parsed.highlights),
+          suggestions: arr(parsed.suggestions),
         };
       } catch (e) {
         // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）

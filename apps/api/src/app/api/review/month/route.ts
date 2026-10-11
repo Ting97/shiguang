@@ -55,24 +55,24 @@ export const POST = withAuth(async (req, { user }) => {
           onUsage: capture,
         });
         // GLM 偶发把全角引号吐进返回串，页面渲染出 `","` 残渣——字符串统一剥引号
-        const arr = (v: unknown, n: number) =>
+        // 字数不限（提示词同口径）：只清洗引号残渣，不做长度/条数截断
+        const arr = (v: unknown) =>
           Array.isArray(v)
-            ? v.map((x) => String(x).replace(/["“”„]/g, "").slice(0, 40)).filter(Boolean).slice(0, n)
+            ? v.map((x) => String(x).replace(/["“”„]/g, "").trim()).filter(Boolean)
             : [];
         const sections = Array.isArray(parsed.sections)
           ? parsed.sections
               .filter((s) => s && typeof (s as { title?: unknown }).title === "string" && typeof (s as { text?: unknown }).text === "string")
-              .slice(0, 4)
-              .map((s) => ({ title: String(s.title).slice(0, 12), text: String(s.text).slice(0, 220) }))
+              .map((s) => ({ title: String(s.title).replace(/["“”„]/g, "").trim(), text: String(s.text).replace(/["“”„]/g, "").trim() }))
           : [];
         return {
           summary:
             typeof parsed.summary === "string" && parsed.summary.trim()
-              ? parsed.summary.trim().replace(/["“”„]/g, "").slice(0, 160)
+              ? parsed.summary.trim().replace(/["“”„]/g, "")
               : "这个月记录还很少，多记几天再来复盘会更有料",
           sections,
-          highlights: arr(parsed.highlights, 4),
-          suggestions: arr(parsed.suggestions, 3),
+          highlights: arr(parsed.highlights),
+          suggestions: arr(parsed.suggestions),
         };
       } catch (e) {
         // 生成失败回退占位（acquire 已原子 +1；成功路径不再 consume，防双计）
