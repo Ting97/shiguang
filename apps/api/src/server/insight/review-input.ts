@@ -176,6 +176,16 @@ function validProfile(p: unknown, budgetMax = 40): UserProfileShape | null {
 }
 
 /** 复盘 JSON 调用：chat → 解析失败带错误说明重问一次（与识别链路的自修复重问同思路） */
+/** 完整 JSON 输出应以 } 收尾（契约：只输出 JSON）。未以 } 结尾 = 输出被 max_tokens 截断——
+ * extractJson 的抢救闭合会把截断内容变成"合法但缺尾"的 JSON 静默入库（实测 AI 小结句子被斩半），必须按失败重问/报错 */
+function jsonLooksComplete(raw: string): boolean {
+  return raw
+    .trim()
+    .replace(/```(?:json)?/gi, "")
+    .trimEnd()
+    .endsWith("}");
+}
+
 export async function chatReviewJson<T>(opts: {
   system: string;
   user: string;
@@ -193,6 +203,7 @@ export async function chatReviewJson<T>(opts: {
     onUsage: opts.onUsage,
   });
   try {
+    if (!jsonLooksComplete(raw)) throw new Error("输出疑似被截断（未以 } 收尾）");
     return extractJson(raw) as T;
   } catch (first) {
     const repairMsg = `${opts.user}\n\n你上次的输出不是合法 JSON（${String(first).slice(0, 120)}）。请修正后重新输出完整 JSON：结构不变、只输出 JSON、字符串内不得包含未转义的英文双引号或换行。`;
@@ -204,6 +215,7 @@ export async function chatReviewJson<T>(opts: {
       timeoutMs: opts.timeoutMs,
       onUsage: opts.onUsage,
     });
+    if (!jsonLooksComplete(raw)) throw new Error("复盘输出仍被截断，请重试");
     return extractJson(raw) as T;
   }
 }
