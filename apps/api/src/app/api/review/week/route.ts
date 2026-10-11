@@ -49,8 +49,8 @@ export const POST = withAuth(async (req, { user }) => {
         const parsed = await chatReviewJson<Partial<WeekReview>>({
           system: bundle.system,
           user: built.userPrompt,
-          maxTokens: 1300,
-          timeoutMs: 45_000,
+          maxTokens: 6000,
+          timeoutMs: 120_000,
           onUsage: capture,
         });
         // GLM 偶发把全角引号吐进返回串，页面渲染出 `","` 残渣——字符串统一剥引号

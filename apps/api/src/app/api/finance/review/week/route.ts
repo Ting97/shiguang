@@ -170,8 +170,8 @@ export const POST = withModule("trade_review", async (req, { user }) => {
         const parsed = await chatReviewJson<Partial<WeekReview>>({
           system: bundle.system,
           user: userPrompt,
-          maxTokens: 800,
-          timeoutMs: 45_000,
+          maxTokens: 4000,
+          timeoutMs: 120_000,
           onUsage: capture,
         });
         // GLM 偶发把全角引号吐进数组元素，页面渲染出 `","` 残渣——字符串统一剥引号
