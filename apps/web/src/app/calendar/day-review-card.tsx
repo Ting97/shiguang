@@ -23,7 +23,7 @@ export default function DayReviewCard({ date, hasRecords, notify }: {
     if (busy) return;
     setBusy(true);
     try {
-      const j = await api<any>("/api/review/day", "POST", { date, refresh: shown != null }); // 已有小结（含上次持久化的）时点「重新生成」强制刷新
+      const j = await api<any>("/api/review/day", "POST", { date, refresh: shown != null }, undefined, { timeoutMs: 100_000 }); // 已有小结（含上次持久化的）时点「重新生成」强制刷新
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {

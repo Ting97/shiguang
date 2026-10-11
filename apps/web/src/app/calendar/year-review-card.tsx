@@ -26,7 +26,7 @@ export default function YearReviewCard({ year, hasRecords, notify }: {
     if (busy) return;
     setBusy(true);
     try {
-      const j = await api<any>("/api/review/year", "POST", { year, refresh: shown != null });
+      const j = await api<any>("/api/review/year", "POST", { year, refresh: shown != null }, undefined, { timeoutMs: 250_000 });
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {

@@ -102,7 +102,7 @@ export default function FinanceReviewPage() {
       const seq = ++reviewSeq.current;
       setGenBusy(true);
       try {
-        const j = await api<any>("/api/finance/review/week", "POST", { date: mondayOf(anchor), refresh: true });
+        const j = await api<any>("/api/finance/review/week", "POST", { date: mondayOf(anchor), refresh: true }, undefined, { timeoutMs: 130_000 });
         if (seq !== reviewSeq.current) return;
         setReview(j.review);
         setReviewMeta({ cached: j.cached, generatedAt: j.generatedAt, range: j.range });

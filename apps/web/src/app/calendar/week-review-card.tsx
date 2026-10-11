@@ -24,7 +24,7 @@ export default function WeekReviewCard({ weekStart, weekEnd, hasRecords, notify 
     if (busy) return;
     setBusy(true);
     try {
-      const j = await api<any>("/api/review/week", "POST", { date: weekStart, refresh: shown != null });
+      const j = await api<any>("/api/review/week", "POST", { date: weekStart, refresh: shown != null }, undefined, { timeoutMs: 130_000 });
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {

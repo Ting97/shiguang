@@ -26,7 +26,7 @@ export default function MonthReviewCard({ month, hasRecords, notify }: {
     if (busy) return;
     setBusy(true);
     try {
-      const j = await api<any>("/api/review/month", "POST", { month, refresh: shown != null });
+      const j = await api<any>("/api/review/month", "POST", { month, refresh: shown != null }, undefined, { timeoutMs: 190_000 });
       setGeneratedAt(j.generatedAt ?? null);
       setReview(j.review);
     } catch (e) {
