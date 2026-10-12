@@ -5,7 +5,7 @@
  * - 管理端 API：/api/admin/prompts*
  */
 import { pool } from "@/server/platform/db";
-import { EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS } from "@shiguangri/ai";
+import { CHAT_ASSISTANT_SYSTEM_PROMPT, EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS } from "@shiguangri/ai";
 import {
   REVIEW_DAY_SYSTEM,
   REVIEW_WEEK_SYSTEM,
@@ -39,10 +39,11 @@ export const PROMPT_KEYS = [
   "todo_decompose",
   "action_decompose",
   "prompt_optimizer",
+  "chat_assistant",
 ] as const;
 export type PromptKey = (typeof PROMPT_KEYS)[number];
 
-export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" | "复盘" | "目标" | "系统" }> = {
+export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" | "复盘" | "目标" | "系统" | "助手" }> = {
   extract_full: { title: "全量五域提取", category: "识别" },
   extract_open_vocab: { title: "瘦身开放词汇提取（Jev 接管）", category: "识别" },
   extract_domain_schedule: { title: "单域 · 日程", category: "识别" },
@@ -62,6 +63,7 @@ export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" 
   todo_decompose: { title: "todo AI 拆解", category: "目标" },
   action_decompose: { title: "行动细化拆解", category: "目标" },
   prompt_optimizer: { title: "Prompt 优化器", category: "系统" },
+  chat_assistant: { title: "AI 对话助手", category: "助手" },
 };
 
 const DEFAULT_PROMPTS: Record<PromptKey, string> = {
@@ -121,6 +123,7 @@ const DEFAULT_PROMPTS: Record<PromptKey, string> = {
 
 ## 输出
 从优化后的 prompt 正文第一行开始输出全文，直到正文最后一行为止——禁止复述【用途】【契约约束】等输入块，禁止任何解释、前后缀或代码块围栏。`,
+  chat_assistant: CHAT_ASSISTANT_SYSTEM_PROMPT,
 };
 
 // ---- 进程内缓存（60s；standalone 常驻进程，保存后同进程 Map.delete 即时生效） ----

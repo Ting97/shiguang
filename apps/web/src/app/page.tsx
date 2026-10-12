@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react";
 import ActionsToday from "@/components/actions-today";
+import AssistantDock from "@/components/assistant-dock";
 import { useDesktopPublisher } from "./home/use-desktop-publisher";
 import type { Notify } from "./home/types";
 import DesktopComposer from "./home/desktop-composer";
@@ -369,6 +370,9 @@ export default function Home() {
         onClose={() => setSheetOpen(false)}
         notify={forwardMsg}
       />
+
+      {/* 拾光助手悬浮 Dock（REQ-015）：桌面=可化小面板，移动=整页入口；避开底部中央发布圆钮 */}
+      <AssistantDock />
 
       {/* 桌面：右上角今日行动触发钮 + 弹出面板（点击展开/收起；点空白/Esc 关闭） */}
       {isDesktop && (

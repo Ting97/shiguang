@@ -7,9 +7,10 @@
  *                         切换前经 poc-20 实测对照（SDK 78% ≥ legacy 67%，同参同模型）。
  *   GLM_TRANSPORT=legacy  自研 fetch 实现（等价回退开关，保留一个版本周期）
  */
-import { generateText } from "ai";
+import { generateText, tool, type CoreMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { APICallError } from "@ai-sdk/provider";
+import type { z } from "zod";
 
 /** GLM 连接默认值——全仓唯一来源（apps/api config / PoC 报告均引用此处，REQ-004 AC-3） */
 export const GLM_DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
@@ -390,20 +391,151 @@ async function sdkOnce(
     // 思考模型兜底（与 legacy 对齐）：max_tokens 被思考耗尽时 text 可能为空，思考文本里通常已有答案 JSON
     return text || reasoning || "";
   } catch (e) {
-    if (APICallError.isInstance(e)) {
-      const status = e.statusCode ?? null;
-      // 分类依据必须是原始响应体（业务码在其中）：e.message 只有智谱的业务文案，
-      // 拿它分类会让 1113/1302 永远落不进 quota → 熔断成为死代码，欠费期每次解析空转 30s 重试
-      const bodyText = typeof (e as { responseBody?: unknown }).responseBody === "string"
-        ? (e as { responseBody: string }).responseBody
-        : e.message;
-      throw new GlmError(classifyGlmFailure(status, bodyText), `GLM(${m}) HTTP ${status ?? "?"}: ${String(e.message).slice(0, 200)}`);
-    }
-    if (e instanceof Error && (e.name === "AbortError" || /abort/i.test(e.message))) {
-      throw new GlmError("timeout", `GLM(${m}) 响应超时（预算耗尽）`);
-    }
-    throw e instanceof Error ? e : new GlmError("network", String(e));
+    throw classifySdkError(e, m);
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** SDK 异常 → GlmError 分类（chat 单轮与 chatAgent 共用）。
+ * 分类依据必须是原始响应体（业务码在其中）：e.message 只有智谱的业务文案，
+ * 拿它分类会让 1113/1302 永远落不进 quota → 熔断成为死代码 */
+function classifySdkError(e: unknown, m: string): Error {
+  if (APICallError.isInstance(e)) {
+    const status = e.statusCode ?? null;
+    const bodyText = typeof (e as { responseBody?: unknown }).responseBody === "string"
+      ? (e as { responseBody: string }).responseBody
+      : e.message;
+    return new GlmError(classifyGlmFailure(status, bodyText), `GLM(${m}) HTTP ${status ?? "?"}: ${String(e.message).slice(0, 200)}`);
+  }
+  if (e instanceof Error && (e.name === "AbortError" || /abort/i.test(e.message))) {
+    return new GlmError("timeout", `GLM(${m}) 响应超时（预算耗尽）`);
+  }
+  return e instanceof Error ? e : new GlmError("network", String(e));
+}
+
+// ---- 对话助手 agent 循环（REQ-015 批次 A）：多轮对话 + 工具调用，AI SDK maxSteps 驱动 ----
+
+/** 喂给模型的历史轮次（DB 落库消息的瘦身形态：只回放 user/assistant 文本，工具轨迹已凝结在助手回答里） */
+export interface AgentTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** 协议无关工具规格：api 层注册（SQL/查询实现），本包只负责转成 AI SDK tool；
+ * name/description/zod 参数契约 + execute 与 MCP registerTool 同构——批次 D 包 MCP 端点可零改动复用 */
+export interface AgentToolSpec {
+  name: string;
+  description: string;
+  parameters: z.ZodType<Record<string, unknown>>;
+  execute: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
+export interface ChatAgentOptions {
+  system: string;
+  messages: AgentTurn[];
+  tools: AgentToolSpec[];
+  /** 单次问答允许的最大模型轮数（工具调用循环上限）；默认 5 */
+  maxSteps?: number;
+  temperature?: number;
+  maxTokens?: number;
+  /** 整个 agent 循环（含全部工具往返）的总预算；默认 60s */
+  timeoutMs?: number;
+  onUsage?: (usage: ChatUsage) => void;
+}
+
+export interface ChatAgentResult {
+  /** 助手的最终回答（工具循环结束后的文本） */
+  text: string;
+  /** 本轮发生的工具调用轨迹 [{name, args}]——前端「已查询…」提示与审计用 */
+  toolCalls: Array<{ name: string; args: unknown }>;
+}
+
+/** 对话助手：带工具调用的多轮循环。与 chat()（单轮抽取）分立——消息形态、预算、错误策略都不同：
+ * 工具循环单次 LLM 调用会有 1+ 步，总预算默认 60s；rate/server/network 失败整循环重试一次
+ * （工具约定只读幂等，重跑安全）；quota 触发全局熔断与 chat() 同口径。 */
+export async function chatAgent(opts: ChatAgentOptions): Promise<ChatAgentResult> {
+  const key = process.env.ZHIPUAI_API_KEY;
+  if (!key) throw new GlmError("auth", "缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
+  if (isQuotaTripped()) throw new GlmError("quota", "额度熔断生效中（5 分钟后自动恢复）");
+  const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
+  const model = process.env.GLM_MODEL ?? DEFAULT_MODEL;
+  const maxTokens = opts.maxTokens ?? 2048;
+
+  const provider = createSdkProvider(base, key, {
+    // glmExtensions 据此拼 thinking/reasoning_effort：助手对话与抽取同样 low；显式给 maxTokens 则不再补 4096
+    system: "",
+    user: "",
+    reasoningEffort: "low",
+    maxTokens,
+  });
+
+  const tools = Object.fromEntries(
+    opts.tools.map((t) => [
+      t.name,
+      tool({
+        description: t.description,
+        parameters: t.parameters,
+        execute: async (args: unknown) => {
+          try {
+            return await t.execute(args as Record<string, unknown>);
+          } catch (e) {
+            // 工具失败不炸整个循环：错误对象回传模型，由其改道（换参数重查或如实告知查询失败）
+            return { error: e instanceof Error ? e.message : String(e) };
+          }
+        },
+      }),
+    ]),
+  );
+
+  const deadline = Date.now() + (opts.timeoutMs ?? 60_000);
+  let lastErr: unknown = new GlmError("network", `GLM(${model}) 未响应`);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const remainMs = deadline - Date.now();
+    if (remainMs <= 0) break;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), remainMs);
+    try {
+      const res = await generateText({
+        model: provider.chatModel(model),
+        system: opts.system,
+        messages: opts.messages as CoreMessage[],
+        tools,
+        maxSteps: opts.maxSteps ?? 5,
+        temperature: opts.temperature ?? 0.3,
+        maxTokens,
+        abortSignal: ctl.signal,
+      });
+      const usage = res.usage;
+      if (opts.onUsage && usage) {
+        opts.onUsage({
+          prompt_tokens: Number(usage.promptTokens ?? 0),
+          completion_tokens: Number(usage.completionTokens ?? 0),
+        });
+      }
+      const toolCalls = (res.steps ?? []).flatMap((s) =>
+        (s.toolCalls ?? []).map((tc) => ({ name: tc.toolName, args: tc.args })),
+      );
+      const text = res.text || res.reasoning || "";
+      if (!text && toolCalls.length === 0) throw new GlmError("badOutput", "GLM 对话返回空内容");
+      return { text, toolCalls };
+    } catch (e) {
+      const err = classifySdkError(e, model);
+      if (err instanceof GlmError) {
+        if (err.kind === "quota") {
+          tripQuotaBreaker();
+          throw err;
+        }
+        if ((err.kind === "rate" || err.kind === "server" || err.kind === "network") && attempt < 2) {
+          lastErr = err;
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new GlmError("network", "GLM 对话未响应");
 }
