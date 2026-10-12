@@ -9,7 +9,7 @@ import { useArmConfirm } from "@/lib/use-arm-confirm";
 import Markdown from "@/components/markdown";
 
 /**
- * AI 对话核心（REQ-015）：/assistant 整页与首页悬浮 Dock 共用一套状态与消息流。
+ * 拾光助手对话核心（REQ-015）：/assistant 整页与首页悬浮 Dock 共用一套状态与消息流。
  * - variant="page"：会话侧栏 + 对话主区（整页布局）
  * - variant="dock"：紧凑面板——无侧栏，头部带 新对话/放大到整页/化小 三钮
  */
@@ -277,7 +277,7 @@ export default function AssistantChat({
       >
         <header className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
           <Sparkles size={16} className="text-ai" aria-hidden />
-          <h1 className={isDock ? "text-sm font-semibold" : "text-sm font-semibold"}>AI 助手</h1>
+          <h1 className={isDock ? "text-sm font-semibold" : "text-sm font-semibold"}>拾光助手</h1>
           {!isDock && <span className="text-micro text-ink-faint">懂你数据的私人经营助手</span>}
           {quotaText && (
             <span className="ml-auto rounded-full bg-violet-500/15 px-2 py-0.5 text-micro text-ai">{quotaText}</span>

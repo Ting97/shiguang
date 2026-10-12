@@ -30,6 +30,13 @@ export const CHAT_READABLE_TABLES = [
   "trade_accounts",
   "user_module_grants",
   "profiles",
+  // 财务/目标/饮食/备付（全数据面接入）
+  "diet_records",
+  "accounts",
+  "budgets",
+  "space_reflections",
+  "debt_reserve_checks",
+  "trade_reserve_banks",
 ] as const;
 
 /** 工具执行上下文：会话属主（所有查询的强制过滤条件） */
@@ -279,16 +286,17 @@ const queryMood: ChatTool = {
 
 const getReview: ChatTool = {
   name: "get_review",
-  description: "读取已生成的复盘小结（系统按日/周/月/年自动聚合的 AI 小结，含要点与建议）。适用：这周复盘说了什么、上个月的总结。没生成过会明确返回无缓存。",
+  description:
+    "读取已生成的复盘小结（系统自动聚合的 AI 小结，含要点与建议）：日/周/月/年复盘 + trade_week 收支周报。适用：这周复盘说了什么、上个月的总结、收支周报。没生成过会明确返回无缓存。",
   params: z.object({
-    kind: z.enum(["day", "week", "month", "year"]).describe("复盘档位"),
+    kind: z.enum(["day", "week", "month", "year", "trade_week"]).describe("复盘档位；trade_week=收支周报（交易复盘请用 query_trading）"),
     date: bjDate.describe("该档位内的任一天（周报传周内任一天即可，系统会定位所在周）"),
   }),
   async execute(ctx, p) {
-    const { kind, date } = p as { kind: "day" | "week" | "month" | "year"; date: string };
+    const { kind, date } = p as { kind: "day" | "week" | "month" | "year" | "trade_week"; date: string };
     const periodKey =
       kind === "day" ? date
-      : kind === "week" ? bjMondayOf(date)
+      : kind === "week" || kind === "trade_week" ? bjMondayOf(date)
       : kind === "month" ? date.slice(0, 7)
       : date.slice(0, 4);
     const { rows } = await pool.query(
@@ -299,6 +307,185 @@ const getReview: ChatTool = {
     );
     if (!rows.length) return { kind, periodKey, cached: false };
     return { kind, periodKey, cached: true, review: rows[0].review, updatedBj: rows[0].updated_bj };
+  },
+};
+
+const queryEntries: ChatTool = {
+  name: "query_entries",
+  description:
+    "检索动态原文（用户发过的一句话记录，含五域识别结果标记）：按关键词模糊匹配和/或日期区间过滤，返回时间+原文+心情。适用：我之前有没有记过某件事、那天发了什么。",
+  params: z.object({
+    q: z.string().max(50).optional().describe("关键词（原文模糊匹配，可省略）"),
+    from: bjDate.optional().describe("开始日期（含，北京时间），默认不限"),
+    to: bjDate.optional().describe("结束日期（含），默认今天"),
+    limit: z.number().int().min(1).max(30).default(15).describe("返回条数上限"),
+  }),
+  async execute(ctx, p) {
+    const { q, from, to, limit } = p as { q?: string; from?: string; to?: string; limit: number };
+    const conditions = ["user_id = $1"];
+    const args: unknown[] = [ctx.userId];
+    if (q) {
+      args.push(`%${q}%`);
+      conditions.push(`raw_text ilike $${args.length}`);
+    }
+    const todayBj = bjToday();
+    args.push(bjDayStart(from ?? "2020-01-01"));
+    conditions.push(`created_at >= $${args.length}`);
+    args.push(bjDayStart(bjAddDays(to ?? todayBj, 1)));
+    conditions.push(`created_at < $${args.length}`);
+    const { rows } = await pool.query(
+      `select left(raw_text, 80) as text, mood, mood_score,
+              ${bjTs("created_at")} as at_bj
+       from entries
+       where ${conditions.join(" and ")}
+       order by created_at desc limit $${args.length + 1}`,
+      [...args, limit],
+    );
+    return { q: q ?? null, range: { from: from ?? null, to: to ?? todayBj }, count: rows.length, items: rows };
+  },
+};
+
+const queryDiet: ChatTool = {
+  name: "query_diet",
+  description:
+    "查询饮食记录：按日期区间汇总摄入热量（按餐次）与最近条目明细。适用：这周吃了什么、今天摄入多少热量。",
+  params: z.object({
+    from: bjDate.describe("开始日期（含），北京时间"),
+    to: bjDate.describe("结束日期（含）"),
+  }),
+  async execute(ctx, p) {
+    const { from, to } = p as { from: string; to: string };
+    const [start, end] = rangeOf(from, to);
+    const { rows: byMeal } = await pool.query(
+      `select d.meal, count(*)::int as records, coalesce(sum(d.total_kcal), 0)::int as kcal
+       from diet_records d
+       where d.user_id = $1 and d.created_at >= $2 and d.created_at < $3
+       group by d.meal`,
+      [ctx.userId, start, end],
+    );
+    const { rows: detail } = await pool.query(
+      `select d.meal, d.items, d.total_kcal, ${bjTs("d.created_at")} as at_bj
+       from diet_records d
+       where d.user_id = $1 and d.created_at >= $2 and d.created_at < $3
+       order by d.created_at desc limit 10`,
+      [ctx.userId, start, end],
+    );
+    return { range: { from, to }, byMeal, detail };
+  },
+};
+
+const queryAccounts: ChatTool = {
+  name: "query_accounts",
+  description:
+    "查询资产账户（钱包/银行卡等）：各账户名称与余额（余额=期初口径，流水不入账）及合计净资产。适用：我有多少钱、各账户余额。",
+  params: z.object({}),
+  async execute(ctx) {
+    const { rows } = await pool.query(
+      `select name, icon, opening_balance_cents::bigint as balance_cents
+       from accounts
+       where user_id = $1 and not archived
+       order by sort_order`,
+      [ctx.userId],
+    );
+    return {
+      items: rows,
+      totalBalanceCents: rows.reduce((a: number, r: { balance_cents: string | number }) => a + Number(r.balance_cents), 0),
+      balanceNote: "余额=期初口径（流水不入账，与财务页一致）",
+      centsUnit: "分（1元=100分）",
+    };
+  },
+};
+
+const queryBudgets: ChatTool = {
+  name: "query_budgets",
+  description:
+    "查询月度预算与使用进度：预算上限、本月已支出（已确认流水，北京时间当月）、剩余与预警阈值。适用：这个月预算还剩多少、花超了吗。",
+  params: z.object({}),
+  async execute(ctx) {
+    const { rows: budget } = await pool.query(
+      `select monthly_limit_cents::bigint as limit_cents, alert_threshold
+       from budgets where user_id = $1`,
+      [ctx.userId],
+    );
+    if (!budget.length || !budget[0].limit_cents) return { enabled: false, hint: "用户未设置月度预算，指引去财务页设置" };
+    const monthStart = `${bjToday().slice(0, 7)}-01`;
+    const [start, end] = rangeOf(monthStart, bjToday());
+    const { rows: spent } = await pool.query(
+      `select coalesce(sum(amount_cents), 0)::bigint as cents
+       from transactions
+       where user_id = $1 and occurred_at >= $2 and occurred_at < $3 and not is_draft and direction = 'out'`,
+      [ctx.userId, start, end],
+    );
+    const limitCents = Number(budget[0].limit_cents);
+    const spentCents = Number(spent[0].cents);
+    return {
+      month: monthStart.slice(0, 7),
+      limitCents,
+      spentCents,
+      remainCents: limitCents - spentCents,
+      usedPct: limitCents ? Math.round((spentCents / limitCents) * 100) : null,
+      alertThreshold: budget[0].alert_threshold,
+      centsUnit: "分（1元=100分）",
+    };
+  },
+};
+
+const queryGoals: ChatTool = {
+  name: "query_goals",
+  description:
+    "查询目标空间（长期目标容器）：名称/描述/目标日期 + 空间内待办完成度 + 感悟篇数。适用：我有哪些目标、某个目标进展如何。",
+  params: z.object({
+    includeArchived: z.boolean().default(false).describe("是否包含已归档空间"),
+    limit: z.number().int().min(1).max(20).default(10).describe("返回条数上限"),
+  }),
+  async execute(ctx, p) {
+    const { includeArchived, limit } = p as { includeArchived: boolean; limit: number };
+    const { rows: spaces } = await pool.query(
+      `select s.id, s.name, s.description, s.icon, s.status, s.started_at, s.target_date,
+              (select count(*)::int from todos t where t.space_id = s.id and t.status = 'pending') as open_todos,
+              (select count(*)::int from todos t where t.space_id = s.id and t.status = 'done') as done_todos,
+              (select count(*)::int from space_reflections r where r.space_id = s.id) as reflections
+       from goal_spaces s
+       where s.user_id = $1 and ($2 or s.status = 'active')
+       order by s.sort, s.created_at limit $3`,
+      [ctx.userId, includeArchived, limit],
+    );
+    return { items: spaces };
+  },
+};
+
+const queryDebtReserve: ChatTool = {
+  name: "query_debt_reserve",
+  description:
+    "查询每月备付计划（与 trade 每月备付追踪逐行同源）：当月各银行需还金额/已备付/差额。适用：这个月备付够不够、每家银行要还多少。",
+  params: z.object({
+    ym: z.string().regex(/^\d{4}-\d{2}$/).optional().describe("月份 YYYY-MM，默认当月（北京时间）"),
+  }),
+  async execute(ctx, p) {
+    if (!(await moduleAllowed(ctx, "debt"))) return MODULE_OFF("负债");
+    const { ym } = p as { ym?: string };
+    const month = ym ?? bjToday().slice(0, 7);
+    const { rows } = await pool.query(
+      `select bank, pay_days, pay_cents::bigint as pay_cents, extra_cents::bigint as extra_cents,
+              need_cents::bigint as need_cents, saved_cents::bigint as saved_cents
+       from trade_reserve_banks
+       where user_id = $1 and date_trunc('month', ym) = date_trunc('month', $2::date)
+       order by seq`,
+      [ctx.userId, `${month}-01`],
+    );
+    return {
+      month,
+      items: rows,
+      totals: {
+        needCents: rows.reduce((a: number, r: { need_cents: string | number }) => a + Number(r.need_cents), 0),
+        savedCents: rows.reduce(
+          (a: number, r: { saved_cents: string | number | null }) => a + (r.saved_cents == null ? 0 : Number(r.saved_cents)),
+          0,
+        ),
+      },
+      note: "saved 为空 = 该行尚未登记备付；金额口径与负债页备付区块一致",
+      centsUnit: "分（1元=100分）",
+    };
   },
 };
 
@@ -405,7 +592,7 @@ const queryTrading: ChatTool = {
   },
 };
 
-/** 注册表全集（MVP 10 个只读工具；写操作走批次 A.5「操作意图卡」，不在此列） */
+/** 注册表全集（16 个只读工具，覆盖全模块数据面；写操作走批次 A.5「操作意图卡」，不在此列） */
 export const CHAT_TOOLS: ChatTool[] = [
   queryTimeBlocks,
   queryTransactions,
@@ -417,6 +604,12 @@ export const CHAT_TOOLS: ChatTool[] = [
   getUserProfile,
   queryDebts,
   queryTrading,
+  queryEntries,
+  queryDiet,
+  queryAccounts,
+  queryBudgets,
+  queryGoals,
+  queryDebtReserve,
 ];
 
 /** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主） */
@@ -441,4 +634,10 @@ export const TOOL_LABELS: Record<string, string> = {
   get_user_profile: "用户画像",
   query_debts: "负债",
   query_trading: "投资交易",
+  query_entries: "动态记录",
+  query_diet: "饮食",
+  query_accounts: "资产账户",
+  query_budgets: "预算",
+  query_goals: "目标空间",
+  query_debt_reserve: "每月备付",
 };

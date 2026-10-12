@@ -91,6 +91,31 @@ async function seedData() {
      values ($1, $2, 1001, 'XAUUSD', 'buy', now() - interval '2 days', now() - interval '1 day', 0.1, 120.5)`,
     [UA, acct[0].id],
   );
+  // 饮食 / 资产账户 / 预算 / 目标空间 / 备付镜像
+  await pool.query(
+    `insert into diet_records (user_id, entry_id, meal, items, total_kcal)
+     select $1, id, '午餐', '[{"name":"牛肉面","kcal":450}]'::jsonb, 450 from entries where user_id = $1 limit 1`,
+    [UA],
+  );
+  await pool.query(
+    `insert into accounts (user_id, name, opening_balance_cents) values ($1, '测试钱包', 88000)`,
+    [UA],
+  );
+  await pool.query(
+    `insert into budgets (user_id, monthly_limit_cents, alert_threshold) values ($1, 300000, 80)
+     on conflict (user_id) do update set monthly_limit_cents = 300000`,
+    [UA],
+  );
+  const { rows: space } = await pool.query(
+    `insert into goal_spaces (user_id, name, description) values ($1, '测试目标', '冒烟空间') returning id`,
+    [UA],
+  );
+  await pool.query(`update todos set space_id = $2 where user_id = $1 and title = '不存在'`, [UA, space[0].id]); // 空间无待办也合法
+  await pool.query(
+    `insert into trade_reserve_banks (user_id, ym, seq, bank, pay_cents, need_cents, saved_cents)
+     values ($1, date_trunc('month', (now() at time zone 'Asia/Shanghai')::date), 0, '测试银行', 100000, 100000, 100000)`,
+    [UA],
+  );
 }
 
 async function runTool(name: string, userId: string, params: Record<string, unknown>) {
@@ -101,13 +126,13 @@ async function runTool(name: string, userId: string, params: Record<string, unkn
 const todayStr = () => new Date(Date.now() - 8 * 3600_000).toISOString().slice(0, 10);
 const daysAgo = (n: number) => new Date(Date.now() - 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
 
-test("chat 工具注册表：10 工具齐全 + 标签映射对齐", async (t) => {
+test("chat 工具注册表：16 工具齐全 + 标签映射对齐", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
-  assert.equal(CHAT_TOOLS.length, 10);
+  assert.equal(CHAT_TOOLS.length, 16);
   for (const tool of CHAT_TOOLS) assert.ok(TOOL_LABELS[tool.name], `${tool.name} 应有中文标签`);
   const agentTools = toAgentTools({ userId: UA });
-  assert.equal(agentTools.length, 10, "toAgentTools 应全量映射");
+  assert.equal(agentTools.length, 16, "toAgentTools 应全量映射");
 });
 
 test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 越权隔离", async (t) => {
@@ -159,6 +184,39 @@ test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 
   assert.ok(Math.abs(trading.summary.net - 120.5) < 0.001, "净利应为 120.5");
   assert.equal(trading.bySymbol[0].symbol, "XAUUSD");
 
+  // 动态检索（关键词）
+  const entries = (await runTool("query_entries", UA, { q: "开心", limit: 10 })) as any;
+  assert.equal(entries.count, 1, "关键词检索应命中心情动态");
+  const entriesAll = (await runTool("query_entries", UA, { limit: 5 })) as any;
+  assert.ok(entriesAll.count >= 1, "无关键词应返回最近动态");
+
+  // 饮食
+  const diet = (await runTool("query_diet", UA, { from, to })) as any;
+  assert.ok(diet.byMeal.length >= 1 && diet.detail.length >= 1, "饮食应有聚合与明细");
+
+  // 资产账户（余额=期初口径）
+  const accounts = (await runTool("query_accounts", UA, {})) as any;
+  assert.equal(accounts.totalBalanceCents, 88000, "账户合计应为 88000 分");
+
+  // 预算（已设置）
+  const budgets = (await runTool("query_budgets", UA, {})) as any;
+  assert.equal(budgets.limitCents, 300000, "预算上限应为 300000 分");
+  assert.ok(typeof budgets.spentCents === "number");
+
+  // 目标空间
+  const goals = (await runTool("query_goals", UA, {})) as any;
+  assert.equal(goals.items.length, 1, "UA 应有 1 个空间");
+  assert.equal(goals.items[0].name, "测试目标");
+
+  // 每月备付（已授权）
+  const reserve = (await runTool("query_debt_reserve", UA, {})) as any;
+  assert.equal(reserve.items.length, 1, "当月应有一行备付镜像");
+  assert.equal(reserve.totals.needCents, 100000, "需还合计应为 100000 分");
+
+  // 收支周报缓存（trade_week，无缓存明确返回）
+  const tw = (await runTool("get_review", UA, { kind: "trade_week", date: to })) as any;
+  assert.equal(tw.cached, false, "未生成的收支周报应明确无缓存");
+
   // 越权隔离：UB 查同样参数应全部为空
   const bBlocks = (await runTool("query_time_blocks", UB, { from, to })) as any;
   assert.equal(bBlocks.byActivity.length, 0, "UB 不得看到 UA 的时间块");
@@ -169,6 +227,8 @@ test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 
   assert.equal(bDebts.enabled, false, "未授权用户查负债应返回未开通");
   const bTrading = (await runTool("query_trading", UB, {})) as any;
   assert.equal(bTrading.enabled, false, "未授权用户查交易应返回未开通");
+  const bReserve = (await runTool("query_debt_reserve", UB, {})) as any;
+  assert.equal(bReserve.enabled, false, "未授权用户查备付应返回未开通");
 });
 
 test("chat 配额：独立按日口径，只数 stage='chat' 的成功调用", async (t) => {

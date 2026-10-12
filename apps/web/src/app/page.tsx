@@ -342,7 +342,7 @@ export default function Home() {
         notify={forwardMsg}
       />
 
-      {/* AI 助手悬浮 Dock（REQ-015）：桌面=可化小面板，移动=整页入口；避开底部中央发布圆钮 */}
+      {/* 拾光助手悬浮 Dock（REQ-015）：桌面=可化小面板，移动=整页入口；避开底部中央发布圆钮 */}
       <AssistantDock />
 
       {/* 桌面：右上角今日行动触发钮 + 弹出面板（点击展开/收起；点空白/Esc 关闭） */}

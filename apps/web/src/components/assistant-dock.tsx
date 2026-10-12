@@ -6,7 +6,7 @@ import { Sparkles } from "lucide-react";
 import AssistantChat from "@/app/assistant/chat-core";
 
 /**
- * 首页 AI 助手悬浮 Dock（REQ-015 追加）：
+ * 首页拾光助手悬浮 Dock（REQ-015 追加）：
  * - 桌面（≥sm）：悬浮球点开右下面板，头部「化小」或再点悬浮球收回——收起仅隐藏不卸载，对话状态保留
  * - 移动（<sm）：悬浮球跳整页 /assistant（竖屏键入体验优先，面板化在小屏没有意义）
  */
@@ -52,19 +52,19 @@ export default function AssistantDock() {
           <button
             onClick={toggle}
             aria-expanded={open}
-            aria-label="打开 AI 助手"
+            aria-label="打开拾光助手"
             className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-surface/90 px-3.5 py-2.5 text-xs font-medium text-ai shadow-lg shadow-scrim/40 backdrop-blur transition hover:border-violet-500/70"
           >
-            <Sparkles size={15} aria-hidden /> AI 助手
+            <Sparkles size={15} aria-hidden /> 拾光助手
           </button>
         )
       ) : (
         <Link
           href="/assistant"
-          aria-label="AI 助手"
+          aria-label="拾光助手"
           className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-surface/90 px-3.5 py-2.5 text-xs font-medium text-ai shadow-lg shadow-scrim/40 backdrop-blur transition hover:border-violet-500/70"
         >
-          <Sparkles size={15} aria-hidden /> AI 助手
+          <Sparkles size={15} aria-hidden /> 拾光助手
         </Link>
       )}
     </>

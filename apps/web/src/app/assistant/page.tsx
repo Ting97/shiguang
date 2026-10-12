@@ -2,7 +2,7 @@
 
 import AssistantChat from "./chat-core";
 
-/** AI 助手整页（REQ-015）：状态与消息流在 chat-core（与首页悬浮 Dock 共用）。 */
+/** 拾光助手整页（REQ-015）：状态与消息流在 chat-core（与首页悬浮 Dock 共用）。 */
 export default function AssistantPage() {
   return (
     <main className="min-h-screen text-ink">
