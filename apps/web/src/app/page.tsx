@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react";
 import ActionsToday from "@/components/actions-today";
+import AssistantDock from "@/components/assistant-dock";
 import { useDesktopPublisher } from "./home/use-desktop-publisher";
 import type { Notify } from "./home/types";
 import DesktopComposer from "./home/desktop-composer";
@@ -342,14 +342,8 @@ export default function Home() {
         notify={forwardMsg}
       />
 
-      {/* AI 助手悬浮入口（REQ-015）：右下角，避开底部中央的发布圆钮；全端可见 */}
-      <Link
-        href="/assistant"
-        aria-label="AI 助手"
-        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-surface/90 px-3.5 py-2.5 text-xs font-medium text-ai shadow-lg shadow-scrim/40 backdrop-blur transition hover:border-violet-500/70"
-      >
-        <Sparkles size={15} aria-hidden /> AI 助手
-      </Link>
+      {/* AI 助手悬浮 Dock（REQ-015）：桌面=可化小面板，移动=整页入口；避开底部中央发布圆钮 */}
+      <AssistantDock />
 
       {/* 桌面：右上角今日行动触发钮 + 弹出面板（点击展开/收起；点空白/Esc 关闭） */}
       {isDesktop && (
