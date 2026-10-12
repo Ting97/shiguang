@@ -58,7 +58,7 @@ if (!skipMigrate) {
   console.log("[deploy] 执行数据库迁移（幂等，schema_migrations 记账）…");
   // 迁移在服务器仓库侧执行：迁移脚本随仓库同步（rsync packages/db），不进 standalone 包
   sh(
-    `tar czf - -C packages db | ssh tencent "mkdir -p /opt/shiguangri_repo/packages && tar xzf - -C /opt/shiguangri_repo/packages/"`,
+    `COPYFILE_DISABLE=1 tar czf - -C packages db | ssh tencent "mkdir -p /opt/shiguangri_repo/packages && tar xzf - -C /opt/shiguangri_repo/packages/"`,
     { quiet: true },
   );
   // runner.ts 依赖 pg：服务器 repo 首次无 node_modules（幂等安装，后续为 no-op）
@@ -77,8 +77,8 @@ if (!skipMigrate) {
 }
 
 console.log("[deploy] 双 tar 上传 …");
-sh("tar czf - -C apps/api/.next/standalone . | ssh tencent \"rm -rf /opt/shiguangri_new && mkdir -p /opt/shiguangri_new && tar xzf - -C /opt/shiguangri_new/\"", { quiet: true });
-sh("tar czf - -C apps/web out | ssh tencent \"tar xzf - -C /opt/shiguangri_new/apps/api/\"", { quiet: true });
+sh("COPYFILE_DISABLE=1 tar czf - -C apps/api/.next/standalone . | ssh tencent \"rm -rf /opt/shiguangri_new && mkdir -p /opt/shiguangri_new && tar xzf - -C /opt/shiguangri_new/\"", { quiet: true });
+sh("COPYFILE_DISABLE=1 tar czf - -C apps/web out | ssh tencent \"tar xzf - -C /opt/shiguangri_new/apps/api/\"", { quiet: true });
 
 /** 失败回滚：反向 mv + 重启 + 复验（FR-F2：不再只打印提示）
  *  状态安全要点：

@@ -299,6 +299,15 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     ],
     caps: [],
   },
+  chat_assistant: {
+    // 对话助手没有传统意义的 user prompt：此模板作为「用户上下文块」拼在 system 之后
+    // （当前时间给模型做相对词换算基准；画像/数据概览按需经 context_config.userData 追加注入）
+    userTemplate: `## 用户上下文
+当前时间：{nowCst}`,
+    placeholders: ["nowCst"],
+    injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词（这周/上个月）换算基准", "服务端时钟")],
+    caps: [],
+  },
 };
 
 /** 合并 DB 覆盖与注册表默认：inject 缺省=注册表默认，caps 数值钳制到 [min,max]；userData（个性化注入）原样透传 */

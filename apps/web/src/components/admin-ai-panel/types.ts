@@ -17,7 +17,7 @@ export type { CapSpec, CtxConfig, InjectSpec, RegistrySpec, UserDataEntry };
 export interface PromptItem {
   key: string;
   title: string;
-  category: "识别" | "复盘" | "目标" | "系统";
+  category: "识别" | "复盘" | "目标" | "系统" | "助手";
   enabled: boolean;
   overridden: boolean;
   dbContent: string | null;

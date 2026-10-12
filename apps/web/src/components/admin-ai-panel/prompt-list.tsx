@@ -10,7 +10,7 @@ interface Props {
 
 /** prompt 清单：分类分组 + 覆盖态徽标；移动端横滑、PC 左栏 */
 export default function PromptList({ items, selKey, onPick }: Props) {
-  const categories: PromptItem["category"][] = ["识别", "复盘", "目标", "系统"];
+  const categories: PromptItem["category"][] = ["识别", "复盘", "目标", "助手", "系统"];
   return (
     <div className="scrollbar-none -mx-5 mb-3 flex gap-1.5 overflow-x-auto px-5 pb-1 lg:mx-0 lg:mb-0 lg:block lg:space-y-2.5 lg:overflow-visible lg:px-0">
       {categories.map((cat) => {
