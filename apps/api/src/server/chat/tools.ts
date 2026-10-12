@@ -23,6 +23,13 @@ export const CHAT_READABLE_TABLES = [
   "entries",
   "review_caches",
   "user_ai_profiles",
+  // 负债/交易（032/037，授权模块：查询前须过模块门禁）
+  "liabilities",
+  "liability_payments",
+  "trades",
+  "trade_accounts",
+  "user_module_grants",
+  "profiles",
 ] as const;
 
 /** 工具执行上下文：会话属主（所有查询的强制过滤条件） */
@@ -63,6 +70,21 @@ function rangeOf(from: string, to: string): [string, string] {
 
 /** 明细行在北京时区的 MM-DD HH:MI 展示串（避免模型自行做时区换算出错） */
 const bjTs = (col: string) => `to_char(${col} at time zone 'Asia/Shanghai', 'MM-DD HH24:MI')`;
+
+/** 模块门禁（负债/交易是授权模块）：与路由 getModuleUser 同口径——admin 直通，普通用户查 user_module_grants */
+async function moduleAllowed(ctx: ChatToolCtx, module: "debt" | "trading"): Promise<boolean> {
+  const { rows } = await pool.query(
+    `select case when p.role = 'admin' then true else exists(
+       select 1 from user_module_grants g where g.user_id = p.id and g.module = $2
+     ) end as allowed
+     from profiles p where p.id = $1`,
+    [ctx.userId, module],
+  );
+  return Boolean(rows[0]?.allowed);
+}
+
+/** 授权模块未开通时的统一返回：模型据此如实告知而非报错 */
+const MODULE_OFF = (label: string) => ({ enabled: false, hint: `用户未开通${label}模块，请说明该查询不可用并指引去财务页开通` });
 
 // ---- 8 个只读工具 ----
 
@@ -295,7 +317,95 @@ const getUserProfile: ChatTool = {
   },
 };
 
-/** 注册表全集（MVP 8 个只读工具；写操作走批次 A.5「操作意图卡」，不在此列） */
+const queryDebts: ChatTool = {
+  name: "query_debts",
+  description:
+    "查询负债档案：各负债（信用卡/房贷/车贷/消费贷/亲友借款）当前余额、月供、利率、还款日，负债总余额与月供合计，及近 30 天还款合计。适用：我还欠多少、每月要还多少、哪笔先还。",
+  params: z.object({}),
+  async execute(ctx) {
+    if (!(await moduleAllowed(ctx, "debt"))) return MODULE_OFF("负债");
+    const { rows: items } = await pool.query(
+      `select name, type, balance_cents::bigint as balance_cents, principal_cents::bigint as principal_cents,
+              rate_pct::float8 as rate_pct, monthly_cents::bigint as monthly_cents, pay_day, due_date, priority
+       from liabilities
+       where user_id = $1 and status = 'active'
+       order by priority desc, balance_cents desc`,
+      [ctx.userId],
+    );
+    const { rows: paid } = await pool.query(
+      `select coalesce(sum(amount_cents), 0)::bigint as cents, count(*)::int as n
+       from liability_payments
+       where user_id = $1 and paid_at >= (now() at time zone 'Asia/Shanghai')::date - 30`,
+      [ctx.userId],
+    );
+    return {
+      enabled: true,
+      items,
+      totals: {
+        balanceCents: items.reduce((a: number, r: { balance_cents: string | number }) => a + Number(r.balance_cents), 0),
+        monthlyCents: items.reduce(
+          (a: number, r: { monthly_cents: string | number | null }) => a + (r.monthly_cents == null ? 0 : Number(r.monthly_cents)),
+          0,
+        ),
+      },
+      paidLast30Days: paid[0],
+      centsUnit: "分（1元=100分）",
+    };
+  },
+};
+
+const queryTrading: ChatTool = {
+  name: "query_trading",
+  description:
+    "查询 MT5 投资交易（平仓记录）：按日期区间的盈亏汇总（净利/笔数/胜率/最佳最差）、按品种分布、最近交易明细。适用：这个月交易赚了还是亏了、哪个品种做得好。",
+  params: z.object({
+    from: bjDate.optional().describe("开始日期（含，按平仓时间北京时间），默认近 30 天"),
+    to: bjDate.optional().describe("结束日期（含），默认今天"),
+  }),
+  async execute(ctx, p) {
+    if (!(await moduleAllowed(ctx, "trading"))) return MODULE_OFF("投资交易");
+    const { from, to } = p as { from?: string; to?: string };
+    const todayBj = bjToday();
+    const [start, end] = rangeOf(from ?? bjAddDays(todayBj, -29), to ?? todayBj);
+    const { rows: summary } = await pool.query(
+      `select count(*)::int as trades,
+              count(*) filter (where net_profit > 0)::int as wins,
+              count(*) filter (where net_profit < 0)::int as losses,
+              coalesce(sum(net_profit), 0)::float8 as net,
+              coalesce(max(net_profit), 0)::float8 as best,
+              coalesce(min(net_profit), 0)::float8 as worst
+       from trades
+       where user_id = $1 and close_time >= $2 and close_time < $3`,
+      [ctx.userId, start, end],
+    );
+    const { rows: bySymbol } = await pool.query(
+      `select symbol, count(*)::int as n, coalesce(sum(net_profit), 0)::float8 as net
+       from trades
+       where user_id = $1 and close_time >= $2 and close_time < $3
+       group by symbol order by net desc`,
+      [ctx.userId, start, end],
+    );
+    const { rows: detail } = await pool.query(
+      `select t.symbol, t.direction, t.lots::float8 as lots, t.net_profit::float8 as net,
+              a.currency, ${bjTs("t.close_time")} as closed_bj
+       from trades t join trade_accounts a on a.id = t.account_id
+       where t.user_id = $1 and t.close_time >= $2 and t.close_time < $3
+       order by t.close_time desc limit 8`,
+      [ctx.userId, start, end],
+    );
+    return {
+      enabled: true,
+      range: { from, to },
+      summary: summary[0],
+      bySymbol,
+      detail,
+      // 交易盈亏是账户币种金额（通常 USD），不是分——模型表述时带币种
+      profitUnit: "账户币种（见 detail.currency，通常 USD），非分",
+    };
+  },
+};
+
+/** 注册表全集（MVP 10 个只读工具；写操作走批次 A.5「操作意图卡」，不在此列） */
 export const CHAT_TOOLS: ChatTool[] = [
   queryTimeBlocks,
   queryTransactions,
@@ -305,6 +415,8 @@ export const CHAT_TOOLS: ChatTool[] = [
   queryMood,
   getReview,
   getUserProfile,
+  queryDebts,
+  queryTrading,
 ];
 
 /** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主） */
@@ -327,4 +439,6 @@ export const TOOL_LABELS: Record<string, string> = {
   query_mood: "心情",
   get_review: "复盘小结",
   get_user_profile: "用户画像",
+  query_debts: "负债",
+  query_trading: "投资交易",
 };

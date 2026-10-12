@@ -332,13 +332,14 @@ export default function AssistantChat({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                // Ctrl+Enter（Mac Cmd+Enter）发送；裸 Enter 换行
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
                   send();
                 }
               }}
               rows={1}
-              placeholder="问问你的数据，如「上个月人情往来花了多少」"
+              placeholder="问问你的数据，如「上个月人情往来花了多少」（Ctrl+Enter 发送）"
               className="max-h-32 flex-1 resize-none rounded-xl border border-line-soft bg-surface px-3 py-2.5 text-sm outline-none transition placeholder:text-ink-faint focus:border-sky-500/60"
             />
             <button
@@ -350,7 +351,7 @@ export default function AssistantChat({
               <Send size={16} aria-hidden />
             </button>
           </div>
-          <p className="mt-1.5 text-micro text-ink-faint">回答基于工具查询的真实数据 · 想记账去首页发一句话动态</p>
+          <p className="mt-1.5 text-micro text-ink-faint">Ctrl+Enter 发送 · 回答基于工具查询的真实数据 · 想记账去首页发一句话动态</p>
         </footer>
       </section>
     </>
