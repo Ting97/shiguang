@@ -116,6 +116,21 @@ async function seedData() {
      values ($1, date_trunc('month', (now() at time zone 'Asia/Shanghai')::date), 0, '测试银行', 100000, 100000, 100000)`,
     [UA],
   );
+  // 待办 + 行动层级（今日行动视图 / 详情 / 子行动；today 复用函数顶部声明）
+  const { rows: parent } = await pool.query(
+    `insert into todos (user_id, title, kind, note) values ($1, '装修新家', 'todo', '全屋翻新预算 20 万') returning id`,
+    [UA],
+  );
+  await pool.query(
+    `insert into todos (user_id, parent_todo_id, title, kind, note, today_tag_date) values
+     ($1, $2, '量房', 'action', '约师傅上门', $3),
+     ($1, $2, '选瓷砖', 'action', null, null)`,
+    [UA, parent[0].id, today],
+  );
+  await pool.query(
+    `update todos set status = 'done', done_at = now() where user_id = $1 and title = '选瓷砖'`,
+    [UA],
+  );
 }
 
 async function runTool(name: string, userId: string, params: Record<string, unknown>) {
@@ -126,13 +141,13 @@ async function runTool(name: string, userId: string, params: Record<string, unkn
 const todayStr = () => new Date(Date.now() - 8 * 3600_000).toISOString().slice(0, 10);
 const daysAgo = (n: number) => new Date(Date.now() - 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
 
-test("chat 工具注册表：16 工具齐全 + 标签映射对齐", async (t) => {
+test("chat 工具注册表：17 工具齐全 + 标签映射对齐", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
-  assert.equal(CHAT_TOOLS.length, 16);
+  assert.equal(CHAT_TOOLS.length, 17);
   for (const tool of CHAT_TOOLS) assert.ok(TOOL_LABELS[tool.name], `${tool.name} 应有中文标签`);
   const agentTools = toAgentTools({ userId: UA });
-  assert.equal(agentTools.length, 16, "toAgentTools 应全量映射");
+  assert.equal(agentTools.length, 17, "toAgentTools 应全量映射");
 });
 
 test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 越权隔离", async (t) => {
@@ -212,6 +227,28 @@ test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 
   const reserve = (await runTool("query_debt_reserve", UA, {})) as any;
   assert.equal(reserve.items.length, 1, "当月应有一行备付镜像");
   assert.equal(reserve.totals.needCents, 100000, "需还合计应为 100000 分");
+
+  // 待办/行动：open 视图带 note/父层级/今日标记
+  const todosOpen = (await runTool("query_todos", UA, { view: "open", kind: "all", limit: 20 })) as any;
+  const liangfang = todosOpen.items.find((r: any) => r.title === "量房");
+  assert.ok(liangfang, "未完成行动量房应在 open 视图");
+  assert.equal(liangfang.parent_title, "装修新家", "行动应带所属待办");
+  assert.equal(liangfang.today_tagged, true, "量房有今日标记");
+  const zhuangxiu = todosOpen.items.find((r: any) => r.title === "装修新家");
+  assert.ok(zhuangxiu && /20 万/.test(zhuangxiu.note ?? ""), "待办 open 视图应带详情摘要");
+
+  // 今日行动视图（同首页口径）
+  const todayActions = (await runTool("query_todos", UA, { view: "today_actions", kind: "all", limit: 20 })) as any;
+  assert.ok(todayActions.items.some((r: any) => r.title === "量房"), "今日标记行动应进今日行动");
+  assert.ok(!todayActions.items.some((r: any) => r.title === "选瓷砖"), "已完成且无标记的行动不进今日行动");
+
+  // 待办详情 + 子行动
+  const detail = (await runTool("get_todo_detail", UA, { title: "装修" })) as any;
+  assert.equal(detail.found, true);
+  assert.equal(detail.todo.title, "装修新家");
+  assert.equal(detail.todo.note, "全屋翻新预算 20 万", "详情应为备注全文");
+  assert.equal(detail.children.length, 2, "应有 2 个子行动");
+  assert.ok(detail.children.find((c: any) => c.title === "选瓷砖" && c.status === "done"));
 
   // 收支周报缓存（trade_week，无缓存明确返回）
   const tw = (await runTool("get_review", UA, { kind: "trade_week", date: to })) as any;

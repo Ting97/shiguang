@@ -78,6 +78,9 @@ function rangeOf(from: string, to: string): [string, string] {
 /** 明细行在北京时区的 MM-DD HH:MI 展示串（避免模型自行做时区换算出错） */
 const bjTs = (col: string) => `to_char(${col} at time zone 'Asia/Shanghai', 'MM-DD HH24:MI')`;
 
+/** timestamptz 列 → 北京钟面展示（null 透传 null）；todo 到期/完成时间用 */
+const dueExpr = (col: string) => `case when ${col} is null then null else ${bjTs(col)} end`;
+
 /** 模块门禁（负债/交易是授权模块）：与路由 getModuleUser 同口径——admin 直通，普通用户查 user_module_grants */
 async function moduleAllowed(ctx: ChatToolCtx, module: "debt" | "trading"): Promise<boolean> {
   const { rows } = await pool.query(
@@ -161,36 +164,119 @@ const queryTransactions: ChatTool = {
 
 const queryTodos: ChatTool = {
   name: "query_todos",
-  description: "查询待办与行动：默认查未完成的（含到期/过期/今日标记/重要），可指定只看到期未完成或已完成的。适用：我有什么待办、什么过期了、最近完成了什么。",
+  description:
+    "查询待办与行动（kind：todo=任务 / action=行动）：视图 open=未完成（含详情摘要/所属待办/每日重复完成次数/今日标记）、due_soon=7 天内到期、today_actions=今日行动清单（与首页「今日行动」同口径：重复行动+今日标记+今日到期+过期未完成）、done_recent=最近 14 天已完成。适用：我有什么待办、今天要做哪些行动、什么过期了。",
   params: z.object({
-    view: z.enum(["open", "due_soon", "done_recent"]).default("open").describe(
-      "open=全部未完成；due_soon=7 天内到期（含已过期）的未完成；done_recent=最近 14 天已完成",
-    ),
+    view: z.enum(["open", "due_soon", "today_actions", "done_recent"]).default("open").describe("列表视图"),
+    kind: z.enum(["all", "todo", "action"]).default("all").describe("按类型过滤"),
     limit: z.number().int().min(1).max(30).default(20).describe("返回条数上限"),
   }),
   async execute(ctx, p) {
-    const { view, limit } = p as { view: "open" | "due_soon" | "done_recent"; limit: number };
-    const common = `from todos t left join goal_spaces s on s.id = t.space_id
-       where t.user_id = $1`;
+    const { view, kind, limit } = p as {
+      view: "open" | "due_soon" | "today_actions" | "done_recent";
+      kind: "all" | "todo" | "action";
+      limit: number;
+    };
+    const BJ_TODAY = `(now() at time zone 'Asia/Shanghai')::date`;
+
+    if (view === "today_actions") {
+      // 与 goal 域 todoRepo.todayActions 同口径（只读镜像）
+      const { rows } = await pool.query(
+        `select x.title, x.kind, x.status, x.parent_title, x.repeat_daily, x.today_tagged, x.due_bj
+         from (
+           select a.title, a.kind, a.status, a.due_at, a.repeat_daily, a.today_tag_date,
+                  ${dueExpr("a.due_at")} as due_bj,
+                  (a.today_tag_date = ${BJ_TODAY}) as today_tagged,
+                  p.title as parent_title, a.sort, a.created_at
+           from todos a left join todos p on p.id = a.parent_todo_id
+           where a.user_id = $1 and a.kind = 'action'
+             and ( a.repeat_daily
+                or a.today_tag_date = ${BJ_TODAY}
+                or ((a.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY})
+                or ((a.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY} and a.status = 'pending')
+                or p.today_tag_date = ${BJ_TODAY}
+                or ((p.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY} and p.status = 'pending') )
+           union all
+           select t.title, t.kind, t.status, t.due_at, t.repeat_daily, t.today_tag_date,
+                  ${dueExpr("t.due_at")} as due_bj,
+                  (t.today_tag_date = ${BJ_TODAY}) as today_tagged,
+                  null::text as parent_title, t.sort, t.created_at
+           from todos t
+           where t.user_id = $1 and t.parent_todo_id is null and t.kind = 'todo'
+             and ((t.status in ('pending','done') and (t.due_at at time zone 'Asia/Shanghai')::date = ${BJ_TODAY})
+               or (t.status = 'pending' and t.due_at is not null and (t.due_at at time zone 'Asia/Shanghai')::date < ${BJ_TODAY}))
+         ) x
+         where ($2 = 'all' or x.kind = $2)
+         order by (x.status = 'done'), x.due_at nulls last, x.created_at, x.sort
+         limit $3`,
+        [ctx.userId, kind, limit],
+      );
+      return { view, count: rows.length, items: rows };
+    }
+
+    const common = `from todos t
+       left join goal_spaces s on s.id = t.space_id
+       left join todos p on p.id = t.parent_todo_id
+       where t.user_id = $1 and ($2 = 'all' or t.kind = $2)`;
     if (view === "done_recent") {
       const { rows } = await pool.query(
-        `select t.title, t.kind, s.name as space, t.is_important, ${bjTs("t.done_at")} as done_bj
+        `select t.title, t.kind, s.name as space, t.is_important, t.repeat_daily, t.repeat_done_count,
+                ${dueExpr("t.done_at")} as done_bj
          ${common} and t.status = 'done' and t.done_at >= now() - interval '14 days'
-         order by t.done_at desc limit $2`,
-        [ctx.userId, limit],
+         order by t.done_at desc limit $3`,
+        [ctx.userId, kind, limit],
       );
-      return { view, items: rows };
+      return { view, count: rows.length, items: rows };
     }
     const dueFilter = view === "due_soon" ? " and (t.due_at is not null and t.due_at < now() + interval '7 days')" : "";
     const { rows } = await pool.query(
-      `select t.title, t.kind, s.name as space, t.is_important, t.repeat_daily,
-              case when t.due_at is null then null else ${bjTs("t.due_at")} end as due_bj,
+      `select t.title, t.kind, s.name as space, t.is_important, t.repeat_daily, t.repeat_done_count,
+              left(t.note, 80) as note,
+              (t.today_tag_date = ${BJ_TODAY}) as today_tagged,
+              p.title as parent_title,
+              ${dueExpr("t.due_at")} as due_bj,
               case when t.due_at is not null and t.due_at < now() then true else false end as overdue
        ${common} and t.status = 'pending'${dueFilter}
-       order by t.is_important desc, t.due_at asc nulls last, t.created_at asc limit $2`,
-      [ctx.userId, limit],
+       order by t.is_important desc, t.due_at asc nulls last, t.created_at asc limit $3`,
+      [ctx.userId, kind, limit],
     );
-    return { view, items: rows };
+    return { view, count: rows.length, items: rows };
+  },
+};
+
+const getTodoDetail: ChatTool = {
+  name: "get_todo_detail",
+  description:
+    "查询单个待办/行动的详情与子行动：按标题关键词匹配最近一条，返回备注全文、重要/每日重复/今日标记、所属空间，及其拆解出的行动清单（含完成状态与重复完成次数）。适用：看下某待办的详情、它拆了哪些行动。",
+  params: z.object({
+    title: z.string().min(1).max(60).describe("标题关键词（部分匹配，取最近创建的一条）"),
+  }),
+  async execute(ctx, p) {
+    const { title } = p as { title: string };
+    const BJ_TODAY = `(now() at time zone 'Asia/Shanghai')::date`;
+    const { rows } = await pool.query(
+      `select t.id, t.title, t.kind, t.status, t.note, t.is_important, t.repeat_daily, t.repeat_done_count,
+              s.name as space, p.title as parent_title,
+              ${dueExpr("t.due_at")} as due_bj,
+              (t.today_tag_date = ${BJ_TODAY}) as today_tagged
+       from todos t
+       left join goal_spaces s on s.id = t.space_id
+       left join todos p on p.id = t.parent_todo_id
+       where t.user_id = $1 and t.title ilike $2
+       order by t.created_at desc limit 1`,
+      [ctx.userId, `%${title}%`],
+    );
+    if (!rows.length) return { found: false, title };
+    const todo = rows[0];
+    const { rows: children } = await pool.query(
+      `select title, status, repeat_daily, repeat_done_count,
+              ${dueExpr("due_at")} as due_bj
+       from todos
+       where user_id = $1 and parent_todo_id = $2
+       order by sort`,
+      [ctx.userId, todo.id],
+    );
+    return { found: true, todo, children };
   },
 };
 
@@ -592,7 +678,7 @@ const queryTrading: ChatTool = {
   },
 };
 
-/** 注册表全集（16 个只读工具，覆盖全模块数据面；写操作走批次 A.5「操作意图卡」，不在此列） */
+/** 注册表全集（17 个只读工具，覆盖全模块数据面；写操作走批次 A.5「操作意图卡」，不在此列） */
 export const CHAT_TOOLS: ChatTool[] = [
   queryTimeBlocks,
   queryTransactions,
@@ -610,6 +696,7 @@ export const CHAT_TOOLS: ChatTool[] = [
   queryBudgets,
   queryGoals,
   queryDebtReserve,
+  getTodoDetail,
 ];
 
 /** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主） */
@@ -640,4 +727,5 @@ export const TOOL_LABELS: Record<string, string> = {
   query_budgets: "预算",
   query_goals: "目标空间",
   query_debt_reserve: "每月备付",
+  get_todo_detail: "待办详情",
 };
