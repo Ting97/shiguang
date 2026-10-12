@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Maximize2, MessageSquare, Minus, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { Maximize2, MessageSquare, Minus, Plus, Send, Sparkles, Trash2, ChevronDown } from "lucide-react";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
@@ -68,8 +68,10 @@ export default function AssistantChat({
   const [sending, setSending] = useState(false);
   const [thinkingStep, setThinkingStep] = useState(0);
   const [convLoading, setConvLoading] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false); // 移动端会话下拉
   const arm = useArmConfirm();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const activeTitle = conversations.find((c) => c.id === activeId)?.title;
 
   // 等待期文案轮换
   useEffect(() => {
@@ -178,31 +180,84 @@ export default function AssistantChat({
 
   return (
     <>
-      {/* 会话侧栏：仅整页 variants（Dock 无侧栏，历史进整页看） */}
+      {/* 移动端会话切换（<lg）：下拉选择 + 新对话；整页自然滚动配套 */}
       {!isDock && (
-        <aside className="mb-3 shrink-0 lg:mb-0 lg:w-56">
+        <div className="relative mb-3 lg:hidden">
+          <button
+            onClick={() => setSwitcherOpen((v) => !v)}
+            aria-expanded={switcherOpen}
+            className="flex w-full items-center gap-2 rounded-xl border border-line-soft bg-surface px-3.5 py-2.5 text-left text-xs"
+          >
+            <MessageSquare size={13} className="shrink-0 text-ink-faint" aria-hidden />
+            <span className="min-w-0 flex-1 truncate font-medium">{activeTitle ?? "新对话"}</span>
+            <span className="shrink-0 text-micro text-ink-faint">{conversations.length} 个会话</span>
+            <ChevronDown size={14} className={`shrink-0 text-ink-faint transition ${switcherOpen ? "rotate-180" : ""}`} aria-hidden />
+          </button>
+          {switcherOpen && (
+            <div className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[50vh] overflow-y-auto rounded-xl border border-line-soft bg-surface shadow-lg shadow-scrim/20">
+              <button
+                onClick={() => {
+                  newConversation();
+                  setSwitcherOpen(false);
+                }}
+                className="flex w-full items-center gap-2 border-b border-line-soft px-3.5 py-2.5 text-xs font-medium text-accent"
+              >
+                <Plus size={14} aria-hidden /> 新对话
+              </button>
+              {conversations.map((c) => (
+                <div key={c.id} className={`group flex items-center gap-1 px-1.5 ${c.id === activeId ? "bg-wash" : ""}`}>
+                  <button
+                    onClick={() => {
+                      openConversation(c.id);
+                      setSwitcherOpen(false);
+                    }}
+                    className="min-w-0 flex-1 truncate py-2.5 text-left text-xs"
+                  >
+                    {c.title}
+                    <span className="ml-1.5 text-micro text-ink-faint">{c.updatedAt}</span>
+                  </button>
+                  <button
+                    onClick={() => removeConversation(c.id)}
+                    aria-label="删除会话"
+                    className={`shrink-0 rounded p-1.5 transition ${
+                      arm.armedId === c.id ? "text-rose-400" : "text-ink-faint group-hover:text-rose-400"
+                    }`}
+                  >
+                    <Trash2 size={12} aria-hidden />
+                  </button>
+                </div>
+              ))}
+              {!conversations.length && <p className="px-3.5 py-3 text-xs text-ink-faint">还没有会话，发第一条消息开始</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 会话侧栏：仅整页桌面（≥lg） */}
+      {!isDock && (
+        <aside className="mb-3 hidden shrink-0 lg:mb-0 lg:block lg:w-56">
           <button
             onClick={newConversation}
             className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-3 py-2 text-xs font-medium text-white shadow-md shadow-sky-500/25 transition hover:opacity-90"
           >
             <Plus size={14} aria-hidden /> 新对话
           </button>
-          <div className="scrollbar-none flex gap-1.5 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible">
+          <div className="space-y-1">
             {conversations.map((c) => (
               <div
                 key={c.id}
-                className={`group flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-xs transition lg:w-full ${
+                className={`group flex w-full items-center gap-1 rounded-xl px-3 py-2 text-xs transition ${
                   c.id === activeId ? "bg-wash font-medium text-ink" : "text-ink-mute hover:bg-wash hover:text-ink"
                 }`}
               >
-                <button onClick={() => openConversation(c.id)} className="max-w-36 truncate text-left" title={c.title}>
+                <button onClick={() => openConversation(c.id)} className="min-w-0 flex-1 truncate text-left" title={c.title}>
                   <MessageSquare size={11} className="mr-1 inline shrink-0" aria-hidden />
                   {c.title}
                 </button>
                 <button
                   onClick={() => removeConversation(c.id)}
                   aria-label="删除会话"
-                  className={`ml-auto shrink-0 rounded p-0.5 transition ${
+                  className={`shrink-0 rounded p-0.5 transition ${
                     arm.armedId === c.id ? "text-rose-400" : "text-ink-faint opacity-0 group-hover:opacity-100 hover:text-rose-400"
                   }`}
                 >
@@ -214,10 +269,10 @@ export default function AssistantChat({
         </aside>
       )}
 
-      {/* 对话主区 */}
+      {/* 对话主区：Dock=面板内滚动；整页=移动随页面自然滚动（输入条 sticky 吸底）、桌面面板内滚动 */}
       <section
-        className={`glass flex flex-col overflow-hidden rounded-2xl ${
-          isDock ? "h-full w-full" : "min-h-[70vh] flex-1"
+        className={`glass flex flex-col rounded-2xl ${
+          isDock ? "h-full w-full overflow-hidden" : "flex-1 lg:min-h-[70vh] lg:overflow-hidden"
         }`}
       >
         <header className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
@@ -259,7 +314,7 @@ export default function AssistantChat({
           )}
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
+        <div className={`flex-1 space-y-4 px-4 py-5 ${isDock ? "overflow-y-auto" : "lg:overflow-y-auto"}`}>
           {convLoading ? (
             <p className="py-8 text-center text-xs text-ink-faint">加载会话…</p>
           ) : messages.length === 0 && !sending ? (
@@ -323,10 +378,14 @@ export default function AssistantChat({
               )}
             </>
           )}
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="scroll-mb-24" />
         </div>
 
-        <footer className="border-t border-line-soft p-3">
+        <footer
+          className={`border-t border-line-soft p-3 ${
+            isDock ? "" : "sticky bottom-0 rounded-b-2xl bg-surface/95 backdrop-blur lg:static lg:rounded-none lg:bg-transparent lg:backdrop-blur-none"
+          }`}
+        >
           <div className="flex items-end gap-2">
             <textarea
               value={input}
