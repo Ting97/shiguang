@@ -5,6 +5,7 @@ import { MessageSquare, Plus, Send, Sparkles, Trash2 } from "lucide-react";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
+import Markdown from "@/components/markdown";
 
 /**
  * AI 对话助手（REQ-015 批次 A）：懂用户数据的私人经营助手。
@@ -261,8 +262,8 @@ export default function AssistantPage() {
                             ))}
                           </div>
                         )}
-                        <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md border border-line-soft bg-surface px-3.5 py-2.5 text-sm leading-relaxed">
-                          {m.content}
+                        <div className="rounded-2xl rounded-bl-md border border-line-soft bg-surface px-3.5 py-2.5">
+                          <Markdown text={m.content} />
                         </div>
                       </div>
                     </div>
