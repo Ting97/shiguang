@@ -231,6 +231,37 @@ test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 
   assert.equal(bReserve.enabled, false, "未授权用户查备付应返回未开通");
 });
 
+test("chat 会话分页：默认最近 6 条（3 轮）+ before 游标向前翻 + 越权 404", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  const svc = await import("../src/server/chat/service");
+  const { rows: conv } = await pool.query(
+    `insert into chat_conversations (user_id, title) values ($1, '分页冒烟') returning id`,
+    [UA],
+  );
+  const cid = conv[0].id;
+  for (let i = 0; i < 10; i++) {
+    await pool.query(
+      `insert into chat_messages (conversation_id, user_id, role, content) values ($1, $2, $3, $4)`,
+      [cid, UA, i % 2 ? "assistant" : "user", `msg-${i}`],
+    );
+  }
+  const page1 = await svc.getConversation(UA, cid);
+  assert.equal(page1.messages.length, 6, "首页默认 6 条");
+  assert.equal(page1.hasMore, true, "还有更早");
+  assert.equal(page1.messages[0].content, "msg-4", "首页从倒数第 6 条开始");
+  assert.equal(page1.messages[5].content, "msg-9");
+  assert.equal(page1.oldestId, page1.messages[0].id);
+  const page2 = await svc.getConversation(UA, cid, { before: page1.oldestId! });
+  assert.equal(page2.messages.length, 4, "剩余 4 条");
+  assert.equal(page2.hasMore, false);
+  assert.equal(page2.messages[0].content, "msg-0");
+  // 越权：他人会话 404（不泄露存在性）
+  await assert.rejects(svc.getConversation(UB, cid), /会话不存在/);
+  // 游标属于他会话的消息 → 400
+  await assert.rejects(svc.getConversation(UA, cid, { before: "00000000-0000-0000-0000-000000000000" }), /游标无效/);
+});
+
 test("chat 配额：独立按日口径，只数 stage='chat' 的成功调用", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");

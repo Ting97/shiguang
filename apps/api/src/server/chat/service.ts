@@ -55,32 +55,63 @@ export async function listConversations(userId: string): Promise<{ conversations
   };
 }
 
-/** 单会话详情（属主校验：他人/已删会话一律 404，不泄露存在性） */
+/** 单会话详情（属主校验：他人/已删会话一律 404，不泄露存在性）。
+ * 分页（REQ-015 追加：加快打开）：默认只回最近 6 条（3 轮），更早经 before 游标向前翻页 */
 export async function getConversation(
   userId: string,
   conversationId: string,
-): Promise<{ conversation: ConversationDTO; messages: ChatMessageDTO[] }> {
+  opts?: { before?: string; limit?: number },
+): Promise<{
+  conversation: ConversationDTO;
+  messages: ChatMessageDTO[];
+  hasMore: boolean;
+  /** 当前页最早一条消息 id——上一页游标；无更多或空会话时 null */
+  oldestId: string | null;
+}> {
   const { rows: convs } = await pool.query(
     `select id, title, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
      from chat_conversations where id = $1 and user_id = $2 and deleted_at is null`,
     [conversationId, userId],
   );
   if (!convs.length) throw ApiError.notFound("会话不存在");
+
+  const limit = Math.min(Math.max(opts?.limit ?? 6, 2), 50);
+  // 游标解析为 (created_at, id) 行比较——同毫秒多条也能稳定切页
+  let cursorTs: string | null = null;
+  if (opts?.before) {
+    const { rows: anchor } = await pool.query(
+      `select created_at from chat_messages
+       where id = $1 and conversation_id = $2 and user_id = $3`,
+      [opts.before, conversationId, userId],
+    );
+    if (!anchor.length) throw ApiError.badRequest("翻页游标无效");
+    cursorTs = anchor[0].created_at;
+  }
   const { rows } = await pool.query(
     `select id, role, content, tool_calls, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj
-     from chat_messages where conversation_id = $1 and user_id = $2
-     order by created_at asc limit 200`,
-    [conversationId, userId],
+     from chat_messages
+     where conversation_id = $1 and user_id = $2
+       and ($3::timestamptz is null or (created_at, id) < ($3::timestamptz, $4::uuid))
+     order by created_at desc, id desc limit $5`,
+    [conversationId, userId, cursorTs, opts?.before ?? null, limit + 1],
   );
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit).reverse();
   return {
     conversation: { id: convs[0].id, title: convs[0].title, updatedAt: convs[0].updated_bj },
-    messages: rows.map((r: any) => ({
-      id: r.id,
-      role: r.role as "user" | "assistant",
-      content: r.content,
-      ...(Array.isArray(r.tool_calls) ? { toolCalls: r.tool_calls } : {}),
-      createdAt: r.created_bj,
-    })),
+    messages: page.map(mapMessageRow),
+    hasMore,
+    oldestId: page.length ? page[0].id : null,
+  };
+}
+
+function mapMessageRow(r: any): ChatMessageDTO {
+  return {
+    id: r.id,
+    role: r.role as "user" | "assistant",
+    content: r.content,
+    ...(Array.isArray(r.tool_calls) ? { toolCalls: r.tool_calls } : {}),
+    createdAt: r.created_bj,
   };
 }
 

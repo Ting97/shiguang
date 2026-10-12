@@ -69,8 +69,13 @@ export default function AssistantChat({
   const [thinkingStep, setThinkingStep] = useState(0);
   const [convLoading, setConvLoading] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false); // 移动端会话下拉
+  const [hasMore, setHasMore] = useState(false); // 更早消息还有否（分页：每页 6 条 = 3 轮）
+  const [loadingMore, setLoadingMore] = useState(false);
   const arm = useArmConfirm();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollBoxRef = useRef<HTMLDivElement>(null);
+  // 向前翻页后按「新增高度」恢复滚动位置（否则会被自动滚底覆盖）
+  const prependHeightRef = useRef<number | null>(null);
   const activeTitle = conversations.find((c) => c.id === activeId)?.title;
 
   // 等待期文案轮换
@@ -86,8 +91,17 @@ export default function AssistantChat({
   }, []);
 
   useEffect(() => {
+    // 前翻页追加旧消息时不自动滚底——滚动位置由下方 effect 按增量恢复
+    if (prependHeightRef.current != null) return;
     scrollToBottom();
   }, [messages, sending, scrollToBottom]);
+
+  useEffect(() => {
+    const box = scrollBoxRef.current;
+    if (prependHeightRef.current == null || !box) return;
+    box.scrollTop = box.scrollHeight - prependHeightRef.current;
+    prependHeightRef.current = null;
+  }, [messages]);
 
   const loadList = useCallback(() => {
     api<{ conversations: ConvItem[]; quota: QuotaInfo }>("/api/chat")
@@ -105,6 +119,7 @@ export default function AssistantChat({
   function newConversation() {
     setActiveId(null);
     setMessages([]);
+    setHasMore(false);
   }
 
   async function openConversation(id: string) {
@@ -112,13 +127,35 @@ export default function AssistantChat({
     setConvLoading(true);
     setActiveId(id);
     try {
-      const j = await api<{ conversation: ConvItem; messages: MsgItem[] }>(`/api/chat?id=${id}`);
+      // 首屏只拉最近 3 轮（6 条），更早的按页向前翻
+      const j = await api<{ conversation: ConvItem; messages: MsgItem[]; hasMore: boolean }>(`/api/chat?id=${id}`);
       setMessages(j.messages ?? []);
+      setHasMore(j.hasMore ?? false);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
       setActiveId(null);
     } finally {
       setConvLoading(false);
+    }
+  }
+
+  /** 向前翻一页（更早 3 轮）：追加后按增量恢复滚动位置，不跳底 */
+  async function loadOlder() {
+    if (!activeId || !hasMore || loadingMore || sending) return;
+    setLoadingMore(true);
+    try {
+      const box = scrollBoxRef.current;
+      prependHeightRef.current = box ? box.scrollHeight : null;
+      const j = await api<{ messages: MsgItem[]; hasMore: boolean }>(
+        `/api/chat?id=${activeId}&before=${messages[0]?.id ?? ""}`,
+      );
+      setMessages((ms) => [...(j.messages ?? []), ...ms]);
+      setHasMore(j.hasMore ?? false);
+    } catch (e) {
+      prependHeightRef.current = null;
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -269,10 +306,10 @@ export default function AssistantChat({
         </aside>
       )}
 
-      {/* 对话主区：Dock=面板内滚动；整页=移动随页面自然滚动（输入条 sticky 吸底）、桌面面板内滚动 */}
+      {/* 对话主区：PC/移动统一固定高度、面板内滚动（首屏仅最近 3 轮，更早翻页加载） */}
       <section
-        className={`glass flex flex-col rounded-2xl ${
-          isDock ? "h-full w-full overflow-hidden" : "flex-1 lg:min-h-[70vh] lg:overflow-hidden"
+        className={`glass flex flex-col overflow-hidden rounded-2xl ${
+          isDock ? "h-full w-full" : "h-[calc(100dvh-11rem)] min-h-[26rem] lg:h-auto lg:min-h-[70vh] lg:flex-1"
         }`}
       >
         <header className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
@@ -314,7 +351,18 @@ export default function AssistantChat({
           )}
         </header>
 
-        <div className={`flex-1 space-y-4 px-4 py-5 ${isDock ? "overflow-y-auto" : "lg:overflow-y-auto"}`}>
+        <div ref={scrollBoxRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
+          {!convLoading && hasMore && messages.length > 0 && (
+            <div className="flex justify-center">
+              <button
+                onClick={loadOlder}
+                disabled={loadingMore}
+                className="rounded-full border border-line-soft bg-surface px-3 py-1 text-xs text-ink-mute transition hover:border-sky-500/50 hover:text-accent disabled:opacity-50"
+              >
+                {loadingMore ? "加载中…" : "↑ 查看更早对话"}
+              </button>
+            </div>
+          )}
           {convLoading ? (
             <p className="py-8 text-center text-xs text-ink-faint">加载会话…</p>
           ) : messages.length === 0 && !sending ? (
@@ -378,14 +426,10 @@ export default function AssistantChat({
               )}
             </>
           )}
-          <div ref={bottomRef} className="scroll-mb-24" />
+          <div ref={bottomRef} />
         </div>
 
-        <footer
-          className={`border-t border-line-soft p-3 ${
-            isDock ? "" : "sticky bottom-0 rounded-b-2xl bg-surface/95 backdrop-blur lg:static lg:rounded-none lg:bg-transparent lg:backdrop-blur-none"
-          }`}
-        >
+        <footer className="border-t border-line-soft p-3">
           <div className="flex items-end gap-2">
             <textarea
               value={input}
