@@ -163,13 +163,13 @@ async function runTool(name: string, userId: string, params: Record<string, unkn
 const todayStr = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 const daysAgo = (n: number) => new Date(Date.now() + 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
 
-test("chat 工具注册表：22 只读 + 1 提案齐全 + 标签映射对齐", async (t) => {
+test("chat 工具注册表：23 只读 + 1 提案齐全 + 标签映射对齐", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
-  assert.equal(CHAT_TOOLS.length, 22);
+  assert.equal(CHAT_TOOLS.length, 23);
   for (const tool of CHAT_TOOLS) assert.ok(TOOL_LABELS[tool.name], `${tool.name} 应有中文标签`);
   const agentTools = toAgentTools({ userId: UA });
-  assert.equal(agentTools.length, 23, "toAgentTools 应映射只读+提案全量");
+  assert.equal(agentTools.length, 24, "toAgentTools 应映射只读+提案全量");
 });
 
 test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 越权隔离", async (t) => {
