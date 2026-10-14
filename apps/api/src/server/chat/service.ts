@@ -56,7 +56,8 @@ export async function listConversations(userId: string): Promise<{ conversations
 }
 
 /** 单会话详情（属主校验：他人/已删会话一律 404，不泄露存在性）。
- * 分页（REQ-015 追加：加快打开）：默认只回最近 6 条（3 轮），更早经 before 游标向前翻页 */
+ * 分页（REQ-015 追加：加快打开）：默认只回最近 6 条（3 轮），更早经 before 游标向前翻页。
+ * REQ-016：响应附 proposals（本会话 A.5 确认卡：pending 在前 + 近期已决），前端渲染计划卡片 */
 export async function getConversation(
   userId: string,
   conversationId: string,
@@ -67,6 +68,7 @@ export async function getConversation(
   hasMore: boolean;
   /** 当前页最早一条消息 id——上一页游标；无更多或空会话时 null */
   oldestId: string | null;
+  proposals: ChatProposalDTO[];
 }> {
   const { rows: convs } = await pool.query(
     `select id, title, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
@@ -102,7 +104,47 @@ export async function getConversation(
     messages: page.map(mapMessageRow),
     hasMore,
     oldestId: page.length ? page[0].id : null,
+    proposals: await listProposals(userId, conversationId),
   };
+}
+
+/** A.5 操作确认卡行（REQ-016） */
+export interface ChatProposalDTO {
+  id: string;
+  kind: "fitness_plan";
+  payload: Record<string, unknown>;
+  status: "pending" | "accepted" | "dismissed";
+  createdAt: string;
+}
+
+/** 本会话确认卡：pending 全量在前 + 近期已决（供前端渲染卡片与状态角标） */
+async function listProposals(userId: string, conversationId: string): Promise<ChatProposalDTO[]> {
+  const { rows } = await pool.query(
+    `select id, kind, payload, status, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj
+     from chat_proposals
+     where user_id = $1 and conversation_id = $2
+     order by (status = 'pending') desc, created_at desc
+     limit 20`,
+    [userId, conversationId],
+  );
+  return rows.map((r: any) => ({
+    id: r.id,
+    kind: r.kind,
+    payload: r.payload,
+    status: r.status,
+    createdAt: r.created_bj,
+  }));
+}
+
+/** 确认卡处置：accept 在前端成功保存业务数据（POST /api/fitness/plans）之后调用；dismiss 直接放弃。
+ * 只允许 pending → 已决（幂等守卫：重复点击 409） */
+export async function resolveProposal(userId: string, proposalId: string, action: "accept" | "dismiss"): Promise<void> {
+  const { rowCount } = await pool.query(
+    `update chat_proposals set status = $3, updated_at = now()
+     where id = $1 and user_id = $2 and status = 'pending'`,
+    [proposalId, userId, action === "accept" ? "accepted" : "dismissed"],
+  );
+  if (!rowCount) throw ApiError.conflict("确认卡不存在或已处理");
 }
 
 function mapMessageRow(r: any): ChatMessageDTO {
@@ -122,6 +164,8 @@ export interface SendMessageResult {
   reply: ChatMessageDTO;
   toolTrace: ChatToolTraceItem[];
   quota: ChatQuotaInfo;
+  /** 本回合产生的待确认提案卡（REQ-016 A.5：助手生成计划 → 用户点卡片保存） */
+  proposals: ChatProposalDTO[];
 }
 
 /** 发送消息并取得助手回答（含工具查询轨迹）；免费用户当日次数耗尽抛 402 */
@@ -197,8 +241,10 @@ export async function sendMessage(
     const res = await chatAgent({
       system,
       messages: turns,
-      tools: toAgentTools({ userId } satisfies ChatToolCtx),
-      maxSteps: 5,
+      tools: toAgentTools({ userId, conversationId } satisfies ChatToolCtx),
+      // 5→7：健身提案流程要「查目标→查动作库→提案」3 步，模型漏传明细被拒后还需重调+总结；
+      // 步数用不满时无额外开销，只防截断（实测 5 步时提案重试后正文为空）
+      maxSteps: 7,
       timeoutMs: 60_000,
       onUsage: (u) => { usage = u; },
     });
@@ -207,11 +253,16 @@ export async function sendMessage(
       label: TOOL_LABELS[tc.name] ?? tc.name,
       args: tc.args,
     }));
+    // 兜底：glm-4-flash 被工具错误拒绝后偶发整轮空文本（尤其漏传计划明细被拒时），
+    // 落一条可读提示避免前端空气泡
+    const replyText =
+      res.text.trim() ||
+      "（这轮我没能组织好回复：如果是要生成训练计划，请直接告诉我明天想练力量还是跑步，我再生成计划卡片。）";
     const { rows: insertedReply } = await pool.query(
       `insert into chat_messages (conversation_id, user_id, role, content, tool_calls)
        values ($1, $2, 'assistant', $3, $4::jsonb)
        returning id, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj`,
-      [conversationId, userId, res.text, JSON.stringify(toolTrace)],
+      [conversationId, userId, replyText, JSON.stringify(toolTrace)],
     );
     await pool.query(`update chat_conversations set updated_at = now() where id = $1`, [conversationId]);
     await writeAuditRecord({
@@ -219,7 +270,7 @@ export async function sendMessage(
       stage: "chat",
       model: activeModel(),
       latencyMs: Date.now() - startedAt,
-      textLen: res.text.length,
+      textLen: replyText.length,
       ok: true,
       promptTokens: usage.prompt_tokens,
       completionTokens: usage.completion_tokens,
@@ -231,12 +282,13 @@ export async function sendMessage(
       reply: {
         id: insertedReply[0].id,
         role: "assistant",
-        content: res.text,
+        content: replyText,
         toolCalls: toolTrace,
         createdAt: insertedReply[0].created_bj,
       },
       toolTrace,
       quota: await getChatQuota(userId),
+      proposals: await listProposals(userId, conversationId),
     };
   } catch (e) {
     // 失败也计量（ok=false）：用户消息已保留，配额只扣成功调用（口径与 ai 域一致）
@@ -287,4 +339,5 @@ export const chatService = {
   sendMessage,
   renameConversation,
   deleteConversation,
+  resolveProposal,
 };

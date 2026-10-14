@@ -1,0 +1,666 @@
+/**
+ * fitness 域 service（REQ-016）：手写校验 + ApiError + 编排 repo。
+ * 计划为中心：POST /plans = create-or-replace 草稿（已 confirmed 及之后 409）；
+ * 计划落库即联动今日行动（syncPlanTodos 单一规则：计划存在且未 skipped → 行动与计划同步）；
+ * 打卡 done/partial 落执行记录并把联动行动置完成。
+ * AI：POST /plans/parse 粘贴文本 → FitnessPlanDraftV2（GLM + 一次修复重问）→ 整数口径草稿（不入库）。
+ */
+import { z } from "zod";
+import { ApiError } from "../platform/http/errors";
+import { isValidCalendarDate } from "../platform/http/datetime";
+import { isUuid } from "../platform/http/validate";
+import {
+  chat,
+  extractJson,
+  GlmError,
+  activeModel,
+  FitnessPlanDraftV2,
+  buildRepairUserPrompt,
+  type FitnessPlanDraft,
+} from "@shiguangri/ai";
+import { assembleUserPrompt, getPromptBundle, writeAuditRecord } from "@/server/ai";
+import { fitnessRepo } from "./repo";
+
+// ---- 日期与区间守卫 ----
+
+/** 北京日期串校验（合法日历日 + 不早于 2020） */
+const bjDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "日期须为 YYYY-MM-DD")
+  .refine((s) => isValidCalendarDate(s) && s >= "2020-01-01", { message: "日期不合法" });
+
+function rangeGuard(from: string, to: string) {
+  const f = parseBody(bjDate, from);
+  const t = parseBody(bjDate, to);
+  if (f > t) throw ApiError.badRequest("开始日期晚于结束日期");
+  if (new Date(`${t}T00:00:00+08:00`).getTime() - new Date(`${f}T00:00:00+08:00`).getTime() > 366 * 86_400_000) {
+    throw ApiError.badRequest("查询区间不能超过一年");
+  }
+  return [f, t] as const;
+}
+
+/** zod 校验失败统一 400（裸 .parse 的 ZodError 会被基座当 500） */
+function parseBody<S extends z.ZodTypeAny>(schema: S, body: unknown): z.infer<S> {
+  const parsed = schema.safeParse(body ?? {});
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw ApiError.badRequest(`入参不合法：${(issue.path.join(".") || "(root)") + " " + issue.message}`.slice(0, 200));
+  }
+  return parsed.data;
+}
+
+// ---- 计划 content 契约（整数口径；入库与前端共用） ----
+
+export const RunPlanContentSchema = z.object({
+  workoutType: z.enum(["interval", "tempo", "long", "easy", "recovery"]),
+  title: z.string().min(1).max(30),
+  segments: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(20),
+        distanceM: z.number().int().positive().max(300_000).nullable().optional(),
+        paceSPerKm: z.number().int().positive().max(1200).nullable().optional(),
+        hrZone: z.number().int().min(1).max(5).nullable().optional(),
+        reps: z.number().int().min(2).max(40).nullable().optional(),
+        note: z.string().max(60).nullable().optional(),
+      }),
+    )
+    .max(12)
+    .default([]),
+  totalDistanceM: z.number().int().positive().max(300_000).nullable().optional(),
+  durationMin: z.number().int().min(5).max(600).nullable().optional(),
+  note: z.string().max(200).nullable().optional(),
+});
+
+export const StrengthPlanContentSchema = z.object({
+  title: z.string().min(1).max(30),
+  exercises: z
+    .array(
+      z.object({
+        exerciseId: z.string().max(40).nullable().optional(),
+        name: z.string().min(1).max(20),
+        sets: z.number().int().min(1).max(10).nullable().optional(),
+        repsText: z.string().max(12).nullable().optional(),
+        weightG: z.number().int().min(0).max(500_000).nullable().optional(),
+        rir: z.number().int().min(0).max(10).nullable().optional(),
+        note: z.string().max(60).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(15),
+  note: z.string().max(200).nullable().optional(),
+});
+
+export type RunPlanContent = z.infer<typeof RunPlanContentSchema>;
+export type StrengthPlanContent = z.infer<typeof StrengthPlanContentSchema>;
+
+/** 配速文本 → 秒每公里（"5'50\"" / "5:50" / "6:00-6:15" 取首值 / "5分50"）；解析不出 null */
+export function parsePaceText(t?: string | null): number | null {
+  if (!t) return null;
+  const m = /(\d{1,3})\s*['‘’:：′]\s*(\d{1,2})/.exec(t) ?? /(\d{1,3})\s*分\s*(\d{1,2})/.exec(t);
+  if (!m) return null;
+  const sec = Number(m[1]) * 60 + Number(m[2]);
+  return sec > 0 && sec <= 1200 ? sec : null;
+}
+
+/** AI 草稿（模型友好单位）→ 整数口径 canonical content（越界值统一 upstream 400 面） */
+export function draftToCanonicalPlan(draft: FitnessPlanDraft): { moduleCode: "run" | "strength"; content: RunPlanContent | StrengthPlanContent } {
+  const canon = <T extends z.ZodTypeAny>(schema: T, v: unknown) => {
+    const parsed = schema.safeParse(v);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      throw ApiError.upstream(`AI 草稿字段越界：${issue.path.join(".") || "(root)"} ${issue.message}`);
+    }
+    return parsed.data;
+  };
+  if (draft.module === "run" && draft.run) {
+    const r = draft.run;
+    return {
+      moduleCode: "run",
+      content: canon(RunPlanContentSchema, {
+        workoutType: r.workoutType,
+        title: r.title,
+        segments: r.segments.map((s) => ({
+          label: s.label,
+          distanceM: s.distanceKm != null ? Math.round(s.distanceKm * 1000) : null,
+          paceSPerKm: parsePaceText(s.paceText),
+          hrZone: s.hrZone ?? null,
+          reps: s.reps ?? null,
+          note: s.note ?? null,
+        })),
+        totalDistanceM: r.totalDistanceKm != null ? Math.round(r.totalDistanceKm * 1000) : null,
+        durationMin: r.durationMin ?? null,
+        note: r.note ?? null,
+      }),
+    };
+  }
+  if (draft.module === "strength" && draft.strength) {
+    const s = draft.strength;
+    return {
+      moduleCode: "strength",
+      content: canon(StrengthPlanContentSchema, {
+        title: s.title,
+        exercises: s.exercises.map((e) => ({
+          exerciseId: null,
+          name: e.name.trim(),
+          sets: e.sets ?? null,
+          repsText: e.repsText ?? null,
+          weightG: e.weightKg != null ? Math.round(e.weightKg * 1000) : null,
+          rir: e.rir ?? null,
+          note: e.note ?? null,
+        })),
+        note: s.note ?? null,
+      }),
+    };
+  }
+  throw ApiError.upstream("AI 返回的草稿缺少训练内容", `module=${draft.module} 无对应内容`);
+}
+
+/** 力量动作按名称挂动作库 id（精确优先，蛋壳包含兜底） */
+async function resolveExerciseIds(content: StrengthPlanContent): Promise<StrengthPlanContent> {
+  const names = [...new Set(content.exercises.map((e) => e.name).filter(Boolean))];
+  if (!names.length) return content;
+  const { rows } = await fitnessRepo.matchExercises(names);
+  const exact = new Map(rows.map((r: { id: string; name: string }) => [r.name, r.id]));
+  const loose = new Map(rows.map((r: { id: string; name: string }) => [r.name, r.id]));
+  return {
+    ...content,
+    exercises: content.exercises.map((e) => ({
+      ...e,
+      exerciseId: exact.get(e.name) ?? (e.name.length >= 2 ? findLoose(loose, e.name) : null),
+    })),
+  };
+}
+function findLoose(loose: Map<string, string>, name: string): string | null {
+  for (const [catalogName, id] of loose) {
+    if (catalogName.includes(name) || name.includes(catalogName)) return id;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 模块 / 基本情况 / 目标
+// ---------------------------------------------------------------------------
+
+async function listModules() {
+  const { rows } = await fitnessRepo.listModules();
+  return { modules: rows };
+}
+
+async function getProfile(userId: string) {
+  const { rows } = await fitnessRepo.getProfile(userId);
+  return { profile: rows[0] ?? null };
+}
+
+const ProfileInput = z.object({
+  heightCm: z.number().int().min(50).max(260).nullable().optional(),
+  baseline: z.record(z.any()).optional(),
+  experience: z.string().max(60).nullable().optional(),
+  equipment: z.array(z.string().max(30)).max(10).optional(),
+  weeklyDays: z.string().max(60).nullable().optional(),
+  constraints: z.string().max(200).nullable().optional(),
+});
+
+async function saveProfile(userId: string, body: unknown) {
+  const v = parseBody(ProfileInput, body);
+  const { rows } = await fitnessRepo.upsertProfile(userId, {
+    heightCm: v.heightCm ?? null,
+    baseline: v.baseline ?? {},
+    experience: v.experience ?? null,
+    equipment: v.equipment ?? [],
+    weeklyDays: v.weeklyDays ?? null,
+    constraints: v.constraints ?? null,
+  });
+  return { profile: rows[0] };
+}
+
+async function assertModule(code: string) {
+  const { rows } = await fitnessRepo.moduleExists(code);
+  if (!rows.length) throw ApiError.badRequest("未知的训练模块");
+}
+
+async function listGoals(userId: string) {
+  const { rows } = await fitnessRepo.listGoals(userId);
+  return { goals: rows };
+}
+
+const GoalCreateInput = z.object({
+  moduleCode: z.string().min(1).max(20),
+  title: z.string().min(1).max(60),
+  targetDate: bjDate.nullable().optional(),
+  targets: z.record(z.any()).optional(),
+  baseline: z.record(z.any()).optional(),
+  strategy: z.record(z.any()).optional(),
+});
+
+async function createGoal(userId: string, body: unknown) {
+  const v = parseBody(GoalCreateInput, body);
+  await assertModule(v.moduleCode);
+  const { rows } = await fitnessRepo.activeGoalOf(userId, v.moduleCode);
+  if (rows.length) throw ApiError.conflict("该模块已有活跃目标，请先归档或达成");
+  const inserted = await fitnessRepo.insertGoal(userId, {
+    moduleCode: v.moduleCode,
+    title: v.title.trim(),
+    targetDate: v.targetDate ?? null,
+    targets: v.targets ?? {},
+    baseline: v.baseline ?? {},
+    strategy: v.strategy ?? {},
+  });
+  return { goal: inserted.rows[0] };
+}
+
+const GoalPatchInput = z.object({
+  title: z.string().min(1).max(60).optional(),
+  targetDate: bjDate.nullable().optional(),
+  status: z.enum(["active", "achieved", "archived"]).optional(),
+  targets: z.record(z.any()).optional(),
+  baseline: z.record(z.any()).optional(),
+  strategy: z.record(z.any()).optional(),
+});
+
+async function updateGoal(userId: string, id: string, body: unknown) {
+  if (!isUuid(id)) throw ApiError.badRequest("id 参数不合法");
+  const v = parseBody(GoalPatchInput, body);
+  const owned = await fitnessRepo.goalOwned(id, userId);
+  if (!owned.rows.length) throw ApiError.notFound("目标不存在");
+  if (v.status === "active") {
+    const act = await fitnessRepo.activeGoalOf(userId, owned.rows[0].module_code);
+    if (act.rows.length && act.rows[0].id !== id) throw ApiError.conflict("该模块已有活跃目标");
+  }
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  const push = (col: string, val: unknown, json = false) => {
+    vals.push(json ? JSON.stringify(val ?? {}) : val);
+    sets.push(`${col} = $${vals.length}${json ? "::jsonb" : ""}`);
+  };
+  if (v.title !== undefined) push("title", v.title.trim());
+  if (v.targetDate !== undefined) push("target_date", v.targetDate);
+  if (v.status !== undefined) push("status", v.status);
+  if (v.targets !== undefined) push("targets", v.targets, true);
+  if (v.baseline !== undefined) push("baseline", v.baseline, true);
+  if (v.strategy !== undefined) push("strategy", v.strategy, true);
+  if (!sets.length) throw ApiError.badRequest("没有可更新的字段");
+  vals.push(id, userId);
+  const { rows } = await fitnessRepo.updateGoal(id, userId, sets, vals);
+  return { goal: rows[0] };
+}
+
+// ---------------------------------------------------------------------------
+// 每日计划
+// ---------------------------------------------------------------------------
+
+async function listPlans(userId: string, from: string, to: string) {
+  const [f, t] = rangeGuard(from, to);
+  const { rows } = await fitnessRepo.listPlans(userId, f, t);
+  return { plans: rows };
+}
+
+const PlanSaveInput = z.object({
+  planDate: bjDate,
+  moduleCode: z.enum(["run", "strength"]),
+  source: z.enum(["ai", "import", "manual"]).default("manual"),
+  content: z.record(z.any()),
+  rationale: z.string().max(600).nullable().optional(),
+  originConversationId: z.string().uuid().nullable().optional(),
+});
+
+/** 计划 content 校验（模块对应契约） */
+function validateContent(moduleCode: "run" | "strength", content: unknown) {
+  const parsed = moduleCode === "run" ? RunPlanContentSchema.safeParse(content) : StrengthPlanContentSchema.safeParse(content);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw ApiError.badRequest(`计划内容不合法：${issue.path.join(".") || "(root)"} ${issue.message}`);
+  }
+  return parsed.data;
+}
+
+/** 力量动作名匹配动作库（解析/提案落库前统一挂 exerciseId，前端收益展示用） */
+async function attachExerciseIds(moduleCode: string, content: RunPlanContent | StrengthPlanContent) {
+  if (moduleCode === "strength") return resolveExerciseIds(content as StrengthPlanContent);
+  return content;
+}
+
+/** POST /api/fitness/plans —— create-or-replace 草稿并联动今日行动 */
+async function savePlanDraft(userId: string, body: unknown) {
+  const v = parseBody(PlanSaveInput, body);
+  const content = validateContent(v.moduleCode, v.content);
+  const enriched = await attachExerciseIds(v.moduleCode, content);
+  const { rows: existing } = await fitnessRepo.findPlan(userId, v.planDate, v.moduleCode);
+  let planRow;
+  if (existing.length) {
+    if (existing[0].status !== "draft") {
+      throw ApiError.conflict("该日该模块已有生效计划（confirmed 及之后不可覆盖），可在计划卡上改状态");
+    }
+    const sets = ["content = $1::jsonb", "source = $2", "rationale = $3", "origin_conversation_id = $4"];
+    const vals: unknown[] = [JSON.stringify(enriched), v.source, v.rationale ?? null, v.originConversationId ?? null, existing[0].id, userId];
+    planRow = (await fitnessRepo.updatePlan(existing[0].id, userId, sets, vals)).rows[0];
+  } else {
+    planRow = (
+      await fitnessRepo.insertPlan(userId, {
+        planDate: v.planDate,
+        moduleCode: v.moduleCode,
+        source: v.source,
+        content: enriched,
+        rationale: v.rationale ?? null,
+        originConversationId: v.originConversationId ?? null,
+      })
+    ).rows[0];
+  }
+  const sync = await syncPlanTodos(userId, planRow);
+  return { plan: planRow, syncedActions: sync.synced };
+}
+
+const PlanPatchInput = z.object({
+  status: z.enum(["confirmed", "skipped", "done", "partial"]).optional(),
+  content: z.record(z.any()).optional(),
+  rationale: z.string().max(600).nullable().optional(),
+  /** 打卡实际（status=done/partial 时随行落执行记录） */
+  actual: z.record(z.any()).optional(),
+  fatigue: z.number().int().min(1).max(10).nullable().optional(),
+  sleepHours: z.number().min(0).max(16).nullable().optional(),
+  soreness: z.string().max(60).nullable().optional(),
+  note: z.string().max(200).nullable().optional(),
+});
+
+/** PATCH /api/fitness/plans/[id] —— 确认/编辑草稿/skipped/打卡；打卡落执行记录并完成联动行动 */
+async function updatePlan(userId: string, id: string, body: unknown) {
+  if (!isUuid(id)) throw ApiError.badRequest("id 参数不合法");
+  const v = parseBody(PlanPatchInput, body);
+  const { rows } = await fitnessRepo.planOwned(id, userId);
+  if (!rows.length) throw ApiError.notFound("计划不存在");
+  const plan = rows[0];
+  const doneLike = v.status === "done" || v.status === "partial";
+
+  if (plan.status === "done" || plan.status === "partial") {
+    throw ApiError.badRequest("该计划已打卡，不能再次修改");
+  }
+  // 打卡类字段必须伴随 status=done/partial（单独发 actual 没有语义）
+  if (!doneLike && (v.actual !== undefined || v.fatigue !== undefined || v.sleepHours !== undefined)) {
+    throw ApiError.badRequest("打卡实际数据需携带 status=done/partial");
+  }
+  if (v.content !== undefined && plan.status !== "draft") {
+    throw ApiError.badRequest("仅草稿状态可编辑内容");
+  }
+
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  const push = (col: string, val: unknown, json = false) => {
+    vals.push(json ? JSON.stringify(val ?? {}) : val);
+    sets.push(`${col} = $${vals.length}${json ? "::jsonb" : ""}`);
+  };
+
+  let planRow = plan;
+  if (v.content !== undefined) {
+    const content = validateContent(plan.module_code, v.content);
+    push("content", await attachExerciseIds(plan.module_code, content), true);
+  }
+  if (v.rationale !== undefined) push("rationale", v.rationale);
+  if (v.status !== undefined) push("status", v.status);
+  if (!sets.length) throw ApiError.badRequest("没有可更新的字段");
+  vals.push(id, userId);
+  planRow = (await fitnessRepo.updatePlan(id, userId, sets, vals)).rows[0];
+
+  // skipped → 清理未完成联动行动；done/partial → 落执行记录 + 完成联动行动
+  if (v.status === "skipped") {
+    await fitnessRepo.deletePendingPlanTodos(id);
+  } else if (doneLike) {
+    await fitnessRepo.insertLog(userId, {
+      logDate: planRow.plan_date,
+      moduleCode: planRow.module_code,
+      planId: id,
+      actual: v.actual ?? {},
+      fatigue: v.fatigue ?? null,
+      sleepHX10: v.sleepHours != null ? Math.round(v.sleepHours * 10) : null,
+      soreness: v.soreness ?? null,
+      note: v.note ?? null,
+    });
+    await fitnessRepo.completePlanTodos(id);
+  } else {
+    // 内容/状态变化 → 行动与最新计划同步
+    await syncPlanTodos(userId, planRow);
+  }
+  return { plan: planRow };
+}
+
+// ---------------------------------------------------------------------------
+// 今日行动联动（FR-D）
+// ---------------------------------------------------------------------------
+
+/** 单一规则：计划存在且未 skipped → 行动与计划同步。
+ * 力量课 = 父任务(kind='todo') + 每动作一条子行动(kind='action')；跑步课 = 单条独立行动。
+ * due_at = 计划日 18:00（北京）——与首页「今日行动」due_at 当日口径一致；活动分类挂预设 'fitness'。 */
+async function syncPlanTodos(
+  userId: string,
+  plan: { id: string; plan_date: string; module_code: string; source: string; status: string; content: unknown },
+) {
+  await fitnessRepo.deletePendingPlanTodos(plan.id);
+  if (plan.status === "skipped") return { synced: 0 };
+  const dueAtIso = `${plan.plan_date}T18:00:00+08:00`;
+  const source: "ai" | "manual" = plan.source === "manual" ? "manual" : "ai";
+  // 活动分类挂「健身」预设行；用户没有该行（理论上仅测试直插用户）则置空，不让联动挂掉计划保存
+  const { rows: actRows } = await fitnessRepo.fitnessActivityId(userId);
+  const activityId: string | null = actRows[0]?.id ?? null;
+  const content = (plan.content ?? {}) as RunPlanContent | StrengthPlanContent;
+  let synced = 0;
+
+  if (plan.module_code === "strength") {
+    const exs = (content as StrengthPlanContent).exercises ?? [];
+    const parentTitle = String((content as StrengthPlanContent).title ?? "力量训练");
+    const parent = (
+      await fitnessRepo.insertPlanTodo(userId, {
+        planId: plan.id,
+        title: parentTitle,
+        dueAtIso,
+        source,
+        kind: "todo",
+        parentId: null,
+        sort: 0,
+        activityId,
+      })
+    ).rows[0].id;
+    synced += 1;
+    for (let i = 0; i < exs.length; i++) {
+      const e = exs[i];
+      await fitnessRepo.insertPlanTodo(userId, {
+        planId: plan.id,
+        title: actionTitleOfExercise(e),
+        dueAtIso,
+        source,
+        kind: "action",
+        parentId: parent,
+        sort: i + 1,
+        activityId,
+      });
+      synced += 1;
+    }
+  } else if ((content as RunPlanContent).title) {
+    const c = content as RunPlanContent;
+    const km = c.totalDistanceM ? ` · ${(c.totalDistanceM / 1000).toFixed(c.totalDistanceM % 1000 === 0 ? 0 : 1)}km` : "";
+    await fitnessRepo.insertPlanTodo(userId, {
+      planId: plan.id,
+      title: `${c.title}${km}`,
+      dueAtIso,
+      source,
+      kind: "action",
+      parentId: null,
+      sort: 0,
+      activityId,
+    });
+    synced += 1;
+  }
+  return { synced };
+}
+
+/** 行动标题：「卧推 30kg×3×10」/「侧平举 2×12-15」/「平板支撑 3×45s」 */
+function actionTitleOfExercise(e: { name: string; sets?: number | null; repsText?: string | null; weightG?: number | null }) {
+  const dose = [e.sets, e.repsText].filter((x) => x != null && x !== "").join("×");
+  if (e.weightG) return `${e.name} ${Math.round(e.weightG / 100) / 10}kg${dose ? "×" + dose : ""}`.slice(0, 60);
+  return dose ? `${e.name} ${dose}`.slice(0, 60) : e.name;
+}
+
+// ---------------------------------------------------------------------------
+// 执行记录 / 身体指标 / 动作库
+// ---------------------------------------------------------------------------
+
+async function listLogs(userId: string, from: string, to: string) {
+  const [f, t] = rangeGuard(from, to);
+  const { rows } = await fitnessRepo.listLogs(userId, f, t);
+  return { logs: rows };
+}
+
+const LogInput = z.object({
+  logDate: bjDate,
+  moduleCode: z.enum(["run", "strength"]),
+  planId: z.string().uuid().nullable().optional(),
+  actual: z.record(z.any()).optional(),
+  fatigue: z.number().int().min(1).max(10).nullable().optional(),
+  sleepHours: z.number().min(0).max(16).nullable().optional(),
+  soreness: z.string().max(60).nullable().optional(),
+  note: z.string().max(200).nullable().optional(),
+});
+
+/** POST /api/fitness/logs —— 独立补录（不经计划打卡） */
+async function addLog(userId: string, body: unknown) {
+  const v = parseBody(LogInput, body);
+  const { rows } = await fitnessRepo.insertLog(userId, {
+    logDate: v.logDate,
+    moduleCode: v.moduleCode,
+    planId: v.planId ?? null,
+    actual: v.actual ?? {},
+    fatigue: v.fatigue ?? null,
+    sleepHX10: v.sleepHours != null ? Math.round(v.sleepHours * 10) : null,
+    soreness: v.soreness ?? null,
+    note: v.note ?? null,
+  });
+  return { log: rows[0] };
+}
+
+async function listMetrics(userId: string, from: string, to: string) {
+  const [f, t] = rangeGuard(from, to);
+  const { rows } = await fitnessRepo.listMetrics(userId, f, t);
+  return { metrics: rows };
+}
+
+const MetricInput = z.object({
+  measuredOn: bjDate,
+  weightKg: z.number().min(20).max(300).nullable().optional(),
+  waistCm: z.number().min(30).max(200).nullable().optional(),
+  bodyFatPct: z.number().min(3).max(60).nullable().optional(),
+  restingHr: z.number().int().min(30).max(130).nullable().optional(),
+  note: z.string().max(100).nullable().optional(),
+});
+
+/** POST /api/fitness/metrics —— 按日 upsert（周一晨起空腹口径，人体可读单位入参 → 整数口径入库） */
+async function saveMetric(userId: string, body: unknown) {
+  const v = parseBody(MetricInput, body);
+  const { rows } = await fitnessRepo.upsertMetric(userId, {
+    measuredOn: v.measuredOn,
+    weightG: v.weightKg != null ? Math.round(v.weightKg * 1000) : null,
+    waistMm: v.waistCm != null ? Math.round(v.waistCm * 10) : null,
+    bodyFatPctX10: v.bodyFatPct != null ? Math.round(v.bodyFatPct * 10) : null,
+    restingHr: v.restingHr ?? null,
+    note: v.note ?? null,
+  });
+  return { metric: rows[0] };
+}
+
+async function listExercises(moduleCode: string | null) {
+  const { rows } = await fitnessRepo.listExercises(moduleCode);
+  return { exercises: rows };
+}
+
+// ---------------------------------------------------------------------------
+// AI：粘贴文本 → 结构化草稿（不入库；调用方确认后走 savePlanDraft）
+// ---------------------------------------------------------------------------
+
+const PARSE_TEXT_MAX = 2000;
+
+/** POST /api/fitness/plans/parse —— GLM 解析 + 一次修复重问；输出整数口径草稿（含动作库挂接） */
+async function parsePlanDraft(userId: string, text: string) {
+  const t = text.trim();
+  if (!t || t.length > PARSE_TEXT_MAX) throw ApiError.badRequest(`课表文本长度须为 1~${PARSE_TEXT_MAX} 字`);
+
+  const bundle = await getPromptBundle("fitness_plan_parse");
+  const base = await assembleUserPrompt("fitness_plan_parse", bundle, { text: t });
+  const startedAt = Date.now();
+  let usage = { prompt_tokens: 0, completion_tokens: 0 };
+  const onUsage = (u: { prompt_tokens: number; completion_tokens: number }) => {
+    usage = u;
+  };
+
+  const runOnce = async (userPrompt: string) => {
+    const raw = await chat({ system: bundle.system, user: userPrompt, onUsage });
+    const parsed = FitnessPlanDraftV2.safeParse(extractJson(raw));
+    return { raw, parsed };
+  };
+
+  try {
+    let { raw, parsed } = await runOnce(base);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.slice(0, 6).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+      ({ raw, parsed } = await runOnce(buildRepairUserPrompt(base, raw, issues)));
+      if (!parsed.success) {
+        throw new GlmError("badOutput", `重问后仍不合格：${parsed.error.issues.slice(0, 3).map((i) => i.message).join("；")}`);
+      }
+    }
+    const canonical = draftToCanonicalPlan(parsed.data);
+    const content = await attachExerciseIds(canonical.moduleCode, canonical.content);
+    await writeAuditRecord({
+      userId,
+      stage: "fitness_parse",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: t.length,
+      ok: true,
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+    });
+    return {
+      draft: {
+        moduleCode: canonical.moduleCode,
+        source: "import" as const,
+        content,
+        rationale: parsed.data.reasoning ?? null,
+      },
+    };
+  } catch (e) {
+    // 计数/限流类失败转 503 文案（与 chat 域同口径）；其余透传（badOutput 由基座映射 502）
+    await writeAuditRecord({
+      userId,
+      stage: "fitness_parse",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: t.length,
+      ok: false,
+      error: String((e as Error)?.message ?? e).slice(0, 200),
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+    });
+    if (e instanceof GlmError && (e.kind === "quota" || e.kind === "rate")) {
+      throw ApiError.upstream("AI 服务暂时不可用（限流/额度），请稍后再试");
+    }
+    if (e instanceof GlmError && e.kind === "auth") throw ApiError.upstream("AI 未配置或鉴权失败，无法解析");
+    throw e;
+  }
+}
+
+/** 路由统一服务出口（路由文件只做 解析入参 → 调 service → 返回） */
+export const fitnessService = {
+  listModules,
+  getProfile,
+  saveProfile,
+  listGoals,
+  createGoal,
+  updateGoal,
+  listPlans,
+  savePlanDraft,
+  updatePlan,
+  parsePlanDraft,
+  listLogs,
+  addLog,
+  listMetrics,
+  saveMetric,
+  listExercises,
+};
+
+export { syncPlanTodos };

@@ -43,14 +43,33 @@ async function upsertUser(id: string, nickname: string) {
   );
 }
 
-/** 给 UA 造最小数据集：活动 + 时间块 + 流水 + 联系人 + 往来 + 带心情动态 + 负债/交易（含模块授权） */
+/** 给 UA 造最小数据集：活动 + 时间块 + 流水 + 联系人 + 往来 + 带心情动态 + 负债/交易（含模块授权）。
+ * seed 幂等：开头按 FK 安全序清掉 UA 的本 seed 数据（重复执行不再撞唯一键/脏计数）。 */
 async function seedData() {
+  for (const del of [
+    `delete from trades where user_id = $1`,
+    `delete from trade_accounts where user_id = $1`,
+    `delete from trade_reserve_banks where user_id = $1`,
+    `delete from interactions where user_id = $1`,
+    `delete from entries where user_id = $1 and raw_text = '今天很开心'`,
+    `delete from todos where user_id = $1`,
+    `delete from goal_spaces where user_id = $1 and name = '测试目标'`,
+    `delete from transactions where user_id = $1`,
+    `delete from contacts where user_id = $1 and name = '老王'`,
+    `delete from accounts where user_id = $1`,
+    `delete from liabilities where user_id = $1`,
+    `delete from time_blocks where user_id = $1`,
+    `delete from chat_messages where user_id = $1`,
+    `delete from chat_conversations where user_id = $1`,
+  ]) {
+    await pool.query(del, [UA]);
+  }
   await pool.query(
     `insert into activities (id, user_id, name) values ('chat-smoke-work', $1, '工作')
-     on conflict (id) do update set name = excluded.name`,
+     on conflict (id, user_id) do update set name = excluded.name`,
     [UA],
   );
-  const today = new Date(Date.now() - 8 * 3600_000).toISOString().slice(0, 10);
+  const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
   await pool.query(
     `insert into time_blocks (user_id, activity_id, title, start_at, end_at) values
      ($1, 'chat-smoke-work', '写周报', $2::timestamptz + interval '9 hours', $2::timestamptz + interval '10 hours')`,
@@ -82,6 +101,9 @@ async function seedData() {
      values ($1, '测试房贷', 'mortgage', 50000000, 30000000, 4.2, 320000, 15)`,
     [UA],
   );
+  // 交易模块（seed 幂等：先清 UA 旧账户/旧成交再插，重复执行不撞唯一键）
+  await pool.query(`delete from trades where user_id = $1`, [UA]);
+  await pool.query(`delete from trade_accounts where user_id = $1`, [UA]);
   const { rows: acct } = await pool.query(
     `insert into trade_accounts (user_id, login, nickname) values ($1, '888', '冒烟户') returning id`,
     [UA],
@@ -138,16 +160,16 @@ async function runTool(name: string, userId: string, params: Record<string, unkn
   return t.execute({ userId }, params);
 }
 
-const todayStr = () => new Date(Date.now() - 8 * 3600_000).toISOString().slice(0, 10);
-const daysAgo = (n: number) => new Date(Date.now() - 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
+const todayStr = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+const daysAgo = (n: number) => new Date(Date.now() + 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
 
-test("chat 工具注册表：17 工具齐全 + 标签映射对齐", async (t) => {
+test("chat 工具注册表：22 只读 + 1 提案齐全 + 标签映射对齐", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
-  assert.equal(CHAT_TOOLS.length, 17);
+  assert.equal(CHAT_TOOLS.length, 22);
   for (const tool of CHAT_TOOLS) assert.ok(TOOL_LABELS[tool.name], `${tool.name} 应有中文标签`);
   const agentTools = toAgentTools({ userId: UA });
-  assert.equal(agentTools.length, 17, "toAgentTools 应全量映射");
+  assert.equal(agentTools.length, 23, "toAgentTools 应映射只读+提案全量");
 });
 
 test("chat 工具：全工具真实可查（列名漂移在此 42703 暴露）+ 越权隔离", async (t) => {

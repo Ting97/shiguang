@@ -9,7 +9,8 @@
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
-import type { AgentToolSpec } from "@shiguangri/ai";
+import { FitnessPlanDraftV2, type AgentToolSpec } from "@shiguangri/ai";
+import { draftToCanonicalPlan } from "@/server/fitness";
 
 /** chat 域跨域只读表清单（依赖规则同 insight 域：新增跨域读先登记） */
 export const CHAT_READABLE_TABLES = [
@@ -37,11 +38,20 @@ export const CHAT_READABLE_TABLES = [
   "space_reflections",
   "debt_reserve_checks",
   "trade_reserve_banks",
+  // 健身（REQ-016：计划/执行/指标/目标/动作库）
+  "fitness_daily_plans",
+  "fitness_session_logs",
+  "fitness_body_metrics",
+  "fitness_goals",
+  "fitness_profiles",
+  "fitness_exercises",
 ] as const;
 
-/** 工具执行上下文：会话属主（所有查询的强制过滤条件） */
+/** 工具执行上下文：会话属主（所有查询的强制过滤条件）；提案工具另带会话归属 */
 export interface ChatToolCtx {
   userId: string;
+  /** 当前会话 id（提案登记归属；查询工具不使用） */
+  conversationId?: string;
 }
 
 export interface ChatTool {
@@ -70,9 +80,7 @@ function rangeOf(from: string, to: string): [string, string] {
   if (from > to) throw new Error("开始日期晚于结束日期");
   const spanMs = new Date(`${to}T00:00:00+08:00`).getTime() - new Date(`${from}T00:00:00+08:00`).getTime();
   if (spanMs > 366 * 86_400_000) throw new Error("查询区间不能超过一年");
-  const next = new Date(new Date(`${to}T00:00:00+08:00`).getTime() + 86_400_000);
-  const nextStr = next.toISOString().slice(0, 10);
-  return [bjDayStart(from), bjDayStart(nextStr)];
+  return [bjDayStart(from), bjDayStart(bjAddDays(to, 1))];
 }
 
 /** 明细行在北京时区的 MM-DD HH:MI 展示串（避免模型自行做时区换算出错） */
@@ -157,8 +165,9 @@ const queryTransactions: ChatTool = {
        order by occurred_at desc limit 10`,
       [ctx.userId, start, end],
     );
-    // 金额单位统一「分」（整数）——提示词已约定模型表述时换算为元
-    return { range: { from, to }, totals, byCategory, detail, centsUnit: "分（1元=100分）" };
+    // 金额单位统一「分」（整数）——提示词已约定模型表述时换算为元；::bigint 经 pg 返回字符串，统一转回数字
+    const numRow = (r: { cents: unknown }) => ({ ...r, cents: Number(r.cents) });
+    return { range: { from, to }, totals: totals.map(numRow), byCategory: byCategory.map(numRow), detail: detail.map(numRow), centsUnit: "分（1元=100分）" };
   },
 };
 
@@ -678,7 +687,145 @@ const queryTrading: ChatTool = {
   },
 };
 
-/** 注册表全集（17 个只读工具，覆盖全模块数据面；写操作走批次 A.5「操作意图卡」，不在此列） */
+// ---- 健身工具（REQ-016）：5 只读 + 1 提案（A.5 确认卡首发） ----
+
+const queryFitnessPlans: ChatTool = {
+  name: "query_fitness_plans",
+  description:
+    "查询健身每日计划（跑步/力量）：按北京日期区间返回逐日计划（课型或动作明细、组次重量、状态、来源）与区间统计（训练次数/状态分布）。适用：今天/明天练什么、这周训练安排、计划完成情况。单位：距离米、配速秒每公里、重量克。",
+  params: z.object({
+    from: bjDate.optional().describe("开始日期（含），默认近 7 天"),
+    to: bjDate.optional().describe("结束日期（含），默认明天"),
+  }),
+  async execute(ctx, p) {
+    const { from, to } = p as { from?: string; to?: string };
+    const todayBj = bjToday();
+    const fromBj = from ?? bjAddDays(todayBj, -6);
+    const toBj = to ?? bjAddDays(todayBj, 1);
+    const [start, end] = rangeOf(fromBj, toBj);
+    const { rows } = await pool.query(
+      `select p.plan_date, p.module_code, m.name as module, p.source, p.status, p.content, p.rationale
+       from fitness_daily_plans p join fitness_modules m on m.code = p.module_code
+       where p.user_id = $1 and p.plan_date >= $2::date and p.plan_date < $3::date
+       order by p.plan_date desc, m.sort`,
+      [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+    );
+    const { rows: stats } = await pool.query(
+      `select status, count(*)::int as n from fitness_daily_plans
+       where user_id = $1 and plan_date >= $2::date and plan_date < $3::date
+       group by status`,
+      [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+    );
+    return { range: { from: fromBj, to: toBj }, items: rows, stats, unitHint: "距离米、配速秒每公里、重量克（模型表述换算 km/分钟/配速/kg）" };
+  },
+};
+
+const queryFitnessLogs: ChatTool = {
+  name: "query_fitness_logs",
+  description:
+    "查询健身执行记录（打卡的实际完成）：逐日实际距离/时长/配速/心率、力量实际组次、疲劳/睡眠/酸痛。适用：点评昨天训练、最近执行得怎么样、身体状态信号。单位同计划工具。",
+  params: z.object({
+    from: bjDate.optional().describe("开始日期（含），默认近 14 天"),
+    to: bjDate.optional().describe("结束日期（含），默认今天"),
+  }),
+  async execute(ctx, p) {
+    const { from, to } = p as { from?: string; to?: string };
+    const todayBj = bjToday();
+    const fromBj = from ?? bjAddDays(todayBj, -13);
+    const toBj = to ?? todayBj;
+    const [start, end] = rangeOf(fromBj, toBj);
+    const { rows } = await pool.query(
+      `select l.log_date, l.module_code, m.name as module, l.actual, l.fatigue, l.sleep_h_x10, l.soreness, l.note
+       from fitness_session_logs l join fitness_modules m on l.module_code = m.code
+       where l.user_id = $1 and l.log_date >= $2::date and l.log_date < $3::date
+       order by l.log_date desc`,
+      [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+    );
+    return { range: { from: fromBj, to: toBj }, items: rows, unitHint: "距离米、配速秒每公里、睡眠为小时×10" };
+  },
+};
+
+const queryFitnessBodyMetrics: ChatTool = {
+  name: "query_fitness_body_metrics",
+  description:
+    "查询身体指标序列（体重/腰围/体脂/静息心率，通常每周一晨起空腹）与相邻记录的变化，返回换算后的 kg/cm/%。适用：体重降得快不快、腰围变化、是否该按 ±150kcal 规则调整热量。",
+  params: z.object({
+    from: bjDate.optional().describe("开始日期（含），默认近 90 天"),
+    to: bjDate.optional().describe("结束日期（含），默认今天"),
+  }),
+  async execute(ctx, p) {
+    const { from, to } = p as { from?: string; to?: string };
+    const todayBj = bjToday();
+    const fromBj = from ?? bjAddDays(todayBj, -89);
+    const toBj = to ?? todayBj;
+    const [start, end] = rangeOf(fromBj, toBj);
+    const { rows } = await pool.query(
+      `select measured_on,
+              round(weight_g / 1000.0, 1)::float8 as weight_kg,
+              round(waist_mm / 10.0, 1)::float8 as waist_cm,
+              round(body_fat_pct_x10 / 10.0, 1)::float8 as body_fat_pct,
+              resting_hr
+       from fitness_body_metrics
+       where user_id = $1 and measured_on >= $2::date and measured_on < $3::date
+       order by measured_on`,
+      [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+    );
+    // 周均变化率（首末差 / 周数）：供模型按目标节奏判断 ±150kcal 调整
+    let weeklyChangeKg: number | null = null;
+    const withWeight = rows.filter((r: { weight_kg: number | null }) => r.weight_kg != null);
+    if (withWeight.length >= 2) {
+      const first = withWeight[0];
+      const last = withWeight[withWeight.length - 1];
+      const days = (new Date(`${last.measured_on}T00:00:00+08:00`).getTime() - new Date(`${first.measured_on}T00:00:00+08:00`).getTime()) / 86_400_000;
+      if (days >= 7) weeklyChangeKg = Math.round(((last.weight_kg - first.weight_kg) / (days / 7)) * 100) / 100;
+    }
+    return { range: { from: fromBj, to: toBj }, items: rows, weeklyChangeKg };
+  },
+};
+
+const getFitnessGoals: ChatTool = {
+  name: "get_fitness_goals",
+  description:
+    "查询健身目标档案与基本情况：每个训练模块的活跃目标（目标日/量化目标/基线）与策略档案 strategy（阶段划分/每周课模板/训练原则/动态调整协议/饮食目标与调整规则）+ 用户基本情况（身高/经验/器械/每周安排/约束）。适用：安排训练前先读它——跨模块编排（如跑步质量课当天力量怎么排）必须依据 strategy.adjustProtocol。",
+  params: z.object({}),
+  async execute(ctx) {
+    const { rows: goals } = await pool.query(
+      `select g.module_code, m.name as module, g.title, g.target_date, g.targets, g.baseline, g.strategy
+       from fitness_goals g join fitness_modules m on m.code = g.module_code
+       where g.user_id = $1 and g.status = 'active'`,
+      [ctx.userId],
+    );
+    const { rows: profiles } = await pool.query(
+      `select height_cm, baseline, experience, equipment, weekly_days, "constraints" from fitness_profiles where user_id = $1`,
+      [ctx.userId],
+    );
+    return { goals, profile: profiles[0] ?? null };
+  },
+};
+
+const getFitnessExercises: ChatTool = {
+  name: "get_fitness_exercises",
+  description:
+    "查询健身动作库：按模块（run/strength）或名称/肌群关键词过滤，返回动作的主/副肌群与收益（练什么、对哪里有好处）、器械、难度、默认组次。适用：推荐动作时查它的训练收益并展示给用户。",
+  params: z.object({
+    module: z.enum(["run", "strength"]).optional().describe("按模块过滤"),
+    keyword: z.string().max(20).optional().describe("名称或肌群关键词（如 背/肩/深蹲）"),
+  }),
+  async execute(ctx, p) {
+    const { module: mod, keyword } = p as { module?: "run" | "strength"; keyword?: string };
+    const { rows } = await pool.query(
+      `select id, module_code, name, muscle_primary, muscle_secondary, equipment, level, benefit, default_template
+       from fitness_exercises
+       where ($1::text is null or module_code = $1)
+         and ($2::text is null or name ilike '%' || $2 || '%' or muscle_primary::text ilike '%' || $2 || '%' or muscle_secondary::text ilike '%' || $2 || '%')
+       order by sort limit 40`,
+      [mod ?? null, keyword ?? null],
+    );
+    return { count: rows.length, items: rows };
+  },
+};
+
+/** 注册表全集（22 个只读工具，覆盖全模块数据面；写操作走 A.5「操作意图卡」，见 CHAT_PROPOSAL_TOOLS） */
 export const CHAT_TOOLS: ChatTool[] = [
   queryTimeBlocks,
   queryTransactions,
@@ -697,11 +844,160 @@ export const CHAT_TOOLS: ChatTool[] = [
   queryGoals,
   queryDebtReserve,
   getTodoDetail,
+  queryFitnessPlans,
+  queryFitnessLogs,
+  queryFitnessBodyMetrics,
+  getFitnessGoals,
+  getFitnessExercises,
 ];
 
-/** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主） */
+// ---- A.5 操作意图确认卡（REQ-016 首发落地：助手只提案，用户点卡片确认后前端调业务域 API） ----
+
+/** propose 入参别名归一：glm-4-flash 常回 reps/weight/pace 等简写，映射到规范字段后再严格校验 */
+function normalizePlanDraft(v: unknown): unknown {
+  if (!v || typeof v !== "object") return v;
+  const src = v as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...src };
+  const take = (...keys: string[]) => {
+    for (const k of keys) if (out[k] !== undefined) return out[k];
+    return undefined;
+  };
+  if (out.repsText === undefined) {
+    const r = take("reps", "reps_text", "repsText");
+    if (r !== undefined) out.repsText = r;
+  }
+  if (out.weightKg === undefined) {
+    const w = take("weight", "weight_kg", "weightKg");
+    if (w !== undefined) out.weightKg = w;
+  }
+  if (out.paceText === undefined) {
+    const p = take("pace", "paceText");
+    if (p !== undefined) out.paceText = p;
+  }
+  if (out.totalDistanceKm === undefined) {
+    const t = take("totalKm", "totalDistance", "totalDistanceKm");
+    if (t !== undefined) out.totalDistanceKm = t;
+  }
+  if (Array.isArray(out.exercises)) out.exercises = out.exercises.map(normalizePlanDraft);
+  if (Array.isArray(out.segments)) out.segments = out.segments.map(normalizePlanDraft);
+  return out;
+}
+
+const proposeFitnessPlan: ChatTool = {
+  name: "propose_fitness_plan",
+  description:
+    "为用户生成健身日计划提案（今天或明天）：生成结构化训练计划并登记为确认卡，等用户在卡片上点「保存」才会真正入库——本工具不直接写计划。调用前必须先查 get_fitness_goals（策略与调整协议）、query_fitness_plans（当日已有计划，避免冲突）、必要时 query_fitness_logs（近期负荷）与 get_fitness_exercises（动作收益）。力量计划动作尽量引用动作库动作名。plan_date 只能是北京今天或明天。",
+  // 参数层刻意扁平+放宽（passthrough）：AI SDK 会在 execute 之前按 parameters 校验工具实参，
+  // 嵌套/条件必填结构 glm-4-flash 极易写错且字段不匹配直接抛 InvalidToolArgumentsError 打穿循环
+  // 变 500——扁平数组 + 严格校验挪进 execute，错误才能包装成 {error} 回传模型自纠
+  params: z.object({
+    plan_date: z.string().describe("计划日期（北京时间，只能是今天或明天）"),
+    module_code: z.string().describe("训练模块：run 或 strength"),
+    title: z.string().max(40).nullish().describe("课表名（如 课A·胸肩三头 / 节奏跑）"),
+    exercises: z
+      .array(z.object({}).passthrough())
+      .max(15)
+      .nullish()
+      .describe("力量动作明细（module_code=strength 时必填）：[{name 动作名, sets 组数, repsText 次数如 '8-12', weightKg 重量, rir 次数储备}]"),
+    segments: z
+      .array(z.object({}).passthrough())
+      .max(12)
+      .nullish()
+      .describe("跑步分段（module_code=run 时必填）：[{label 如 热身/主课, distanceKm, paceText 配速如 5'50}]"),
+    workout_type: z.string().nullish().describe("跑步课型：interval(间歇)/tempo(节奏)/long(长距离)/easy(轻松)/recovery(恢复)"),
+    note: z.string().max(200).nullish().describe("备注"),
+    rationale: z.string().max(800).nullish().describe("生成依据（引用调整协议与当日已有安排，一两句话）"),
+  }),
+  async execute(ctx, p) {
+    const { plan_date, module_code, title, exercises, segments, workout_type, note, rationale } = p as {
+      plan_date: string;
+      module_code: string;
+      title?: string | null;
+      exercises?: Array<Record<string, unknown>>;
+      segments?: Array<Record<string, unknown>>;
+      workout_type?: string | null;
+      note?: string | null;
+      rationale?: string | null;
+    };
+    // 日期守卫：仅限今天/明天（过期的提案没有意义）
+    const todayBj = bjToday();
+    const tomorrowBj = bjAddDays(todayBj, 1);
+    if (plan_date !== todayBj && plan_date !== tomorrowBj) {
+      throw new Error(`plan_date 只能是今天(${todayBj})或明天(${tomorrowBj})`);
+    }
+    if (module_code !== "run" && module_code !== "strength") {
+      throw new Error("module_code 只能是 run 或 strength");
+    }
+    // 条件必填在 execute 内拦（不能放 params 校验：AI SDK 参数校验失败抛
+    // InvalidToolArgumentsError 会打穿整个循环变 500；此处 throw 经 chatAgent 包装成
+    // {error} 回传模型，模型可带上完整明细重调——实测 glm-4-flash 会漏传明细/写简写字段）
+    if (module_code === "strength" && !(exercises?.length)) {
+      throw new Error(
+        "调用被拒绝：module_code=strength 必须提供 exercises 动作明细。不要回复文字，立即带上 exercises=[{name, sets, repsText, weightKg, rir}] 重新调用 propose_fitness_plan",
+      );
+    }
+    if (module_code === "run" && !(segments?.length)) {
+      throw new Error(
+        "调用被拒绝：module_code=run 必须提供 segments 分段明细。不要回复文字，立即带上 segments=[{label, distanceKm, paceText}] 与 workout_type 重新调用 propose_fitness_plan",
+      );
+    }
+    // 扁平入参组装回 run/strength 结构，别名归一（reps→repsText 等）后严格校验；
+    // 失败信息拼成一行中文提示供模型重调
+    const WORKOUT_TYPE_ZH: Record<string, string> = {
+      节奏: "tempo", 间歇: "interval", 长距离: "long", 轻松: "easy", 恢复: "recovery",
+      tempo: "tempo", interval: "interval", long: "long", easy: "easy", recovery: "recovery",
+    };
+    const run =
+      module_code === "run"
+        ? normalizePlanDraft({
+            title: title ?? "跑步训练",
+            workoutType: WORKOUT_TYPE_ZH[(workout_type ?? "").trim()] ?? "easy",
+            segments: (segments ?? []).map(normalizePlanDraft),
+            note: note ?? null,
+          })
+        : null;
+    const strength =
+      module_code === "strength"
+        ? normalizePlanDraft({ title: title ?? "力量训练", exercises: (exercises ?? []).map(normalizePlanDraft), note: note ?? null })
+        : null;
+    const parsed = FitnessPlanDraftV2.safeParse({
+      module: module_code,
+      run,
+      strength,
+      confidence: 0.9,
+    });
+    if (!parsed.success) {
+      const issues = parsed.error.issues
+        .slice(0, 5)
+        .map((i) => `${i.path.join(".") || "(根)"}: ${i.message}`)
+        .join("；");
+      throw new Error(`计划明细校验未通过——${issues}。请修正字段（力量动作字段为 name/sets/repsText/weightKg/rir）后重新调用 propose_fitness_plan`);
+    }
+    // 模型友好单位 → 整数口径（复用 fitness 域映射；越界抛错回传模型）
+    const canonical = draftToCanonicalPlan(parsed.data);
+    const { rows } = await pool.query(
+      `insert into chat_proposals (user_id, conversation_id, kind, payload)
+       values ($1, $2, 'fitness_plan', $3::jsonb) returning id`,
+      [
+        ctx.userId,
+        ctx.conversationId ?? null,
+        JSON.stringify({ planDate: plan_date, moduleCode: module_code, content: canonical.content, rationale: rationale || "" }),
+      ],
+    );
+    return {
+      proposalId: rows[0].id,
+      saved: false,
+      hint: "已生成计划确认卡，等用户点「保存」才会入库；请向用户展示计划要点并说明依据，不要声称已保存",
+    };
+  },
+};
+
+/** 提案工具注册表（独立于只读注册表：只允许写 chat_proposals 登记簿，永不直接写业务表） */
+export const CHAT_PROPOSAL_TOOLS: ChatTool[] = [proposeFitnessPlan];
+
+/** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主；含提案工具） */
 export function toAgentTools(ctx: ChatToolCtx): AgentToolSpec[] {
-  return CHAT_TOOLS.map((t) => ({
+  return [...CHAT_TOOLS, ...CHAT_PROPOSAL_TOOLS].map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.params as unknown as z.ZodType<Record<string, unknown>>,
@@ -728,4 +1024,10 @@ export const TOOL_LABELS: Record<string, string> = {
   query_goals: "目标空间",
   query_debt_reserve: "每月备付",
   get_todo_detail: "待办详情",
+  query_fitness_plans: "健身计划",
+  query_fitness_logs: "训练记录",
+  query_fitness_body_metrics: "身体指标",
+  get_fitness_goals: "健身目标档案",
+  get_fitness_exercises: "动作库",
+  propose_fitness_plan: "生成计划卡片",
 };

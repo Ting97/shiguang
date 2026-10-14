@@ -418,3 +418,67 @@ export const LlmExtraction = z.object({
 });
 
 export type LlmExtraction = z.infer<typeof LlmExtraction>;
+
+// ============ 健身计划解析契约（REQ-016）：粘贴佳明课表等文本 → 结构化日计划草稿 ============
+// 模型友好单位（km/min/kg/配速原文），apps/api 侧映射为整数口径（m/s/g）再入库；
+// 力量动作不要求对齐动作库 id（模型不查库）——按名称在 api 侧匹配 fitness_exercises。
+
+/** 跑步课分段（热身/间歇组/放松等） */
+export const RunSegmentDraft = z.object({
+  label: z.string().min(1).max(20),
+  distanceKm: z.coerce.number().positive().max(300).nullish(),
+  /** 配速原文（如 5'50" / 6:00-6:15），api 侧解析为秒每公里 */
+  paceText: z.string().max(20).nullish(),
+  hrZone: z.coerce.number().int().min(1).max(5).nullish(),
+  /** 重复次数（如 6×400m 的 6；无结构重复 null） */
+  reps: z.coerce.number().int().min(2).max(40).nullish(),
+  note: z.string().max(60).nullish(),
+});
+
+export const RunPlanDraft = z.object({
+  workoutType: z.enum(["interval", "tempo", "long", "easy", "recovery"]),
+  title: z.string().min(1).max(30),
+  segments: z.array(RunSegmentDraft).max(12).default([]),
+  totalDistanceKm: z.coerce.number().positive().max(300).nullish(),
+  durationMin: z.coerce.number().int().min(5).max(600).nullish(),
+  note: z.string().max(200).nullish(),
+});
+
+export const StrengthExerciseDraft = z.object({
+  name: z.string().min(1).max(20).refine((n) => !/^(今天|今日|然后|接着|我)/.test(n.trim()), {
+    message: "exercises[].name 不能是句子片段",
+  }),
+  sets: z.coerce.number().int().min(1).max(10).nullish(),
+  /** 次数/时长原文（"10-12" / "30-45s" / "力竭-2"），保真入库 */
+  repsText: z.string().max(12).nullish(),
+  weightKg: z.coerce.number().min(0).max(500).nullish(),
+  rir: z.coerce.number().int().min(0).max(10).nullish(),
+  note: z.string().max(60).nullish(),
+});
+
+export const StrengthPlanDraft = z.object({
+  title: z.string().min(1).max(30),
+  exercises: z.array(StrengthExerciseDraft).min(1).max(15),
+  note: z.string().max(200).nullish(),
+});
+
+/** 粘贴文本解析结果：module 与对应内容组必须匹配且非空 */
+export const FitnessPlanDraftV2 = z
+  .object({
+    reasoning: z.string().nullish(),
+    module: z.enum(["run", "strength"]),
+    run: RunPlanDraft.nullish(),
+    strength: StrengthPlanDraft.nullish(),
+    confidence: llmConfidence,
+  })
+  .superRefine((v, ctx) => {
+    if (v.module === "run" && !v.run) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "module=run 时 run 不能为空" });
+    }
+    if (v.module === "strength" && !v.strength) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "module=strength 时 strength 不能为空" });
+    }
+  });
+export type FitnessPlanDraft = z.infer<typeof FitnessPlanDraftV2>;
+export type RunPlanDraftT = z.infer<typeof RunPlanDraft>;
+export type StrengthPlanDraftT = z.infer<typeof StrengthPlanDraft>;

@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/", label: "动态" },
   { href: "/spaces", label: "目标" },
   { href: "/schedule", label: "日程" },
+  { href: "/fitness", label: "健身" },
   { href: "/contacts", label: "人际" },
   { href: "/finance", label: "财务" },
 ];

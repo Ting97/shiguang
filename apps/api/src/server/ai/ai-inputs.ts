@@ -308,6 +308,12 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词（这周/上个月）换算基准", "服务端时钟")],
     caps: [],
   },
+  fitness_plan_parse: {
+    userTemplate: `课表文本：「{text}」\n请解析成结构化日计划草稿 JSON。`,
+    placeholders: ["text"],
+    injects: [REQ("text", "课表文本", "用户粘贴的佳明课表/力量课安排原文，解析对象本体", "本次输入")],
+    caps: [],
+  },
 };
 
 /** 合并 DB 覆盖与注册表默认：inject 缺省=注册表默认，caps 数值钳制到 [min,max]；userData（个性化注入）原样透传 */

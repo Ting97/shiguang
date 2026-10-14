@@ -40,16 +40,100 @@ interface QuotaInfo {
   limit: number | null;
 }
 
+/** A.5 操作确认卡（REQ-016）：助手提案 → 用户点「保存」才写业务数据 */
+interface ProposalItem {
+  id: string;
+  kind: "fitness_plan";
+  payload: {
+    planDate: string;
+    moduleCode: "run" | "strength";
+    content: {
+      title?: string;
+      workoutType?: string;
+      totalDistanceM?: number | null;
+      durationMin?: number | null;
+      segments?: { label: string; distanceM?: number | null; paceSPerKm?: number | null; reps?: number | null }[];
+      exercises?: { name: string; sets?: number | null; repsText?: string | null; weightG?: number | null; rir?: number | null }[];
+    };
+    rationale?: string | null;
+  };
+  status: "pending" | "accepted" | "dismissed";
+  createdAt: string;
+}
+
 const QUICK_QUESTIONS = [
   "这周花了多少钱？花在哪了？",
   "最近在忙什么？时间都去哪了",
   "有什么该联系的人了吗",
   "今天我要做哪些行动",
-  "最近心情怎么样",
+  "点评昨天训练，明天力量怎么排",
 ];
 
 /** 等待期状态文案轮换（约 2.4s 一轮，覆盖典型 GLM+查询耗时节奏） */
 const THINKING_STEPS = ["正在理解你的问题…", "正在查询你的数据…", "正在整理回答…"];
+
+/** 健身计划确认卡：模块/日期/动作明细（整数口径换算展示）+ 依据 + 保存/放弃 */
+function ProposalCard({
+  item,
+  busy,
+  onResolve,
+}: {
+  item: ProposalItem;
+  busy: boolean;
+  onResolve: (action: "accept" | "dismiss") => void;
+}) {
+  const c = item.payload.content ?? {};
+  const isRun = item.payload.moduleCode === "run";
+  const km = (m?: number | null) => (m != null ? `${Math.round(m / 100) / 10}km` : "");
+  const paceOf = (s?: number | null) => (s != null ? `${Math.floor(s / 60)}'${String(Math.round(s % 60)).padStart(2, "0")}"` : "");
+  const kgOf = (g?: number | null) => (g ? `${Math.round(g / 100) / 10}kg` : "");
+  return (
+    <div className="flex justify-start">
+      <div className="w-[92%] rounded-2xl rounded-bl-md border border-sky-500/40 bg-surface p-3.5 shadow-sm">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-micro font-medium text-sky-600 dark:text-sky-400">
+            🏋️ 计划确认卡
+          </span>
+          <span className="text-micro text-ink-faint">
+            {item.payload.moduleCode === "run" ? "跑步" : "力量"} · {item.payload.planDate}
+          </span>
+        </div>
+        <p className="mb-1.5 text-sm font-medium">
+          {c.title}
+          {c.totalDistanceM ? <span className="ml-2 text-xs text-ink-mute">{km(c.totalDistanceM)}{c.durationMin ? ` / ${c.durationMin} 分钟` : ""}</span> : null}
+        </p>
+        <div className="space-y-0.5 text-xs text-ink-mute">
+          {isRun
+            ? (c.segments ?? []).map((s, i) => (
+                <p key={i}>
+                  · {s.label}
+                  {s.reps ? ` ×${s.reps}` : ""}
+                  {s.distanceM ? ` ${km(s.distanceM)}` : ""}
+                  {s.paceSPerKm ? ` @ ${paceOf(s.paceSPerKm)}/km` : ""}
+                </p>
+              ))
+            : (c.exercises ?? []).map((e, i) => (
+                <p key={i}>
+                  · {e.name}
+                  {e.weightG ? ` ${kgOf(e.weightG)}` : ""}
+                  {e.sets || e.repsText ? ` × ${[e.sets, e.repsText].filter(Boolean).join("×")}` : ""}
+                  {e.rir != null ? `（RIR ${e.rir}）` : ""}
+                </p>
+              ))}
+        </div>
+        {item.payload.rationale ? <p className="mt-2 text-micro leading-snug text-ink-faint">💡 {item.payload.rationale}</p> : null}
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => onResolve("dismiss")}>
+            放弃
+          </button>
+          <button className="btn-primary px-4 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => onResolve("accept")}>
+            {busy ? "处理中…" : "保存计划并联动今日行动"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AssistantChat({
   variant,
@@ -71,6 +155,8 @@ export default function AssistantChat({
   const [switcherOpen, setSwitcherOpen] = useState(false); // 移动端会话下拉
   const [hasMore, setHasMore] = useState(false); // 更早消息还有否（分页：每页 6 条 = 3 轮）
   const [loadingMore, setLoadingMore] = useState(false);
+  const [proposals, setProposals] = useState<ProposalItem[]>([]); // A.5 确认卡（pending 优先）
+  const [proposalBusy, setProposalBusy] = useState<string | null>(null); // 处置中的卡片 id
   const arm = useArmConfirm();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollBoxRef = useRef<HTMLDivElement>(null);
@@ -120,6 +206,7 @@ export default function AssistantChat({
     setActiveId(null);
     setMessages([]);
     setHasMore(false);
+    setProposals([]);
   }
 
   async function openConversation(id: string) {
@@ -128,9 +215,10 @@ export default function AssistantChat({
     setActiveId(id);
     try {
       // 首屏只拉最近 3 轮（6 条），更早的按页向前翻
-      const j = await api<{ conversation: ConvItem; messages: MsgItem[]; hasMore: boolean }>(`/api/chat?id=${id}`);
+      const j = await api<{ conversation: ConvItem; messages: MsgItem[]; hasMore: boolean; proposals?: ProposalItem[] }>(`/api/chat?id=${id}`);
       setMessages(j.messages ?? []);
       setHasMore(j.hasMore ?? false);
+      setProposals(j.proposals ?? []);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
       setActiveId(null);
@@ -185,6 +273,7 @@ export default function AssistantChat({
         userMessage: MsgItem;
         reply: MsgItem;
         quota: QuotaInfo;
+        proposals?: ProposalItem[];
       }>(
         "/api/chat",
         "POST",
@@ -197,6 +286,7 @@ export default function AssistantChat({
         ...ms.map((m) => (m.id === optimisticId ? j.userMessage : m)),
         j.reply,
       ]);
+      if (j.proposals) setProposals(j.proposals);
       if (j.quota) setQuota(j.quota);
       loadList(); // 新会话入列 / 既有会话置顶
     } catch (e) {
@@ -214,6 +304,36 @@ export default function AssistantChat({
       ? "Pro · 不限次数"
       : `今日 ${quota.usedToday}/${quota.limit} 次`
     : "";
+
+  /** A.5 确认卡处置：accept 先保存业务数据（fitness 域 API）成功后再回执；dismiss 直接放弃 */
+  async function resolveProposalCard(item: ProposalItem, action: "accept" | "dismiss") {
+    if (proposalBusy) return;
+    setProposalBusy(item.id);
+    try {
+      if (action === "accept") {
+        const saved = await api<{ syncedActions: number }>("/api/fitness/plans", "POST", {
+          planDate: item.payload.planDate,
+          moduleCode: item.payload.moduleCode,
+          source: "ai",
+          content: item.payload.content,
+          rationale: item.payload.rationale ?? null,
+          originConversationId: activeId ?? null,
+        });
+        toast(`✅ 计划已保存${saved.syncedActions ? `，联动 ${saved.syncedActions} 条今日行动` : ""}，可在健身页查看`);
+      } else {
+        toast("已放弃该计划");
+      }
+      await api(`/api/chat/proposals/${item.id}`, "POST", { action });
+      setProposals((ps) =>
+        ps.map((p) => (p.id === item.id ? { ...p, status: action === "accept" ? "accepted" : "dismissed" } : p)),
+      );
+    } catch (e) {
+      // 保存失败（如 409 与已有计划冲突）如实展示，卡片保持 pending 可重试或放弃
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setProposalBusy(null);
+    }
+  }
 
   return (
     <>
@@ -424,6 +544,19 @@ export default function AssistantChat({
                   </div>
                 </div>
               )}
+              {/* A.5 操作确认卡（REQ-016）：待确认在前，已决收成小角标 */}
+              {proposals.length > 0 &&
+                proposals.map((p) =>
+                  p.status === "pending" ? (
+                    <ProposalCard key={p.id} item={p} busy={proposalBusy === p.id} onResolve={(a) => resolveProposalCard(p, a)} />
+                  ) : (
+                    <div key={p.id} className="flex justify-start">
+                      <span className="rounded-full bg-wash px-2.5 py-1 text-micro text-ink-faint">
+                        {p.payload.content?.title ?? "计划"} · {p.status === "accepted" ? "已保存" : "已放弃"}
+                      </span>
+                    </div>
+                  ),
+                )}
             </>
           )}
           <div ref={bottomRef} />
