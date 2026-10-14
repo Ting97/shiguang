@@ -516,7 +516,13 @@ export async function chatAgent(opts: ChatAgentOptions): Promise<ChatAgentResult
       const toolCalls = (res.steps ?? []).flatMap((s) =>
         (s.toolCalls ?? []).map((tc) => ({ name: tc.toolName, args: tc.args })),
       );
-      const text = res.text || res.reasoning || "";
+      // res.text 只含最后一步：模型常在发起工具调用的同一步把说明写完，工具结果回来后末步无新文本
+      // （实测 propose_fitness_plan 后空回复）——累积各步非空文本，全程未产文本才落到 reasoning
+      const text =
+        (res.steps ?? []).map((s) => (s.text ?? "").trim()).filter(Boolean).join("\n") ||
+        res.text ||
+        res.reasoning ||
+        "";
       if (!text && toolCalls.length === 0) throw new GlmError("badOutput", "GLM 对话返回空内容");
       return { text, toolCalls };
     } catch (e) {

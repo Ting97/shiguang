@@ -242,7 +242,9 @@ export async function sendMessage(
       system,
       messages: turns,
       tools: toAgentTools({ userId, conversationId } satisfies ChatToolCtx),
-      maxSteps: 5,
+      // 5→7：健身提案流程要「查目标→查动作库→提案」3 步，模型漏传明细被拒后还需重调+总结；
+      // 步数用不满时无额外开销，只防截断（实测 5 步时提案重试后正文为空）
+      maxSteps: 7,
       timeoutMs: 60_000,
       onUsage: (u) => { usage = u; },
     });
@@ -251,11 +253,16 @@ export async function sendMessage(
       label: TOOL_LABELS[tc.name] ?? tc.name,
       args: tc.args,
     }));
+    // 兜底：glm-4-flash 被工具错误拒绝后偶发整轮空文本（尤其漏传计划明细被拒时），
+    // 落一条可读提示避免前端空气泡
+    const replyText =
+      res.text.trim() ||
+      "（这轮我没能组织好回复：如果是要生成训练计划，请直接告诉我明天想练力量还是跑步，我再生成计划卡片。）";
     const { rows: insertedReply } = await pool.query(
       `insert into chat_messages (conversation_id, user_id, role, content, tool_calls)
        values ($1, $2, 'assistant', $3, $4::jsonb)
        returning id, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj`,
-      [conversationId, userId, res.text, JSON.stringify(toolTrace)],
+      [conversationId, userId, replyText, JSON.stringify(toolTrace)],
     );
     await pool.query(`update chat_conversations set updated_at = now() where id = $1`, [conversationId]);
     await writeAuditRecord({
@@ -263,7 +270,7 @@ export async function sendMessage(
       stage: "chat",
       model: activeModel(),
       latencyMs: Date.now() - startedAt,
-      textLen: res.text.length,
+      textLen: replyText.length,
       ok: true,
       promptTokens: usage.prompt_tokens,
       completionTokens: usage.completion_tokens,
@@ -275,7 +282,7 @@ export async function sendMessage(
       reply: {
         id: insertedReply[0].id,
         role: "assistant",
-        content: res.text,
+        content: replyText,
         toolCalls: toolTrace,
         createdAt: insertedReply[0].created_bj,
       },

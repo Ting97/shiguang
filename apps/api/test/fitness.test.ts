@@ -45,7 +45,7 @@ async function upsertUser(id: string, nickname: string) {
   );
 }
 
-const todayStr = () => new Date(Date.now() - 8 * 3600_000).toISOString().slice(0, 10);
+const todayStr = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
 
 async function cleanup() {
   await pool.query(`delete from fitness_daily_plans where user_id = any($1::uuid[])`, [[UA, UB]]);
@@ -213,23 +213,35 @@ test("A.5 提案工具：只写 chat_proposals；accept → 计划落库+联动�
   await upsertUser(UB, "fitness冒烟B");
   await cleanup();
   const today = todayStr();
-  const tomorrow = new Date(Date.now() - 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
 
   const propose = CHAT_PROPOSAL_TOOLS.find((x: any) => x.name === "propose_fitness_plan");
   assert.ok(propose, "propose_fitness_plan 应注册在提案表");
 
   // 非法日期拒绝（昨天）
-  const yesterday = new Date(Date.now() - 8 * 3600_000 - 86_400_000).toISOString().slice(0, 10);
-  await assert.rejects(() => propose.execute({ userId: UA }, { plan_date: yesterday, module_code: "strength", strength: { title: "x", exercises: [{ name: "卧推" }] }, rationale: "r" }), /今天|明天/);
+  const yesterday = new Date(Date.now() + 8 * 3600_000 - 86_400_000).toISOString().slice(0, 10);
+  await assert.rejects(() => propose.execute({ userId: UA }, { plan_date: yesterday, module_code: "strength", exercises: [{ name: "卧推" }], rationale: "r" }), /今天|明天/);
+
+  // 缺动作明细拒绝（glm-4-flash 实测会只传 module_code；错误须能回传模型自纠）
+  await assert.rejects(
+    () => propose.execute({ userId: UA, conversationId: null }, { plan_date: today, module_code: "strength", rationale: "r" }),
+    /exercises/,
+  );
 
   const res = (await propose.execute({ userId: UA, conversationId: null }, {
     plan_date: tomorrow,
     module_code: "strength",
-    strength: { title: "明天力量课 B", exercises: [{ name: "坐姿划船", sets: 3, repsText: "10-12" }] },
+    title: "明天力量课 B",
+    // reps/weight 简写应归一为 repsText/weightKg
+    exercises: [{ name: "坐姿划船", sets: 3, reps: "10-12", weight: 40 }],
     rationale: "明天是轻松跑，按协议正常力量课",
   })) as any;
   assert.equal(res.saved, false, "提案不得直接保存");
   const proposalId = res.proposalId;
+  const { rows: propRows } = await pool.query(`select payload from chat_proposals where id = $1`, [proposalId]);
+  const ex = propRows[0].payload.content.exercises[0];
+  assert.equal(ex.repsText, "10-12", "reps 简写应归一为 repsText");
+  assert.equal(ex.weightG, 40000, "weight 简写应归一为 weightG(克)");
   let { rows: plans } = await pool.query(`select * from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, tomorrow]);
   assert.equal(plans.length, 0, "提案后业务表不应有计划");
 
@@ -243,7 +255,8 @@ test("A.5 提案工具：只写 chat_proposals；accept → 计划落库+联动�
   const res2 = (await propose.execute({ userId: UA, conversationId: null }, {
     plan_date: tomorrow,
     module_code: "strength",
-    strength: { title: "明天力量课 B", exercises: [{ name: "坐姿划船", sets: 3, repsText: "10-12" }] },
+    title: "明天力量课 B",
+    exercises: [{ name: "坐姿划船", sets: 3, repsText: "10-12" }],
     rationale: "重试",
   })) as any;
   const savedPlan = (await fitnessService.savePlanDraft(UA, {

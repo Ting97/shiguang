@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
-import { RunPlanDraft, StrengthPlanDraft, type AgentToolSpec } from "@shiguangri/ai";
+import { FitnessPlanDraftV2, type AgentToolSpec } from "@shiguangri/ai";
 import { draftToCanonicalPlan } from "@/server/fitness";
 
 /** chat 域跨域只读表清单（依赖规则同 insight 域：新增跨域读先登记） */
@@ -853,24 +853,71 @@ export const CHAT_TOOLS: ChatTool[] = [
 
 // ---- A.5 操作意图确认卡（REQ-016 首发落地：助手只提案，用户点卡片确认后前端调业务域 API） ----
 
+/** propose 入参别名归一：glm-4-flash 常回 reps/weight/pace 等简写，映射到规范字段后再严格校验 */
+function normalizePlanDraft(v: unknown): unknown {
+  if (!v || typeof v !== "object") return v;
+  const src = v as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...src };
+  const take = (...keys: string[]) => {
+    for (const k of keys) if (out[k] !== undefined) return out[k];
+    return undefined;
+  };
+  if (out.repsText === undefined) {
+    const r = take("reps", "reps_text", "repsText");
+    if (r !== undefined) out.repsText = r;
+  }
+  if (out.weightKg === undefined) {
+    const w = take("weight", "weight_kg", "weightKg");
+    if (w !== undefined) out.weightKg = w;
+  }
+  if (out.paceText === undefined) {
+    const p = take("pace", "paceText");
+    if (p !== undefined) out.paceText = p;
+  }
+  if (out.totalDistanceKm === undefined) {
+    const t = take("totalKm", "totalDistance", "totalDistanceKm");
+    if (t !== undefined) out.totalDistanceKm = t;
+  }
+  if (Array.isArray(out.exercises)) out.exercises = out.exercises.map(normalizePlanDraft);
+  if (Array.isArray(out.segments)) out.segments = out.segments.map(normalizePlanDraft);
+  return out;
+}
+
 const proposeFitnessPlan: ChatTool = {
   name: "propose_fitness_plan",
   description:
     "为用户生成健身日计划提案（今天或明天）：生成结构化训练计划并登记为确认卡，等用户在卡片上点「保存」才会真正入库——本工具不直接写计划。调用前必须先查 get_fitness_goals（策略与调整协议）、query_fitness_plans（当日已有计划，避免冲突）、必要时 query_fitness_logs（近期负荷）与 get_fitness_exercises（动作收益）。力量计划动作尽量引用动作库动作名。plan_date 只能是北京今天或明天。",
+  // 参数层刻意扁平+放宽（passthrough）：AI SDK 会在 execute 之前按 parameters 校验工具实参，
+  // 嵌套/条件必填结构 glm-4-flash 极易写错且字段不匹配直接抛 InvalidToolArgumentsError 打穿循环
+  // 变 500——扁平数组 + 严格校验挪进 execute，错误才能包装成 {error} 回传模型自纠
   params: z.object({
-    plan_date: bjDate.describe("计划日期（北京时间，只能是今天或明天）"),
-    module_code: z.enum(["run", "strength"]).describe("训练模块"),
-    run: RunPlanDraft.nullish().describe("跑步计划（module_code=run 时必填）"),
-    strength: StrengthPlanDraft.nullish().describe("力量计划（module_code=strength 时必填）"),
-    rationale: z.string().min(1).max(600).describe("生成依据（引用调整协议与当日已有安排，一两句话）"),
+    plan_date: z.string().describe("计划日期（北京时间，只能是今天或明天）"),
+    module_code: z.string().describe("训练模块：run 或 strength"),
+    title: z.string().max(40).nullish().describe("课表名（如 课A·胸肩三头 / 节奏跑）"),
+    exercises: z
+      .array(z.object({}).passthrough())
+      .max(15)
+      .nullish()
+      .describe("力量动作明细（module_code=strength 时必填）：[{name 动作名, sets 组数, repsText 次数如 '8-12', weightKg 重量, rir 次数储备}]"),
+    segments: z
+      .array(z.object({}).passthrough())
+      .max(12)
+      .nullish()
+      .describe("跑步分段（module_code=run 时必填）：[{label 如 热身/主课, distanceKm, paceText 配速如 5'50}]"),
+    workout_type: z.string().nullish().describe("跑步课型：interval(间歇)/tempo(节奏)/long(长距离)/easy(轻松)/recovery(恢复)"),
+    note: z.string().max(200).nullish().describe("备注"),
+    rationale: z.string().max(800).nullish().describe("生成依据（引用调整协议与当日已有安排，一两句话）"),
   }),
   async execute(ctx, p) {
-    const { plan_date, module_code, run, strength, rationale } = p as {
+    const { plan_date, module_code, title, exercises, segments, workout_type, note, rationale } = p as {
       plan_date: string;
-      module_code: "run" | "strength";
-      run?: z.infer<typeof RunPlanDraft> | null;
-      strength?: z.infer<typeof StrengthPlanDraft> | null;
-      rationale: string;
+      module_code: string;
+      title?: string | null;
+      exercises?: Array<Record<string, unknown>>;
+      segments?: Array<Record<string, unknown>>;
+      workout_type?: string | null;
+      note?: string | null;
+      rationale?: string | null;
     };
     // 日期守卫：仅限今天/明天（过期的提案没有意义）
     const todayBj = bjToday();
@@ -878,15 +925,63 @@ const proposeFitnessPlan: ChatTool = {
     if (plan_date !== todayBj && plan_date !== tomorrowBj) {
       throw new Error(`plan_date 只能是今天(${todayBj})或明天(${tomorrowBj})`);
     }
+    if (module_code !== "run" && module_code !== "strength") {
+      throw new Error("module_code 只能是 run 或 strength");
+    }
+    // 条件必填在 execute 内拦（不能放 params 校验：AI SDK 参数校验失败抛
+    // InvalidToolArgumentsError 会打穿整个循环变 500；此处 throw 经 chatAgent 包装成
+    // {error} 回传模型，模型可带上完整明细重调——实测 glm-4-flash 会漏传明细/写简写字段）
+    if (module_code === "strength" && !(exercises?.length)) {
+      throw new Error(
+        "调用被拒绝：module_code=strength 必须提供 exercises 动作明细。不要回复文字，立即带上 exercises=[{name, sets, repsText, weightKg, rir}] 重新调用 propose_fitness_plan",
+      );
+    }
+    if (module_code === "run" && !(segments?.length)) {
+      throw new Error(
+        "调用被拒绝：module_code=run 必须提供 segments 分段明细。不要回复文字，立即带上 segments=[{label, distanceKm, paceText}] 与 workout_type 重新调用 propose_fitness_plan",
+      );
+    }
+    // 扁平入参组装回 run/strength 结构，别名归一（reps→repsText 等）后严格校验；
+    // 失败信息拼成一行中文提示供模型重调
+    const WORKOUT_TYPE_ZH: Record<string, string> = {
+      节奏: "tempo", 间歇: "interval", 长距离: "long", 轻松: "easy", 恢复: "recovery",
+      tempo: "tempo", interval: "interval", long: "long", easy: "easy", recovery: "recovery",
+    };
+    const run =
+      module_code === "run"
+        ? normalizePlanDraft({
+            title: title ?? "跑步训练",
+            workoutType: WORKOUT_TYPE_ZH[(workout_type ?? "").trim()] ?? "easy",
+            segments: (segments ?? []).map(normalizePlanDraft),
+            note: note ?? null,
+          })
+        : null;
+    const strength =
+      module_code === "strength"
+        ? normalizePlanDraft({ title: title ?? "力量训练", exercises: (exercises ?? []).map(normalizePlanDraft), note: note ?? null })
+        : null;
+    const parsed = FitnessPlanDraftV2.safeParse({
+      module: module_code,
+      run,
+      strength,
+      confidence: 0.9,
+    });
+    if (!parsed.success) {
+      const issues = parsed.error.issues
+        .slice(0, 5)
+        .map((i) => `${i.path.join(".") || "(根)"}: ${i.message}`)
+        .join("；");
+      throw new Error(`计划明细校验未通过——${issues}。请修正字段（力量动作字段为 name/sets/repsText/weightKg/rir）后重新调用 propose_fitness_plan`);
+    }
     // 模型友好单位 → 整数口径（复用 fitness 域映射；越界抛错回传模型）
-    const canonical = draftToCanonicalPlan({ module: module_code, run: run ?? null, strength: strength ?? null, confidence: 0.9 });
+    const canonical = draftToCanonicalPlan(parsed.data);
     const { rows } = await pool.query(
       `insert into chat_proposals (user_id, conversation_id, kind, payload)
        values ($1, $2, 'fitness_plan', $3::jsonb) returning id`,
       [
         ctx.userId,
         ctx.conversationId ?? null,
-        JSON.stringify({ planDate: plan_date, moduleCode: module_code, content: canonical.content, rationale }),
+        JSON.stringify({ planDate: plan_date, moduleCode: module_code, content: canonical.content, rationale: rationale || "" }),
       ],
     );
     return {
