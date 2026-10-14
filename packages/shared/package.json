@@ -11,6 +11,7 @@
     "./csv-import": "./src/csv-import.ts",
     "./date": "./src/date.ts",
     "./finance": "./src/finance.ts",
+    "./fitness-types": "./src/fitness-types.ts",
     "./graph": "./src/graph.ts",
     "./lunar": "./src/lunar.ts",
     "./mood": "./src/mood.ts",

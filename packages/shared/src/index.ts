@@ -5,6 +5,7 @@
  */
 export * from "./date";
 export * from "./finance";
+export * from "./fitness-types";
 export * from "./mood";
 export * from "./reminders";
 export * from "./social";

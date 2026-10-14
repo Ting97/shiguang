@@ -20,7 +20,8 @@ export interface AuditRecord {
     | "prompt_preview"
     | "jev_shadow"
     | "admin_data"
-    | "ai_profile";
+    | "ai_profile"
+    | "fitness_parse";
   model: string | null;
   engine?: string | null;
   latencyMs?: number | null;
