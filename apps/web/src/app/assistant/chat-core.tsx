@@ -6,7 +6,7 @@ import { Maximize2, MessageSquare, Minus, Plus, Send, Sparkles, Trash2, ChevronD
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
-import Markdown from "@/components/markdown";
+import MarkdownView from "@/components/markdown-view";
 
 /**
  * 拾光助手对话核心（REQ-015）：/assistant 整页与首页悬浮 Dock 共用一套状态与消息流。
@@ -410,7 +410,7 @@ export default function AssistantChat({
                         </div>
                       )}
                       <div className="rounded-2xl rounded-bl-md border border-line-soft bg-surface px-3.5 py-2.5">
-                        <Markdown text={m.content} />
+                        <MarkdownView value={m.content} size="sm" />
                       </div>
                     </div>
                   </div>

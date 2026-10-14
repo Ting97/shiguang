@@ -23,6 +23,14 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, connecti
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
+/** 读迁移文件并归一化 CRLF→LF：checksum 与执行共用。
+ *  Windows 检出（autocrlf）会把工作树转成 CRLF——行尾敏感的 checksum 会让
+ *  Windows/Mac 两台部署机互斥报「已变更但曾应用」（2026-10-14 生产实测）。
+ *  SQL 语义不受行尾影响，归一化后跨平台 checksum 恒等。 */
+function readSql(path: string): string {
+  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+}
+
 /** 迁移文件自带事务语句会让 runner 的「单条迁移整体事务」契约失效：
  *  文件内 commit; 会把外层事务提前提交，之后的记录表 insert 变成 autocommit——
  *  中间失败即「已执行但未记录」，下次重跑非幂等迁移直接踩坏数据。统一由 runner 管理事务 */
@@ -54,8 +62,10 @@ async function main() {
   // 并发防护：CI/CD 与开发者同时跑 db:migrate 会双双判定同一 pending 并重复执行（会话级锁，断开自动释放）
   await client.query(`select pg_advisory_lock(hashtext('shiguangri-migrate'))`);
   const done = await applied();
+  // 严格命名契约：只认 NNN-name.sql——目录里的杂文件（macOS tar 夹带的 ._x.sql 等）
+  // 一律忽略，不得进入 pending（曾经真实把 ._001 当迁移执行报 invalid message format）
   const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith(".sql"))
+    .filter((f) => /^\d{3}-.+\.sql$/.test(f))
     .sort(); // 文件名序即执行序（NNN-name.sql）
 
   // 空库 + --fresh：schema.sql 建基线 + 全量迁移真实执行（测试库/新环境初始化）
@@ -75,7 +85,7 @@ async function main() {
       if (!files.includes(f)) {
         console.error(`[migrate] ⚠ 记录表存在但迁移文件缺失：${f}（切分支/误删？终态与记录不一致）`);
       } else if (ck) {
-        const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
+        const now = sha256(readSql(join(MIGRATIONS_DIR, f)));
         if (now !== ck) console.error(`[migrate] ⚠ 迁移文件已变更但曾应用：${f}`);
       }
     }
@@ -83,7 +93,7 @@ async function main() {
   }
 
   if (done.size === 0 && files.length > 0 && freshApply) {
-    const baseSql = readFileSync(join(here, "schema.sql"), "utf8");
+    const baseSql = readSql(join(here, "schema.sql"));
     try {
       await client.query("begin");
       await client.query(baseSql);
@@ -95,7 +105,7 @@ async function main() {
     }
     console.log("[migrate] ✓ schema.sql（基线 DDL）");
     for (const f of files) {
-      const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+      const sql = readSql(join(MIGRATIONS_DIR, f));
       // legacy 迁移（003）自带 begin/commit：仅 fresh 全量执行时剥离、由 runner 事务托管
       //（文件内容不动，checksum 不受影响）；新迁移走 pending 路径的硬校验
       const execSql = sql.replace(/^\s*(begin|start\s+transaction|commit|rollback)\s*;.*$/gim, "");
@@ -129,7 +139,7 @@ async function main() {
       process.exit(1);
     }
     for (const f of files) {
-      const checksum = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
+      const checksum = sha256(readSql(join(MIGRATIONS_DIR, f)));
       await client.query(
         `insert into schema_migrations (filename, checksum, applied_by) values ($1,$2,'backfill')
          on conflict (filename) do nothing`,
@@ -147,7 +157,7 @@ async function main() {
     if (!files.includes(f)) {
       console.error(`[migrate] ⚠ 记录表存在但迁移文件缺失：${f}（切分支/误删？终态与记录不一致）`);
     } else if (ck) {
-      const now = sha256(readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
+      const now = sha256(readSql(join(MIGRATIONS_DIR, f)));
       if (now !== ck) {
         console.error(`[migrate] 迁移文件已变更但曾应用：${f} —— 禁止手改已上线迁移，请以新编号新增`);
         process.exit(1);
@@ -161,7 +171,7 @@ async function main() {
   }
 
   for (const f of pending) {
-    const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
+    const sql = readSql(join(MIGRATIONS_DIR, f));
     const checksum = sha256(sql);
     assertNoInlineTx(sql, f);
     const t0 = Date.now();
