@@ -76,14 +76,18 @@ const THINKING_STEPS = ["正在理解你的问题…", "正在查询你的数据
 function ProposalCard({
   item,
   busy,
+  xunjiEnabled,
   onResolve,
 }: {
   item: ProposalItem;
   busy: boolean;
-  onResolve: (action: "accept" | "dismiss") => void;
+  /** 训记集成已配置时才展示「同时写入训记」勾选（REQ-017） */
+  xunjiEnabled: boolean;
+  onResolve: (action: "accept" | "dismiss", opts?: { syncXunji?: boolean }) => void;
 }) {
   const c = item.payload.content ?? {};
   const isRun = item.payload.moduleCode === "run";
+  const [syncXunji, setSyncXunji] = useState(true);
   const km = (m?: number | null) => (m != null ? `${Math.round(m / 100) / 10}km` : "");
   const paceOf = (s?: number | null) => (s != null ? `${Math.floor(s / 60)}'${String(Math.round(s % 60)).padStart(2, "0")}"` : "");
   const kgOf = (g?: number | null) => (g ? `${Math.round(g / 100) / 10}kg` : "");
@@ -122,11 +126,17 @@ function ProposalCard({
               ))}
         </div>
         {item.payload.rationale ? <p className="mt-2 text-micro leading-snug text-ink-faint">💡 {item.payload.rationale}</p> : null}
+        {xunjiEnabled ? (
+          <label className="mt-2.5 flex items-center gap-1.5 text-micro text-ink-mute">
+            <input type="checkbox" checked={syncXunji} onChange={(e) => setSyncXunji(e.target.checked)} className="accent-sky-500" />
+            同时写入训记 App（训练时在训记里打勾记录实练）
+          </label>
+        ) : null}
         <div className="mt-3 flex justify-end gap-2">
           <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => onResolve("dismiss")}>
             放弃
           </button>
-          <button className="btn-primary px-4 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => onResolve("accept")}>
+          <button className="btn-primary px-4 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => onResolve("accept", { syncXunji })}>
             {busy ? "处理中…" : "保存计划并联动今日行动"}
           </button>
         </div>
@@ -153,6 +163,7 @@ export default function AssistantChat({
   const [thinkingStep, setThinkingStep] = useState(0);
   const [convLoading, setConvLoading] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false); // 移动端会话下拉
+  const [xunjiEnabled, setXunjiEnabled] = useState(false); // 训记集成是否已配置（REQ-017 卡片勾选显隐）
   const [hasMore, setHasMore] = useState(false); // 更早消息还有否（分页：每页 6 条 = 3 轮）
   const [loadingMore, setLoadingMore] = useState(false);
   const [proposals, setProposals] = useState<ProposalItem[]>([]); // A.5 确认卡（pending 优先）
@@ -171,6 +182,13 @@ export default function AssistantChat({
     const t = setInterval(() => setThinkingStep((s) => (s + 1) % THINKING_STEPS.length), 2400);
     return () => clearInterval(t);
   }, [sending]);
+
+  // 训记集成状态（失败静默——未配置只是不显示卡片勾选）
+  useEffect(() => {
+    api<{ enabled: boolean }>("/api/fitness/xunji-status")
+      .then((r) => setXunjiEnabled(Boolean(r.enabled)))
+      .catch(() => {});
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -306,20 +324,22 @@ export default function AssistantChat({
     : "";
 
   /** A.5 确认卡处置：accept 先保存业务数据（fitness 域 API）成功后再回执；dismiss 直接放弃 */
-  async function resolveProposalCard(item: ProposalItem, action: "accept" | "dismiss") {
+  async function resolveProposalCard(item: ProposalItem, action: "accept" | "dismiss", opts?: { syncXunji?: boolean }) {
     if (proposalBusy) return;
     setProposalBusy(item.id);
     try {
       if (action === "accept") {
-        const saved = await api<{ syncedActions: number }>("/api/fitness/plans", "POST", {
+        const saved = await api<{ syncedActions: number; xunjiWarning?: string | null }>("/api/fitness/plans", "POST", {
           planDate: item.payload.planDate,
           moduleCode: item.payload.moduleCode,
           source: "ai",
           content: item.payload.content,
           rationale: item.payload.rationale ?? null,
           originConversationId: activeId ?? null,
+          syncXunji: opts?.syncXunji ?? false,
         });
         toast(`✅ 计划已保存${saved.syncedActions ? `，联动 ${saved.syncedActions} 条今日行动` : ""}，可在健身页查看`);
+        if (saved.xunjiWarning) toast(`训记同步未成功：${saved.xunjiWarning}`, "err");
       } else {
         toast("已放弃该计划");
       }
@@ -548,7 +568,7 @@ export default function AssistantChat({
               {proposals.length > 0 &&
                 proposals.map((p) =>
                   p.status === "pending" ? (
-                    <ProposalCard key={p.id} item={p} busy={proposalBusy === p.id} onResolve={(a) => resolveProposalCard(p, a)} />
+                    <ProposalCard key={p.id} item={p} busy={proposalBusy === p.id} xunjiEnabled={xunjiEnabled} onResolve={(a, o) => resolveProposalCard(p, a, o)} />
                   ) : (
                     <div key={p.id} className="flex justify-start">
                       <span className="rounded-full bg-wash px-2.5 py-1 text-micro text-ink-faint">

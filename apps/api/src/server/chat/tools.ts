@@ -8,9 +8,10 @@
  */
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
+import { loadConfig } from "@/server/platform/config";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 import { FitnessPlanDraftV2, type AgentToolSpec } from "@shiguangri/ai";
-import { draftToCanonicalPlan } from "@/server/fitness";
+import { draftToCanonicalPlan, readTrains, makeLocalResolver } from "@/server/fitness";
 
 /** chat 域跨域只读表清单（依赖规则同 insight 域：新增跨域读先登记） */
 export const CHAT_READABLE_TABLES = [
@@ -825,7 +826,48 @@ const getFitnessExercises: ChatTool = {
   },
 };
 
-/** 注册表全集（22 个只读工具，覆盖全模块数据面；写操作走 A.5「操作意图卡」，见 CHAT_PROPOSAL_TOOLS） */
+/** 训记（SynFit）App 当日实练查询（REQ-017）：官方规则——仅用户问及训记/当日实练时调用。
+ * 返回当日各动作打勾组的实练重量×次数（计划组未打勾不计），供点评与「同步完成」引导。 */
+const queryXunjiTrains: ChatTool = {
+  name: "query_xunji_trains",
+  description:
+    "查询训记 App 某日的实际训练记录（用户在训记 App 打勾的组：实练重量×次数、RPE）。适用：用户问「昨天/今天在训记里练了什么」「实际举了多少」、或计划已同步训记想看完成情况。注意：仅用户明确提到训记或当日实练时才调用；拾光自己的计划/日志请用 query_fitness_plans / query_fitness_logs。",
+  params: z.object({
+    date: bjDate.optional().describe("北京日期（默认昨天）"),
+  }),
+  async execute(_ctx, p) {
+    const { date } = p as { date?: string };
+    if (!loadConfig().xunjiApiKey) return { enabled: false, hint: "未配置 XUNJI_API_KEY，训记查询不可用" };
+    const target = date ?? bjAddDays(bjToday(), -1);
+    const trains = await readTrains(target, true);
+    const localName = makeLocalResolver();
+    const items = trains.flatMap((t: { title?: string; movements?: unknown[] }) =>
+      (t.movements ?? []).map((m) => {
+        const mv = m as { name?: string; cardio?: boolean; sets?: { done?: boolean; weight?: string; reps?: string; time?: string | number; rpe?: string }[]; metrics?: Record<string, unknown> };
+        if (mv.cardio) {
+          return { name: "跑步（有氧日）", type: "cardio", metrics: mv.metrics ?? {} };
+        }
+        const sets = mv.sets ?? [];
+        const done = sets.filter((s) => s.done);
+        const first = sets[0];
+        const target = first
+          ? `${first.weight && first.weight !== "0" ? `${first.weight}kg` : ""}×${first.time ? `${first.time}s` : first.reps ?? "?"}`
+          : null;
+        return {
+          name: localName(mv.name ?? "?"),
+          type: "strength",
+          doneSets: done.length,
+          totalSets: sets.length,
+          target,
+          detail: done.map((s) => `${s.weight ?? "-"}kg × ${s.time ? s.time + "s" : s.reps ?? "-"}${s.rpe ? ` @RPE${s.rpe}` : ""}`),
+        };
+      }),
+    );
+    return { date: target, count: items.length, items, unitHint: "重量 kg、次数为每组实练值" };
+  },
+};
+
+/** 注册表全集（23 个只读工具，覆盖全模块数据面；写操作走 A.5「操作意图卡」，见 CHAT_PROPOSAL_TOOLS） */
 export const CHAT_TOOLS: ChatTool[] = [
   queryTimeBlocks,
   queryTransactions,
@@ -849,6 +891,7 @@ export const CHAT_TOOLS: ChatTool[] = [
   queryFitnessBodyMetrics,
   getFitnessGoals,
   getFitnessExercises,
+  queryXunjiTrains,
 ];
 
 // ---- A.5 操作意图确认卡（REQ-016 首发落地：助手只提案，用户点卡片确认后前端调业务域 API） ----
@@ -987,7 +1030,7 @@ const proposeFitnessPlan: ChatTool = {
     return {
       proposalId: rows[0].id,
       saved: false,
-      hint: "已生成计划确认卡，等用户点「保存」才会入库；请向用户展示计划要点并说明依据，不要声称已保存",
+      hint: "已生成计划确认卡，等用户点「保存」才会入库（卡片可勾选同时写入训记 App，训练时在训记里打勾记录实练）；请向用户展示计划要点并说明依据，不要声称已保存",
     };
   },
 };
@@ -1025,6 +1068,7 @@ export const TOOL_LABELS: Record<string, string> = {
   query_debt_reserve: "每月备付",
   get_todo_detail: "待办详情",
   query_fitness_plans: "健身计划",
+  query_xunji_trains: "训记实练记录",
   query_fitness_logs: "训练记录",
   query_fitness_body_metrics: "身体指标",
   get_fitness_goals: "健身目标档案",

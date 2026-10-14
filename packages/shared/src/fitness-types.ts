@@ -90,6 +90,8 @@ export interface FitnessPlan {
   content: FitnessPlanContent;
   rationale: string | null;
   origin_conversation_id: string | null;
+  /** 训记同步状态（REQ-017）：{localids:string[], syncedAt:string}；null=未同步过 */
+  xunji_sync?: { localids?: string[]; syncedAt?: string } | null;
   created_at: string;
   updated_at: string;
 }
