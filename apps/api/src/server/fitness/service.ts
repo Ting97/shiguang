@@ -19,7 +19,19 @@ import {
   type FitnessPlanDraft,
 } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle, writeAuditRecord } from "@/server/ai";
+import { loadConfig } from "../platform/config";
 import { fitnessRepo } from "./repo";
+import {
+  fetchCatalogNames,
+  makeLocalResolver,
+  makeOfficialResolver,
+  planToTrain,
+  readTrains,
+  trainsToRunActual,
+  trainsToStrengthActual,
+  upsertTrains,
+  type FetchLike as XunjiFetchLike,
+} from "./xunji";
 
 // ---- 日期与区间守卫 ----
 
@@ -302,6 +314,8 @@ const PlanSaveInput = z.object({
   content: z.record(z.any()),
   rationale: z.string().max(600).nullable().optional(),
   originConversationId: z.string().uuid().nullable().optional(),
+  /** 确认卡勾选「同时写入训记」：落库+行动联动成功后双写训记；失败不回滚拾光（REQ-017） */
+  syncXunji: z.boolean().optional(),
 });
 
 /** 计划 content 校验（模块对应契约） */
@@ -347,7 +361,16 @@ async function savePlanDraft(userId: string, body: unknown) {
     ).rows[0];
   }
   const sync = await syncPlanTodos(userId, planRow);
-  return { plan: planRow, syncedActions: sync.synced };
+  let xunjiWarning: string | null = null;
+  if (v.syncXunji) {
+    try {
+      await syncPlanToXunji(userId, planRow.id);
+    } catch (e) {
+      // 训记失败不回滚拾光（计划与行动联动已生效）；warning 交前端提示
+      xunjiWarning = e instanceof Error ? e.message : String(e);
+    }
+  }
+  return { plan: planRow, syncedActions: sync.synced, xunjiWarning };
 }
 
 const PlanPatchInput = z.object({
@@ -496,6 +519,91 @@ function actionTitleOfExercise(e: { name: string; sets?: number | null; repsText
   const dose = [e.sets, e.repsText].filter((x) => x != null && x !== "").join("×");
   if (e.weightG) return `${e.name} ${Math.round(e.weightG / 100) / 10}kg${dose ? "×" + dose : ""}`.slice(0, 60);
   return dose ? `${e.name} ${dose}`.slice(0, 60) : e.name;
+}
+
+// ---------------------------------------------------------------------------
+// 训记（SynFit）Open API 编排（REQ-017；HTTP/映射细节见 xunji.ts）
+// ---------------------------------------------------------------------------
+
+/** 计划 → 训记（用户已经过确认卡/按钮确认）。已同步过的计划带 localid 走更新，防重复建训练 */
+async function syncPlanToXunji(userId: string, planId: string, fetcher?: XunjiFetchLike) {
+  const { rows } = await fitnessRepo.planOwned(planId, userId);
+  if (!rows.length) throw ApiError.notFound("计划不存在");
+  const plan = rows[0];
+  if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("已打卡计划不再同步训记");
+  if (plan.status === "skipped") throw ApiError.badRequest("已跳过计划不同步训记");
+
+  let catalog = new Set<string>();
+  try {
+    catalog = await fetchCatalogNames(fetcher);
+  } catch {
+    catalog = new Set(); // 目录拉不到时仅信任实测确认的别名映射（makeOfficialResolver 的兜底分支）
+  }
+  const officialName = makeOfficialResolver(catalog);
+  const train = planToTrain(
+    { module_code: plan.module_code, plan_date: plan.plan_date, content: plan.content },
+    officialName,
+  );
+  const prev = (plan.xunji_sync ?? null) as { localids?: string[] } | null;
+  if (prev?.localids?.length) train.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
+
+  const normalized = await upsertTrains(plan.plan_date, [train], plan.id, fetcher);
+  const localids = normalized.map((t) => t.localid).filter((x): x is string => !!x);
+  await fitnessRepo.updateXunjiSync(planId, userId, { localids, syncedAt: new Date().toISOString() });
+  return {
+    synced: true,
+    updated: Boolean(prev?.localids?.length),
+    movements: train.movements.length,
+    localids,
+  };
+}
+
+/** 训记完成数据 → 拾光打卡。preview=true 只组装不落库（前端预览弹窗）；正式走 updatePlan 状态机 */
+async function pullXunjiCompletion(
+  userId: string,
+  planId: string,
+  opts: { preview?: boolean } = {},
+  fetcher?: XunjiFetchLike,
+) {
+  const { rows } = await fitnessRepo.planOwned(planId, userId);
+  if (!rows.length) throw ApiError.notFound("计划不存在");
+  const plan = rows[0];
+  if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("该计划已打卡，不能再次同步");
+
+  const trains = await readTrains(plan.plan_date, true, fetcher);
+  let actual: Record<string, unknown>;
+  let summary: string;
+  if (plan.module_code === "strength") {
+    const r = trainsToStrengthActual(trains, makeLocalResolver());
+    if (!r.exercises.length) {
+      throw ApiError.badRequest("训记里这一天还没有打勾的力量组——先在训记 App 完成打勾再同步");
+    }
+    const allDone = r.doneSets > 0 && r.doneSets >= r.totalSets;
+    actual = { exercises: r.exercises };
+    summary = `${r.exercises.length} 个动作 ${r.doneSets}/${r.totalSets} 组完成`;
+    if (!opts.preview) {
+      await updatePlan(userId, planId, { status: allDone ? "done" : "partial", actual, note: `训记同步：${summary}` });
+    }
+    return { preview: Boolean(opts.preview), status: allDone ? "done" : "partial", summary, actual };
+  }
+  const runActual = trainsToRunActual(trains);
+  if (runActual.distanceM == null && runActual.durationS == null) {
+    throw ApiError.badRequest("训记里这一天还没有有氧（跑步）记录——先在训记 App 记录再同步");
+  }
+  actual = { ...runActual };
+  if (runActual.distanceM != null && runActual.durationS != null) {
+    actual.paceSPerKm = Math.round(runActual.durationS / (runActual.distanceM / 1000));
+  }
+  summary = `${(runActual.distanceM ?? 0) / 1000}km · ${Math.round((runActual.durationS ?? 0) / 60)} 分钟`;
+  if (!opts.preview) {
+    await updatePlan(userId, planId, { status: "done", actual, note: "训记同步（有氧日）" });
+  }
+  return { preview: Boolean(opts.preview), status: "done", summary, actual };
+}
+
+/** 前端按钮显隐用：训记功能是否已配置 */
+function xunjiEnabled() {
+  return { enabled: Boolean(loadConfig().xunjiApiKey) };
 }
 
 // ---------------------------------------------------------------------------
@@ -656,6 +764,9 @@ export const fitnessService = {
   savePlanDraft,
   updatePlan,
   parsePlanDraft,
+  syncPlanToXunji,
+  pullXunjiCompletion,
+  xunjiEnabled,
   listLogs,
   addLog,
   listMetrics,

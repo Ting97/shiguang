@@ -59,8 +59,14 @@ export default function FitnessPage() {
   const [tab, setTab] = useState("today");
   const [data, setData] = useState<PageData | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [xunjiEnabled, setXunjiEnabled] = useState(false); // 训记集成配置（REQ-017 按钮显隐）
 
   useEffect(() => setToday(bjToday()), []);
+  useEffect(() => {
+    api<{ enabled: boolean }>("/api/fitness/xunji-status")
+      .then((r) => setXunjiEnabled(Boolean(r.enabled)))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     if (!today) return;
@@ -115,8 +121,8 @@ export default function FitnessPage() {
           <Skeleton rows={4} />
         ) : (
           <>
-            {tab === "today" && <TodayTab today={today} data={data} reload={load} />}
-            {tab === "plans" && <PlansTab today={today} data={data} reload={load} />}
+            {tab === "today" && <TodayTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
+            {tab === "plans" && <PlansTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
             {tab === "trends" && <FitnessTrends metrics={data.metrics} plans={data.plans} today={today} />}
             {tab === "archive" && (
               <FitnessArchive
@@ -139,7 +145,7 @@ export default function FitnessPage() {
 // 今日 tab
 // ---------------------------------------------------------------------------
 
-function TodayTab({ today, data, reload }: { today: string; data: PageData; reload: () => void }) {
+function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: PageData; reload: () => void; xunjiEnabled: boolean }) {
   const tomorrow = bjAddDays(today, 1);
   const todays = data.plans.filter((p) => p.plan_date === today);
   const tomorrows = data.plans.filter((p) => p.plan_date === tomorrow);
@@ -154,7 +160,7 @@ function TodayTab({ today, data, reload }: { today: string; data: PageData; relo
         {todays.length ? (
           <div className="space-y-3">
             {todays.map((p) => (
-              <PlanCard key={p.id} plan={p} exercises={data.exercises} logs={data.logs} reload={reload} />
+              <PlanCard key={p.id} plan={p} exercises={data.exercises} logs={data.logs} reload={reload} xunjiEnabled={xunjiEnabled} />
             ))}
           </div>
         ) : (
@@ -169,7 +175,7 @@ function TodayTab({ today, data, reload }: { today: string; data: PageData; relo
           <h2 className="mb-2 text-sm font-medium">明天 · {mdLabel(tomorrow)}</h2>
           <div className="space-y-3">
             {tomorrows.map((p) => (
-              <PlanCard key={p.id} plan={p} exercises={data.exercises} logs={data.logs} reload={reload} />
+              <PlanCard key={p.id} plan={p} exercises={data.exercises} logs={data.logs} reload={reload} xunjiEnabled={xunjiEnabled} />
             ))}
           </div>
         </section>
@@ -326,22 +332,40 @@ function ContentPreview({
   );
 }
 
-/** 单条计划卡：状态徽标 + 内容 + 状态流转按钮 + 打卡表单 */
+/** 单条计划卡：状态徽标 + 内容 + 状态流转按钮 + 打卡表单 + 训记同步（REQ-017） */
 function PlanCard({
   plan,
   exercises,
   logs,
   reload,
+  xunjiEnabled,
 }: {
   plan: FitnessPlan;
   exercises: FitnessExercise[];
   logs: FitnessSessionLog[];
   reload: () => void;
+  xunjiEnabled: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const meta = PLAN_STATUS_META[plan.status];
   const log = logs.find((l) => l.plan_id === plan.id) ?? null;
+  const xunjiSynced = Boolean(plan.xunji_sync?.localids?.length);
+
+  async function syncXunji() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await api<{ synced: boolean; updated: boolean; movements: number }>(`/api/fitness/plans/${plan.id}/sync-xunji`, "POST");
+      toast(`${r.updated ? "已更新训记训练" : "已写入训记 App"}（${r.movements} 项），训练时在训记里打勾`);
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function patch(body: Record<string, unknown>, okMsg: string) {
     if (busy) return;
@@ -395,14 +419,28 @@ function PlanCard({
           >
             打卡
           </button>
+          {xunjiEnabled ? (
+            <>
+              <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={syncXunji}>
+                {xunjiSynced ? "更新训记" : "同步训记"}
+              </button>
+              <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => setPulling(true)}>
+                从训记同步完成
+              </button>
+            </>
+          ) : null}
           <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "skipped" }, "已跳过（联动行动已清理）")}>
             跳过
           </button>
         </div>
       )}
-      <p className="mt-2 text-[11px] text-ink-mute/70">✅ 已同步到首页「今日行动」，打卡后行动自动完成</p>
+      <p className="mt-2 text-[11px] text-ink-mute/70">
+        ✅ 已同步到首页「今日行动」，打卡后行动自动完成
+        {xunjiSynced ? " · 📲 训记已同步" : ""}
+      </p>
 
       {checking && <CheckInModal plan={plan} onClose={() => setChecking(false)} onDone={() => { setChecking(false); reload(); }} />}
+      {pulling && <PullXunjiModal plan={plan} onClose={() => setPulling(false)} onDone={() => { setPulling(false); reload(); }} />}
     </article>
   );
 }
@@ -530,6 +568,82 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
   );
 }
 
+/** 训记完成数据预览 → 确认自动打卡（REQ-017）：拉取打勾组实练明细，确认后落日志+完成联动行动 */
+function PullXunjiModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: () => void; onDone: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{ status: string; summary: string; actual: Record<string, unknown> } | null>(null);
+
+  useEffect(() => {
+    api<{ status: string; summary: string; actual: Record<string, unknown> }>(`/api/fitness/plans/${plan.id}/pull-xunji`, "POST", { preview: true })
+      .then(setPreview)
+      .catch((e) => {
+        toast(e instanceof Error ? e.message : String(e), "err");
+        onClose();
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.id]);
+
+  async function confirm() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(`/api/fitness/plans/${plan.id}/pull-xunji`, "POST", { preview: false });
+      toast("✅ 已按训记实练打卡，联动行动自动完成");
+      onDone();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const exs = (preview?.actual?.exercises as { name: string; sets: number; repsText: string; weightG: number | null }[] | undefined) ?? [];
+  const kgOf = (g: number | null) => (g ? `${Math.round(g / 100) / 10}kg` : "");
+
+  return (
+    <Modal title={`从训记同步 · ${planTitle(plan)}`} onClose={onClose}>
+      <div className="space-y-3">
+        {loading ? <p className="py-6 text-center text-xs text-ink-mute">正在读取训记当日记录…</p> : null}
+        {preview ? (
+          <>
+            <p className="text-xs text-ink-mute">
+              {preview.summary} · 判定为 <span className="font-medium text-ink">{preview.status === "done" ? "全部完成" : "部分完成"}</span>
+            </p>
+            {exs.length ? (
+              <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg bg-wash/60 p-2.5">
+                {exs.map((e, i) => (
+                  <p key={i} className="text-xs">
+                    · {e.name}
+                    {e.weightG ? ` ${kgOf(e.weightG)}` : ""} × {e.sets} 组
+                    {e.repsText ? `（${e.repsText}）` : ""}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            {preview.actual?.distanceM ? (
+              <p className="text-xs text-ink-mute">
+                跑步 {(preview.actual.distanceM as number) / 1000}km
+                {preview.actual?.durationS ? ` · ${Math.round((preview.actual.durationS as number) / 60)} 分钟` : ""}
+                {preview.actual?.paceSPerKm ? ` · 配速 ${pace(preview.actual.paceSPerKm as number)}/km` : ""}
+              </p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost px-3 py-1.5 text-sm" onClick={onClose}>
+                取消
+              </button>
+              <button className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50" disabled={busy} onClick={confirm}>
+                {busy ? "打卡中…" : "按训记实练打卡"}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 /** 周一晨重腰围快录 */
 function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyMetric | null; reload: () => void }) {
   const [open, setOpen] = useState(false);
@@ -604,7 +718,7 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
 // 计划 tab：按周分组（计划 vs 实际）
 // ---------------------------------------------------------------------------
 
-function PlansTab({ today, data, reload }: { today: string; data: PageData; reload: () => void }) {
+function PlansTab({ today, data, reload, xunjiEnabled }: { today: string; data: PageData; reload: () => void; xunjiEnabled: boolean }) {
   const weeks = groupByWeek(data.plans);
   const thisMonday = bjMondayOf(today);
   return (
@@ -622,7 +736,7 @@ function PlansTab({ today, data, reload }: { today: string; data: PageData; relo
           </h2>
           <div className="space-y-3">
             {w.items.map((p) => (
-              <PlanCard key={p.id} plan={p} exercises={data.exercises} logs={data.logs} reload={reload} />
+              <PlanCard key={p.id} plan={p} exercises={data.exercises} logs={data.logs} reload={reload} xunjiEnabled={xunjiEnabled} />
             ))}
           </div>
         </section>

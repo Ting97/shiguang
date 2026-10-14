@@ -100,7 +100,7 @@ export const fitnessRepo = {
   },
   planOwned(id: string, userId: string) {
     return pool.query(
-      `select id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id
+      `select id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id, xunji_sync
        from fitness_daily_plans where id = $1 and user_id = $2`,
       [id, userId],
     );
@@ -128,6 +128,13 @@ export const fitnessRepo = {
       `update fitness_daily_plans set ${sets.join(", ")}, updated_at = now() where id = $${vals.length - 1} and user_id = $${vals.length}
        returning id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id`,
       vals,
+    );
+  },
+  /** 训记同步状态（REQ-017）：localids 持久化，二次同步走更新防重复 */
+  updateXunjiSync(id: string, userId: string, xunjiSync: { localids: string[]; syncedAt: string }) {
+    return pool.query(
+      `update fitness_daily_plans set xunji_sync = $3::jsonb, updated_at = now() where id = $1 and user_id = $2`,
+      [id, userId, JSON.stringify(xunjiSync)],
     );
   },
 
