@@ -19,7 +19,7 @@ const TIMEOUT_MS = 15_000;
 /** 测试注入用（仿 bitget-client FetchLike） */
 export type FetchLike = (
   url: string,
-  init?: { headers: Record<string, string>; body?: string; signal?: AbortSignal },
+  init?: { method?: string; headers: Record<string, string>; body?: string; signal?: AbortSignal },
 ) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
 
 const defaultFetch: FetchLike = (url, init) => fetch(url, init);
@@ -60,9 +60,12 @@ export interface XunjiMovement {
 }
 
 export interface XunjiTrain {
-  localid?: string;
-  start?: string;
-  end?: string;
+  localid?: string | number;
+  /** 训练所属北京日（必填——实测缺它 upsert 报 datestr invalid） */
+  datestr?: string;
+  /** epoch 毫秒（读回形态；新建可省略，更新必须原样保留） */
+  start?: number;
+  end?: number;
   title?: string;
   movements: XunjiMovement[];
 }
@@ -122,7 +125,7 @@ export function planToTrain(
   if (plan.module_code === "strength") {
     const c = plan.content as StrengthPlanContent;
     if (c.exercises.length > 15) throw ApiError.badRequest("训记单条训练最多 15 个动作");
-    return { movements: c.exercises.map((e) => exerciseToMovement(e, officialName(e.name))) };
+    return { datestr: plan.plan_date, title: c.title, movements: c.exercises.map((e) => exerciseToMovement(e, officialName(e.name))) };
   }
   const c = plan.content as RunPlanContent;
   const metrics: Record<string, string | number> = {};
@@ -130,6 +133,8 @@ export function planToTrain(
   if (c.durationMin) metrics.duration = `${c.durationMin}min`;
   if (c.segments.length) metrics.segments = c.segments.map((s) => s.label).join("/");
   return {
+    datestr: plan.plan_date,
+    title: c.title,
     movements: [
       {
         name: "跑步",
@@ -208,7 +213,8 @@ function requireKey(): string {
 
 /** 错误文案 → ApiError（带官方提示语义；不回显 key） */
 function toApiError(payload: XunjiShell, status: number): ApiError {
-  const raw = String(payload.error ?? payload.msg ?? payload.message ?? `HTTP ${status}`);
+  // 实测错误形态：{"success":false,"res":"too frequent, retry after 20s"}（文案在 res 字符串里）
+  const raw = typeof payload.res === "string" && payload.res ? payload.res : String(payload.error ?? payload.msg ?? payload.message ?? `HTTP ${status}`);
   if (/apikey missing|apikey invalid/i.test(raw)) {
     return new ApiError(502, "upstream", `训记 key 无效（${raw}）——请在训记 App 内重新申请 Open API key 并更新 .env`);
   }
@@ -216,8 +222,9 @@ function toApiError(payload: XunjiShell, status: number): ApiError {
     return new ApiError(402, "upstream", "训记提示「仅 VIP 可用」——写入功能需要训记 App 会员");
   }
   if (/too frequent/i.test(raw)) {
-    const wait = payload.retry ?? 90;
-    return new ApiError(429, "upstream", `训记接口限频（${raw}）——约 ${wait} 秒后再试`);
+    const m = /retry after (\d+)s?/i.exec(raw);
+    const wait = m ? Number(m[1]) : (payload.retry ?? 90);
+    return new ApiError(429, "upstream", `训记接口限频——约 ${wait} 秒后再试（${raw.slice(0, 80)}）`);
   }
   return new ApiError(502, "upstream", `训记接口错误：${raw.slice(0, 150)}`);
 }
@@ -228,6 +235,7 @@ async function xunjiPost<T = XunjiShell>(path: string, body: unknown, fetcher: F
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
     const res = await fetcher(`${XUNJI_BASE}${path}`, {
+      method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: ctl.signal,
@@ -239,8 +247,9 @@ async function xunjiPost<T = XunjiShell>(path: string, body: unknown, fetcher: F
     } catch {
       throw new ApiError(502, "upstream", `训记响应非 JSON（HTTP ${res.status}）：${text.slice(0, 120)}`);
     }
-    // 实测：成功可能不带 success 字段，HTTP 200 + 有 res 即成功
-    if (res.ok && (payload.res !== undefined || payload.error === undefined)) return payload as T;
+    // 实测：成功可能不带 success 字段，HTTP 200 + res 为数据（对象/数组）即成功；
+    // 失败时 res 是错误文案字符串（too frequent 等）
+    if (res.ok && typeof payload.res !== "string" && (payload.res !== undefined || payload.error === undefined)) return payload as T;
     throw toApiError(payload, res.status);
   } catch (e) {
     if (e instanceof ApiError) throw e;
@@ -258,21 +267,21 @@ export function xunjiCacheInvalidate(datestr: string) {
   readCache.delete(datestr);
 }
 
-/** 读某日训练（include_full_data：未打勾组/RPE/备注/心率） */
+/** 读某日训练（include_full_data：未打勾组/RPE/备注/心率）。实测 res 形状：{schema, datestr, limits, trains:[...]} */
 export async function readTrains(datestr: string, includeFull = true, fetcher: FetchLike = defaultFetch): Promise<XunjiTrain[]> {
   const hit = readCache.get(datestr);
   if (hit && Date.now() - hit.at < READ_CACHE_TTL_MS) return hit.data;
-  const payload = await xunjiPost<{ res: XunjiTrain[] }>("/api_trains_for_llm_v2", {
+  const payload = await xunjiPost<{ res: { trains?: XunjiTrain[] } | XunjiTrain[] }>("/api_trains_for_llm_v2", {
     schema_version: "train_open_api_v2",
     datestr,
     include_full_data: includeFull,
   }, fetcher);
-  const trains = Array.isArray(payload.res) ? payload.res : [];
+  const trains = Array.isArray(payload.res) ? payload.res : (payload.res?.trains ?? []);
   readCache.set(datestr, { at: Date.now(), data: trains });
   return trains;
 }
 
-/** 写训练（新建不带 localid / 更新带；≤4 条同日）。成功后覆盖当日缓存 */
+/** 写训练（新建不带 localid / 更新带；≤4 条同日）。成功后用响应覆盖当日缓存 */
 export async function upsertTrains(
   datestr: string,
   trains: XunjiTrain[],
@@ -280,12 +289,12 @@ export async function upsertTrains(
   fetcher: FetchLike = defaultFetch,
 ): Promise<XunjiTrain[]> {
   if (trains.length < 1 || trains.length > 4) throw ApiError.badRequest("训记单次最多写入 4 条训练");
-  const payload = await xunjiPost<{ res: XunjiTrain[] }>("/api_upsert_trains_for_llm_v2", {
+  const payload = await xunjiPost<{ res: { trains?: XunjiTrain[] } | XunjiTrain[] }>("/api_upsert_trains_for_llm_v2", {
     schema_version: "train_open_api_v2",
     client_request_id: clientRequestId,
     res: trains,
   }, fetcher);
-  const normalized = Array.isArray(payload.res) ? payload.res : trains;
+  const normalized = Array.isArray(payload.res) ? payload.res : (payload.res?.trains ?? trains);
   readCache.set(datestr, { at: Date.now(), data: normalized });
   return normalized;
 }
@@ -298,16 +307,18 @@ let catalogCache: { at: number; names: Set<string> } | null = null;
 
 export async function fetchCatalogNames(fetcher: FetchLike = defaultFetch): Promise<Set<string>> {
   if (catalogCache && Date.now() - catalogCache.at < 3_600_000) return catalogCache.names;
-  const payload = await xunjiPost<{ res: unknown }>("/api_movement_catalog_for_llm_v2", {}, fetcher);
+  // 实测形状：{res:{schema:"movement_catalog_v1", movements:[{name, type, exetype, aliases:[...]}]}}
+  const payload = await xunjiPost<{ res: { movements?: unknown[] } | unknown[] }>("/api_movement_catalog_for_llm_v2", {}, fetcher);
   const names = new Set<string>();
-  const list: unknown[] = Array.isArray(payload.res) ? (payload.res as unknown[]) : [];
+  const res = payload.res;
+  const list: unknown[] = Array.isArray(res) ? res : ((res as { movements?: unknown[] })?.movements ?? []);
   for (const row of list) {
     if (typeof row === "string") {
       names.add(row);
     } else if (row && typeof row === "object") {
-      const r = row as { name?: unknown; names?: unknown };
+      const r = row as { name?: unknown; aliases?: unknown };
       if (typeof r.name === "string") names.add(r.name);
-      if (Array.isArray(r.names)) for (const n of r.names) if (typeof n === "string") names.add(n);
+      if (Array.isArray(r.aliases)) for (const n of r.aliases) if (typeof n === "string") names.add(n);
     }
   }
   catalogCache = { at: Date.now(), names };

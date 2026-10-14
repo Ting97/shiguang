@@ -841,19 +841,24 @@ const queryXunjiTrains: ChatTool = {
     const target = date ?? bjAddDays(bjToday(), -1);
     const trains = await readTrains(target, true);
     const localName = makeLocalResolver();
-    const items = trains.flatMap((t: { movements?: unknown[] }) =>
+    const items = trains.flatMap((t: { title?: string; movements?: unknown[] }) =>
       (t.movements ?? []).map((m) => {
-        const mv = m as { name?: string; cardio?: boolean; sets?: { done?: boolean; weight?: string; reps?: string; time?: string; rpe?: string }[]; metrics?: Record<string, unknown> };
+        const mv = m as { name?: string; cardio?: boolean; sets?: { done?: boolean; weight?: string; reps?: string; time?: string | number; rpe?: string }[]; metrics?: Record<string, unknown> };
         if (mv.cardio) {
           return { name: "跑步（有氧日）", type: "cardio", metrics: mv.metrics ?? {} };
         }
         const sets = mv.sets ?? [];
         const done = sets.filter((s) => s.done);
+        const first = sets[0];
+        const target = first
+          ? `${first.weight && first.weight !== "0" ? `${first.weight}kg` : ""}×${first.time ? `${first.time}s` : first.reps ?? "?"}`
+          : null;
         return {
           name: localName(mv.name ?? "?"),
           type: "strength",
           doneSets: done.length,
           totalSets: sets.length,
+          target,
           detail: done.map((s) => `${s.weight ?? "-"}kg × ${s.time ? s.time + "s" : s.reps ?? "-"}${s.rpe ? ` @RPE${s.rpe}` : ""}`),
         };
       }),

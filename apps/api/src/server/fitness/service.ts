@@ -548,7 +548,7 @@ async function syncPlanToXunji(userId: string, planId: string, fetcher?: XunjiFe
   if (prev?.localids?.length) train.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
 
   const normalized = await upsertTrains(plan.plan_date, [train], plan.id, fetcher);
-  const localids = normalized.map((t) => t.localid).filter((x): x is string => !!x);
+  const localids = normalized.map((t) => t.localid).filter((x): x is string | number => x != null);
   await fitnessRepo.updateXunjiSync(planId, userId, { localids, syncedAt: new Date().toISOString() });
   return {
     synced: true,

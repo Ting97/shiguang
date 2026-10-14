@@ -130,8 +130,8 @@ export const fitnessRepo = {
       vals,
     );
   },
-  /** 训记同步状态（REQ-017）：localids 持久化，二次同步走更新防重复 */
-  updateXunjiSync(id: string, userId: string, xunjiSync: { localids: string[]; syncedAt: string }) {
+  /** 训记同步状态（REQ-017）：localids 持久化，二次同步走更新防重复（训记 localid 实测为数字） */
+  updateXunjiSync(id: string, userId: string, xunjiSync: { localids: Array<string | number>; syncedAt: string }) {
     return pool.query(
       `update fitness_daily_plans set xunji_sync = $3::jsonb, updated_at = now() where id = $1 and user_id = $2`,
       [id, userId, JSON.stringify(xunjiSync)],

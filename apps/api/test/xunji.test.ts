@@ -64,7 +64,7 @@ function stubFetcher(handlers: { catalog?: unknown; read?: unknown; upsert?: unk
 // ---------------------------------------------------------------------------
 
 test("纯函数：repsText 目标解析（上限/秒数）", async () => {
-  const { parseRepsTarget, parseSecondsTarget } = await modP;
+  const { parseRepsTarget, parseSecondsTarget } = (await modP) as any;
   assert.equal(parseRepsTarget("8-12"), 12);
   assert.equal(parseRepsTarget("10/侧"), 10);
   assert.equal(parseRepsTarget("12-15"), 15);
@@ -76,7 +76,7 @@ test("纯函数：repsText 目标解析（上限/秒数）", async () => {
 });
 
 test("纯函数：动作→训记 movement（官方名/计划组 done:false/重量单位/计时动作）", async () => {
-  const { exerciseToMovement } = await modP;
+  const { exerciseToMovement } = (await modP) as any;
   const mv = exerciseToMovement({ name: "高脚杯深蹲", sets: 3, repsText: "10-12", weightG: 30000 }, "哑铃酒杯深蹲");
   assert.equal(mv.name, "哑铃酒杯深蹲");
   assert.equal(mv.sets.length, 3);
@@ -94,7 +94,7 @@ test("纯函数：动作→训记 movement（官方名/计划组 done:false/重�
 });
 
 test("纯函数：计划→train（力量 15 动作上限/跑步 cardio 有氧日）", async () => {
-  const { planToTrain } = await modP;
+  const { planToTrain } = (await modP) as any;
   const strength = planToTrain(
     { module_code: "strength", plan_date: todayStr(), content: { title: "课A", exercises: [{ name: "哑铃卧推", sets: 3, repsText: "8-12", weightG: 40000 }] } },
     (n: string) => n,
@@ -121,7 +121,7 @@ test("纯函数：计划→train（力量 15 动作上限/跑步 cardio 有氧�
 });
 
 test("纯函数：训记读回 → actual（done 过滤/末组重量/名称反查/有氧 metrics）", async () => {
-  const { trainsToStrengthActual, trainsToRunActual, makeLocalResolver } = await modP;
+  const { trainsToStrengthActual, trainsToRunActual, makeLocalResolver } = (await modP) as any;
   const trains = [
     {
       movements: [
@@ -153,7 +153,7 @@ test("纯函数：训记读回 → actual（done 过滤/末组重量/名称反�
 });
 
 test("纯函数：官方名解析器（alias 优先/catalog 命中/未匹配拒绝/目录不可用兜底）", async () => {
-  const { makeOfficialResolver } = await modP;
+  const { makeOfficialResolver } = (await modP) as any;
   const catalog = new Set(["哑铃卧推", "哑铃酒杯深蹲", "哑铃推肩", "坐姿划船"]);
   const resolve = makeOfficialResolver(catalog);
   assert.equal(resolve("高脚杯深蹲"), "哑铃酒杯深蹲", "alias 映射到官方名");
