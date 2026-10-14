@@ -136,7 +136,7 @@ insert into public.fitness_exercises (id, module_code, name, muscle_primary, mus
   ('crunch','strength','卷腹','["腹直肌"]','[]','垫上','beginner','腹肌线条：体脂降下来才看得见，配合减脂','{"sets":3,"reps":"12-15"}',240),
   ('hanging_leg_raise','strength','悬挂举腿','["下腹","髂腰肌"]','["前臂握力"]','单杠','intermediate','下腹线条进阶，顺带练握力','{"sets":3,"reps":"10-15"}',250),
   ('run_interval','run','间歇跑','["心肺","最大摄氧量"]','["速度"]','跑步','intermediate','提升最大摄氧量（VO2max），半马破 2 的核心强度课','{"durationMin":40}',310),
-  ('run_tempo','run','节奏跑','["乳酸阈值"]','["比赛配速"]','跑步','intermediate','提升乳酸阈值与比赛配速耐受，练 5\'41"/km 的体感','{"durationMin":40}',320),
+  ('run_tempo','run','节奏跑','["乳酸阈值"]','["比赛配速"]','跑步','intermediate','提升乳酸阈值与比赛配速耐受，练 5''41"/km 的体感','{"durationMin":40}',320),
   ('run_long','run','长距离跑','["有氧耐力","肌耐力"]','[]','跑步','beginner','打有氧底子与肌耐力，破 2 的基石；也是力量课要避让的对象','{"durationMin":90}',330),
   ('run_easy','run','轻松跑','["有氧基础"]','["恢复"]','跑步','beginner','低强度积累有氧里程，能正常说话的配速','{"durationMin":40}',340),
   ('run_recovery','run','恢复跑','["主动恢复"]','[]','跑步','beginner','最轻量的活动恢复，心率 1 区，比完全躺更有利于次日状态','{"durationMin":30}',350)

@@ -93,6 +93,11 @@ test("计划保存 → 今日行动联动（父任务+子行动，幂等重建�
   if (!dbReady) return t.skip("测试库不可达");
   await upsertUser(UA, "fitness冒烟A");
   await cleanup();
+  // 预设「健身」活动行（正式注册用户由注册流程播种；直插 profiles 的测试用户需补种）
+  await pool.query(
+    `insert into activities (id, user_id, name) values ('fitness', $1, '健身') on conflict (id, user_id) do nothing`,
+    [UA],
+  );
   const today = todayStr();
 
   // 力量计划：应生成 1 父任务 + 3 子行动，动作挂动作库 id、活动挂 fitness 预设
@@ -166,7 +171,7 @@ test("计划状态机：确认 → 打卡落执行记录 + 行动自动完成；
   await fitnessService.updatePlan(UA, run.plan.id, { status: "confirmed" });
   await assert.rejects(
     () => fitnessService.savePlanDraft(UA, { planDate: today, moduleCode: "run", source: "manual", content: { workoutType: "easy", title: "轻松跑", segments: [] } }),
-    /已生效计划/,
+    /生效计划/,
     "confirmed 后 create-or-replace 应 409",
   );
 

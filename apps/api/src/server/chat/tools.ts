@@ -80,9 +80,7 @@ function rangeOf(from: string, to: string): [string, string] {
   if (from > to) throw new Error("开始日期晚于结束日期");
   const spanMs = new Date(`${to}T00:00:00+08:00`).getTime() - new Date(`${from}T00:00:00+08:00`).getTime();
   if (spanMs > 366 * 86_400_000) throw new Error("查询区间不能超过一年");
-  const next = new Date(new Date(`${to}T00:00:00+08:00`).getTime() + 86_400_000);
-  const nextStr = next.toISOString().slice(0, 10);
-  return [bjDayStart(from), bjDayStart(nextStr)];
+  return [bjDayStart(from), bjDayStart(bjAddDays(to, 1))];
 }
 
 /** 明细行在北京时区的 MM-DD HH:MI 展示串（避免模型自行做时区换算出错） */
@@ -167,8 +165,9 @@ const queryTransactions: ChatTool = {
        order by occurred_at desc limit 10`,
       [ctx.userId, start, end],
     );
-    // 金额单位统一「分」（整数）——提示词已约定模型表述时换算为元
-    return { range: { from, to }, totals, byCategory, detail, centsUnit: "分（1元=100分）" };
+    // 金额单位统一「分」（整数）——提示词已约定模型表述时换算为元；::bigint 经 pg 返回字符串，统一转回数字
+    const numRow = (r: { cents: unknown }) => ({ ...r, cents: Number(r.cents) });
+    return { range: { from, to }, totals: totals.map(numRow), byCategory: byCategory.map(numRow), detail: detail.map(numRow), centsUnit: "分（1元=100分）" };
   },
 };
 
@@ -701,21 +700,23 @@ const queryFitnessPlans: ChatTool = {
   async execute(ctx, p) {
     const { from, to } = p as { from?: string; to?: string };
     const todayBj = bjToday();
-    const [start, end] = rangeOf(from ?? bjAddDays(todayBj, -6), to ?? bjAddDays(todayBj, 1));
+    const fromBj = from ?? bjAddDays(todayBj, -6);
+    const toBj = to ?? bjAddDays(todayBj, 1);
+    const [start, end] = rangeOf(fromBj, toBj);
     const { rows } = await pool.query(
       `select p.plan_date, p.module_code, m.name as module, p.source, p.status, p.content, p.rationale
        from fitness_daily_plans p join fitness_modules m on m.code = p.module_code
-       where p.user_id = $1 and p.plan_date >= $2::date and p.plan_date < ($3::date + 1)
+       where p.user_id = $1 and p.plan_date >= $2::date and p.plan_date < $3::date
        order by p.plan_date desc, m.sort`,
       [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
     );
     const { rows: stats } = await pool.query(
       `select status, count(*)::int as n from fitness_daily_plans
-       where user_id = $1 and plan_date >= $2::date and plan_date < ($3::date + 1)
+       where user_id = $1 and plan_date >= $2::date and plan_date < $3::date
        group by status`,
       [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
     );
-    return { range: { from: start.slice(0, 10), to: end.slice(0, 10) }, items: rows, stats, unitHint: "距离米、配速秒每公里、重量克（模型表述换算 km/分钟/配速/kg）" };
+    return { range: { from: fromBj, to: toBj }, items: rows, stats, unitHint: "距离米、配速秒每公里、重量克（模型表述换算 km/分钟/配速/kg）" };
   },
 };
 
@@ -730,15 +731,17 @@ const queryFitnessLogs: ChatTool = {
   async execute(ctx, p) {
     const { from, to } = p as { from?: string; to?: string };
     const todayBj = bjToday();
-    const [start, end] = rangeOf(from ?? bjAddDays(todayBj, -13), to ?? todayBj);
+    const fromBj = from ?? bjAddDays(todayBj, -13);
+    const toBj = to ?? todayBj;
+    const [start, end] = rangeOf(fromBj, toBj);
     const { rows } = await pool.query(
       `select l.log_date, l.module_code, m.name as module, l.actual, l.fatigue, l.sleep_h_x10, l.soreness, l.note
-       from fitness_session_logs l join fitness_modules m on m.code = l.module_code
-       where l.user_id = $1 and l.log_date >= $2::date and l.log_date < ($3::date + 1)
+       from fitness_session_logs l join fitness_modules m on l.module_code = m.code
+       where l.user_id = $1 and l.log_date >= $2::date and l.log_date < $3::date
        order by l.log_date desc`,
       [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
     );
-    return { range: { from: start.slice(0, 10), to: end.slice(0, 10) }, items: rows, unitHint: "距离米、配速秒每公里、睡眠为小时×10" };
+    return { range: { from: fromBj, to: toBj }, items: rows, unitHint: "距离米、配速秒每公里、睡眠为小时×10" };
   },
 };
 
@@ -753,7 +756,9 @@ const queryFitnessBodyMetrics: ChatTool = {
   async execute(ctx, p) {
     const { from, to } = p as { from?: string; to?: string };
     const todayBj = bjToday();
-    const [start, end] = rangeOf(from ?? bjAddDays(todayBj, -89), to ?? todayBj);
+    const fromBj = from ?? bjAddDays(todayBj, -89);
+    const toBj = to ?? todayBj;
+    const [start, end] = rangeOf(fromBj, toBj);
     const { rows } = await pool.query(
       `select measured_on,
               round(weight_g / 1000.0, 1)::float8 as weight_kg,
@@ -761,7 +766,7 @@ const queryFitnessBodyMetrics: ChatTool = {
               round(body_fat_pct_x10 / 10.0, 1)::float8 as body_fat_pct,
               resting_hr
        from fitness_body_metrics
-       where user_id = $1 and measured_on >= $2::date and measured_on < ($3::date + 1)
+       where user_id = $1 and measured_on >= $2::date and measured_on < $3::date
        order by measured_on`,
       [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
     );
@@ -774,7 +779,7 @@ const queryFitnessBodyMetrics: ChatTool = {
       const days = (new Date(`${last.measured_on}T00:00:00+08:00`).getTime() - new Date(`${first.measured_on}T00:00:00+08:00`).getTime()) / 86_400_000;
       if (days >= 7) weeklyChangeKg = Math.round(((last.weight_kg - first.weight_kg) / (days / 7)) * 100) / 100;
     }
-    return { range: { from: start.slice(0, 10), to: end.slice(0, 10) }, items: rows, weeklyChangeKg };
+    return { range: { from: fromBj, to: toBj }, items: rows, weeklyChangeKg };
   },
 };
 

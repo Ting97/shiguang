@@ -437,6 +437,9 @@ async function syncPlanTodos(
   if (plan.status === "skipped") return { synced: 0 };
   const dueAtIso = `${plan.plan_date}T18:00:00+08:00`;
   const source: "ai" | "manual" = plan.source === "manual" ? "manual" : "ai";
+  // 活动分类挂「健身」预设行；用户没有该行（理论上仅测试直插用户）则置空，不让联动挂掉计划保存
+  const { rows: actRows } = await fitnessRepo.fitnessActivityId(userId);
+  const activityId: string | null = actRows[0]?.id ?? null;
   const content = (plan.content ?? {}) as RunPlanContent | StrengthPlanContent;
   let synced = 0;
 
@@ -452,6 +455,7 @@ async function syncPlanTodos(
         kind: "todo",
         parentId: null,
         sort: 0,
+        activityId,
       })
     ).rows[0].id;
     synced += 1;
@@ -465,6 +469,7 @@ async function syncPlanTodos(
         kind: "action",
         parentId: parent,
         sort: i + 1,
+        activityId,
       });
       synced += 1;
     }
@@ -479,6 +484,7 @@ async function syncPlanTodos(
       kind: "action",
       parentId: null,
       sort: 0,
+      activityId,
     });
     synced += 1;
   }
@@ -487,11 +493,9 @@ async function syncPlanTodos(
 
 /** 行动标题：「卧推 30kg×3×10」/「侧平举 2×12-15」/「平板支撑 3×45s」 */
 function actionTitleOfExercise(e: { name: string; sets?: number | null; repsText?: string | null; weightG?: number | null }) {
-  const parts: string[] = [e.name];
-  if (e.weightG) parts.push(`${Math.round(e.weightG / 100) / 10}kg`);
   const dose = [e.sets, e.repsText].filter((x) => x != null && x !== "").join("×");
-  if (dose) parts.push(dose);
-  return parts.join(" ").slice(0, 60);
+  if (e.weightG) return `${e.name} ${Math.round(e.weightG / 100) / 10}kg${dose ? "×" + dose : ""}`.slice(0, 60);
+  return dose ? `${e.name} ${dose}`.slice(0, 60) : e.name;
 }
 
 // ---------------------------------------------------------------------------

@@ -193,6 +193,14 @@ export const fitnessRepo = {
 
   // ---- 今日行动联动（todos.fitness_plan_id）----
 
+  /** 用户的活动分类挂「健身」（预设 id='fitness'；用户可能没有该行（如测试直插 profiles）——查不到返回 null，todos.activity_id 允许空） */
+  fitnessActivityId(userId: string) {
+    return pool.query(
+      `select id from activities where user_id = $1 and (id = 'fitness' or name = '健身') limit 1`,
+      [userId],
+    );
+  },
+
   /** 删除该计划所有未完成联动行动（已完成行动保留作历史；父行动删除级联子行动） */
   deletePendingPlanTodos(planId: string) {
     // 先删未完成子行动（父行动若是 pending 会被下一步连带删除，这里防孤立 action 残留）
@@ -201,16 +209,17 @@ export const fitnessRepo = {
       [planId],
     );
   },
-  /** 插入一条联动行动；返回行 id。strength 父任务 kind='todo'，其余 kind='action' */
+  /** 插入一条联动行动；返回行 id。strength 父任务 kind='todo'，其余 kind='action'。
+   * activityId 动态解析（预设 'fitness' 或重命名/删除后的 null——activity_id 可空，不因缺行挂掉计划保存） */
   insertPlanTodo(
     userId: string,
-    d: { planId: string; title: string; dueAtIso: string; source: "ai" | "manual"; kind: "todo" | "action"; parentId: string | null; sort: number },
+    d: { planId: string; title: string; dueAtIso: string; source: "ai" | "manual"; kind: "todo" | "action"; parentId: string | null; sort: number; activityId: string | null },
   ) {
     return pool.query(
       `insert into todos (user_id, title, activity_id, due_at, remind_at, source, kind, parent_todo_id, sort, fitness_plan_id)
-       values ($1, $2, 'fitness', $3::timestamptz, $3::timestamptz - interval '15 minutes', $4, $5, $6, $7, $8)
+       values ($1, $2, $3::text, $4::timestamptz, $4::timestamptz - interval '15 minutes', $5, $6, $7, $8, $9)
        returning id`,
-      [userId, d.title, d.dueAtIso, d.source, d.kind, d.parentId, d.sort, d.planId],
+      [userId, d.title, d.activityId, d.dueAtIso, d.source, d.kind, d.parentId, d.sort, d.planId],
     );
   },
   /** 打卡完成：该计划的未完成联动行动全部置完成 */
