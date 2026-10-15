@@ -1,61 +1,15 @@
 "use client";
 
 /**
- * fitness 目标&档案 tab（REQ-016 FR-A/FR-F）：基本情况表单、每模块目标（strategy 结构化展示
- * + JSON 编辑弹层）、动作库浏览（肌群 + 收益「练什么对哪里有好处」）。
+ * fitness 目标&档案 tab（REQ-016 FR-A/FR-F）：基本情况表单、每模块目标（标题/目标日期/归档；
+ * 策略档案已下线——REQ-019 追加，用户不可理解；chat 工具仍读存量 strategy 供教练参考）、
+ * 动作库浏览（肌群 + 收益「练什么对哪里有好处」）。
  */
 import { useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import type { FitnessExercise, FitnessGoal, FitnessModule, FitnessProfile } from "@shiguangri/shared/fitness-types";
-
-/** strategy 已知键的卡片化展示（未知键收进「其他」折叠）；编辑态直接 JSON 文本域 */
-const STRATEGY_LABELS: Record<string, { label: string; hint: string }> = {
-  phases: { label: "阶段划分", hint: "数组：把备赛/增肌周期拆成几段，每段 {name, weeks, focus}——如基础期 4 周打有氧底子" },
-  weeklyTemplates: { label: "每周课模板", hint: "每周固定安排什么课——如 {run:[\"间歇\",\"轻松\",\"长距离\"], strength:[\"推\",\"拉\",\"腿\"]}" },
-  principles: { label: "训练原则", hint: "字符串数组：贯穿全程的规矩——循序渐进、动作质量优先、不带伤训练" },
-  adjustProtocol: { label: "动态调整协议", hint: "对象：条件 → 动作——如 睡眠<6h 降级为技术课、连续练 6 天强制休息" },
-  diet: { label: "饮食目标", hint: "对象：热量区间、蛋白质 g/kg 等——体重/体脂目标的执行抓手" },
-  dietAdjust: { label: "热量调整规则", hint: "周均体重变化对照调整：如 ±150kcal 步进" },
-  monitoring: { label: "监测口径", hint: "测什么、多久测一次——如每周一晨起空腹测体重腰围" },
-  supplement: { label: "补剂", hint: "在用什么补剂、剂量与时机" },
-};
-const STRATEGY_HINT = Object.entries(STRATEGY_LABELS)
-  .map(([k, v]) => `· ${v.label}（${k}）：${v.hint}`)
-  .join("\n");
-
-function StrategyView({ strategy }: { strategy: Record<string, unknown> }) {
-  const entries = Object.entries(strategy ?? {});
-  if (!entries.length) return <p className="text-xs text-ink-mute">未填写策略档案</p>;
-  const known = Object.keys(STRATEGY_LABELS);
-  const renderVal = (v: unknown): string => {
-    if (v == null) return "";
-    if (typeof v === "string") return v;
-    if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join("；");
-    return JSON.stringify(v);
-  };
-  return (
-    <div className="space-y-1.5">
-      {entries
-        .filter(([k]) => known.includes(k))
-        .map(([k, v]) => (
-          <div key={k} className="text-xs">
-            <span className="font-medium text-ink">{STRATEGY_LABELS[k]?.label ?? k}：</span>
-            <span className="text-ink-mute">{renderVal(v)}</span>
-          </div>
-        ))}
-      {entries.filter(([k]) => !known.includes(k)).length > 0 && (
-        <details className="text-xs text-ink-mute">
-          <summary className="cursor-pointer">其他字段</summary>
-          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all">
-            {JSON.stringify(Object.fromEntries(entries.filter(([k]) => !known.includes(k))), null, 2)}
-          </pre>
-        </details>
-      )}
-    </div>
-  );
-}
 
 function GoalCard({
   goal,
@@ -70,54 +24,21 @@ function GoalCard({
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState(goal?.title ?? "");
   const [targetDate, setTargetDate] = useState(goal?.target_date ?? "");
-  const [strategyText, setStrategyText] = useState(goal ? JSON.stringify(goal.strategy ?? {}, null, 2) : "{}");
-  const [optimizeHint, setOptimizeHint] = useState("");
-  const [optimizing, setOptimizing] = useState(false);
-  const [optimizeSummary, setOptimizeSummary] = useState<string | null>(null);
-
-  /** AI 一键优化：只回填 textarea 预览，保存仍走下面 save() 的 PATCH（REQ-019 FR-A4） */
-  async function optimize() {
-    if (!goal || optimizing) return;
-    setOptimizing(true);
-    setOptimizeSummary(null);
-    try {
-      const r = await api<{ summary: string; strategy: Record<string, unknown> }>(
-        `/api/fitness/goals/${goal.id}/strategy-optimize`,
-        "POST",
-        { instruction: optimizeHint.trim() || null },
-      );
-      setStrategyText(JSON.stringify(r.strategy, null, 2));
-      setOptimizeSummary(r.summary);
-      toast("✨ 已生成优化建议，确认后点保存");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "err");
-    } finally {
-      setOptimizing(false);
-    }
-  }
 
   async function save() {
     if (busy) return;
     setBusy(true);
     try {
-      let strategy: unknown;
-      try {
-        strategy = JSON.parse(strategyText || "{}");
-      } catch {
-        throw new Error("策略档案不是合法 JSON");
-      }
       if (goal) {
         await api(`/api/fitness/goals/${goal.id}`, "PATCH", {
           title: title.trim() || undefined,
           targetDate: targetDate || null,
-          ...(strategy ? { strategy } : {}),
         });
       } else {
         await api("/api/fitness/goals", "POST", {
           moduleCode: mod.code,
           title: title.trim(),
           targetDate: targetDate || null,
-          strategy,
         });
       }
       toast(goal ? "✅ 目标已更新" : `✅ 已创建 ${mod.name}目标`);
@@ -160,11 +81,10 @@ function GoalCard({
             <span className="font-medium">{goal.title}</span>
             {goal.target_date ? <span className="ml-2 text-xs text-ink-mute">目标日 {goal.target_date}</span> : null}
           </p>
-          <StrategyView strategy={goal.strategy} />
           {goal.status !== "active" && <p className="text-xs text-ink-mute">（{goal.status === "archived" ? "已归档" : "已达成"}）</p>}
         </div>
       ) : (
-        <p className="text-xs text-ink-mute">还没有活跃目标——设定后助手会按策略档案里的调整协议编排训练。</p>
+        <p className="text-xs text-ink-mute">还没有活跃目标——设定后助手会结合你的目标与执行记录编排训练。</p>
       )}
       {editing && (
         <Modal title={`${mod.name}目标`} onClose={() => setEditing(false)}>
@@ -188,46 +108,6 @@ function GoalCard({
                 onChange={(e) => setTargetDate(e.target.value)}
               />
             </label>
-            <label className="block text-xs text-ink-mute">
-              <span className="flex items-center justify-between gap-2">
-                <span>策略档案（JSON：阶段划分 / 每周课模板 / 调整协议 / 饮食目标——助手的编排依据）</span>
-                {goal && (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded-full border border-violet-500/40 px-2.5 py-1 text-[11px] font-medium text-ai transition hover:border-violet-500/70 disabled:opacity-50"
-                    onClick={optimize}
-                    disabled={optimizing}
-                    title="AI 依据你的目标、身体指标与执行记录生成/优化策略档案"
-                  >
-                    {optimizing ? "优化中…" : "✨ AI 一键优化"}
-                  </button>
-                )}
-              </span>
-              {optimizeSummary && (
-                <p className="mt-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2 py-1.5 text-[11px] text-ink">
-                  {optimizeSummary}
-                </p>
-              )}
-              <details className="mt-1 text-[11px] text-ink-faint">
-                <summary className="cursor-pointer select-none">各字段怎么填？</summary>
-                <pre className="mt-1 whitespace-pre-wrap leading-relaxed">{STRATEGY_HINT}</pre>
-              </details>
-              <textarea
-                className="input-glow mt-1 h-48 w-full font-mono text-xs"
-                value={strategyText}
-                onChange={(e) => setStrategyText(e.target.value)}
-                spellCheck={false}
-              />
-            </label>
-            {goal && (
-              <input
-                className="input-glow w-full text-xs"
-                value={optimizeHint}
-                onChange={(e) => setOptimizeHint(e.target.value)}
-                placeholder="优化方向（可空）：如「比赛提前了，压缩基础期」"
-                maxLength={200}
-              />
-            )}
             <div className="flex items-center justify-between gap-2">
               {goal ? (
                 <button className="text-xs text-danger hover:underline disabled:opacity-50" onClick={archive} disabled={busy}>

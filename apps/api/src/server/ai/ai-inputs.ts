@@ -320,26 +320,6 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     injects: [REQ("text", "课表文本", "用户粘贴的佳明课表/力量课安排原文，解析对象本体", "本次输入")],
     caps: [],
   },
-  fitness_strategy_optimize: {
-    userTemplate: `【目标】{goal}
-【基本情况】{profile}
-【近期身体指标】{metrics}
-【近期执行】{activity}
-【现有策略档案】{strategy}
-【优化意图】{instruction}
-
-请输出优化后的策略档案 JSON（summary + strategy）。`,
-    placeholders: ["goal", "profile", "metrics", "activity", "strategy", "instruction"],
-    injects: [
-      REQ("goal", "目标", "fitness_goals 行（module/targets/strategy）", "本次输入"),
-      REQ("profile", "基本情况", "fitness_profiles 行（身高/经验/器械/每周安排）", "本次输入"),
-      REQ("metrics", "近期身体指标", "近 90 天 fitness_body_metrics 摘要", "查询"),
-      REQ("activity", "近期执行", "近 90 天计划与执行记录摘要", "查询"),
-      REQ("strategy", "现有策略档案", "goal.strategy JSON 原文（可能为 {}）", "本次输入"),
-      REQ("instruction", "优化意图", "用户输入的一句优化方向，可空", "本次输入"),
-    ],
-    caps: [],
-  },
 };
 
 /** 合并 DB 覆盖与注册表默认：inject 缺省=注册表默认，caps 数值钳制到 [min,max]；userData（个性化注入）原样透传 */

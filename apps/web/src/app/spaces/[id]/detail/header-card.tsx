@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Ellipsis, Flag, Hourglass, Plus, Undo2, X } from "lucide-react";
+import { ArrowLeft, Check, Ellipsis, Flag, Hourglass, Pencil, Plus, Undo2, X } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import InlineRename from "@/components/inline-rename";
 import { Modal } from "@/components/ui/modal";
@@ -20,6 +20,23 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 行内编辑（REQ-019 追加）：标题 + 目标日期均可改，active 列表与历史弹层共用
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDate, setEditDate] = useState("");
+
+  const startEdit = (m: SpaceMilestone) => {
+    setEditingId(m.id);
+    setEditTitle(m.title);
+    setEditDate(m.target_date ? bjDate(m.target_date) : "");
+  };
+
+  async function saveEdit(mid: string) {
+    const t = editTitle.trim();
+    if (!t || busy) return;
+    await patch(mid, { title: t, targetDate: editDate || null });
+    setEditingId(null);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -131,27 +148,81 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
         <ul className="space-y-1.5">
           {active.map((m) => (
             <li key={m.id} className="flex items-center gap-2 rounded-xl bg-elevated/60 px-2.5 py-1.5">
-              <Flag size={12} className="shrink-0" style={{ color }} aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-xs text-ink">{m.title}</span>
-              {m.target_date && (
-                <span className={`shrink-0 text-micro tabular-nums ${bjDate(m.target_date) < bjToday() ? "text-danger" : "text-ink-faint"}`}>
-                  {bjDate(m.target_date).slice(5)}
-                </span>
+              {editingId === m.id ? (
+                <>
+                  <Flag size={12} className="shrink-0" style={{ color }} aria-hidden />
+                  <input
+                    autoFocus
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit(m.id);
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    maxLength={80}
+                    className="min-w-0 flex-1 rounded-lg border border-line-soft bg-surface px-2 py-1 text-xs outline-none focus:border-sky-500"
+                  />
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="shrink-0 rounded-lg border border-line-soft bg-surface px-1.5 py-1 text-xs text-ink outline-none"
+                    title="目标日期（可空）"
+                  />
+                  <button
+                    onClick={() => saveEdit(m.id)}
+                    disabled={busy || !editTitle.trim()}
+                    title="保存"
+                    className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-emerald-500/15 hover:text-success disabled:opacity-40"
+                  >
+                    <Check size={13} />
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    title="取消"
+                    className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-rose-500/15 hover:text-danger"
+                  >
+                    <X size={13} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Flag size={12} className="shrink-0" style={{ color }} aria-hidden />
+                  <button
+                    onClick={() => startEdit(m)}
+                    title="点击编辑阶段目标"
+                    className="min-w-0 flex-1 truncate text-left text-xs text-ink transition hover:text-accent"
+                  >
+                    {m.title}
+                  </button>
+                  {m.target_date && (
+                    <span className={`shrink-0 text-micro tabular-nums ${bjDate(m.target_date) < bjToday() ? "text-danger" : "text-ink-faint"}`}>
+                      {bjDate(m.target_date).slice(5)}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => startEdit(m)}
+                    title="编辑"
+                    className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-soft hover:text-accent"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button
+                    onClick={() => patch(m.id, { status: "done" })}
+                    title="标记达成"
+                    className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-emerald-500/15 hover:text-success"
+                  >
+                    <Check size={13} />
+                  </button>
+                  <button
+                    onClick={() => patch(m.id, { status: "abandoned" })}
+                    title="放弃"
+                    className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-rose-500/15 hover:text-danger"
+                  >
+                    <X size={13} />
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => patch(m.id, { status: "done" })}
-                title="标记达成"
-                className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-emerald-500/15 hover:text-success"
-              >
-                <Check size={13} />
-              </button>
-              <button
-                onClick={() => patch(m.id, { status: "abandoned" })}
-                title="放弃"
-                className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-rose-500/15 hover:text-danger"
-              >
-                <X size={13} />
-              </button>
             </li>
           ))}
         </ul>
@@ -162,31 +233,73 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
           <ul className="space-y-2">
             {(items ?? []).map((m) => (
               <li key={m.id} className="rounded-xl border border-line-soft p-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                      m.status === "done"
-                        ? "bg-emerald-500/15 text-success"
-                        : m.status === "abandoned"
-                          ? "bg-wash text-ink-faint"
-                          : "bg-sky-500/15 text-accent"
-                    }`}
-                  >
-                    {m.status === "done" ? "已达成" : m.status === "abandoned" ? "已放弃" : "进行中"}
-                  </span>
-                  <span className={`min-w-0 flex-1 truncate text-xs ${m.status === "active" ? "text-ink" : "text-ink-mute"}`}>{m.title}</span>
-                  {m.target_date && <span className="shrink-0 text-micro tabular-nums text-ink-faint">{bjDate(m.target_date).slice(5)}</span>}
-                  {m.status !== "active" ? (
+                {editingId === m.id ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit(m.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      maxLength={80}
+                      className="min-w-0 flex-1 rounded-lg border border-line-soft bg-surface px-2 py-1 text-xs outline-none focus:border-sky-500"
+                    />
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      className="rounded-lg border border-line-soft bg-surface px-1.5 py-1 text-xs text-ink outline-none"
+                      title="目标日期（可空）"
+                    />
                     <button
-                      onClick={() => patch(m.id, { status: "active" })}
-                      title="重新开启"
-                      className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-sky-500/15 hover:text-accent"
+                      onClick={() => saveEdit(m.id)}
+                      disabled={busy || !editTitle.trim()}
+                      className="btn-primary rounded-lg px-2.5 py-1 text-xs disabled:opacity-50"
                     >
-                      <Undo2 size={13} />
+                      保存
                     </button>
-                  ) : null}
-                </div>
-                {m.completed_at && <p className="mt-1 text-micro text-ink-faint">达成于 {bjDate(m.completed_at)}</p>}
+                    <button className="rounded-lg px-2 py-1 text-xs text-ink-mute hover:bg-soft" onClick={() => setEditingId(null)}>
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                          m.status === "done"
+                            ? "bg-emerald-500/15 text-success"
+                            : m.status === "abandoned"
+                              ? "bg-wash text-ink-faint"
+                              : "bg-sky-500/15 text-accent"
+                        }`}
+                      >
+                        {m.status === "done" ? "已达成" : m.status === "abandoned" ? "已放弃" : "进行中"}
+                      </span>
+                      <span className={`min-w-0 flex-1 truncate text-xs ${m.status === "active" ? "text-ink" : "text-ink-mute"}`}>{m.title}</span>
+                      {m.target_date && <span className="shrink-0 text-micro tabular-nums text-ink-faint">{bjDate(m.target_date).slice(5)}</span>}
+                      <button
+                        onClick={() => startEdit(m)}
+                        title="编辑"
+                        className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-soft hover:text-accent"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      {m.status !== "active" ? (
+                        <button
+                          onClick={() => patch(m.id, { status: "active" })}
+                          title="重新开启"
+                          className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-sky-500/15 hover:text-accent"
+                        >
+                          <Undo2 size={13} />
+                        </button>
+                      ) : null}
+                    </div>
+                    {m.completed_at && <p className="mt-1 text-micro text-ink-faint">达成于 {bjDate(m.completed_at)}</p>}
+                  </>
+                )}
               </li>
             ))}
             {(items ?? []).length === 0 && <li className="text-xs text-ink-mute">还没有阶段目标。</li>}
