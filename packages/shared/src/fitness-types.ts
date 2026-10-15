@@ -118,7 +118,7 @@ export interface FitnessSessionLog {
   updated_at: string;
 }
 
-/** 身体指标行（周一晨起空腹口径） */
+/** 身体指标行（周一晨起空腹口径；身高 019 起随日记录） */
 export interface FitnessBodyMetric {
   id: string;
   user_id: string;
@@ -126,6 +126,7 @@ export interface FitnessBodyMetric {
   weight_g: number | null;
   waist_mm: number | null;
   body_fat_pct_x10: number | null;
+  height_mm: number | null;
   resting_hr: number | null;
   note: string | null;
   created_at: string;

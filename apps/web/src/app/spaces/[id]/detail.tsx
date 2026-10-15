@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import FitnessPanel from "@/app/fitness/panel";
+import AssistantDock from "@/components/assistant-dock";
 import ReflectionEditor from "@/components/reflection-editor";
 import SpacePicker from "@/components/space-picker";
 import { FilterChip } from "@/components/tag-chip";
@@ -182,6 +183,9 @@ export default function Detail() {
             />,
             document.body,
           )}
+
+        {/* 运动教练（REQ-019 FR-C4）：内置运动空间专属助手，只见 fitness 域工具 */}
+        {space?.kind === "sport" && <AssistantDock scope="fitness" />}
       </div>
     </main>
   );

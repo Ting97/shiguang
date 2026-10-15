@@ -160,24 +160,24 @@ export const fitnessRepo = {
   },
   listMetrics(userId: string, from: string, to: string) {
     return pool.query(
-      `select id, user_id, measured_on::text as measured_on, weight_g, waist_mm, body_fat_pct_x10, resting_hr, note
+      `select id, user_id, measured_on::text as measured_on, weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note
        from fitness_body_metrics where user_id = $1 and measured_on between $2 and $3 order by measured_on`,
       [userId, from, to],
     );
   },
   upsertMetric(
     userId: string,
-    d: { measuredOn: string; weightG: number | null; waistMm: number | null; bodyFatPctX10: number | null; restingHr: number | null; note: string | null },
+    d: { measuredOn: string; weightG: number | null; waistMm: number | null; bodyFatPctX10: number | null; heightMm: number | null; restingHr: number | null; note: string | null },
   ) {
     return pool.query(
-      `insert into fitness_body_metrics (user_id, measured_on, weight_g, waist_mm, body_fat_pct_x10, resting_hr, note)
-       values ($1,$2,$3,$4,$5,$6,$7)
+      `insert into fitness_body_metrics (user_id, measured_on, weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
        on conflict (user_id, measured_on) do update set
          weight_g = excluded.weight_g, waist_mm = excluded.waist_mm,
-         body_fat_pct_x10 = excluded.body_fat_pct_x10, resting_hr = excluded.resting_hr,
-         note = excluded.note, updated_at = now()
-       returning id, user_id, measured_on::text as measured_on, weight_g, waist_mm, body_fat_pct_x10, resting_hr, note`,
-      [userId, d.measuredOn, d.weightG, d.waistMm, d.bodyFatPctX10, d.restingHr, d.note],
+         body_fat_pct_x10 = excluded.body_fat_pct_x10, height_mm = excluded.height_mm,
+         resting_hr = excluded.resting_hr, note = excluded.note, updated_at = now()
+       returning id, user_id, measured_on::text as measured_on, weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note`,
+      [userId, d.measuredOn, d.weightG, d.waistMm, d.bodyFatPctX10, d.heightMm, d.restingHr, d.note],
     );
   },
 

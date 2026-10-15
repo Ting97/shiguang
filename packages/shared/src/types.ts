@@ -74,6 +74,22 @@ export interface Space {
   reflection_count?: number; // 感悟篇数（N2）
   todo_all_total?: number; // 空间内全部 todo 行数（含独立行动）
   todo_all_done?: number;
+  /* —— REQ-019 阶段目标 —— */
+  active_milestones?: number; // 进行中阶段数
+  done_milestones?: number; // 已达成阶段数
+}
+
+/** 空间阶段目标（REQ-019 FR-B1）：历史列表形态，可多阶段并行进行 */
+export interface SpaceMilestone {
+  id: string;
+  space_id: string;
+  title: string;
+  target_date: string | null;
+  status: "active" | "done" | "abandoned";
+  completed_at: string | null;
+  sort: number;
+  created_at: string;
+  updated_at: string;
 }
 
 /** 今日行动清单条目：行动 + 父待办上下文（独立行动无父，parent_title 为 null） */

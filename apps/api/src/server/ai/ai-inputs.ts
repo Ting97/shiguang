@@ -308,10 +308,36 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词（这周/上个月）换算基准", "服务端时钟")],
     caps: [],
   },
+  // 分域助手（REQ-019）：user 模板与全局助手同构（只注入当前时间），复用同一装配逻辑
+  chat_goal: { userTemplate: `## 用户上下文\n当前时间：{nowCst}`, placeholders: ["nowCst"], injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词换算基准", "服务端时钟")], caps: [] },
+  chat_time: { userTemplate: `## 用户上下文\n当前时间：{nowCst}`, placeholders: ["nowCst"], injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词换算基准", "服务端时钟")], caps: [] },
+  chat_people: { userTemplate: `## 用户上下文\n当前时间：{nowCst}`, placeholders: ["nowCst"], injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词换算基准", "服务端时钟")], caps: [] },
+  chat_finance: { userTemplate: `## 用户上下文\n当前时间：{nowCst}`, placeholders: ["nowCst"], injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词换算基准", "服务端时钟")], caps: [] },
+  chat_fitness_coach: { userTemplate: `## 用户上下文\n当前时间：{nowCst}`, placeholders: ["nowCst"], injects: [REQ("nowCst", "当前时间", "北京时间（YYYY-MM-DD HH:MM ddd），相对词换算基准", "服务端时钟")], caps: [] },
   fitness_plan_parse: {
     userTemplate: `课表文本：「{text}」\n请解析成结构化日计划草稿 JSON。`,
     placeholders: ["text"],
     injects: [REQ("text", "课表文本", "用户粘贴的佳明课表/力量课安排原文，解析对象本体", "本次输入")],
+    caps: [],
+  },
+  fitness_strategy_optimize: {
+    userTemplate: `【目标】{goal}
+【基本情况】{profile}
+【近期身体指标】{metrics}
+【近期执行】{activity}
+【现有策略档案】{strategy}
+【优化意图】{instruction}
+
+请输出优化后的策略档案 JSON（summary + strategy）。`,
+    placeholders: ["goal", "profile", "metrics", "activity", "strategy", "instruction"],
+    injects: [
+      REQ("goal", "目标", "fitness_goals 行（module/targets/strategy）", "本次输入"),
+      REQ("profile", "基本情况", "fitness_profiles 行（身高/经验/器械/每周安排）", "本次输入"),
+      REQ("metrics", "近期身体指标", "近 90 天 fitness_body_metrics 摘要", "查询"),
+      REQ("activity", "近期执行", "近 90 天计划与执行记录摘要", "查询"),
+      REQ("strategy", "现有策略档案", "goal.strategy JSON 原文（可能为 {}）", "本次输入"),
+      REQ("instruction", "优化意图", "用户输入的一句优化方向，可空", "本次输入"),
+    ],
     caps: [],
   },
 };

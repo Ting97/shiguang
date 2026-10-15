@@ -297,6 +297,132 @@ async function updateGoal(userId: string, id: string, body: unknown) {
   return { goal: rows[0] };
 }
 
+// ---- 策略档案 AI 一键优化（REQ-019 FR-A4）：只生成建议不落库，前端确认后走 PATCH ----
+
+const StrategyOptimizeInput = z.object({
+  instruction: z.string().max(200).nullable().optional(),
+});
+
+/** 90 天前北京日期（策略优化的取数窗口） */
+function bjDaysAgo(days: number) {
+  return new Date(Date.now() + 8 * 3600_000 - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** 数据摘要压缩成 JSON 字符串（控制 token：体测取最近 8 条、计划取状态与标题） */
+async function strategyContext(userId: string, goalId: string) {
+  const owned = await fitnessRepo.goalOwned(goalId, userId);
+  if (!owned.rows.length) throw ApiError.notFound("目标不存在");
+  const goal = owned.rows[0];
+  const prof = await fitnessRepo.getProfile(userId);
+  const from = bjDaysAgo(90);
+  const today = bjDaysAgo(0);
+  const [{ rows: metrics }, { rows: plans }, { rows: logs }] = await Promise.all([
+    fitnessRepo.listMetrics(userId, from, today),
+    fitnessRepo.listPlans(userId, from, today),
+    fitnessRepo.listLogs(userId, from, today),
+  ]);
+  const slim = {
+    goal: {
+      module: goal.module_code,
+      title: goal.title,
+      targetDate: goal.target_date,
+      targets: goal.targets,
+      strategy: goal.strategy ?? {},
+    },
+    profile: prof.rows[0]
+      ? {
+          heightCm: prof.rows[0].height_cm,
+          experience: prof.rows[0].experience,
+          equipment: prof.rows[0].equipment,
+          weeklyDays: prof.rows[0].weekly_days,
+          constraints: prof.rows[0].constraints,
+        }
+      : null,
+    metrics: metrics.slice(-8).map((m: any) => ({
+      date: m.measured_on,
+      weightKg: m.weight_g != null ? m.weight_g / 1000 : null,
+      waistCm: m.waist_mm != null ? m.waist_mm / 10 : null,
+      bodyFatPct: m.body_fat_pct_x10 != null ? m.body_fat_pct_x10 / 10 : null,
+    })),
+    activity: {
+      plans: plans.slice(-30).map((p: any) => ({ date: p.plan_date, module: p.module_code, status: p.status, title: (p.content as any)?.title ?? null })),
+      logs: logs.length,
+    },
+  };
+  return { goal, slim };
+}
+
+async function optimizeStrategy(userId: string, id: string, body: unknown) {
+  if (!isUuid(id)) throw ApiError.badRequest("id 参数不合法");
+  const v = parseBody(StrategyOptimizeInput, body);
+  const { slim } = await strategyContext(userId, id);
+  const bundle = await getPromptBundle("fitness_strategy_optimize");
+  const base = await assembleUserPrompt("fitness_strategy_optimize", bundle, {
+    goal: JSON.stringify(slim.goal),
+    profile: JSON.stringify(slim.profile),
+    metrics: JSON.stringify(slim.metrics),
+    activity: JSON.stringify(slim.activity),
+    strategy: JSON.stringify(slim.goal.strategy ?? {}),
+    instruction: v.instruction?.trim() || "（无——按数据全面优化）",
+  });
+  const startedAt = Date.now();
+  let usage = { prompt_tokens: 0, completion_tokens: 0 };
+  const onUsage = (u: { prompt_tokens: number; completion_tokens: number }) => {
+    usage = u;
+  };
+  const runOnce = async (userPrompt: string) => {
+    const raw = await chat({ system: bundle.system, user: userPrompt, onUsage });
+    let json: unknown;
+    try {
+      json = extractJson(raw);
+    } catch (e) {
+      throw new GlmError("badOutput", (e as Error)?.message ?? "输出中无 JSON");
+    }
+    const parsed = z
+      .object({ summary: z.string().max(300), strategy: z.record(z.any()) })
+      .safeParse(json);
+    return { raw, parsed };
+  };
+  try {
+    let { raw, parsed } = await runOnce(base);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.slice(0, 6).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
+      ({ raw, parsed } = await runOnce(buildRepairUserPrompt(base, raw, issues)));
+      if (!parsed.success) {
+        throw new GlmError("badOutput", `重问后仍不合格：${parsed.error.issues.slice(0, 3).map((i) => i.message).join("；")}`);
+      }
+    }
+    await writeAuditRecord({
+      userId,
+      stage: "fitness_strategy",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: base.length,
+      ok: true,
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+    });
+    return { summary: parsed.data.summary, strategy: parsed.data.strategy };
+  } catch (e) {
+    await writeAuditRecord({
+      userId,
+      stage: "fitness_strategy",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: base.length,
+      ok: false,
+      error: String((e as Error)?.message ?? e).slice(0, 200),
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+    });
+    if (e instanceof GlmError && (e.kind === "quota" || e.kind === "rate")) {
+      throw ApiError.upstream("AI 服务暂时不可用（限流/额度），请稍后再试");
+    }
+    if (e instanceof GlmError && e.kind === "auth") throw ApiError.upstream("AI 未配置或鉴权失败");
+    throw e;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 每日计划
 // ---------------------------------------------------------------------------
@@ -660,6 +786,7 @@ const MetricInput = z.object({
   weightKg: z.number().min(20).max(300).nullable().optional(),
   waistCm: z.number().min(30).max(200).nullable().optional(),
   bodyFatPct: z.number().min(3).max(60).nullable().optional(),
+  heightCm: z.number().min(50).max(250).nullable().optional(),
   restingHr: z.number().int().min(30).max(130).nullable().optional(),
   note: z.string().max(100).nullable().optional(),
 });
@@ -672,6 +799,7 @@ async function saveMetric(userId: string, body: unknown) {
     weightG: v.weightKg != null ? Math.round(v.weightKg * 1000) : null,
     waistMm: v.waistCm != null ? Math.round(v.waistCm * 10) : null,
     bodyFatPctX10: v.bodyFatPct != null ? Math.round(v.bodyFatPct * 10) : null,
+    heightMm: v.heightCm != null ? Math.round(v.heightCm * 10) : null,
     restingHr: v.restingHr ?? null,
     note: v.note ?? null,
   });
@@ -689,10 +817,17 @@ async function listExercises(moduleCode: string | null) {
 
 const PARSE_TEXT_MAX = 2000;
 
+/** 休息日语义（REQ-019 FR-A1）：短文本直接命中不耗 AI；模型判 rest 的草稿转同款 400 文案 */
+const REST_TEXT_RE = /无安排|没有(课表|训练|安排)|休息日?|^rest$/i;
+export function restDayMessage(note?: string | null) {
+  return `识别为休息日：今天没有训练安排，无需导入计划${note ? `（${note}）` : ""}`;
+}
+
 /** POST /api/fitness/plans/parse —— GLM 解析 + 一次修复重问；输出整数口径草稿（含动作库挂接） */
 async function parsePlanDraft(userId: string, text: string) {
   const t = text.trim();
   if (!t || t.length > PARSE_TEXT_MAX) throw ApiError.badRequest(`课表文本长度须为 1~${PARSE_TEXT_MAX} 字`);
+  if (t.length <= 30 && REST_TEXT_RE.test(t)) throw ApiError.badRequest(restDayMessage());
 
   const bundle = await getPromptBundle("fitness_plan_parse");
   const base = await assembleUserPrompt("fitness_plan_parse", bundle, { text: t });
@@ -704,7 +839,14 @@ async function parsePlanDraft(userId: string, text: string) {
 
   const runOnce = async (userPrompt: string) => {
     const raw = await chat({ system: bundle.system, user: userPrompt, onUsage });
-    const parsed = FitnessPlanDraftV2.safeParse(extractJson(raw));
+    let json: unknown;
+    try {
+      json = extractJson(raw);
+    } catch (e) {
+      // 模型输出纯文字（无 JSON）：转 badOutput 走修复重问，而非普通 Error 穿透 toApiError 成 500
+      throw new GlmError("badOutput", (e as Error)?.message ?? "输出中无 JSON");
+    }
+    const parsed = FitnessPlanDraftV2.safeParse(json);
     return { raw, parsed };
   };
 
@@ -716,6 +858,9 @@ async function parsePlanDraft(userId: string, text: string) {
       if (!parsed.success) {
         throw new GlmError("badOutput", `重问后仍不合格：${parsed.error.issues.slice(0, 3).map((i) => i.message).join("；")}`);
       }
+    }
+    if (parsed.data.module === "rest") {
+      throw ApiError.badRequest(restDayMessage(parsed.data.rest?.note ?? null));
     }
     const canonical = draftToCanonicalPlan(parsed.data);
     const content = await attachExerciseIds(canonical.moduleCode, canonical.content);
@@ -766,6 +911,7 @@ export const fitnessService = {
   listGoals,
   createGoal,
   updateGoal,
+  optimizeStrategy,
   listPlans,
   savePlanDraft,
   updatePlan,

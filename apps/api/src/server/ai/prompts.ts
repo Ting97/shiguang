@@ -5,7 +5,7 @@
  * - 管理端 API：/api/admin/prompts*
  */
 import { pool } from "@/server/platform/db";
-import { CHAT_ASSISTANT_SYSTEM_PROMPT, EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS, FITNESS_PLAN_PARSE_PROMPT } from "@shiguangri/ai";
+import { CHAT_ASSISTANT_SYSTEM_PROMPT, CHAT_GOAL_SYSTEM_PROMPT, CHAT_TIME_SYSTEM_PROMPT, CHAT_PEOPLE_SYSTEM_PROMPT, CHAT_FINANCE_SYSTEM_PROMPT, CHAT_FITNESS_COACH_SYSTEM_PROMPT, EXTRACT_SYSTEM_PROMPT, DOMAIN_PROMPTS, FITNESS_PLAN_PARSE_PROMPT, FITNESS_STRATEGY_OPTIMIZE_PROMPT } from "@shiguangri/ai";
 import {
   REVIEW_DAY_SYSTEM,
   REVIEW_WEEK_SYSTEM,
@@ -40,7 +40,13 @@ export const PROMPT_KEYS = [
   "action_decompose",
   "prompt_optimizer",
   "chat_assistant",
+  "chat_goal",
+  "chat_time",
+  "chat_people",
+  "chat_finance",
+  "chat_fitness_coach",
   "fitness_plan_parse",
+  "fitness_strategy_optimize",
 ] as const;
 export type PromptKey = (typeof PROMPT_KEYS)[number];
 
@@ -65,7 +71,13 @@ export const PROMPT_META: Record<PromptKey, { title: string; category: "识别" 
   action_decompose: { title: "行动细化拆解", category: "目标" },
   prompt_optimizer: { title: "Prompt 优化器", category: "系统" },
   chat_assistant: { title: "AI 对话助手", category: "助手" },
+  chat_goal: { title: "目标管家（分域）", category: "助手" },
+  chat_time: { title: "日程管家（分域）", category: "助手" },
+  chat_people: { title: "人际管家（分域）", category: "助手" },
+  chat_finance: { title: "财务管家（分域）", category: "助手" },
+  chat_fitness_coach: { title: "运动教练（分域）", category: "助手" },
   fitness_plan_parse: { title: "健身计划解析（粘贴导入）", category: "识别" },
+  fitness_strategy_optimize: { title: "健身策略档案优化", category: "助手" },
 };
 
 const DEFAULT_PROMPTS: Record<PromptKey, string> = {
@@ -126,7 +138,13 @@ const DEFAULT_PROMPTS: Record<PromptKey, string> = {
 ## 输出
 从优化后的 prompt 正文第一行开始输出全文，直到正文最后一行为止——禁止复述【用途】【契约约束】等输入块，禁止任何解释、前后缀或代码块围栏。`,
   chat_assistant: CHAT_ASSISTANT_SYSTEM_PROMPT,
+  chat_goal: CHAT_GOAL_SYSTEM_PROMPT,
+  chat_time: CHAT_TIME_SYSTEM_PROMPT,
+  chat_people: CHAT_PEOPLE_SYSTEM_PROMPT,
+  chat_finance: CHAT_FINANCE_SYSTEM_PROMPT,
+  chat_fitness_coach: CHAT_FITNESS_COACH_SYSTEM_PROMPT,
   fitness_plan_parse: FITNESS_PLAN_PARSE_PROMPT,
+  fitness_strategy_optimize: FITNESS_STRATEGY_OPTIMIZE_PROMPT,
 };
 
 // ---- 进程内缓存（60s；standalone 常驻进程，保存后同进程 Map.delete 即时生效） ----

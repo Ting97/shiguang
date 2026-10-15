@@ -7,16 +7,34 @@
 import { pool } from "@/server/platform/db";
 import { ApiError } from "@/server/platform/http/errors";
 import { activeModel, chatAgent, toCstWallClock, type AgentTurn } from "@shiguangri/ai";
-import { assembleUserPrompt, getPromptBundle, writeAuditRecord } from "@/server/ai";
-import { toAgentTools, TOOL_LABELS, type ChatToolCtx } from "./tools";
+import { assembleUserPrompt, getPromptBundle, writeAuditRecord, type PromptKey } from "@/server/ai";
+import { toAgentTools, TOOL_LABELS, CHAT_SCOPES, type ChatScope, type ChatToolCtx } from "./tools";
 import { checkChatQuota, getChatQuota, FREE_CHAT_CALLS_PER_DAY, type ChatQuotaInfo } from "./chat-quota";
 
 /** 注入模型的对话历史长度上限（user+assistant 计数；更早历史丢弃——MVP 不做摘要压缩） */
 const HISTORY_LIMIT = 20;
 
+/** 会话域 → 人设 PromptKey（REQ-019 FR-C3；global 用全局 chat_assistant） */
+const SCOPE_PROMPT_KEY: Record<ChatScope, PromptKey> = {
+  global: "chat_assistant",
+  goal: "chat_goal",
+  time: "chat_time",
+  people: "chat_people",
+  finance: "chat_finance",
+  fitness: "chat_fitness_coach",
+};
+
+/** 白名单校验（路由/服务共用）：非法值 400 */
+export function parseScope(v: unknown): ChatScope {
+  if (v == null || v === "") return "global";
+  if (typeof v === "string" && (CHAT_SCOPES as readonly string[]).includes(v)) return v as ChatScope;
+  throw ApiError.badRequest("scope 需为 global/goal/time/people/finance/fitness");
+}
+
 export interface ConversationDTO {
   id: string;
   title: string;
+  scope: ChatScope;
   updatedAt: string;
 }
 
@@ -36,19 +54,20 @@ export interface ChatToolTraceItem {
   args: unknown;
 }
 
-/** 会话列表 + 当日配额（首屏一次拉齐） */
-export async function listConversations(userId: string): Promise<{ conversations: ConversationDTO[]; quota: ChatQuotaInfo }> {
+/** 会话列表 + 当日配额（首屏一次拉齐）；scope 传入时只回该域会话（REQ-019 FR-C1） */
+export async function listConversations(userId: string, scope?: ChatScope): Promise<{ conversations: ConversationDTO[]; quota: ChatQuotaInfo }> {
   const { rows } = await pool.query(
-    `select id, title, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
+    `select id, title, scope, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
      from chat_conversations
-     where user_id = $1 and deleted_at is null
+     where user_id = $1 and deleted_at is null and ($2::text is null or scope = $2::text)
      order by updated_at desc limit 50`,
-    [userId],
+    [userId, scope ?? null],
   );
   return {
-    conversations: rows.map((r: { id: string; title: string; updated_bj: string }) => ({
+    conversations: rows.map((r: { id: string; title: string; scope: string; updated_bj: string }) => ({
       id: r.id,
       title: r.title,
+      scope: (CHAT_SCOPES as readonly string[]).includes(r.scope) ? (r.scope as ChatScope) : "global",
       updatedAt: r.updated_bj,
     })),
     quota: await getChatQuota(userId),
@@ -71,7 +90,7 @@ export async function getConversation(
   proposals: ChatProposalDTO[];
 }> {
   const { rows: convs } = await pool.query(
-    `select id, title, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
+    `select id, title, scope, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
      from chat_conversations where id = $1 and user_id = $2 and deleted_at is null`,
     [conversationId, userId],
   );
@@ -100,7 +119,12 @@ export async function getConversation(
   const hasMore = rows.length > limit;
   const page = rows.slice(0, limit).reverse();
   return {
-    conversation: { id: convs[0].id, title: convs[0].title, updatedAt: convs[0].updated_bj },
+    conversation: {
+      id: convs[0].id,
+      title: convs[0].title,
+      scope: (CHAT_SCOPES as readonly string[]).includes(convs[0].scope) ? (convs[0].scope as ChatScope) : "global",
+      updatedAt: convs[0].updated_bj,
+    },
     messages: page.map(mapMessageRow),
     hasMore,
     oldestId: page.length ? page[0].id : null,
@@ -168,13 +192,15 @@ export interface SendMessageResult {
   proposals: ChatProposalDTO[];
 }
 
-/** 发送消息并取得助手回答（含工具查询轨迹）；免费用户当日次数耗尽抛 402 */
+/** 发送消息并取得助手回答（含工具查询轨迹）；免费用户当日次数耗尽抛 402。
+ * scope（REQ-019 FR-C）：新会话按此落域；传入已有会话时须与库中一致（防同一会话串域提问） */
 export async function sendMessage(
   userId: string,
-  input: { conversationId?: string; text: string },
+  input: { conversationId?: string; text: string; scope?: unknown },
 ): Promise<SendMessageResult> {
   const text = input.text.trim();
   if (!text || text.length > 2000) throw ApiError.badRequest("消息长度须为 1~2000 字");
+  const requestedScope = parseScope(input.scope);
 
   const quotaCheck = await checkChatQuota(userId);
   if (!quotaCheck.allowed) {
@@ -184,22 +210,28 @@ export async function sendMessage(
   // 会话定位：传入 id 则校验属主；否则以首句前 20 字为标题新建
   let conversationId: string;
   let conversationTitle: string;
+  let scope: ChatScope;
   if (input.conversationId) {
     const { rows } = await pool.query(
-      `select id, title from chat_conversations where id = $1 and user_id = $2 and deleted_at is null`,
+      `select id, title, scope from chat_conversations where id = $1 and user_id = $2 and deleted_at is null`,
       [input.conversationId, userId],
     );
     if (!rows.length) throw ApiError.notFound("会话不存在");
     conversationId = rows[0].id;
     conversationTitle = rows[0].title;
+    scope = (CHAT_SCOPES as readonly string[]).includes(rows[0].scope) ? (rows[0].scope as ChatScope) : "global";
+    if (input.scope != null && scope !== requestedScope) {
+      throw ApiError.badRequest("会话域不匹配：请在该域助手中开新会话");
+    }
   } else {
     const title = text.replace(/\s+/g, " ").slice(0, 20) || "新对话";
     const { rows } = await pool.query(
-      `insert into chat_conversations (user_id, title) values ($1, $2) returning id, title`,
-      [userId, title],
+      `insert into chat_conversations (user_id, title, scope) values ($1, $2, $3) returning id, title`,
+      [userId, title, requestedScope],
     );
     conversationId = rows[0].id;
     conversationTitle = rows[0].title;
+    scope = requestedScope;
   }
 
   const { rows: insertedUser } = await pool.query(
@@ -230,9 +262,10 @@ export async function sendMessage(
       content: r.content,
     }));
 
-  // system = 纳管的人设 + 上下文块（当前北京时间；画像数据集可经 ai_prompts context_config 配置注入）
-  const bundle = await getPromptBundle("chat_assistant");
-  const ctxBlock = await assembleUserPrompt("chat_assistant", bundle, { nowCst: toCstWallClock(new Date()) }, { userId });
+  // system = 按会话域选人设（REQ-019 FR-C3，纳管热更）+ 上下文块（当前北京时间；画像注入沿用各 key 配置）
+  const promptKey = SCOPE_PROMPT_KEY[scope];
+  const bundle = await getPromptBundle(promptKey);
+  const ctxBlock = await assembleUserPrompt(promptKey, bundle, { nowCst: toCstWallClock(new Date()) }, { userId });
   const system = ctxBlock ? `${bundle.system}\n\n${ctxBlock}` : bundle.system;
 
   const startedAt = Date.now();
@@ -241,7 +274,8 @@ export async function sendMessage(
     const res = await chatAgent({
       system,
       messages: turns,
-      tools: toAgentTools({ userId, conversationId } satisfies ChatToolCtx),
+      // 域助手只见本域工具 + 通用画像（FR-C2）；global 全量
+      tools: toAgentTools({ userId, conversationId } satisfies ChatToolCtx, scope),
       // 5→7：健身提案流程要「查目标→查动作库→提案」3 步，模型漏传明细被拒后还需重调+总结；
       // 步数用不满时无额外开销，只防截断（实测 5 步时提案重试后正文为空）
       maxSteps: 7,

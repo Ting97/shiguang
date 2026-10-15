@@ -28,8 +28,8 @@ export type {
 
 /** 克 → "68.4" kg 展示 */
 export const kg = (g?: number | null, suffix = "kg") => (g != null ? `${Math.round(g / 100) / 10}${suffix}` : "—");
-/** 毫米 → "88.0" cm 展示 */
-export const cm = (mm?: number | null) => (mm != null ? `${Math.round(mm / 10) / 10}` : "—");
+/** 毫米 → "88.0" cm 展示（mm→cm 只除一次 10；曾误写成两次 ÷10 导致 88cm 显示 8.8） */
+export const cm = (mm?: number | null) => (mm != null ? `${Math.round(mm) / 10}` : "—");
 /** 米 → "8.2km" 展示 */
 export const km = (m?: number | null) => (m != null ? `${Math.round(m / 100) / 10}km` : "—");
 /** 秒每公里 → "5'50\"" 展示 */

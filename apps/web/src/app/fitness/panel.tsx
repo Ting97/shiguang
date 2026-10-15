@@ -638,11 +638,13 @@ function PullXunjiModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose:
   );
 }
 
-/** 周一晨重腰围快录 */
+/** 周一晨重腰围快录（019 起补身高/体脂率） */
 function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyMetric | null; reload: () => void }) {
   const [open, setOpen] = useState(false);
   const [weightKg, setWeightKg] = useState("");
   const [waistCm, setWaistCm] = useState("");
+  const [heightCm, setHeightCm] = useState("");
+  const [bodyFatPct, setBodyFatPct] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -653,6 +655,8 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
         measuredOn: today,
         weightKg: weightKg ? Number(weightKg) : null,
         waistCm: waistCm ? Number(waistCm) : null,
+        heightCm: heightCm ? Number(heightCm) : null,
+        bodyFatPct: bodyFatPct ? Number(bodyFatPct) : null,
       });
       toast("✅ 已记录身体指标");
       setOpen(false);
@@ -676,9 +680,10 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
         <p className="mt-2 text-xs text-ink-mute">
           最近（{mdLabel(last.measured_on)}）：体重 {kg(last.weight_g)} · 腰围 {cm(last.waist_mm)}cm
           {last.body_fat_pct_x10 ? ` · 体脂 ${last.body_fat_pct_x10 / 10}%` : ""}
+          {last.height_mm ? ` · 身高 ${cm(last.height_mm)}cm` : ""}
         </p>
       ) : (
-        <p className="mt-2 text-xs text-ink-mute">每周一晨起空腹：体重 + 腰围（肚脐水平）。</p>
+        <p className="mt-2 text-xs text-ink-mute">每周一晨起空腹：体重 + 腰围（肚脐水平），可补身高与体脂率。</p>
       )}
       {open && (
         <Modal title={`身体指标 · ${mdLabel(today)}`} onClose={() => setOpen(false)}>
@@ -692,12 +697,25 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
                 腰围（cm）
                 <input className="input-glow w-full text-sm" inputMode="decimal" value={waistCm} onChange={(e) => setWaistCm(e.target.value)} placeholder="88" />
               </label>
+              <label className="text-xs text-ink-mute">
+                身高（cm）
+                <input className="input-glow w-full text-sm" inputMode="decimal" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="172" />
+              </label>
+              <label className="text-xs text-ink-mute">
+                体脂率（%）
+                <input className="input-glow w-full text-sm" inputMode="decimal" value={bodyFatPct} onChange={(e) => setBodyFatPct(e.target.value)} placeholder="18.5" />
+              </label>
             </div>
+            <p className="text-micro text-ink-faint">留空的项保持原值不被清除；身高体脂可只在变化时记录。</p>
             <div className="flex justify-end gap-2">
               <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setOpen(false)}>
                 取消
               </button>
-              <button className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50" disabled={busy || (!weightKg && !waistCm)} onClick={save}>
+              <button
+                className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50"
+                disabled={busy || (!weightKg && !waistCm && !heightCm && !bodyFatPct)}
+                onClick={save}
+              >
                 保存
               </button>
             </div>

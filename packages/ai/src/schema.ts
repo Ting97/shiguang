@@ -462,13 +462,19 @@ export const StrengthPlanDraft = z.object({
   note: z.string().max(200).nullish(),
 });
 
-/** 粘贴文本解析结果：module 与对应内容组必须匹配且非空 */
+/** 休息日草稿（REQ-019 FR-A1）：用户明确表示当天无训练 */
+export const RestPlanDraft = z.object({
+  note: z.string().max(100).nullish(),
+});
+
+/** 粘贴文本解析结果：module 与对应内容组必须匹配且非空（rest 例外——note 可空） */
 export const FitnessPlanDraftV2 = z
   .object({
     reasoning: z.string().nullish(),
-    module: z.enum(["run", "strength"]),
+    module: z.enum(["run", "strength", "rest"]),
     run: RunPlanDraft.nullish(),
     strength: StrengthPlanDraft.nullish(),
+    rest: RestPlanDraft.nullish(),
     confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {

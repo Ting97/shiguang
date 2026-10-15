@@ -7,6 +7,7 @@ import TodoBoard from "@/components/todo-board";
 import ActivityPanel from "@/components/activity-panel";
 import TodoLogo from "@/components/todo-logo";
 import SubNav from "@/components/sub-nav";
+import AssistantDock from "@/components/assistant-dock";
 
 /**
  * 日程模块：日历（时间统计四视图）+ TODO（待办管理）+ 分类（活动分类管理）。
@@ -90,6 +91,8 @@ export default function SchedulePage() {
           </span>
         </footer>
       </div>
+      {/* 日程管家（REQ-019 FR-C4） */}
+      <AssistantDock scope="time" />
     </main>
   );
 }

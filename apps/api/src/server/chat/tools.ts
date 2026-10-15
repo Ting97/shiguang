@@ -1038,9 +1038,58 @@ const proposeFitnessPlan: ChatTool = {
 /** 提案工具注册表（独立于只读注册表：只允许写 chat_proposals 登记簿，永不直接写业务表） */
 export const CHAT_PROPOSAL_TOOLS: ChatTool[] = [proposeFitnessPlan];
 
-/** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主；含提案工具） */
-export function toAgentTools(ctx: ChatToolCtx): AgentToolSpec[] {
-  return [...CHAT_TOOLS, ...CHAT_PROPOSAL_TOOLS].map((t) => ({
+// ---- 分域助手（REQ-019 FR-C）：工具按域归属；scope 过滤在 toAgentTools ----
+
+/** 会话域（chat_conversations.scope）；global=全局拾光助手（全量工具） */
+export type ChatScope = "global" | "goal" | "time" | "people" | "finance" | "fitness";
+
+export const CHAT_SCOPES: readonly ChatScope[] = ["global", "goal", "time", "people", "finance", "fitness"];
+
+/** 工具名 → 域归属（域助手只带本域工具 + get_user_profile 通用画像）；
+ * 未标注的工具视为 'ai'（仅全局可见），防御后续新增工具漏标时域助手越权拿到 */
+const TOOL_DOMAIN: Record<string, Exclude<ChatScope, "global">> = {
+  // time/日程
+  query_time_blocks: "time",
+  // goal/目标（todo+空间）
+  query_todos: "goal",
+  get_todo_detail: "goal",
+  query_goals: "goal",
+  // finance/财务
+  query_transactions: "finance",
+  query_accounts: "finance",
+  query_budgets: "finance",
+  query_debts: "finance",
+  query_trading: "finance",
+  query_debt_reserve: "finance",
+  // people/人际
+  query_contacts: "people",
+  query_interactions: "people",
+  // timeline/动态识别产物（心情/记录/饮食）
+  query_mood: "time",
+  query_entries: "time",
+  query_diet: "time",
+  // insight/复盘
+  get_review: "time",
+  // fitness/运动
+  query_fitness_plans: "fitness",
+  query_fitness_logs: "fitness",
+  query_fitness_body_metrics: "fitness",
+  get_fitness_goals: "fitness",
+  get_fitness_exercises: "fitness",
+  query_xunji_trains: "fitness",
+  propose_fitness_plan: "fitness",
+};
+
+/** 按会话域过滤工具集（REQ-019 FR-C2）：global 全量；域 scope=本域 + 通用画像 */
+export function toolsForScope(scope: ChatScope): ChatTool[] {
+  const all = [...CHAT_TOOLS, ...CHAT_PROPOSAL_TOOLS];
+  if (scope === "global") return all;
+  return all.filter((t) => t.name === "get_user_profile" || TOOL_DOMAIN[t.name] === scope);
+}
+
+/** 转成 packages/ai chatAgent 需要的 AgentToolSpec（绑定会话属主；按 scope 过滤） */
+export function toAgentTools(ctx: ChatToolCtx, scope: ChatScope = "global"): AgentToolSpec[] {
+  return toolsForScope(scope).map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.params as unknown as z.ZodType<Record<string, unknown>>,
