@@ -13,6 +13,7 @@ import { toast } from "@/shared/ui/toast";
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
 import { yuan } from "@/lib/finance";
 import { GROUP_TONE } from "@/lib/group-tone";
+import AssistantDock from "@/components/assistant-dock";
 
 interface Contact {
   id: string;
@@ -286,6 +287,8 @@ export default function ContactsPage() {
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 人际</span>
         </footer>
       </div>
+      {/* 人际管家（REQ-019 FR-C4） */}
+      <AssistantDock scope="people" />
     </main>
   );
 }

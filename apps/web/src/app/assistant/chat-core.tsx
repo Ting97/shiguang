@@ -61,14 +61,6 @@ interface ProposalItem {
   createdAt: string;
 }
 
-const QUICK_QUESTIONS = [
-  "这周花了多少钱？花在哪了？",
-  "最近在忙什么？时间都去哪了",
-  "有什么该联系的人了吗",
-  "今天我要做哪些行动",
-  "点评昨天训练，明天力量怎么排",
-];
-
 /** 等待期状态文案轮换（约 2.4s 一轮，覆盖典型 GLM+查询耗时节奏） */
 const THINKING_STEPS = ["正在理解你的问题…", "正在查询你的数据…", "正在整理回答…"];
 
@@ -145,15 +137,73 @@ function ProposalCard({
   );
 }
 
+/** 分域助手元数据（REQ-019 FR-C）：标题/引导语/快捷问句随域切换 */
+export type ChatScope = "global" | "goal" | "time" | "people" | "finance" | "fitness";
+
+export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; dockLabel: string; greeting: string; quick: string[]; placeholder: string }> = {
+  global: {
+    title: "拾光助手",
+    tagline: "懂你数据的私人经营助手",
+    dockLabel: "拾光助手",
+    greeting: "问我任何关于你的时间、金钱、人际与目标的问题",
+    quick: ["这周花了多少钱？花在哪了？", "最近在忙什么？时间都去哪了", "有什么该联系的人了吗", "今天我要做哪些行动", "点评昨天训练，明天力量怎么排"],
+    placeholder: "问问你的数据，如「上个月人情往来花了多少」（Ctrl+Enter 发送）",
+  },
+  goal: {
+    title: "目标管家",
+    tagline: "目标空间 · 阶段 · 行动进度",
+    dockLabel: "目标管家",
+    greeting: "问我你的目标空间、阶段目标与行动进度",
+    quick: ["哪个空间快到期了？", "考研上岸的行动进度怎么样", "帮我盘点各空间的阶段目标", "今天有哪些待办没完成"],
+    placeholder: "如「考研空间最近进度如何」（Ctrl+Enter 发送）",
+  },
+  time: {
+    title: "日程管家",
+    tagline: "时间块 · 排程 · 复盘",
+    dockLabel: "日程管家",
+    greeting: "问我你的日程安排与时间去向",
+    quick: ["今天还剩什么事？", "这周时间都花在哪了", "周六有空吗", "最近睡眠怎么样"],
+    placeholder: "如「这周时间花哪了」（Ctrl+Enter 发送）",
+  },
+  people: {
+    title: "人际管家",
+    tagline: "联系人 · 往来 · 重要日期",
+    dockLabel: "人际管家",
+    greeting: "问我你的联系人、往来记录与重要日期",
+    quick: ["有什么该联系的人了吗", "最近和谁互动最多", "快到生日的联系人有哪些", "多久没联系老板了"],
+    placeholder: "如「最近该联系谁」（Ctrl+Enter 发送）",
+  },
+  finance: {
+    title: "财务管家",
+    tagline: "收支 · 预算 · 负债 · 交易",
+    dockLabel: "财务管家",
+    greeting: "问我你的收支、预算、负债与投资",
+    quick: ["这个月花了多少？", "哪类支出涨得最快", "预算还剩多少", "最近负债/备付情况如何"],
+    placeholder: "如「这个月餐饮花了多少」（Ctrl+Enter 发送）",
+  },
+  fitness: {
+    title: "运动教练",
+    tagline: "计划 · 打卡 · 身体指标 · 训记",
+    dockLabel: "运动教练",
+    greeting: "问我训练安排、执行点评与身体数据",
+    quick: ["点评昨天的训练", "明天力量怎么排", "我的体重/腰围趋势", "训记里今天练了什么"],
+    placeholder: "如「明天练什么」（Ctrl+Enter 发送）",
+  },
+};
+
 export default function AssistantChat({
   variant,
   onMinimize,
+  scope = "global",
 }: {
   variant: "page" | "dock";
   /** dock 化小回调（page 无此钮） */
   onMinimize?: () => void;
+  /** 会话域（REQ-019 FR-C）：global=全局拾光助手；其余为各域管家 */
+  scope?: ChatScope;
 }) {
   const isDock = variant === "dock";
+  const meta = SCOPE_META[scope];
   const [conversations, setConversations] = useState<ConvItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MsgItem[]>([]);
@@ -208,13 +258,15 @@ export default function AssistantChat({
   }, [messages]);
 
   const loadList = useCallback(() => {
-    api<{ conversations: ConvItem[]; quota: QuotaInfo }>("/api/chat")
+    // 域助手只列本域会话（global 请求不传 scope=服务端全量，兼容整页全局视图）
+    const qs = scope !== "global" ? `?scope=${scope}` : "";
+    api<{ conversations: ConvItem[]; quota: QuotaInfo }>(`/api/chat${qs}`)
       .then((j) => {
         setConversations(j.conversations ?? []);
         setQuota(j.quota ?? null);
       })
       .catch((e) => toast(e instanceof Error ? e.message : String(e), "err"));
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     loadList();
@@ -295,7 +347,7 @@ export default function AssistantChat({
       }>(
         "/api/chat",
         "POST",
-        { ...(activeId ? { conversationId: activeId } : {}), text: body },
+        { ...(activeId ? { conversationId: activeId } : {}), text: body, ...(scope !== "global" ? { scope } : {}) },
         undefined,
         { timeoutMs: 90_000 },
       );
@@ -454,8 +506,8 @@ export default function AssistantChat({
       >
         <header className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
           <Sparkles size={16} className="text-ai" aria-hidden />
-          <h1 className={isDock ? "text-sm font-semibold" : "text-sm font-semibold"}>拾光助手</h1>
-          {!isDock && <span className="text-micro text-ink-faint">懂你数据的私人经营助手</span>}
+          <h1 className={isDock ? "text-sm font-semibold" : "text-sm font-semibold"}>{meta.title}</h1>
+          {!isDock && <span className="text-micro text-ink-faint">{meta.tagline}</span>}
           {quotaText && (
             <span className="ml-auto rounded-full bg-violet-500/15 px-2 py-0.5 text-micro text-ai">{quotaText}</span>
           )}
@@ -470,7 +522,7 @@ export default function AssistantChat({
                 <Plus size={15} aria-hidden />
               </button>
               <Link
-                href="/assistant"
+                href={scope === "global" ? "/assistant" : `/assistant?scope=${scope}`}
                 aria-label="放大到整页"
                 title="放大到整页（含历史会话）"
                 className="rounded-lg p-1.5 text-ink-mute transition hover:bg-wash hover:text-ink"
@@ -510,10 +562,10 @@ export default function AssistantChat({
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/15">
                 <Sparkles size={22} className="text-ai" aria-hidden />
               </div>
-              <p className="mb-1 text-sm font-medium">问我任何关于你的时间、金钱、人际与目标的问题</p>
+              <p className="mb-1 text-sm font-medium">{meta.greeting}</p>
               <p className="mb-5 text-xs text-ink-dim">我会先查你的真实数据再回答，不编数字</p>
               <div className="mx-auto flex max-w-md flex-wrap justify-center gap-2">
-                {QUICK_QUESTIONS.map((q) => (
+                {meta.quick.map((q) => (
                   <button
                     key={q}
                     onClick={() => send(q)}
@@ -595,7 +647,7 @@ export default function AssistantChat({
                 }
               }}
               rows={1}
-              placeholder="问问你的数据，如「上个月人情往来花了多少」（Ctrl+Enter 发送）"
+              placeholder={meta.placeholder}
               className="max-h-32 flex-1 resize-none rounded-xl border border-line-soft bg-surface px-3 py-2.5 text-sm outline-none transition placeholder:text-ink-faint focus:border-sky-500/60"
             />
             <button

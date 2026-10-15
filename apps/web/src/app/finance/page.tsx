@@ -7,6 +7,7 @@ import FinanceTabs from "@/components/finance-tabs";
 import { yuan } from "@/lib/finance";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
+import AssistantDock from "@/components/assistant-dock";
 
 import {
   type Tx,
@@ -258,6 +259,8 @@ export default function FinancePage() {
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2 py-0.5 text-[10px] text-ai">拾光 · 财务</span>
         </footer>
       </div>
+      {/* 财务管家（REQ-019 FR-C4） */}
+      <AssistantDock scope="finance" />
     </main>
   );
 }

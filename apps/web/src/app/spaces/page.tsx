@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { createPortal } from "react-dom";
-import { Archive, Ellipsis, Hourglass, Pencil, Target, Trash2 } from "lucide-react";
+import { Archive, Ellipsis, Flag, Hourglass, Pencil, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Dismissable } from "@/components/dismissable";
 import { Modal } from "@/components/ui/modal";
 import InlineRename from "@/components/inline-rename";
+import AssistantDock from "@/components/assistant-dock";
 import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
 import { bjToday } from "@/lib/date"; // 北京口径今天：本地 getter 在海外设备会差一天
@@ -262,18 +263,29 @@ export default function SpacesPage() {
                     </button>
                   </div>
                   {s.description && <p className="mt-2 line-clamp-2 text-xs text-ink-mute">{s.description}</p>}
-                  <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-badge tabular-nums text-ink-faint">
-                      <span>todo 进度</span>
-                      <span>{progress == null ? "暂无 todo" : `${progress}%`}</span>
+                  {/* 阶段摘要（REQ-019 FR-B1）：有阶段用阶段口径；无阶段回退 todo 进度避免空卡片 */}
+                  {(s.active_milestones ?? 0) + (s.done_milestones ?? 0) > 0 ? (
+                    <div className="mt-3 flex items-center gap-1.5 text-xs text-ink-mute">
+                      <Flag size={12} style={{ color: s.color }} aria-hidden />
+                      <span className="tabular-nums">
+                        进行中 {s.active_milestones ?? 0}
+                        {(s.done_milestones ?? 0) > 0 ? ` · 已达成 ${s.done_milestones}` : ""}
+                      </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${progress ?? 0}%`, backgroundColor: s.color }}
-                      />
+                  ) : (
+                    <div className="mt-3">
+                      <div className="mb-1 flex justify-between text-badge tabular-nums text-ink-faint">
+                        <span>todo 进度</span>
+                        <span>{progress == null ? "暂无 todo" : `${progress}%`}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${progress ?? 0}%`, backgroundColor: s.color }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </Link>
               );
             })}
@@ -465,6 +477,8 @@ export default function SpacesPage() {
           <TagChip icon={<Target size={12} />} label="拾光 · 目标空间" tone="violet" size="sm" />
         </footer>
       </div>
+      {/* 目标管家（REQ-019 FR-C4）：本域助手，只见目标域会话与工具 */}
+      <AssistantDock scope="goal" />
     </main>
   );
 }

@@ -294,7 +294,9 @@ export const spaceRepo = {
               coalesce((select count(*)::int from todos t where t.space_id = s.id and t.parent_todo_id is not null), 0) as action_total,
               coalesce((select count(*)::int from todos t where t.space_id = s.id and t.parent_todo_id is not null and t.status = 'done'), 0) as action_done,
               coalesce((select count(*)::int from entries e where e.space_id = s.id), 0) as entry_count,
-              coalesce((select count(*)::int from space_reflections r where r.space_id = s.id), 0) as reflection_count
+              coalesce((select count(*)::int from space_reflections r where r.space_id = s.id), 0) as reflection_count,
+              coalesce((select count(*)::int from space_milestones m where m.space_id = s.id and m.status = 'active'), 0) as active_milestones,
+              coalesce((select count(*)::int from space_milestones m where m.space_id = s.id and m.status = 'done'), 0) as done_milestones
        from goal_spaces s
        where s.user_id = $1
        order by (s.status = 'active') desc, (coalesce(s.kind, '') = 'sport') desc, s.sort, s.created_at`,
@@ -396,8 +398,81 @@ export const spaceRepo = {
   },
 };
 
-export const reflectionRepo = {
+// ---- 阶段目标（REQ-019 FR-B1）：历史列表形态，可多阶段并行进行 ----
+
+export const milestoneRepo = {
   async spaceOwned(spaceId: string, userId: string) {
+    return (await pool.query(`select id from goal_spaces where id = $1 and user_id = $2`, [spaceId, userId])).rows[0];
+  },
+
+  /** 全部阶段（历史保留）：active 在前按 sort/created，终态按完成/更新时间倒序 */
+  listBySpace(spaceId: string) {
+    return pool.query(
+      `select id, space_id, title, target_date::text as target_date, status, completed_at, sort, created_at, updated_at
+       from space_milestones
+       where space_id = $1
+       order by (status = 'active') desc,
+                case when status = 'active' then 0 else 1 end,
+                sort, created_at,
+                completed_at desc nulls last`,
+      [spaceId],
+    );
+  },
+
+  insert(userId: string, spaceId: string, title: string, targetDate: string | null) {
+    return pool.query(
+      `insert into space_milestones (user_id, space_id, title, target_date) values ($1, $2, $3, $4) returning *`,
+      [userId, spaceId, title, targetDate],
+    );
+  },
+
+  /** 归属校验：milestone → space → user；spaceId 传入时校验路径一致性 */
+  async ownOf(mid: string, userId: string, spaceId?: string) {
+    return (
+      await pool.query(
+        `select m.id from space_milestones m
+         join goal_spaces s on s.id = m.space_id
+         where m.id = $1 and s.user_id = $2${spaceId ? " and s.id = $3" : ""}`,
+        spaceId ? [mid, userId, spaceId] : [mid, userId],
+      )
+    ).rows[0];
+  },
+
+  /** 编辑（title/targetDate/status）；status→done 写 completed_at，回 active 清空 */
+  update(mid: string, d: { title?: string; targetDate?: string | null; hasTargetDate?: boolean; status?: string }) {
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    const push = (col: string, val: unknown) => {
+      vals.push(val);
+      sets.push(`${col} = $${vals.length}`);
+    };
+    if (d.title !== undefined) push("title", d.title);
+    if (d.hasTargetDate) push("target_date", d.targetDate);
+    if (d.status !== undefined) {
+      push("status", d.status);
+      push("completed_at", d.status === "done" ? new Date().toISOString() : null);
+    }
+    push("updated_at", new Date().toISOString());
+    vals.push(mid);
+    return pool.query(
+      `update space_milestones set ${sets.join(", ")} where id = $${vals.length} returning *`,
+      vals,
+    );
+  },
+
+  async countsOf(spaceId: string) {
+    return (
+      await pool.query(
+        `select count(*) filter (where status = 'active')::int as active,
+                count(*) filter (where status = 'done')::int as done
+         from space_milestones where space_id = $1`,
+        [spaceId],
+      )
+    ).rows[0];
+  },
+};
+
+export const reflectionRepo = {  async spaceOwned(spaceId: string, userId: string) {
     return (await pool.query(`select id from goal_spaces where id = $1 and user_id = $2`, [spaceId, userId])).rows[0];
   },
 

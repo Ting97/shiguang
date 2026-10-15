@@ -8,7 +8,7 @@ import { ApiError } from "../platform/http/errors";
 import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
 import { isUuid } from "../platform/http/validate";
 import type { TodoItem, TodoRow } from "@shiguangri/shared/types";
-import { todoRepo, spaceRepo, reflectionRepo } from "./repo";
+import { todoRepo, spaceRepo, reflectionRepo, milestoneRepo } from "./repo";
 
 export interface TodoCreateInput {
   title?: string;
@@ -487,3 +487,60 @@ export const reflectionService = {
   update: updateReflection,
   remove: removeReflection,
 };
+
+// ---------------------------------------------------------------------------
+// 空间阶段目标（REQ-019 FR-B1）：历史列表，可多阶段并行；头部以它取代 todo/行动完成率
+// ---------------------------------------------------------------------------
+
+export interface MilestoneCreateInput {
+  title?: string;
+  targetDate?: string | null;
+}
+
+export interface MilestonePatchInput {
+  title?: string;
+  targetDate?: string | null;
+  status?: "active" | "done" | "abandoned";
+}
+
+/** GET /api/spaces/:id/milestones —— 全部阶段（历史保留，active 在前） */
+async function listMilestones(userId: string, spaceId: string) {
+  if (!(await milestoneRepo.spaceOwned(spaceId, userId))) throw ApiError.notFound("空间不存在");
+  const { rows } = await milestoneRepo.listBySpace(spaceId);
+  return { milestones: rows };
+}
+
+/** POST /api/spaces/:id/milestones —— 新建阶段 { title, targetDate? }（允许多个并行进行） */
+async function createMilestone(userId: string, spaceId: string, body: MilestoneCreateInput) {
+  if (body.title != null && typeof body.title !== "string") throw ApiError.badRequest("阶段标题需为字符串");
+  const title = (body.title ?? "").trim();
+  if (!title) throw ApiError.badRequest("阶段标题不能为空");
+  if (title.length > 80) throw ApiError.badRequest("阶段标题最长 80 字");
+  if (!(await milestoneRepo.spaceOwned(spaceId, userId))) throw ApiError.notFound("空间不存在");
+  const target = calendarDateOrNull(body.targetDate, "目标日期");
+  const { rows } = await milestoneRepo.insert(userId, spaceId, title, target);
+  return { milestone: rows[0] };
+}
+
+/** PATCH /api/spaces/:id/milestones/:mid —— 编辑/达成/放弃 { title?, targetDate?, status? } */
+async function updateMilestone(userId: string, mid: string, body: MilestonePatchInput, spaceId?: string) {
+  if (!(await milestoneRepo.ownOf(mid, userId, spaceId))) throw ApiError.notFound("阶段目标不存在");
+  if (body.title !== undefined) {
+    if (typeof body.title !== "string") throw ApiError.badRequest("阶段标题需为字符串");
+    const t = body.title.trim();
+    if (!t) throw ApiError.badRequest("阶段标题不能为空");
+    if (t.length > 80) throw ApiError.badRequest("阶段标题最长 80 字");
+  }
+  if (body.status !== undefined && !["active", "done", "abandoned"].includes(body.status)) {
+    throw ApiError.badRequest("status 需为 active/done/abandoned");
+  }
+  const { rows } = await milestoneRepo.update(mid, {
+    title: typeof body.title === "string" ? body.title.trim() : undefined,
+    targetDate: body.targetDate ?? null,
+    hasTargetDate: body.targetDate !== undefined,
+    status: body.status,
+  });
+  return { milestone: rows[0] };
+}
+
+export const milestoneService = { list: listMilestones, create: createMilestone, update: updateMilestone };

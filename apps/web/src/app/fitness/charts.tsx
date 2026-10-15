@@ -138,6 +138,8 @@ export default function FitnessTrends({
 }) {
   const weightPts = metrics.filter((m) => m.weight_g != null).map((m) => ({ date: m.measured_on, value: m.weight_g! / 1000 }));
   const waistPts = metrics.filter((m) => m.waist_mm != null).map((m) => ({ date: m.measured_on, value: m.waist_mm! / 10 }));
+  const heightPts = metrics.filter((m) => m.height_mm != null).map((m) => ({ date: m.measured_on, value: m.height_mm! / 10 }));
+  const bodyFatPts = metrics.filter((m) => m.body_fat_pct_x10 != null).map((m) => ({ date: m.measured_on, value: m.body_fat_pct_x10! / 10 }));
   const pacePts = plans
     .filter((p) => p.status === "done" && p.module_code === "run")
     .map((p) => {
@@ -160,6 +162,12 @@ export default function FitnessTrends({
         </ChartCard>
         <ChartCard title="腰围趋势" sub="肚脐水平（cm）">
           <LineChart points={waistPts} unit="cm" />
+        </ChartCard>
+        <ChartCard title="体脂率趋势" sub="体成分秤/估算口径（%），越低越精瘦">
+          <LineChart points={bodyFatPts} unit="%" />
+        </ChartCard>
+        <ChartCard title="身高趋势" sub="变化缓慢，仅记录生长/测量差异（cm）">
+          <LineChart points={heightPts} unit="cm" />
         </ChartCard>
         <ChartCard title="跑步配速趋势" sub="已完成跑步课的平均配速，越低越好">
           <LineChart points={pacePts} unit={'"'} invert />

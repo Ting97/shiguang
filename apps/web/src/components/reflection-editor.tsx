@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X } from "lucide-react";
 import MarkdownView from "./markdown-view";
+import { applyMarkdownControlled, handleMarkdownKey, type MdKind } from "./markdown-shortcuts";
 import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { useDismiss } from "./dismissable";
 
@@ -97,29 +98,55 @@ export default function ReflectionEditor({
             )}
           </div>
         ) : (
-        <textarea
-          ref={taRef}
-          value={value}
-          onChange={(e) => {
-            const next = e.target.value;
-            // length ≥ 码点数：未超限不做 O(n) 码点展开（5 万字长文每键全展开是纯浪费）
-            if (next.length > 50_000 && [...next].length > 50_000) {
-              setValue(Array.from(next).slice(0, 50_000).join(""));
-              return;
-            }
-            setValue(next);
-          }}
-          onPaste={(e) => {
-            const pasted = e.clipboardData.getData("text");
-            if (pasted && (value + pasted).length > 50_000 && [...(value + pasted)].length > 50_000) {
-              e.preventDefault();
-              const merged = Array.from(value + pasted).slice(0, 50_000).join("");
-              setValue(merged);
-            }
-          }}
-          placeholder="记录阶段心得、踩坑复盘、自我对话……（支持 Markdown：# 标题、**粗体**、列表、表格、代码，单篇 ≤50000 字）"
-          className="input-glow min-h-[40vh] w-full flex-1 resize-none rounded-xl border border-line-soft bg-surface/60 px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-ink-faint"
-        />
+          <>
+            {/* Markdown 工具栏（REQ-019 FR-B2）：按钮与 Ctrl/Cmd+B/I/K 快捷键共用同一变换 */}
+            <div className="mb-1.5 flex items-center gap-0.5" role="toolbar" aria-label="Markdown 格式">
+              {([
+                ["bold", "B", "加粗（Ctrl/⌘+B）", "font-bold"],
+                ["italic", "I", "斜体（Ctrl/⌘+I）", "italic"],
+                ["h2", "H2", "标题", ""],
+                ["list", "•", "列表", ""],
+                ["quote", "❝", "引用", ""],
+                ["link", "🔗", "链接（Ctrl/⌘+K）", ""],
+              ] as [MdKind, string, string, string][]).map(([kind, label, title, extra]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  title={title}
+                  onClick={() => taRef.current && applyMarkdownControlled(taRef.current, kind, setValue)}
+                  className={`rounded-md px-2 py-1 text-xs text-ink-mute transition hover:bg-soft hover:text-ink ${extra}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              ref={taRef}
+              value={value}
+              onKeyDown={(e) => {
+                if (taRef.current && handleMarkdownKey(taRef.current, e)) return;
+              }}
+              onChange={(e) => {
+                const next = e.target.value;
+                // length ≥ 码点数：未超限不做 O(n) 码点展开（5 万字长文每键全展开是纯浪费）
+                if (next.length > 50_000 && [...next].length > 50_000) {
+                  setValue(Array.from(next).slice(0, 50_000).join(""));
+                  return;
+                }
+                setValue(next);
+              }}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData("text");
+                if (pasted && (value + pasted).length > 50_000 && [...(value + pasted)].length > 50_000) {
+                  e.preventDefault();
+                  const merged = Array.from(value + pasted).slice(0, 50_000).join("");
+                  setValue(merged);
+                }
+              }}
+              placeholder="记录阶段心得、踩坑复盘、自我对话……（支持 Markdown：# 标题、**粗体**、列表、表格、代码，单篇 ≤50000 字）"
+              className="input-glow min-h-[40vh] w-full flex-1 resize-none rounded-xl border border-line-soft bg-surface/60 px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-ink-faint"
+            />
+          </>
         )}
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className={`text-micro tabular-nums ${over ? "text-danger" : chars > 45_000 ? "text-warn" : "text-ink-faint"}`}>
