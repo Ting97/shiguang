@@ -10,8 +10,8 @@ export type Pos = { top: number; left: number };
 /** 行操作菜单卡片状态（点「⋯」弹出） */
 export type MenuRowState = { todo: TodoRow; isChild: boolean };
 
-/** N2：分区 tab */
-export type SpaceTab = "todo" | "reflection" | "moments";
+/** N2：分区 tab；fitness=训练栏（REQ-018：内置运动空间专属） */
+export type SpaceTab = "todo" | "reflection" | "moments" | "fitness";
 
 /** N2：感悟编辑态（编辑携带全文，null=新建） */
 export type EditingReflection = { id: string; content: string };

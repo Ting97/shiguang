@@ -61,6 +61,8 @@ export interface Space {
   started_at: string | null;
   target_date: string | null;
   sort: number;
+  /** 内置模板标记（REQ-018）：null=用户自建；'sport'=内置运动空间（置顶、健身面板所在） */
+  kind?: string | null;
   created_at: string;
   updated_at: string;
   todo_total?: number;

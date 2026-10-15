@@ -337,6 +337,8 @@ function calendarDateOrNull(v: string | null | undefined, label: string): string
 /** GET /api/spaces —— 空间列表（active 在前）+ 聚合统计：
  * todoTotal/todoDone（顶层待办）、actionTotal/actionDone（行动=子待办）、entryCount、reflectionCount（REQ-002 N2） */
 async function listSpaces(userId: string) {
+  // 内置运动空间惰性创建（REQ-018）：新用户首次拉列表即获得；幂等（唯一部分索引）
+  await spaceRepo.ensureSportSpace(userId);
   const { rows } = await spaceRepo.listWithStats(userId);
   return { spaces: rows };
 }
@@ -364,9 +366,16 @@ async function createSpace(userId: string, body: SpaceCreateInput) {
   return { ok: true as const, space: rows[0] };
 }
 
-/** PATCH /api/spaces/:id —— 字段修改 + {status:'archived'|'active'} 归档/恢复 */
+/** PATCH /api/spaces/:id —— 字段修改 + {status:'archived'|'active'} 归档/恢复。
+ * 内置运动空间（kind='sport'）不可改名/归档（REQ-018 FR-A4）——描述/图标/起止日期/排序仍可编辑 */
 async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
   const { name, description, icon, color, startedAt, targetDate, status, sort } = body;
+  if (name !== undefined || status !== undefined) {
+    const { rows: sport } = await spaceRepo.findSportSpace(userId);
+    if (sport[0]?.id === id) {
+      throw ApiError.badRequest(name !== undefined ? "内置运动空间不可改名" : "内置运动空间不可归档");
+    }
+  }
   if (status !== undefined && status !== "active" && status !== "archived") {
     throw ApiError.badRequest("status 需为 active/archived");
   }
@@ -402,8 +411,10 @@ async function updateSpace(userId: string, id: string, body: SpacePatchInput) {
   return { ok: true as const, space: rows[0] };
 }
 
-/** DELETE /api/spaces/:id —— 硬删空间 */
+/** DELETE /api/spaces/:id —— 硬删空间（内置运动空间不可删，REQ-018 FR-A4） */
 async function removeSpace(userId: string, id: string) {
+  const { rows: sport } = await spaceRepo.findSportSpace(userId);
+  if (sport[0]?.id === id) throw ApiError.badRequest("内置运动空间不可删除");
   const { rowCount } = await spaceRepo.remove(id, userId);
   if (!rowCount) throw ApiError.notFound("空间不存在");
   return { ok: true as const };

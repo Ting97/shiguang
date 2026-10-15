@@ -92,8 +92,10 @@ export default function SpacesPage() {
 
   async function save() {
     if (!editing || saving) return;
+    // 内置运动空间不可改名：PATCH 不携带 name（携带会被服务端守卫 400），其余字段照常
+    const sportEditing = spaces?.find((s) => s.id === editingId)?.kind === "sport";
     const body = {
-      name: editing.name,
+      ...(sportEditing ? {} : { name: editing.name }),
       description: editing.description || null,
       icon: editing.icon,
       color: editing.color,
@@ -211,6 +213,7 @@ export default function SpacesPage() {
                       <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="block min-w-0 flex-1">
               <InlineRename
                 value={s.name}
+                disabled={s.kind === "sport"}
                 onSave={async (name) => {
                   try {
                     await api<any>(`/api/spaces/${s.id}`, "PATCH", { name });
@@ -230,6 +233,9 @@ export default function SpacesPage() {
                 className="w-full text-sm font-semibold text-ink"
               />
             </span>
+            {s.kind === "sport" ? (
+              <span className="ml-1.5 shrink-0 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400">内置</span>
+            ) : null}
                       <p className="mt-0.5 text-micro text-ink-dim">
                         {s.todo_total ?? 0} todo · {s.entry_count ?? 0} 动态 · 感悟 {s.reflection_count ?? 0}
                         {days ? ` · 第 ${days} 天` : ""}
@@ -333,9 +339,10 @@ export default function SpacesPage() {
               <input
                 autoFocus
                 value={editing.name}
+                disabled={spaces?.find((s) => s.id === editingId)?.kind === "sport"}
                 onChange={(e) => setEditing({ ...editing, name: e.target.value.slice(0, 40) })}
                 placeholder="目标名称（如：考研上岸）"
-                className="input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-3 py-2 text-sm outline-none placeholder:text-ink-faint"
+                className="input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-3 py-2 text-sm outline-none placeholder:text-ink-faint disabled:opacity-60"
               />
               <textarea
                 value={editing.description}
@@ -426,25 +433,29 @@ export default function SpacesPage() {
                   <span className="flex w-5 shrink-0 justify-center"><Pencil size={14} /></span>
                   <span className="min-w-0 flex-1">编辑空间</span>
                 </button>
-                <button
-                  onClick={() => { const s = cardMenu; setCardMenu(null); void setStatus(s, "archived"); }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-warn transition hover:bg-wash"
-                >
-                  <span className="flex w-5 shrink-0 justify-center"><Archive size={14} /></span>
-                  <span className="min-w-0 flex-1">归档空间</span>
-                </button>
-                <button
-                  onClick={() => {
-                    const s = cardMenu;
-                    if (!armDelete.arm(s.id)) return;
-                    setCardMenu(null);
-                    void remove(s);
-                  }}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10 ${armDelete.armedId === cardMenu.id ? "bg-rose-500/10 font-medium" : ""}`}
-                >
-                  <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>
-                  <span className="min-w-0 flex-1">{armDelete.armedId === cardMenu.id ? "确认删除？（3 秒内再点）" : "删除空间"}</span>
-                </button>
+                {cardMenu.kind === "sport" ? null : (
+                  <button
+                    onClick={() => { const s = cardMenu; setCardMenu(null); void setStatus(s, "archived"); }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-warn transition hover:bg-wash"
+                  >
+                    <span className="flex w-5 shrink-0 justify-center"><Archive size={14} /></span>
+                    <span className="min-w-0 flex-1">归档空间</span>
+                  </button>
+                )}
+                {cardMenu.kind === "sport" ? null : (
+                  <button
+                    onClick={() => {
+                      const s = cardMenu;
+                      if (!armDelete.arm(s.id)) return;
+                      setCardMenu(null);
+                      void remove(s);
+                    }}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10 ${armDelete.armedId === cardMenu.id ? "bg-rose-500/10 font-medium" : ""}`}
+                  >
+                    <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>
+                    <span className="min-w-0 flex-1">{armDelete.armedId === cardMenu.id ? "确认删除？（3 秒内再点）" : "删除空间"}</span>
+                  </button>
+                )}
               </div>
             </Dismissable>,
             document.body,

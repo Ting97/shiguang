@@ -13,11 +13,14 @@ export default function InlineRename({
   onSave,
   className = "",
   maxLength = 40,
+  disabled = false,
 }: {
   value: string;
   onSave: (name: string) => Promise<boolean>; // 返回 true=保存成功（退出编辑态）
   className?: string;
   maxLength?: number;
+  /** 禁用编辑（如内置空间不可改名，REQ-018）：只展示，不进编辑态 */
+  disabled?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(value);
@@ -66,18 +69,20 @@ export default function InlineRename({
     return (
       <span className={`group/rename inline-flex min-w-0 max-w-full items-center gap-1 ${className}`}>
         <span className="min-w-0 truncate">{value}</span>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setEditing(true);
-            setTimeout(() => inputRef.current?.focus(), 50);
-          }}
-          title="重命名"
-          className="row-actions-hidden hidden shrink-0 rounded px-1 text-ink-mute transition hover:text-accent group-hover/rename:block"
-        >
-          <Pencil size={11} />
-        </button>
+        {disabled ? null : (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setEditing(true);
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }}
+            title="重命名"
+            className="row-actions-hidden hidden shrink-0 rounded px-1 text-ink-mute transition hover:text-accent group-hover/rename:block"
+          >
+            <Pencil size={11} />
+          </button>
+        )}
       </span>
     );
   }

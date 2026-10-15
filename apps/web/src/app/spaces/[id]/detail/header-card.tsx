@@ -117,17 +117,20 @@ export default function SpaceHeaderCard(opts: {
           <Link href="/spaces" className="flex items-center gap-0.5 rounded px-2 py-1 text-xs text-ink-mute transition hover:bg-soft hover:text-accent">
             <ArrowLeft size={12} aria-hidden /> 列表
           </Link>
-          <button
-            onClick={(e) => {
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setSpaceMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
-              setSpaceMenu(true);
-            }}
-            title="更多操作"
-            className="rounded px-2 py-1 leading-none text-ink-dim transition hover:bg-soft hover:text-ink"
-          >
-            <Ellipsis size={14} />
-          </button>
+          {/* 内置运动空间菜单只有归档/删除（均被服务端守卫禁止）——不渲染 ⋯ 入口 */}
+          {space.kind === "sport" ? null : (
+            <button
+              onClick={(e) => {
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setSpaceMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                setSpaceMenu(true);
+              }}
+              title="更多操作"
+              className="rounded px-2 py-1 leading-none text-ink-dim transition hover:bg-soft hover:text-ink"
+            >
+              <Ellipsis size={14} />
+            </button>
+          )}
         </div>
       </div>
       {/* 进度概览 */}
