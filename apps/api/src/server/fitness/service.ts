@@ -451,7 +451,8 @@ async function updatePlan(userId: string, id: string, body: unknown) {
 
 /** 单一规则：计划存在且未 skipped → 行动与计划同步。
  * 力量课 = 父任务(kind='todo') + 每动作一条子行动(kind='action')；跑步课 = 单条独立行动。
- * due_at = 计划日 18:00（北京）——与首页「今日行动」due_at 当日口径一致；活动分类挂预设 'fitness'。 */
+ * due_at = 计划日 18:00（北京）——与首页「今日行动」due_at 当日口径一致；活动分类挂预设 'fitness'；
+ * space_id 挂内置运动空间（REQ-018：训练行动出现在运动空间 TODO·行动栏），无则保持 null。 */
 async function syncPlanTodos(
   userId: string,
   plan: { id: string; plan_date: string; module_code: string; source: string; status: string; content: unknown },
@@ -463,6 +464,8 @@ async function syncPlanTodos(
   // 活动分类挂「健身」预设行；用户没有该行（理论上仅测试直插用户）则置空，不让联动挂掉计划保存
   const { rows: actRows } = await fitnessRepo.fitnessActivityId(userId);
   const activityId: string | null = actRows[0]?.id ?? null;
+  const { rows: sportRows } = await fitnessRepo.sportSpaceId(userId);
+  const spaceId: string | null = sportRows[0]?.id ?? null;
   const content = (plan.content ?? {}) as RunPlanContent | StrengthPlanContent;
   let synced = 0;
 
@@ -479,6 +482,7 @@ async function syncPlanTodos(
         parentId: null,
         sort: 0,
         activityId,
+        spaceId,
       })
     ).rows[0].id;
     synced += 1;
@@ -493,6 +497,7 @@ async function syncPlanTodos(
         parentId: parent,
         sort: i + 1,
         activityId,
+        spaceId,
       });
       synced += 1;
     }
@@ -508,6 +513,7 @@ async function syncPlanTodos(
       parentId: null,
       sort: 0,
       activityId,
+      spaceId,
     });
     synced += 1;
   }

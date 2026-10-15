@@ -220,14 +220,18 @@ export const fitnessRepo = {
    * activityId 动态解析（预设 'fitness' 或重命名/删除后的 null——activity_id 可空，不因缺行挂掉计划保存） */
   insertPlanTodo(
     userId: string,
-    d: { planId: string; title: string; dueAtIso: string; source: "ai" | "manual"; kind: "todo" | "action"; parentId: string | null; sort: number; activityId: string | null },
+    d: { planId: string; title: string; dueAtIso: string; source: "ai" | "manual"; kind: "todo" | "action"; parentId: string | null; sort: number; activityId: string | null; spaceId: string | null },
   ) {
     return pool.query(
-      `insert into todos (user_id, title, activity_id, due_at, remind_at, source, kind, parent_todo_id, sort, fitness_plan_id)
-       values ($1, $2, $3::text, $4::timestamptz, $4::timestamptz - interval '15 minutes', $5, $6, $7, $8, $9)
+      `insert into todos (user_id, title, activity_id, due_at, remind_at, source, kind, parent_todo_id, sort, fitness_plan_id, space_id)
+       values ($1, $2, $3::text, $4::timestamptz, $4::timestamptz - interval '15 minutes', $5, $6, $7, $8, $9, $10::uuid)
        returning id`,
-      [userId, d.title, d.activityId, d.dueAtIso, d.source, d.kind, d.parentId, d.sort, d.planId],
+      [userId, d.title, d.activityId, d.dueAtIso, d.source, d.kind, d.parentId, d.sort, d.planId, d.spaceId],
     );
+  },
+  /** 用户的内置运动空间 id（REQ-018：训练联动行动挂运动空间，出现在其 TODO·行动栏）；无则 null */
+  sportSpaceId(userId: string) {
+    return pool.query(`select id from goal_spaces where user_id = $1 and kind = 'sport' limit 1`, [userId]);
   },
   /** 打卡完成：该计划的未完成联动行动全部置完成 */
   completePlanTodos(planId: string) {

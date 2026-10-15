@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
+import FitnessPanel from "@/app/fitness/panel";
 import ReflectionEditor from "@/components/reflection-editor";
 import SpacePicker from "@/components/space-picker";
 import { FilterChip } from "@/components/tag-chip";
@@ -29,8 +30,10 @@ import { useTodoActions } from "./detail/use-todo-actions";
 export default function Detail() {
   const { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, momentsLoadingMore, loadMoreMoments, activities, allSpaces, loadErr, load } = useSpaceData();
   const [msg, setMsg] = useState<Msg>(null);
-  // N2：分区 tab
-  const [tab, setTab] = useState<SpaceTab>("todo");
+  // N2：分区 tab；?tab=fitness 深链定位训练栏（/fitness 旧地址跳转、导航入口用）
+  const [tab, setTab] = useState<SpaceTab>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "fitness" ? "fitness" : "todo",
+  );
   // 空间操作菜单（⋯ 收纳归档/删除）
   const [spaceMenu, setSpaceMenu] = useState(false);
   const [spaceMenuPos, setSpaceMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -102,13 +105,17 @@ export default function Detail() {
           setSpaceMenuPos={setSpaceMenuPos}
         />
 
-        {/* 分区 tab（REQ-002 N2）：TODO·行动 / 感悟 / 动态 */}
+        {/* 分区 tab（REQ-002 N2）：TODO·行动 / 感悟 / 动态；内置运动空间首位多一栏「训练」（REQ-018） */}
         <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1">
+          {space.kind === "sport" && <FilterChip label="训练" active={tab === "fitness"} onClick={() => setTab("fitness")} />}
           <FilterChip label="TODO·行动" count={todos.length} active={tab === "todo"} onClick={() => setTab("todo")} />
           <FilterChip label="感悟" count={space.reflection_count ?? 0} active={tab === "reflection"} onClick={() => setTab("reflection")} />
           {/* 动态计数用 feed total（未被 limit=20 封顶）；接口未带 total 时回退 header-card 的 entry_count 保持口径一致 */}
           <FilterChip label="动态" count={momentsTotal ?? space.entry_count ?? 0} active={tab === "moments"} onClick={() => setTab("moments")} />
         </div>
+
+        {/* 训练栏（REQ-018）：健身面板整体嵌入——今日/计划/趋势/目标&档案 */}
+        {tab === "fitness" && space.kind === "sport" && <FitnessPanel />}
 
         {/* 关联 TODO·行动 */}
         {tab === "todo" && (

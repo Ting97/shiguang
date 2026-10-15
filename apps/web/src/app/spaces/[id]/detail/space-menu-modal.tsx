@@ -25,7 +25,7 @@ export default function SpaceMenuModal(opts: {
       <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-soft sm:hidden" />
       <p className="mb-1.5 truncate px-1.5 text-micro font-medium text-ink-dim">{space.name}</p>
       <div className="space-y-0.5">
-        {space.status === "archived" ? (
+        {space.kind === "sport" ? null : space.status === "archived" ? (
           <button
             onClick={() => setStatus("active")}
             className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-wash"
@@ -42,13 +42,15 @@ export default function SpaceMenuModal(opts: {
             <span className="min-w-0 flex-1">归档空间</span>
           </button>
         )}
-        <button
-          onClick={() => { setSpaceMenu(false); void removeSpace(); }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
-        >
-          <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>
-          <span className="min-w-0 flex-1">删除空间</span>
-        </button>
+        {space.kind === "sport" ? null : (
+          <button
+            onClick={() => { setSpaceMenu(false); void removeSpace(); }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
+          >
+            <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>
+            <span className="min-w-0 flex-1">删除空间</span>
+          </button>
+        )}
       </div>
     </Dismissable>,
     document.body,

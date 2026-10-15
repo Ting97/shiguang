@@ -297,7 +297,25 @@ export const spaceRepo = {
               coalesce((select count(*)::int from space_reflections r where r.space_id = s.id), 0) as reflection_count
        from goal_spaces s
        where s.user_id = $1
-       order by (s.status = 'active') desc, s.sort, s.created_at`,
+       order by (s.status = 'active') desc, (coalesce(s.kind, '') = 'sport') desc, s.sort, s.created_at`,
+      [userId],
+    );
+  },
+
+  /** 内置运动空间（REQ-018）：不存在则创建（幂等，唯一部分索引兜并发）；系统空间不占 20 个用户配额 */
+  ensureSportSpace(userId: string) {
+    return pool.query(
+      `insert into goal_spaces (user_id, name, icon, kind, sort, description)
+       values ($1, '运动', '🏃', 'sport', -1, '内置训练空间：计划 · 打卡 · 趋势，兼有 TODO·行动 / 感悟 / 动态')
+       on conflict (user_id) where kind = 'sport' do nothing
+       returning id`,
+      [userId],
+    );
+  },
+
+  findSportSpace(userId: string) {
+    return pool.query(
+      `select id, name, icon, kind, description from goal_spaces where user_id = $1 and kind = 'sport' limit 1`,
       [userId],
     );
   },
@@ -373,7 +391,8 @@ export const spaceRepo = {
 
   /** 硬删空间；entries/todos.space_id 由外键 on delete set null 兜底，业务数据完好 */
   remove(id: string, userId: string) {
-    return pool.query(`delete from goal_spaces where id = $1 and user_id = $2`, [id, userId]);
+    // 内置运动空间不可删（REQ-018；SQL 层兜底，service 层另有友好报错）
+    return pool.query(`delete from goal_spaces where id = $1 and user_id = $2 and kind is distinct from 'sport'`, [id, userId]);
   },
 };
 
