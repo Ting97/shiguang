@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Dismissable } from "@/components/dismissable";
 import { TX_COLORS, budgetTone, categoryBreakdown, momChange, savingsRate, yuan } from "@/lib/finance";
 import { type Overview, fmtMoney } from "./kit";
-import { BudgetEditor, SavingsTrend } from "./display";
+import { BudgetEditor, InOutTrend, SavingsTrend } from "./display";
 
 export function OverviewCard({
   ov,
@@ -54,6 +54,9 @@ export function OverviewCard({
 
       {/* 储蓄率趋势（近 6 个月） */}
       <SavingsTrend trend={ov.trend} />
+
+      {/* 支出/收入各自独立的小柱图（近 6 个月） */}
+      <InOutTrend trend={ov.trend} />
 
       {/* 预算进度 */}
       <div className="mt-4 border-t border-line-soft pt-3">

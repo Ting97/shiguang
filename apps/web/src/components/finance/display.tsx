@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { Check, Pencil, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { TagChip } from "@/components/tag-chip";
 
 // REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
@@ -105,6 +105,70 @@ export function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/** 金额紧凑展示（柱图轴标签口径）：≥1亿 以亿计，≥1万 以万计一位小数，否则取整元 */
+const compactWan = (cents: number) => {
+  const y = cents / 100;
+  if (y >= 100_000_000) return `${(y / 100_000_000).toFixed(1)}亿`;
+  if (y >= 10_000) return `${(y / 10_000).toFixed(1)}万`;
+  return String(Math.round(y));
+};
+
+/** 收/支单列小柱图（各按自身区间最大值缩放）；0 显示「—」占位 */
+function MoneyBars({ trend, direction }: { trend: Overview["trend"]; direction: "out" | "in" }) {
+  const pick = (t: Overview["trend"][number]) => (direction === "out" ? t.outCents : t.inCents);
+  const max = Math.max(1, ...trend.map(pick));
+  return (
+    <div className="flex items-end justify-between gap-1.5">
+      {trend.map((t, i) => {
+        const v = pick(t);
+        const isCur = i === trend.length - 1;
+        const h = v <= 0 ? 4 : Math.max(6, (v / max) * 56);
+        return (
+          <div key={t.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+            <span className={`max-w-full truncate text-badge tabular-nums ${v <= 0 ? "text-ink-faint" : direction === "out" ? "text-danger" : "text-success"}`}>
+              {v <= 0 ? "—" : compactWan(v)}
+            </span>
+            <div
+              title={`${t.month}：${direction === "out" ? "支出" : "收入"} ¥${yuan(v)}`}
+              className={`w-full rounded-t transition-colors ${
+                v <= 0
+                  ? "bg-elevated"
+                  : direction === "out"
+                    ? "bg-gradient-to-t from-rose-600/50 to-rose-400/80"
+                    : "bg-gradient-to-t from-emerald-600/50 to-emerald-400/80"
+              } ${isCur ? "ring-1 ring-sky-400/60" : ""}`}
+              style={{ height: h }}
+            />
+            <span className={`text-micro tabular-nums ${isCur ? "text-ink-soft" : "text-ink-faint"}`}>
+              {Number(t.month.slice(5))}月
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 支出/收入各自独立的近 6 个月小柱图（与储蓄率并列；窄屏上下堆叠，sm 起两列） */
+export function InOutTrend({ trend }: { trend: Overview["trend"] }) {
+  return (
+    <div className="mt-4 grid gap-4 border-t border-line-soft pt-3 sm:grid-cols-2">
+      <div className="min-w-0">
+        <p className="mb-2">
+          <TagChip icon={<TrendingDown size={12} />} label="支出 · 近 6 个月" tone="rose" />
+        </p>
+        <MoneyBars trend={trend} direction="out" />
+      </div>
+      <div className="min-w-0">
+        <p className="mb-2">
+          <TagChip icon={<TrendingUp size={12} />} label="收入 · 近 6 个月" tone="emerald" />
+        </p>
+        <MoneyBars trend={trend} direction="in" />
       </div>
     </div>
   );
