@@ -130,16 +130,19 @@ function HeatGrid({ plans, today }: { plans: FitnessPlan[]; today: string }) {
 export default function FitnessTrends({
   metrics,
   plans,
+  sleep,
   today,
 }: {
   metrics: FitnessBodyMetric[];
   plans: FitnessPlan[];
+  sleep?: { log_date: string; hours: number }[];
   today: string;
 }) {
   const weightPts = metrics.filter((m) => m.weight_g != null).map((m) => ({ date: m.measured_on, value: m.weight_g! / 1000 }));
   const waistPts = metrics.filter((m) => m.waist_mm != null).map((m) => ({ date: m.measured_on, value: m.waist_mm! / 10 }));
   const heightPts = metrics.filter((m) => m.height_mm != null).map((m) => ({ date: m.measured_on, value: m.height_mm! / 10 }));
   const bodyFatPts = metrics.filter((m) => m.body_fat_pct_x10 != null).map((m) => ({ date: m.measured_on, value: m.body_fat_pct_x10! / 10 }));
+  const sleepPts = (sleep ?? []).map((s) => ({ date: s.log_date, value: s.hours }));
   const pacePts = plans
     .filter((p) => p.status === "done" && p.module_code === "run")
     .map((p) => {
@@ -172,6 +175,11 @@ export default function FitnessTrends({
         <ChartCard title="跑步配速趋势" sub="已完成跑步课的平均配速，越低越好">
           <LineChart points={pacePts} unit={'"'} invert />
         </ChartCard>
+        {sleepPts.length ? (
+          <ChartCard title="睡眠趋势" sub="每日独立记录（小时）；教练参考它执行「睡眠<6h 降级」协议">
+            <LineChart points={sleepPts} unit="h" />
+          </ChartCard>
+        ) : null}
         <ChartCard title="区间跑量" sub="列表范围内已完成跑步课合计">
           <p className="text-2xl font-semibold text-gradient">{km(totalKm)}</p>
           <p className="mt-1 text-xs text-ink-mute">{runDone.length} 次已完成跑步课</p>
