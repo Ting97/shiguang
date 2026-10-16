@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
 import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
@@ -29,7 +29,12 @@ export default function FinancePage() {
   const [month, setMonth] = useState<string | null>(null);
   useEffect(() => setMonth(nowMonth()), []);
   const [ov, setOv] = useState<Overview | null>(null);
-  const [txs, setTxs] = useState<Tx[]>([]);
+  // 流水分页（REQ-027）：草稿是待办不限量；已确认流水按月先取最近 PAGE_SIZE 条，「加载更多」扩窗重取
+  const PAGE_SIZE = 20;
+  const [drafts, setDrafts] = useState<Tx[]>([]);
+  const [confirmed, setConfirmed] = useState<Tx[]>([]);
+  const [confirmedTotal, setConfirmedTotal] = useState(0);
+  const [visible, setVisible] = useState(PAGE_SIZE);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -49,25 +54,31 @@ export default function FinancePage() {
     const seq = ++loadSeq.current;
     setLoadErr(null);
     try {
-      const [o, t] = await Promise.all([
+      const [o, d, c] = await Promise.all([
         api<Overview>(`/api/finance/overview?month=${month}`),
-        api<{ transactions?: Tx[] }>(`/api/transactions?month=${month}`),
+        api<{ transactions?: Tx[] }>(`/api/transactions?month=${month}&status=draft`),
+        api<{ transactions?: Tx[]; total?: number }>(`/api/transactions?month=${month}&status=confirmed&limit=${visible}`),
       ]);
       if (seq !== loadSeq.current) return; // 过期响应丢弃
       setOv(o);
-      setTxs(t.transactions ?? []);
+      setDrafts(d.transactions ?? []);
+      setConfirmed(c.transactions ?? []);
+      setConfirmedTotal(c.total ?? 0);
     } catch (e) {
       if (seq !== loadSeq.current) return;
       // 失败不停在骨架屏（历史 bug：无 catch 时 unhandled rejection + 永久加载中）
       setLoadErr(e instanceof Error ? e.message : String(e));
     }
-  }, [month]);
+  }, [month, visible]);
   useEffect(() => {
     load();
   }, [load]);
 
-  const drafts = useMemo(() => txs.filter((t) => t.is_draft), [txs]);
-  const confirmed = useMemo(() => txs.filter((t) => !t.is_draft), [txs]);
+  /** 切月重置分页窗口：新月份从头展示最近一页 */
+  function gotoMonth(delta: number) {
+    setVisible(PAGE_SIZE);
+    setMonth((m) => (m ? shiftMonth(m, delta) : m));
+  }
 
   async function confirmTx(t: Tx) {
     if (confirmBusy) return;
@@ -147,9 +158,9 @@ export default function FinancePage() {
         {/* 月份导航 + 记一笔（窄屏自动换行，避免按钮溢出） */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="上一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronLeft size={13} /></button>
+            <button onClick={() => gotoMonth(-1)} aria-label="上一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronLeft size={13} /></button>
             <span className="min-w-24 text-center text-sm font-semibold text-ink tabular-nums">{monthTitle(month)}</span>
-            <button onClick={() => setMonth(shiftMonth(month, 1))} aria-label="下一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronRight size={13} /></button>
+            <button onClick={() => gotoMonth(1)} aria-label="下一月" className="rounded-lg border border-line-soft bg-surface/60 px-2.5 py-1.5 text-ink-mute transition hover:border-sky-500/50 hover:text-accent"><ChevronRight size={13} /></button>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button onClick={() => setAdding(true)} className="btn-primary flex items-center gap-1 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium">
@@ -206,9 +217,11 @@ export default function FinancePage() {
           delArmed={armDel}
         />
 
-        {/* 流水列表 */}
+        {/* 流水列表（每月最近 20 条 + 加载更多） */}
         <ConfirmedTxSection
           txs={confirmed}
+          total={confirmedTotal}
+          onLoadMore={() => setVisible((v) => v + PAGE_SIZE)}
           editing={editing}
           setEditing={setEditing}
           onSubmitEdit={async (t, payload) => {

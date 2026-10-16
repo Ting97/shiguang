@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 const TZ = "Asia/Shanghai";
 
-/** GET /api/transactions?month=YYYY-MM&status=all|draft|confirmed —— 月度流水列表 */
+/** GET /api/transactions?month=YYYY-MM&status=all|draft|confirmed&limit=&offset= —— 月度流水列表。
+ * limit>0 时分页返回并附 total 计数（配合「加载更多」）；limit 缺省/0 = 全量，兼容旧调用方 */
 export const GET = withAuth(async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
@@ -21,19 +22,35 @@ export const GET = withAuth(async (req, { user }) => {
   }
   const draftCond =
     status === "draft" ? " and t.is_draft = true" : status === "confirmed" ? " and t.is_draft = false" : "";
+  // 分页参数：非法/负值归零，上限 500 防误传巨值拖库
+  const num = (v: string | null) => {
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const limit = Math.min(num(url.searchParams.get("limit")), 500);
+  const offset = num(url.searchParams.get("offset"));
+  const where = `where t.user_id = $1${draftCond}
+       and to_char(t.occurred_at at time zone $2, 'YYYY-MM') = $3`;
 
-  const { rows } = await pool.query(
-    `select t.id, t.direction, t.amount_cents, t.category, t.counterparty, t.note,
+  const [list, count] = await Promise.all([
+    pool.query(
+      `select t.id, t.direction, t.amount_cents, t.category, t.counterparty, t.note,
             t.occurred_at, t.is_draft, t.source, t.entry_id, t.account_id,
             a.name as account_name, a.icon as account_icon
      from transactions t
      left join accounts a on a.id = t.account_id
-     where t.user_id = $1${draftCond}
-       and to_char(t.occurred_at at time zone $2, 'YYYY-MM') = $3
-     order by t.occurred_at desc, t.created_at desc`,
-    [user.id, TZ, month],
-  );
-  return NextResponse.json({ transactions: rows });
+     ${where}
+     order by t.occurred_at desc, t.created_at desc${limit > 0 ? ` limit $4 offset $5` : ""}`,
+      limit > 0 ? [user.id, TZ, month, limit, offset] : [user.id, TZ, month],
+    ),
+    limit > 0
+      ? pool.query(`select count(*)::int as n from transactions t ${where}`, [user.id, TZ, month])
+      : null,
+  ]);
+  return NextResponse.json({
+    transactions: list.rows,
+    ...(limit > 0 ? { total: count!.rows[0].n } : {}),
+  });
 });
 
 /** POST /api/transactions —— 手动记账（直接为已确认流水） */

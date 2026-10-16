@@ -450,6 +450,34 @@ test("正常层：账户创建→记账→删账", async (t) => {
   assert.equal(delAcc.status, 200, "删账户应 200");
 });
 
+test("正常层：流水列表分页（limit/offset + total；无 limit 全量兼容旧调用）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  const month = "2026-02"; // 固定历史月：与其它当月用例隔离，用后即清
+  const cleanup = () =>
+    pool.query(
+      `delete from transactions where user_id = $1 and to_char(occurred_at at time zone 'Asia/Shanghai', 'YYYY-MM') = $2`,
+      [UA, month],
+    );
+  await cleanup();
+  await pool.query(
+    `insert into transactions (user_id, direction, amount_cents, category, occurred_at, source, is_draft)
+     select $1, 'out', 100 + g, '其他', '2026-02-01 08:00+08'::timestamptz + (g || ' days')::interval, 'manual', false
+     from generate_series(1, 25) g`,
+    [UA],
+  );
+  const p1 = await call("GET", `/api/transactions?month=${month}&status=confirmed&limit=20`, { user: UA });
+  assert.equal(p1.status, 200, `首屏应 200：${JSON.stringify(p1.json).slice(0, 120)}`);
+  assert.equal(p1.json.transactions.length, 20, "首屏 20 条");
+  assert.equal(p1.json.total, 25, "total 计整月总数");
+  const p2 = await call("GET", `/api/transactions?month=${month}&status=confirmed&limit=20&offset=20`, { user: UA });
+  assert.equal(p2.json.transactions.length, 5, "次页余 5 条");
+  const all = await call("GET", `/api/transactions?month=${month}`, { user: UA });
+  assert.equal(all.json.transactions.length, 25, "无 limit 全量返回");
+  assert.equal(all.json.total, undefined, "全量不带 total");
+  await cleanup();
+});
+
 test("正常层：登录接口真实报错（DB 链路通 + 模糊文案）", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
