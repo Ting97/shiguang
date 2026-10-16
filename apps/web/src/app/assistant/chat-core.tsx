@@ -79,7 +79,8 @@ function ProposalCard({
 }) {
   const c = item.payload.content ?? {};
   const isRun = item.payload.moduleCode === "run";
-  const [syncXunji, setSyncXunji] = useState(true);
+  // 训记写入默认关闭（REQ-024 后记）：确认卡的「保存」只确认拾光侧——写训记必须主动勾选
+  const [syncXunji, setSyncXunji] = useState(false);
   const km = (m?: number | null) => (m != null ? `${Math.round(m / 100) / 10}km` : "");
   const paceOf = (s?: number | null) => (s != null ? `${Math.floor(s / 60)}'${String(Math.round(s % 60)).padStart(2, "0")}"` : "");
   const kgOf = (g?: number | null) => (g ? `${Math.round(g / 100) / 10}kg` : "");
