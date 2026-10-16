@@ -57,6 +57,7 @@ async function cleanup() {
   await pool.query(`delete from fitness_session_logs where user_id = any($1::uuid[])`, [[UA, UB]]);
   await pool.query(`delete from fitness_goals where user_id = $1`, [UA]);
   await pool.query(`delete from fitness_body_metrics where user_id = $1`, [UA]);
+  await pool.query(`delete from fitness_sleep_logs where user_id = $1`, [UA]);
   await pool.query(`delete from chat_proposals where user_id = $1`, [UA]);
   await pool.query(`delete from chat_conversations where user_id = $1`, [UA]);
 }
@@ -263,7 +264,10 @@ test("计划状态机：确认 → 打卡落执行记录 + 行动自动完成；
   const { rows: logs } = await pool.query(`select * from fitness_session_logs where plan_id = $1`, [run.plan.id]);
   assert.equal(logs.length, 1);
   assert.equal(logs[0].actual.distanceM, 6200);
-  assert.equal(logs[0].sleep_h_x10, 70, "睡眠小时×10");
+  assert.equal(logs[0].sleep_h_x10, null, "REQ-024 起打卡不写 session_logs 睡眠列");
+  const { rows: sleepRows } = await pool.query(`select sleep_h_x10, source from fitness_sleep_logs where user_id = $1 and log_date = $2`, [UA, today]);
+  assert.equal(sleepRows[0]?.sleep_h_x10, 70, "打卡兼容入参落到独立睡眠表");
+  assert.equal(sleepRows[0]?.source, "checkin");
   ({ rows: runTodos } = await pool.query(`select * from todos where fitness_plan_id = $1`, [run.plan.id]));
   assert.equal(runTodos[0].status, "done", "打卡后联动行动应自动完成");
   assert.ok(runTodos[0].done_at, "done_at 应写入");
@@ -428,4 +432,50 @@ test("目标：每模块一条活跃（重复创建 409）+ 指标 upsert", asyn
   assert.equal(metrics.metrics.length, 1, "同日 upsert 只留一条");
   assert.equal(metrics.metrics[0].weight_g, 68200);
   assert.equal(metrics.metrics[0].waist_mm, 875);
+});
+
+test("REQ-024 睡眠独立记录：manual upsert/同日二写更新/区间过滤/教练工具读 sleep 序列", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await upsertUser(UA, "fitness冒烟A");
+  await pool.query(`delete from fitness_sleep_logs where user_id = $1`, [UA]);
+  const today = todayStr();
+  const yesterday = new Date(Date.now() + 8 * 3600_000 - 86_400_000).toISOString().slice(0, 10);
+
+  // manual 录入 + 同日二写 = 更新（覆盖打卡迁移值也走同一路径）
+  await fitnessService.saveSleep(UA, { date: today, hours: 6.5 });
+  await fitnessService.saveSleep(UA, { date: today, hours: 7.2 });
+  await fitnessService.saveSleep(UA, { date: yesterday, hours: 5.8 });
+  const list = (await fitnessService.listSleep(UA, yesterday, today)) as any;
+  assert.equal(list.sleep.length, 2, "两日两条");
+  assert.equal(list.sleep[1].hours, 7.2, "同日二写更新");
+  const { rows: raw } = await pool.query(`select sleep_h_x10, source from fitness_sleep_logs where user_id = $1 and log_date = $2`, [UA, today]);
+  assert.equal(raw[0].sleep_h_x10, 72, "小时×10 整数口径");
+  assert.equal(raw[0].source, "manual");
+
+  // 打卡兼容入参覆盖同日 manual（checkin 优先级=后写者胜）
+  const saved = (await fitnessService.savePlanDraft(UA, {
+    planDate: today, moduleCode: "strength", source: "manual",
+    content: { title: "课S", exercises: [{ name: "坐姿划船", sets: 2, repsText: "10" }] },
+  })) as any;
+  await fitnessService.updatePlan(UA, saved.plan.id, { status: "done", actual: { exercises: [{ name: "坐姿划船", sets: 2, repsText: "10" }] }, sleepHours: 8.1 });
+  const after = (await fitnessService.listSleep(UA, today, today)) as any;
+  assert.equal(after.sleep[0].hours, 8.1, "打卡带睡眠落在独立表");
+  const { rows: logRows } = await pool.query(`select sleep_h_x10 from fitness_session_logs where plan_id = $1`, [saved.plan.id]);
+  assert.equal(logRows[0].sleep_h_x10, null, "session_logs 不再写睡眠");
+
+  // 教练工具（query_fitness_logs）返回 sleep 序列
+  await pool.query(`delete from chat_conversations where user_id = $1`, [UA]);
+  const { CHAT_TOOLS } = await import("../src/server/chat/tools");
+  const tool = (CHAT_TOOLS as any[]).find((x) => x.name === "query_fitness_logs");
+  assert.ok(tool, "工具存在");
+  const out = await tool.execute({ userId: UA, conversationId: null }, { from: yesterday, to: today });
+  assert.ok(Array.isArray(out.sleep), "返回 sleep 数组");
+  assert.equal(out.sleep.length, 2, "区间内两日都返回");
+  assert.equal(out.sleep[0].hours, 8.1, "倒序：今日在前");
+  assert.ok(out.unitHint.includes("sleep"), "单位提示指向独立记录");
+
+  await pool.query(`delete from fitness_sleep_logs where user_id = $1`, [UA]);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1`, [UA]);
+  await pool.query(`delete from fitness_session_logs where user_id = $1`, [UA]);
 });

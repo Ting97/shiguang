@@ -475,10 +475,11 @@ async function updatePlan(userId: string, id: string, body: unknown) {
       planId: id,
       actual: v.actual ?? {},
       fatigue: v.fatigue ?? null,
-      sleepHX10: v.sleepHours != null ? Math.round(v.sleepHours * 10) : null,
       soreness: v.soreness ?? null,
       note: v.note ?? null,
     });
+    // 睡眠独立记录（REQ-024）：打卡兼容入参落到 sleep_logs（log_date=计划日），session_logs 不再存
+    if (v.sleepHours != null) await fitnessRepo.upsertSleep(userId, planRow.plan_date, Math.round(v.sleepHours * 10), "checkin");
     await fitnessRepo.completePlanTodos(id);
   } else {
     // 内容/状态变化 → 行动与最新计划同步
@@ -942,10 +943,10 @@ async function addLog(userId: string, body: unknown) {
     planId: v.planId ?? null,
     actual: v.actual ?? {},
     fatigue: v.fatigue ?? null,
-    sleepHX10: v.sleepHours != null ? Math.round(v.sleepHours * 10) : null,
     soreness: v.soreness ?? null,
     note: v.note ?? null,
   });
+  if (v.sleepHours != null) await fitnessRepo.upsertSleep(userId, v.logDate, Math.round(v.sleepHours * 10), "checkin");
   return { log: rows[0] };
 }
 
@@ -978,6 +979,27 @@ async function saveMetric(userId: string, body: unknown) {
     note: v.note ?? null,
   });
   return { metric: rows[0] };
+}
+
+// ---- 睡眠（REQ-024 每日独立记录；打卡兼容入参也落到这里）----
+
+async function listSleep(userId: string, from: string, to: string) {
+  const [f, t] = rangeGuard(from, to);
+  const { rows } = await fitnessRepo.listSleep(userId, f, t);
+  return { sleep: rows.map((r: { log_date: string; sleep_h_x10: number; source: string }) => ({ ...r, hours: r.sleep_h_x10 / 10 })) };
+}
+
+const SleepInput = z.object({
+  date: bjDate,
+  hours: z.number().min(0).max(16),
+});
+
+/** POST /api/fitness/sleep —— 按日 upsert（昨晚睡眠，小时；同日重录=更新） */
+async function saveSleep(userId: string, body: unknown, source: "manual" | "checkin" = "manual") {
+  const v = parseBody(SleepInput, body);
+  const { rows } = await fitnessRepo.upsertSleep(userId, v.date, Math.round(v.hours * 10), source);
+  const row = rows[0] as { log_date: string; sleep_h_x10: number; source: string };
+  return { sleep: { ...row, hours: row.sleep_h_x10 / 10 } };
 }
 
 async function listExercises(moduleCode: string | null) {
@@ -1131,6 +1153,8 @@ export const fitnessService = {
   addLog,
   listMetrics,
   saveMetric,
+  listSleep,
+  saveSleep,
   listExercises,
 };
 

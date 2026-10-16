@@ -150,13 +150,14 @@ export const fitnessRepo = {
   },
   insertLog(
     userId: string,
-    d: { logDate: string; moduleCode: string; planId: string | null; actual: unknown; fatigue: number | null; sleepHX10: number | null; soreness: string | null; note: string | null },
+    d: { logDate: string; moduleCode: string; planId: string | null; actual: unknown; fatigue: number | null; soreness: string | null; note: string | null },
   ) {
+    // 睡眠不在打卡里存（REQ-024 移至 fitness_sleep_logs）；列保留供历史行读取
     return pool.query(
-      `insert into fitness_session_logs (user_id, log_date, module_code, plan_id, actual, fatigue, sleep_h_x10, soreness, note)
-       values ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)
+      `insert into fitness_session_logs (user_id, log_date, module_code, plan_id, actual, fatigue, soreness, note)
+       values ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
        returning id, user_id, log_date::text as log_date, module_code, plan_id, actual, fatigue, sleep_h_x10, soreness, note`,
-      [userId, d.logDate, d.moduleCode, d.planId, JSON.stringify(d.actual ?? {}), d.fatigue, d.sleepHX10, d.soreness, d.note],
+      [userId, d.logDate, d.moduleCode, d.planId, JSON.stringify(d.actual ?? {}), d.fatigue, d.soreness, d.note],
     );
   },
   listMetrics(userId: string, from: string, to: string) {
@@ -179,6 +180,26 @@ export const fitnessRepo = {
          resting_hr = excluded.resting_hr, note = excluded.note, updated_at = now()
        returning id, user_id, measured_on::text as measured_on, weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note`,
       [userId, d.measuredOn, d.weightG, d.waistMm, d.bodyFatPctX10, d.heightMm, d.restingHr, d.note],
+    );
+  },
+
+  // ---- 睡眠（REQ-024 每日独立记录；教练调整协议的数据源）----
+
+  listSleep(userId: string, from: string, to: string) {
+    return pool.query(
+      `select log_date::text as log_date, sleep_h_x10, source from fitness_sleep_logs
+       where user_id = $1 and log_date between $2 and $3 order by log_date`,
+      [userId, from, to],
+    );
+  },
+  upsertSleep(userId: string, logDate: string, sleepHX10: number, source: "manual" | "checkin") {
+    return pool.query(
+      `insert into fitness_sleep_logs (user_id, log_date, sleep_h_x10, source)
+       values ($1,$2,$3,$4)
+       on conflict (user_id, log_date) do update set
+         sleep_h_x10 = excluded.sleep_h_x10, source = excluded.source, updated_at = now()
+       returning log_date::text as log_date, sleep_h_x10, source`,
+      [userId, logDate, sleepHX10, source],
     );
   },
 

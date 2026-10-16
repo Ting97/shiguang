@@ -724,7 +724,7 @@ const queryFitnessPlans: ChatTool = {
 const queryFitnessLogs: ChatTool = {
   name: "query_fitness_logs",
   description:
-    "查询健身执行记录（打卡的实际完成）：逐日实际距离/时长/配速/心率、力量实际组次、疲劳/睡眠/酸痛。适用：点评昨天训练、最近执行得怎么样、身体状态信号。单位同计划工具。",
+    "查询健身执行记录（打卡的实际完成）：逐日实际距离/时长/配速/心率、力量实际组次、疲劳/酸痛，并附每日睡眠序列（sleep，独立记录——调整协议「睡眠<6h 降级」看这里）。适用：点评昨天训练、最近执行得怎么样、身体状态信号、排课前看恢复情况。单位同计划工具。",
   params: z.object({
     from: bjDate.optional().describe("开始日期（含），默认近 14 天"),
     to: bjDate.optional().describe("结束日期（含），默认今天"),
@@ -735,14 +735,31 @@ const queryFitnessLogs: ChatTool = {
     const fromBj = from ?? bjAddDays(todayBj, -13);
     const toBj = to ?? todayBj;
     const [start, end] = rangeOf(fromBj, toBj);
-    const { rows } = await pool.query(
-      `select l.log_date, l.module_code, m.name as module, l.actual, l.fatigue, l.sleep_h_x10, l.soreness, l.note
-       from fitness_session_logs l join fitness_modules m on l.module_code = m.code
-       where l.user_id = $1 and l.log_date >= $2::date and l.log_date < $3::date
-       order by l.log_date desc`,
-      [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
-    );
-    return { range: { from: fromBj, to: toBj }, items: rows, unitHint: "距离米、配速秒每公里、睡眠为小时×10" };
+    const [{ rows }, sleep] = await Promise.all([
+      pool.query(
+        `select l.log_date, l.module_code, m.name as module, l.actual, l.fatigue, l.sleep_h_x10, l.soreness, l.note
+         from fitness_session_logs l join fitness_modules m on l.module_code = m.code
+         where l.user_id = $1 and l.log_date >= $2::date and l.log_date < $3::date
+         order by l.log_date desc`,
+        [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+      ),
+      pool
+        .query(
+          `select log_date, sleep_h_x10 from fitness_sleep_logs
+           where user_id = $1 and log_date >= $2::date and log_date < $3::date order by log_date desc`,
+          [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+        )
+        .then((r: { rows: { log_date: string; sleep_h_x10: number }[] }) =>
+          (r.rows ?? []).map((row) => ({ log_date: row.log_date, hours: row.sleep_h_x10 / 10 })),
+        )
+        .catch(() => [] as { log_date: string; hours: number }[]),
+    ]);
+    return {
+      range: { from: fromBj, to: toBj },
+      items: rows,
+      sleep,
+      unitHint: "距离米、配速秒每公里；睡眠为独立每日记录（sleep[].hours，单位小时）——items 里的 sleep_h_x10 是迁移前历史值",
+    };
   },
 };
 

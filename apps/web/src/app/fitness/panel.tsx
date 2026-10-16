@@ -19,7 +19,6 @@ import {
   cm,
   exerciseMeta,
   groupByWeek,
-  hours,
   kg,
   km,
   mdLabel,
@@ -53,6 +52,7 @@ interface PageData {
   logs: FitnessSessionLog[];
   metrics: FitnessBodyMetric[];
   exercises: FitnessExercise[];
+  sleep: { log_date: string; hours: number; source: string }[];
 }
 
 export default function FitnessPanel() {
@@ -76,7 +76,7 @@ export default function FitnessPanel() {
       const from = bjAddDays(today, -13);
       const to = bjAddDays(today, 1);
       const mFrom = bjAddDays(today, -180);
-      const [mods, goals, prof, plans, logs, metrics, exs] = await Promise.all([
+      const [mods, goals, prof, plans, logs, metrics, exs, sleep] = await Promise.all([
         api<{ modules: FitnessModule[] }>("/api/fitness/modules"),
         api<{ goals: FitnessGoal[] }>("/api/fitness/goals"),
         api<{ profile: FitnessProfile | null }>("/api/fitness/profile"),
@@ -84,6 +84,7 @@ export default function FitnessPanel() {
         api<{ logs: FitnessSessionLog[] }>(`/api/fitness/logs?from=${from}&to=${to}`),
         api<{ metrics: FitnessBodyMetric[] }>(`/api/fitness/metrics?from=${mFrom}&to=${today}`),
         api<{ exercises: FitnessExercise[] }>("/api/fitness/exercises"),
+        api<{ sleep: { log_date: string; hours: number; source: string }[] }>(`/api/fitness/sleep?from=${mFrom}&to=${today}`),
       ]);
       setData({
         modules: mods.modules ?? [],
@@ -93,6 +94,7 @@ export default function FitnessPanel() {
         logs: logs.logs ?? [],
         metrics: metrics.metrics ?? [],
         exercises: exs.exercises ?? [],
+        sleep: sleep.sleep ?? [],
       });
     } catch (e) {
       setLoadErr(e instanceof Error ? e.message : String(e));
@@ -119,7 +121,7 @@ export default function FitnessPanel() {
           <>
             {tab === "today" && <TodayTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
             {tab === "plans" && <PlansTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
-            {tab === "trends" && <FitnessTrends metrics={data.metrics} plans={data.plans} today={today} />}
+            {tab === "trends" && <FitnessTrends metrics={data.metrics} plans={data.plans} sleep={data.sleep} today={today} />}
             {tab === "archive" && (
               <FitnessArchive
                 modules={data.modules}
@@ -145,6 +147,7 @@ function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: 
   const todays = data.plans.filter((p) => p.plan_date === today);
   const tomorrows = data.plans.filter((p) => p.plan_date === tomorrow);
   const lastMetric = data.metrics[data.metrics.length - 1] ?? null;
+  const sleep = data.sleep;
 
   return (
     <div className="space-y-5">
@@ -177,7 +180,77 @@ function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: 
       )}
 
       <MetricCard today={today} last={lastMetric} reload={reload} />
+      <SleepCard today={today} sleep={sleep} reload={reload} />
     </div>
+  );
+}
+
+/** 睡眠独立记录（REQ-024）：每日一条，教练调整协议「睡眠<6h 降级」的数据源 */
+function SleepCard({ today, sleep, reload }: { today: string; sleep: { log_date: string; hours: number; source: string }[]; reload: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [hours, setHours] = useState("");
+  const [date, setDate] = useState(today);
+  const [busy, setBusy] = useState(false);
+
+  const last = sleep[sleep.length - 1] ?? null;
+  const last7 = sleep.slice(-7);
+  const avg7 = last7.length ? Math.round((last7.reduce((s, r) => s + r.hours, 0) / last7.length) * 10) / 10 : null;
+
+  async function save() {
+    if (busy || !hours) return;
+    setBusy(true);
+    try {
+      await api("/api/fitness/sleep", "POST", { date, hours: Number(hours) });
+      toast("✅ 已记录睡眠");
+      setOpen(false);
+      setHours("");
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-line-soft bg-surface p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium">😴 睡眠</h2>
+        <button className="text-xs text-accent hover:underline" onClick={() => { setDate(today); setOpen(true); }}>
+          {last?.log_date === today ? "改今天" : "+ 记录"}
+        </button>
+      </div>
+      {last ? (
+        <p className="mt-2 text-xs text-ink-mute">
+          最近（{mdLabel(last.log_date)}）：{last.hours} 小时
+          {avg7 != null ? ` · 近 7 天均值 ${avg7} 小时（低于 6 小时教练会建议降级训练）` : ""}
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-ink-mute">每天记一晚睡眠——教练排课时会参考（睡眠不足会建议降级）。</p>
+      )}
+      {open && (
+        <Modal title={`睡眠 · ${mdLabel(date)}`} onClose={() => setOpen(false)}>
+          <div className="space-y-3">
+            <label className="block text-xs text-ink-mute">
+              日期
+              <input className="input-glow w-full text-sm" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} />
+            </label>
+            <label className="block text-xs text-ink-mute">
+              昨晚睡眠（小时）
+              <input className="input-glow w-full text-sm" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="6.5" autoFocus />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setOpen(false)}>
+                取消
+              </button>
+              <button className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50" disabled={busy || !hours} onClick={save}>
+                {busy ? "保存中…" : "保存"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </section>
   );
 }
 
@@ -503,7 +576,6 @@ function PlanCard({
           {log.actual?.avgHr ? ` · 心率 ${log.actual.avgHr}` : ""}
           {log.actual?.exercises?.length ? ` · ${log.actual.exercises.length} 个动作` : ""}
           {log.fatigue ? ` · 疲劳 ${log.fatigue}/10` : ""}
-          {log.sleep_h_x10 ? ` · 睡眠 ${hours(log.sleep_h_x10)}` : ""}
           {log.soreness ? ` · 酸痛:${log.soreness}` : ""}
         </div>
       ) : null}
@@ -624,7 +696,6 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
     Object.fromEntries((strengthContent.exercises ?? []).map((e, i) => [i, [e.sets, e.repsText].filter(Boolean).join("×")])),
   );
   const [fatigue, setFatigue] = useState("");
-  const [sleepHours, setSleepHours] = useState("");
   const [soreness, setSoreness] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -650,7 +721,6 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
         status: partial ? "partial" : "done",
         actual,
         fatigue: fatigue ? Number(fatigue) : null,
-        sleepHours: sleepHours ? Number(sleepHours) : null,
         soreness: soreness || null,
         note: note || null,
       });
@@ -701,14 +771,10 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
             ))}
           </div>
         )}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <label className="text-xs text-ink-mute">
             疲劳(1-10)
             <input className={inputCls} inputMode="numeric" value={fatigue} onChange={(e) => setFatigue(e.target.value)} placeholder="6" />
-          </label>
-          <label className="text-xs text-ink-mute">
-            睡眠(小时)
-            <input className={inputCls} inputMode="decimal" value={sleepHours} onChange={(e) => setSleepHours(e.target.value)} placeholder="6.5" />
           </label>
           <label className="text-xs text-ink-mute">
             酸痛部位
