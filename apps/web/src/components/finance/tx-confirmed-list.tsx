@@ -11,6 +11,8 @@ import { TxForm } from "./forms";
 
 export function ConfirmedTxSection({
   txs,
+  total,
+  onLoadMore,
   editing,
   setEditing,
   onSubmitEdit,
@@ -18,6 +20,9 @@ export function ConfirmedTxSection({
   delArmed,
 }: {
   txs: Tx[];
+  /** 当月已确认流水总数（分页：txs 为最近一窗，total > txs.length 时展示「加载更多」） */
+  total: number;
+  onLoadMore: () => void;
   editing: Tx | null;
   setEditing: Dispatch<SetStateAction<Tx | null>>;
   onSubmitEdit: (t: Tx, payload: Record<string, unknown>) => Promise<void>;
@@ -25,11 +30,14 @@ export function ConfirmedTxSection({
   /** 处于删除待确认态的流水 id */
   delArmed?: string | null;
 }) {
+  const hasMore = txs.length < total;
   return (
     <section className="glass rounded-2xl p-5">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
         <TagChip icon={<Receipt size={12} />} label="流水" tone="slate" />
-        <span className="text-xs font-normal text-ink-dim">{txs.length} 笔</span>
+        <span className="text-xs font-normal text-ink-dim">
+          {hasMore ? `${txs.length} / ${total} 笔` : `${txs.length} 笔`}
+        </span>
       </h2>
       {txs.length === 0 && (
         <p className="py-4 text-center text-xs text-ink-faint">
@@ -55,6 +63,14 @@ export function ConfirmedTxSection({
           ),
         )}
       </ul>
+      {hasMore && (
+        <button
+          onClick={onLoadMore}
+          className="mt-3 w-full rounded-xl border border-line-soft py-2 text-xs text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
+        >
+          加载更多 · 还有 {total - txs.length} 笔
+        </button>
+      )}
     </section>
   );
 }
