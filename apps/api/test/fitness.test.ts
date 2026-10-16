@@ -9,6 +9,10 @@ import assert from "node:assert/strict";
 const UA = "22250000-2225-4222-8222-222500001161"; // fitness 冒烟用户
 const UB = "22250000-2225-4222-8222-222500001162"; // 越权隔离用户
 
+// REQ-022 起力量计划落库会走训记名对齐：本文件断言动作名/行动标题原文，
+// 禁止真实目录泄入（shell 若 source 过 .env 会带出 XUNJI_API_KEY 触发真实外呼+改名）
+delete process.env.XUNJI_API_KEY;
+
 let pool: any;
 let fitnessService: any;
 let chatService: any;

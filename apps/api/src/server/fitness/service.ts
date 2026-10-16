@@ -17,6 +17,7 @@ import {
   activeVisionModel,
   FitnessPlanDraftV2,
   buildRepairUserPrompt,
+  XunjiNameMatchResult,
   type ChatImage,
   type FitnessPlanDraft,
 } from "@shiguangri/ai";
@@ -24,15 +25,19 @@ import { assembleUserPrompt, getPromptBundle, writeAuditRecord } from "@/server/
 import { loadConfig } from "../platform/config";
 import { fitnessRepo } from "./repo";
 import {
-  fetchCatalogNames,
+  catalogToNameSet,
+  fetchCatalogMovements,
   makeLocalResolver,
   makeOfficialResolver,
   planToTrain,
   readTrains,
+  renameExercisesToOfficial,
+  ruleMatchOfficialNames,
   trainsToRunActual,
   trainsToStrengthActual,
   upsertTrains,
   type FetchLike as XunjiFetchLike,
+  type XunjiCatalogMovement,
 } from "./xunji";
 
 // ---- 日期与区间守卫 ----
@@ -201,6 +206,34 @@ function findLoose(loose: Map<string, string>, name: string): string | null {
   return null;
 }
 
+/** 训记名规范化注入（测试用；生产路径不传） */
+export interface XunjiNormalizeOptions {
+  fetcher?: XunjiFetchLike;
+  /** AI 批量匹配注入（跳过真实 GLM 调用）；返回 source→official 候选（confidence 校验在编排内） */
+  aiMatch?: (pending: string[], candidates: XunjiCatalogMovement[]) => Promise<{ source: string; official?: string | null; confidence: number }[]>;
+}
+
+/** 力量动作名匹配动作库 + 训记官方名对齐（REQ-022）：先挂拾光 exerciseId（原名口径，肌群/收益展示不受改名影响），
+ * 再把 name 替换为训记官方名、原名并入 note「佳易名：xxx」。目录不可得/AI 无把握时保留原名，绝不阻塞导入 */
+async function attachExerciseIds(
+  userId: string,
+  moduleCode: string,
+  content: RunPlanContent | StrengthPlanContent,
+  opts?: XunjiNormalizeOptions,
+) {
+  if (moduleCode !== "strength") return content;
+  const withIds = await resolveExerciseIds(content as StrengthPlanContent);
+  const names = [...new Set(withIds.exercises.map((e) => e.name).filter(Boolean))];
+  if (!names.length) return withIds;
+  let mapping = new Map<string, string>();
+  try {
+    mapping = await matchXunjiOfficialNames(userId, names, opts);
+  } catch {
+    // 匹配编排自身全降级不抛，此处双保险：对齐失败只影响训记同步体验，不影响计划落库
+  }
+  return renameExercisesToOfficial(withIds, mapping);
+}
+
 // ---------------------------------------------------------------------------
 // 模块 / 基本情况 / 目标
 // ---------------------------------------------------------------------------
@@ -339,17 +372,11 @@ function validateContent(moduleCode: "run" | "strength", content: unknown) {
   return parsed.data;
 }
 
-/** 力量动作名匹配动作库（解析/提案落库前统一挂 exerciseId，前端收益展示用） */
-async function attachExerciseIds(moduleCode: string, content: RunPlanContent | StrengthPlanContent) {
-  if (moduleCode === "strength") return resolveExerciseIds(content as StrengthPlanContent);
-  return content;
-}
-
 /** POST /api/fitness/plans —— 新增草稿并联动今日行动（REQ-021：一天同模块可多条并存，旧 create-or-replace 废止） */
-async function savePlanDraft(userId: string, body: unknown) {
+async function savePlanDraft(userId: string, body: unknown, opts?: XunjiNormalizeOptions) {
   const v = parseBody(PlanSaveInput, body);
   const content = validateContent(v.moduleCode, v.content);
-  const enriched = await attachExerciseIds(v.moduleCode, content);
+  const enriched = await attachExerciseIds(userId, v.moduleCode, content, opts);
   const planRow = (
     await fitnessRepo.insertPlan(userId, {
       planDate: v.planDate,
@@ -426,7 +453,7 @@ async function updatePlan(userId: string, id: string, body: unknown) {
   let planRow = plan;
   if (v.content !== undefined) {
     const content = validateContent(plan.module_code, v.content);
-    push("content", await attachExerciseIds(plan.module_code, content), true);
+    push("content", await attachExerciseIds(userId, plan.module_code, content), true);
   }
   if (v.rationale !== undefined) push("rationale", v.rationale);
   if (v.status !== undefined) push("status", v.status);
@@ -542,6 +569,186 @@ function actionTitleOfExercise(e: { name: string; sets?: number | null; repsText
 // 训记（SynFit）Open API 编排（REQ-017；HTTP/映射细节见 xunji.ts）
 // ---------------------------------------------------------------------------
 
+// ---- 官方动作目录分层加载（REQ-022）：内存 1h → DB 快照 7 天 → 外呼刷新写回 ----
+
+const XUNJI_CATALOG_MEM_TTL_MS = 3_600_000;
+const XUNJI_CATALOG_DB_TTL_MS = 7 * 24 * 3_600_000;
+
+interface XunjiCatalogSnapshot {
+  at: number;
+  movements: XunjiCatalogMovement[];
+  /** 官方名 + 别名展开后的名字集合（makeOfficialResolver / 匹配校验共用口径） */
+  names: Set<string>;
+}
+let xunjiCatalogMem: XunjiCatalogSnapshot | null = null;
+
+/** 快照表行（jsonb）→ 规范化目录条目（写库时已规范化，此处容错解析防脏数据） */
+function parseStoredMovements(raw: unknown): XunjiCatalogMovement[] {
+  if (!Array.isArray(raw)) return [];
+  const out: XunjiCatalogMovement[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as { name?: unknown; type?: unknown; exetype?: unknown; aliases?: unknown };
+    if (typeof r.name !== "string" || !r.name.trim()) continue;
+    out.push({
+      name: r.name.trim(),
+      type: typeof r.type === "string" && r.type.trim() ? r.type.trim() : null,
+      exetype: typeof r.exetype === "string" && r.exetype.trim() ? r.exetype.trim() : null,
+      aliases: Array.isArray(r.aliases) ? r.aliases.filter((n): n is string => typeof n === "string") : [],
+    });
+  }
+  return out;
+}
+
+/** 分层加载官方动作目录：内存 1h → DB 快照（7 天内直接用）→ 外呼刷新并写回。
+ * 全程降级不抛错：DB 读失败当无快照、外呼失败回退 DB 旧数据、再失败返回空集（调用方按「目录不可得」处理） */
+export async function loadXunjiCatalog(fetcher?: XunjiFetchLike): Promise<XunjiCatalogSnapshot> {
+  if (xunjiCatalogMem && Date.now() - xunjiCatalogMem.at < XUNJI_CATALOG_MEM_TTL_MS) return xunjiCatalogMem;
+  const snap = (movements: XunjiCatalogMovement[]): XunjiCatalogSnapshot => {
+    xunjiCatalogMem = { at: Date.now(), movements, names: catalogToNameSet(movements) };
+    return xunjiCatalogMem;
+  };
+  let stored: { movements: XunjiCatalogMovement[]; fetchedAtMs: number } | null = null;
+  try {
+    const row = (await fitnessRepo.getXunjiCatalog()).rows[0] ?? null;
+    const movements = parseStoredMovements(row?.movements);
+    if (movements.length) stored = { movements, fetchedAtMs: row?.fetched_at ? new Date(row.fetched_at).getTime() : 0 };
+  } catch {
+    // 快照表不可用（迁移未跑/DB 抖动）——按无快照处理，走外呼
+  }
+  if (stored && Date.now() - stored.fetchedAtMs < XUNJI_CATALOG_DB_TTL_MS) return snap(stored.movements);
+  try {
+    const fresh = await fetchCatalogMovements(fetcher);
+    if (fresh.length) {
+      // 写回失败不影响本次使用（下次再试）；不 await 阻塞主流程
+      fitnessRepo.upsertXunjiCatalog(fresh).catch(() => {});
+      return snap(fresh);
+    }
+  } catch {
+    // 外呼失败（未配 key/网络/限频）——回退 DB 旧快照
+  }
+  return snap(stored?.movements ?? []);
+}
+
+/** 测试辅助：清空目录内存快照（DB/外呼层下次读取重新判定；同 xunjiCacheInvalidate 的定位） */
+export function resetXunjiCatalogCache(): void {
+  xunjiCatalogMem = null;
+}
+
+// ---- 动作名 AI 匹配编排（REQ-022）：规则快速通道 → 残余批量走一次 GLM 文本匹配 ----
+
+/** 目录全量入 prompt 的动作数上限（实测目录 1222 名——超过按字符重叠预筛候选） */
+const XUNJI_MATCH_FULL_CATALOG_MAX = 800;
+const XUNJI_MATCH_CANDIDATES_PER_NAME = 40;
+const XUNJI_MATCH_MIN_CONFIDENCE = 0.6;
+
+/** 字符重叠候选预筛：包含关系强加分 + 二元组重叠，取 top-N（目录过大时控制 prompt 体积） */
+function prefilterCandidates(source: string, movements: XunjiCatalogMovement[], limit = XUNJI_MATCH_CANDIDATES_PER_NAME): XunjiCatalogMovement[] {
+  const bigrams = (s: string) => {
+    const g = new Set<string>();
+    const cs = [...s];
+    for (let i = 0; i + 1 < cs.length; i++) g.add(cs[i] + cs[i + 1]);
+    return g;
+  };
+  const src = bigrams(source);
+  return movements
+    .map((m) => {
+      let score = 0;
+      if (m.name.includes(source) || source.includes(m.name)) score += 100;
+      const mg = bigrams(m.name);
+      for (const g of src) if (mg.has(g)) score += 2;
+      return { m, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.m);
+}
+
+/** 待匹配动作名 → 训记官方名映射（未匹配的名字不进映射，保留原名）。
+ * 全程降级：目录不可得返回空映射；AI 失败/编造/低置信一律视为未匹配 */
+export async function matchXunjiOfficialNames(userId: string, names: string[], opts: XunjiNormalizeOptions = {}): Promise<Map<string, string>> {
+  const mapping = new Map<string, string>();
+  if (!names.length) return mapping;
+  const snapshot = await loadXunjiCatalog(opts.fetcher);
+  if (!snapshot.names.size) return mapping;
+  const { matched, pending } = ruleMatchOfficialNames(names, snapshot.names);
+  for (const [k, v] of matched) mapping.set(k, v);
+  if (!pending.length) return mapping;
+
+  // 候选目录：不大全量传；超上限按字符重叠为每个待匹配名预筛后合并去重
+  let candidates = snapshot.movements;
+  if (snapshot.movements.length > XUNJI_MATCH_FULL_CATALOG_MAX) {
+    const seen = new Set<string>();
+    candidates = [];
+    for (const n of pending) {
+      for (const c of prefilterCandidates(n, snapshot.movements)) {
+        if (!seen.has(c.name)) {
+          seen.add(c.name);
+          candidates.push(c);
+        }
+      }
+    }
+  }
+
+  const startedAt = Date.now();
+  let usage = { prompt_tokens: 0, completion_tokens: 0 };
+  try {
+    let matches: { source: string; official?: string | null; confidence: number }[];
+    if (opts.aiMatch) {
+      matches = await opts.aiMatch(pending, candidates);
+    } else {
+      const bundle = await getPromptBundle("xunji_name_match");
+      const user = await assembleUserPrompt("xunji_name_match", bundle, {
+        names: JSON.stringify(pending),
+        catalog: candidates.map((m) => (m.type ? `${m.name}（${m.type}）` : m.name)).join("\n"),
+      });
+      const raw = await chat({
+        system: bundle.system,
+        user,
+        maxTokens: 1000,
+        timeoutMs: 30_000,
+        onUsage: (u) => {
+          usage = u;
+        },
+      });
+      const parsed = XunjiNameMatchResult.safeParse(extractJson(raw));
+      if (!parsed.success) throw new Error(`匹配契约校验未通过：${parsed.error.issues.slice(0, 2).map((i) => i.message).join("；")}`);
+      matches = parsed.data.matches;
+    }
+    for (const m of matches) {
+      if (!pending.includes(m.source)) continue; // 与输入对不上（幻觉条目）丢弃
+      const official = m.official?.trim();
+      if (!official || !snapshot.names.has(official)) continue; // 防编造：必须逐字命中目录（官方名或别名）
+      if ((m.confidence ?? 0) < XUNJI_MATCH_MIN_CONFIDENCE) continue; // 低置信保留原名
+      mapping.set(m.source, official);
+    }
+    await writeAuditRecord({
+      userId,
+      stage: "xunji_name_match",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: pending.join(",").length,
+      ok: true,
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+    });
+  } catch (e) {
+    await writeAuditRecord({
+      userId,
+      stage: "xunji_name_match",
+      model: activeModel(),
+      latencyMs: Date.now() - startedAt,
+      textLen: pending.join(",").length,
+      ok: false,
+      error: String((e as Error)?.message ?? e).slice(0, 200),
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+    });
+  }
+  return mapping;
+}
+
 /** 计划 → 训记（用户已经过确认卡/按钮确认）。已同步过的计划带 localid 走更新，防重复建训练 */
 async function syncPlanToXunji(userId: string, planId: string, fetcher?: XunjiFetchLike) {
   const { rows } = await fitnessRepo.planOwned(planId, userId);
@@ -552,9 +759,9 @@ async function syncPlanToXunji(userId: string, planId: string, fetcher?: XunjiFe
 
   let catalog = new Set<string>();
   try {
-    catalog = await fetchCatalogNames(fetcher);
+    catalog = (await loadXunjiCatalog(fetcher)).names;
   } catch {
-    catalog = new Set(); // 目录拉不到时仅信任实测确认的别名映射（makeOfficialResolver 的兜底分支）
+    catalog = new Set(); // 目录完全不可得时仅信任实测确认的别名映射（makeOfficialResolver 的兜底分支）
   }
   const officialName = makeOfficialResolver(catalog);
   const train = planToTrain(
@@ -714,7 +921,7 @@ export function restDayMessage(note?: string | null) {
 
 /** POST /api/fitness/plans/parse —— GLM 解析 + 一次修复重问；输出整数口径草稿（含动作库挂接）。
  * text 与 image 至少一项：image（佳明训练详情截图）走视觉模型 GLM_VISION_MODEL，text 作补充说明可空 */
-async function parsePlanDraft(userId: string, text: string, image?: ChatImage) {
+async function parsePlanDraft(userId: string, text: string, image?: ChatImage, opts?: XunjiNormalizeOptions) {
   const t = text.trim();
   if (t.length > PARSE_TEXT_MAX) throw ApiError.badRequest(`课表文本长度须为 0~${PARSE_TEXT_MAX} 字`);
   if (!t && !image) throw ApiError.badRequest("课表文本或截图至少提供一项");
@@ -769,7 +976,7 @@ async function parsePlanDraft(userId: string, text: string, image?: ChatImage) {
       throw ApiError.badRequest(restDayMessage(parsed.data.rest?.note ?? null));
     }
     const canonical = draftToCanonicalPlan(parsed.data);
-    const content = await attachExerciseIds(canonical.moduleCode, canonical.content);
+    const content = await attachExerciseIds(userId, canonical.moduleCode, canonical.content, opts);
     await writeAuditRecord({
       userId,
       stage: "fitness_parse",

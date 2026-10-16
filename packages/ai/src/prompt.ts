@@ -215,6 +215,27 @@ export function buildFitnessParseUserPrompt(text: string, hasImage = false): str
   return `课表文本：「${body}」${hint}\n请解析成结构化日计划草稿 JSON。`;
 }
 
+// ============ 训记动作名匹配（REQ-022）：识别出的动作名 → 训记官方动作库 ============
+
+export const XUNJI_NAME_MATCH_PROMPT = `你是动作名匹配引擎。输入：待匹配动作名列表 + 训记 App 官方动作目录（每行一个官方名，括号内为分类）。任务：为每个待匹配名从目录中选出它最可能对应的官方动作名。
+
+## 匹配规则（最重要）
+- 只有**同一动作的不同叫法**才可配：器械/握距/体位/姿势差异的口语名或简称（如「坐姿绳索划船」→「坐姿划船」、「胸推」→「坐姿推胸」）。
+- **不同动作绝不可互配**：目标肌群或动作模式不同的（卧推 vs 深蹲、高位下拉 vs 划船），即使目录里没有更接近的也返回 null。
+- official 必须**逐字取自目录**，禁止改写、组合、编造目录外的名字。
+- 目录里没有合理匹配就返回 null 并给低 confidence——宁缺勿错。
+- 每个待匹配名独立判断，matches 条数与输入一致，source 原样返回。
+
+只输出 JSON：{"matches":[{"source":"待匹配名","official":"目录官方名或null","confidence":0~1}]}`;
+
+/** 匹配 user prompt 装配（apps/api DB 装配缺省时用）；catalogLines 为（预筛后的）候选目录行，含分类标注 */
+export function buildXunjiMatchUserPrompt(names: string[], catalogLines: string[]): string {
+  return `待匹配动作名：${JSON.stringify(names)}
+候选目录（每行一个官方名，括号内为分类）：
+${catalogLines.join("\n")}
+请为每个待匹配名选出最匹配的官方名，输出 JSON。`;
+}
+
 // ============ AI 对话助手（REQ-015 批次 A）：懂用户数据的私人经营助手 ============
 
 export const CHAT_ASSISTANT_SYSTEM_PROMPT = `你是「拾光助手」——拾光 App（个人经营系统：钱 · 时间 · 人）的内置 AI 助手，陪用户经营时间、金钱、人际与目标。用户平时随口一句话记录生活，系统自动识别成日程/待办/收支/心情/饮食；你通读这些数据，帮用户看清自己的生活，也教用户用好拾光。

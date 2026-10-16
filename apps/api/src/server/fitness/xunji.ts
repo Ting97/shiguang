@@ -300,29 +300,81 @@ export async function upsertTrains(
 }
 
 // ---------------------------------------------------------------------------
-// 动作目录（官方名校验表；进程内缓存 1h）
+// 动作目录（官方名校验表；分层加载在 service.loadXunjiCatalog——本层只做外呼与规范化）
 // ---------------------------------------------------------------------------
 
-let catalogCache: { at: number; names: Set<string> } | null = null;
+/** 目录条目（api_movement_catalog_for_llm_v2 规范化后；type 为肌群/分类标注） */
+export interface XunjiCatalogMovement {
+  name: string;
+  type: string | null;
+  exetype: string | null;
+  aliases: string[];
+}
 
-export async function fetchCatalogNames(fetcher: FetchLike = defaultFetch): Promise<Set<string>> {
-  if (catalogCache && Date.now() - catalogCache.at < 3_600_000) return catalogCache.names;
+/** 外呼拉取官方动作目录（无缓存——内存/DB 分层缓存由 service.loadXunjiCatalog 负责） */
+export async function fetchCatalogMovements(fetcher: FetchLike = defaultFetch): Promise<XunjiCatalogMovement[]> {
   // 实测形状：{res:{schema:"movement_catalog_v1", movements:[{name, type, exetype, aliases:[...]}]}}
   const payload = await xunjiPost<{ res: { movements?: unknown[] } | unknown[] }>("/api_movement_catalog_for_llm_v2", {}, fetcher);
-  const names = new Set<string>();
   const res = payload.res;
   const list: unknown[] = Array.isArray(res) ? res : ((res as { movements?: unknown[] })?.movements ?? []);
+  const out: XunjiCatalogMovement[] = [];
   for (const row of list) {
     if (typeof row === "string") {
-      names.add(row);
+      out.push({ name: row, type: null, exetype: null, aliases: [] });
     } else if (row && typeof row === "object") {
-      const r = row as { name?: unknown; aliases?: unknown };
-      if (typeof r.name === "string") names.add(r.name);
-      if (Array.isArray(r.aliases)) for (const n of r.aliases) if (typeof n === "string") names.add(n);
+      const r = row as { name?: unknown; type?: unknown; exetype?: unknown; aliases?: unknown };
+      if (typeof r.name !== "string" || !r.name.trim()) continue;
+      out.push({
+        name: r.name.trim(),
+        type: typeof r.type === "string" && r.type.trim() ? r.type.trim() : null,
+        exetype: typeof r.exetype === "string" && r.exetype.trim() ? r.exetype.trim() : null,
+        aliases: Array.isArray(r.aliases) ? r.aliases.filter((n): n is string => typeof n === "string" && !!n.trim()).map((n) => n.trim()) : [],
+      });
     }
   }
-  catalogCache = { at: Date.now(), names };
+  return out;
+}
+
+/** 目录 → 名字集合（官方名 + 别名一起展开；makeOfficialResolver / 匹配校验共用口径） */
+export function catalogToNameSet(movements: XunjiCatalogMovement[]): Set<string> {
+  const names = new Set<string>();
+  for (const m of movements) {
+    names.add(m.name);
+    for (const a of m.aliases) names.add(a);
+  }
   return names;
+}
+
+/** 规则快速通道：别名映射（XUNJI_NAME_ALIAS）→ 目录精确命中视为已消化；返回待 AI 匹配的残余名单 */
+export function ruleMatchOfficialNames(names: string[], catalog: Set<string>): { matched: Map<string, string>; pending: string[] } {
+  const matched = new Map<string, string>();
+  const pending: string[] = [];
+  for (const name of names) {
+    const alias = XUNJI_NAME_ALIAS[name];
+    if (alias && catalog.has(alias)) {
+      matched.set(name, alias);
+      continue;
+    }
+    if (catalog.has(name)) continue; // 已是目录内的名字（官方名或别名原样可用）
+    pending.push(name);
+  }
+  return { matched, pending };
+}
+
+/** 把匹配到的官方名写回力量计划：name 替换为官方名，原名以「佳易名：xxx」并入 note（保序：原名标注在前）。
+ * 官方名超 20 字（拾光动作名上限）跳过不改——防绕过落库校验导致后续草稿编辑被拒 */
+export function renameExercisesToOfficial(content: StrengthPlanContent, mapping: Map<string, string>): StrengthPlanContent {
+  if (!mapping.size) return content;
+  return {
+    ...content,
+    exercises: content.exercises.map((e) => {
+      const official = mapping.get(e.name);
+      if (!official || official === e.name || [...official].length > 20) return e;
+      const label = `佳易名：${e.name}`;
+      const merged = e.note ? `${label}；${e.note}` : label;
+      return { ...e, name: official, note: [...merged].slice(0, 60).join("") };
+    }),
+  };
 }
 
 /** 构造「拾光名 → 训记官方名」解析器：alias 优先 → 原名/别名任一命中 catalog 即可；
