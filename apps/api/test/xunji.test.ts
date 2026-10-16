@@ -389,6 +389,152 @@ test("REQ-022 纯函数：规则通道（alias 映射/目录精确命中消化/�
   assert.deepEqual(r.pending, ["佳明神秘动作"], "目录内名字（含别名）不进 pending");
 });
 
+// ---------------------------------------------------------------------------
+// REQ-023：同步前确认映射（用户确认别名表 / needsConfirmation / skips）
+// ---------------------------------------------------------------------------
+
+test("REQ-023 纯函数：splitOfficialNames 分流（用户别名优先/内置别名/精确命中/目录不可得退回）", async () => {
+  const { splitOfficialNames } = await modP;
+  const catalog = new Set(["坐姿划船", "后倾臀桥"]);
+  const userAliases = { 臀桥: "后倾臀桥" };
+  const r = splitOfficialNames(["臀桥", "坐姿划船", "高脚杯深蹲", "神秘动作"], catalog, userAliases);
+  assert.equal(r.resolved.get("臀桥"), "后倾臀桥", "用户确认别名优先");
+  assert.equal(r.resolved.get("坐姿划船"), "坐姿划船", "目录精确命中原样");
+  assert.deepEqual(r.unmatched, ["高脚杯深蹲", "神秘动作"], "内置别名目标不在目录内同样 unmatched（宁缺勿错）");
+
+  const empty = splitOfficialNames(["高脚杯深蹲", "臀桥"], new Set(), {});
+  assert.equal(empty.resolved.get("高脚杯深蹲"), "哑铃酒杯深蹲", "目录不可得时内置别名仍可用");
+  assert.deepEqual(empty.unmatched, ["臀桥"], "目录不可得时目录外名全部 unmatched");
+});
+
+test("REQ-023 纯函数：planToTrain 官方名返回 null 跳过该动作", async () => {
+  const { planToTrain } = await modP;
+  const train = planToTrain(
+    {
+      module_code: "strength",
+      plan_date: todayStr(),
+      content: {
+        title: "课",
+        exercises: [
+          { name: "臀桥", sets: 3, repsText: "40s", weightG: 0 },
+          { name: "坐姿划船", sets: 3, repsText: "10" },
+        ],
+      },
+    },
+    (n: string) => (n === "臀桥" ? null : n),
+  );
+  assert.equal(train.movements.length, 1, "跳过动作不进 movements");
+  assert.equal(train.movements[0].name, "坐姿划船");
+});
+
+test("REQ-023 真库：同步遇目录外动作名返回 needsConfirmation → 确认映射落别名表并回写内容 → 再同步自动生效", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await freshCatalogState();
+  await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
+  await pool.query(`delete from fitness_xunji_aliases where user_id = $1`, [UA]);
+  const day = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+
+  // 目录：无光杆「臀桥」「登山者」，有「后倾臀桥」（与线上实际一致的情形）
+  const catalog = {
+    res: {
+      movements: [
+        { name: "后倾臀桥", type: "臀部" },
+        { name: "杠铃臀桥", type: "臀部" },
+        { name: "坐姿划船", type: "背" },
+      ],
+    },
+  };
+  const saved = await fitnessService.savePlanDraft(UA, {
+    planDate: day,
+    moduleCode: "strength",
+    source: "import",
+    content: {
+      title: "循环课",
+      exercises: [
+        { name: "臀桥", sets: 3, repsText: "40s", weightG: 0 },
+        { name: "坐姿划船", sets: 3, repsText: "10-12", weightG: 40000 },
+      ],
+    },
+  }, { fetcher: stubFetcher({ catalog }).fetcher });
+  const planId = saved.plan.id;
+
+  // 首次同步（无确认）→ needsConfirmation + 候选
+  const first = await fitnessService.syncPlanToXunji(UA, planId, stubFetcher({ catalog }).fetcher);
+  assert.equal(first.needsConfirmation, true);
+  const bridge = first.unmatched.find((u: any) => u.name === "臀桥");
+  assert.ok(bridge, "臀桥进待确认名单");
+  assert.ok(bridge.candidates.some((c: any) => c.name === "后倾臀桥"), "候选含目录内臀桥类动作");
+  assert.equal(bridge.candidates.some((c: any) => c.name === "臀桥"), false, "无同名项所以臀桥是候选外");
+  const { rows: syncNone } = await pool.query(`select xunji_sync from fitness_daily_plans where id = $1`, [planId]);
+  assert.equal(syncNone[0].xunji_sync, null, "未确认不同步、不写 localid");
+
+  // 确认映射（臀桥→后倾臀桥）→ 同步成功 + 别名落库 + 计划内容回写佳易名
+  let upsertBody: any = null;
+  const confirmFetcher = async (url: string, init?: any) => {
+    const inner = stubFetcher({ catalog, upsert: { res: [{ localid: "xj-023", movements: [] }] } });
+    const r = await inner.fetcher(url, init);
+    if (url.includes("api_upsert_trains")) upsertBody = JSON.parse(init.body);
+    return r;
+  };
+  const ok = await fitnessService.syncPlanToXunji(UA, planId, confirmFetcher as any, { mappings: { 臀桥: "后倾臀桥" }, skips: [] });
+  assert.equal(ok.synced, true);
+  assert.equal(upsertBody.res[0].movements[0].name, "后倾臀桥", "同步载荷用确认后的官方名");
+  assert.equal(upsertBody.res[0].movements[1].name, "坐姿划船");
+  const { rows: aliasRows } = await pool.query(`select official_name from fitness_xunji_aliases where user_id = $1 and local_name = '臀桥'`, [UA]);
+  assert.equal(aliasRows[0]?.official_name, "后倾臀桥", "映射落每用户别名表");
+  const { rows: contentRows } = await pool.query(`select content->'exercises'->0 as ex0 from fitness_daily_plans where id = $1`, [planId]);
+  assert.equal(contentRows[0].ex0.name, "后倾臀桥", "计划内容回写为官方名");
+  assert.equal(contentRows[0].ex0.note, "佳易名：臀桥");
+
+  // 再同步（无确认）：别名表生效，直接成功不再 needsConfirmation
+  const again = await fitnessService.syncPlanToXunji(UA, planId, stubFetcher({ catalog, upsert: { res: [{ localid: "xj-023b", movements: [] }] } }).fetcher);
+  assert.equal(again.synced, true);
+  assert.equal(again.needsConfirmation, undefined);
+
+  // skips：确认时跳过的动作不进同步载荷
+  const day2 = new Date(Date.now() + 8 * 3600_000 + 2 * 86_400_000).toISOString().slice(0, 10);
+  const saved2 = await fitnessService.savePlanDraft(UA, {
+    planDate: day2,
+    moduleCode: "strength",
+    source: "manual",
+    content: {
+      title: "课B",
+      exercises: [
+        { name: "坐姿划船", sets: 2, repsText: "10" },
+        { name: "登山者", sets: 3, repsText: "40s", weightG: 0 },
+      ],
+    },
+  }, { fetcher: stubFetcher({ catalog }).fetcher });
+  let skipBody: any = null;
+  const skipFetcher = async (url: string, init?: any) => {
+    const r = await stubFetcher({ catalog, upsert: { res: [{ localid: "xj-023c", movements: [] }] } }).fetcher(url, init);
+    if (url.includes("api_upsert_trains")) skipBody = JSON.parse(init.body);
+    return r;
+  };
+  // 登山者无候选前先触发 needsConfirmation，再用 mappings+skips 确认
+  const first2 = await fitnessService.syncPlanToXunji(UA, saved2.plan.id, stubFetcher({ catalog }).fetcher);
+  assert.equal(first2.needsConfirmation, true);
+  assert.ok(first2.unmatched.some((u: any) => u.name === "登山者"));
+  const ok2 = await fitnessService.syncPlanToXunji(UA, saved2.plan.id, skipFetcher as any, { mappings: {}, skips: ["登山者"] });
+  assert.equal(ok2.synced, true);
+  assert.equal(ok2.movements, 1, "跳过动作不进载荷");
+  assert.deepEqual(ok2.skipped, ["登山者"]);
+  assert.equal(skipBody.res[0].movements.length, 1);
+
+  // 全部跳过 → 400
+  await assert.rejects(
+    () => fitnessService.syncPlanToXunji(UA, saved2.plan.id, stubFetcher({ catalog }).fetcher, { mappings: {}, skips: ["坐姿划船", "登山者"] }),
+    /没有可写入训记的动作/,
+  );
+
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day2]);
+  await pool.query(`delete from fitness_xunji_aliases where user_id = $1`, [UA]);
+  await freshCatalogState();
+});
+
 test("REQ-022 纯函数：改名写回（name 替换/原名并入 note/未映射原样/超长截断/超长官方名跳过）", async () => {
   const { renameExercisesToOfficial } = await modP;
   const content = {

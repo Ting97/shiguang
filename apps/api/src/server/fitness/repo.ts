@@ -214,6 +214,26 @@ export const fitnessRepo = {
     );
   },
 
+  // ---- 训记动作映射（REQ-023 用户确认的 拾光名 → 训记官方名）----
+
+  listXunjiAliases(userId: string) {
+    return pool.query(
+      `select local_name, official_name from fitness_xunji_aliases where user_id = $1`,
+      [userId],
+    );
+  },
+  /** 确认弹窗提交后落库（冲突更新：同名改选覆盖旧映射） */
+  upsertXunjiAliases(userId: string, entries: { localName: string; officialName: string }[]) {
+    if (!entries.length) return Promise.resolve({ rowCount: 0 });
+    return pool.query(
+      `insert into fitness_xunji_aliases (user_id, local_name, official_name)
+       select $1, x.local_name, x.official_name
+       from unnest($2::text[], $3::text[]) as x(local_name, official_name)
+       on conflict (user_id, local_name) do update set official_name = excluded.official_name`,
+      [userId, entries.map((e) => e.localName), entries.map((e) => e.officialName)],
+    );
+  },
+
   // ---- 今日行动联动（todos.fitness_plan_id）----
 
   /** 用户的活动分类挂「健身」（预设 id='fitness'；用户可能没有该行（如测试直插 profiles）——查不到返回 null，todos.activity_id 允许空） */
