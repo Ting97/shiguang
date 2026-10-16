@@ -41,6 +41,13 @@ npm run poc              # 规则引擎 20 句自测；npm run poc:live 为 GLM 
 4. 迁移只增不改：已上线迁移文件禁止修改（runner checksum 会拒绝）；新迁移按序号递增
 5. 生产 DB 变更前先 `pg_dump` 备份
 
+## 交付流程（每批开发完成必须走完）
+
+1. **充分测试**：`npm test`（真库门禁用 SHIGUANGRI_TEST_DB，整组 skip ≠ 通过）+ `npm run lint`（0 error）+ `npm run typecheck` 三端全绿；涉真机/端侧的（Android 壳等）实物验证后才算完成。
+2. **推送远程 main**：功能分支合入 main（`--no-ff`）并 `git push origin main`。
+3. **部署生产**：`node scripts/deploy.mjs`（自动 pg_dump 备份 → 服务器侧迁移 → 双 tar 原子交换 → 冒烟）；迁移未上线前不得发布依赖新表的代码路径。
+4. **补录文档**：03 文档写入测试与部署记录后再次推送——推送+部署完成才算批次闭环。
+
 ## 部署
 
 双 tar（standalone + web out）→ `/opt/shiguangri_new_tmp` 解包 → systemctl 交换（`shiguangri.service`）→ 冒烟
