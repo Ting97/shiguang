@@ -211,9 +211,23 @@ test("客户端：错误分类（too frequent 带 retry 提示 / apikey invalid 
 // 真库：sync/pull 端点语义（服务层直调 + stub fetcher）
 // ---------------------------------------------------------------------------
 
+/** service 直引（编排/分层加载不进 fitnessService 路由出口；测试库不可达时 DB 层快速失败被降级吸收） */
+const svcP = import("../src/server/fitness/service");
+
+/** REQ-022 目录分层缓存会跨用例/跨运行残留（内存 1h + DB 快照 7 天新鲜优先于注入 stub）：
+ * 依赖特定目录状态的用例先清内存快照 + 把 DB 行打过期，强制下一次读取走注入的外呼 stub */
+async function freshCatalogState() {
+  const { resetXunjiCatalogCache } = await svcP;
+  resetXunjiCatalogCache();
+  if (dbReady) {
+    await pool.query(`update fitness_xunji_catalog set fetched_at = now() - interval '8 days' where id = 1`).catch(() => {});
+  }
+}
+
 test("真库：sync 幂等（首建→回写 localid；二次同步带 localid 走更新）", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
+  await freshCatalogState();
   await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
   await pool.query(`delete from fitness_daily_plans where user_id = $1`, [UA]);
   await pool.query(`delete from fitness_session_logs where user_id = $1`, [UA]);
@@ -224,7 +238,7 @@ test("真库：sync 幂等（首建→回写 localid；二次同步带 localid �
     moduleCode: "strength",
     source: "manual",
     content: { title: "课A", exercises: [{ name: "高脚杯深蹲", sets: 3, repsText: "10-12", weightG: 30000 }, { name: "坐姿划船", sets: 3, repsText: "10-12" }] },
-  });
+  }, { fetcher: stubFetcher({}).fetcher });
   const planId = saved.plan.id;
 
   // 首次同步：upsert 响应带 localid → 回写 xunji_sync
@@ -336,4 +350,173 @@ test("真库：越权 404；训记里无打勾数据时拒绝", async (t) => {
     () => fitnessService.pullXunjiCompletion(UA, saved.plan.id, {}, stubFetcher({ read: { res: [] } }).fetcher),
     /还没有打勾/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// REQ-022：动作名对齐训记官方动作库（目录规范化 / 规则通道 / 改名写回 / 匹配编排 / 落库集成）
+// ---------------------------------------------------------------------------
+
+test("REQ-022 纯函数：目录规范化（对象行/字符串行/trim/脏行跳过/别名展开）", async () => {
+  const { fetchCatalogMovements, catalogToNameSet } = await modP;
+  const { fetcher } = stubFetcher({
+    catalog: {
+      res: {
+        movements: [
+          { name: "杠铃卧推", type: "胸", exetype: "", aliases: [] },
+          "平板支撑",
+          { name: "  坐姿划船 ", type: "背", aliases: ["划船"] },
+          { name: "", type: "胸" },
+          null,
+        ],
+      },
+    },
+  });
+  const movs = await fetchCatalogMovements(fetcher);
+  assert.equal(movs.length, 3, "空名/null 脏行跳过");
+  assert.deepEqual(movs[1], { name: "平板支撑", type: null, exetype: null, aliases: [] });
+  assert.deepEqual(movs[2], { name: "坐姿划船", type: "背", exetype: null, aliases: ["划船"] });
+  const names = catalogToNameSet(movs);
+  assert.equal(names.has("杠铃卧推"), true);
+  assert.equal(names.has("划船"), true, "别名一并展开");
+});
+
+test("REQ-022 纯函数：规则通道（alias 映射/目录精确命中消化/残余进 pending）", async () => {
+  const { ruleMatchOfficialNames } = await modP;
+  const catalog = new Set(["哑铃酒杯深蹲", "哑铃推肩", "坐姿划船", "划船"]);
+  const r = ruleMatchOfficialNames(["高脚杯深蹲", "哑铃肩推", "坐姿划船", "划船", "佳明神秘动作"], catalog);
+  assert.equal(r.matched.get("高脚杯深蹲"), "哑铃酒杯深蹲", "实测 alias 命中");
+  assert.equal(r.matched.get("哑铃肩推"), "哑铃推肩");
+  assert.deepEqual(r.pending, ["佳明神秘动作"], "目录内名字（含别名）不进 pending");
+});
+
+test("REQ-022 纯函数：改名写回（name 替换/原名并入 note/未映射原样/超长截断/超长官方名跳过）", async () => {
+  const { renameExercisesToOfficial } = await modP;
+  const content = {
+    title: "课",
+    exercises: [
+      { name: "坐姿绳索划船", sets: 3, repsText: "10-12", note: "慢放" },
+      { name: "卧推", sets: 3, repsText: "10", note: null },
+      { name: "保持原样", sets: 2, repsText: "10" },
+    ],
+  };
+  const out = renameExercisesToOfficial(content, new Map([["坐姿绳索划船", "坐姿划船"], ["卧推", "杠铃卧推"]]));
+  assert.equal(out.exercises[0].name, "坐姿划船");
+  assert.equal(out.exercises[0].note, "佳易名：坐姿绳索划船；慢放", "原名标注在前、原 note 衔后");
+  assert.equal(out.exercises[1].name, "杠铃卧推");
+  assert.equal(out.exercises[1].note, "佳易名：卧推");
+  assert.equal(out.exercises[2].name, "保持原样");
+  assert.equal(out.exercises[2].note, undefined);
+  assert.equal(content.exercises[0].name, "坐姿绳索划船", "入参不可变");
+  const long = renameExercisesToOfficial({ title: "x", exercises: [{ name: "A", note: "长".repeat(80) }] }, new Map([["A", "B"]]));
+  assert.ok([...long.exercises[0].note!].length <= 60, "note 60 字上限截断");
+  const skip = renameExercisesToOfficial({ title: "x", exercises: [{ name: "A" }] }, new Map([["A", "超".repeat(21)]]));
+  assert.equal(skip.exercises[0].name, "A", "官方名超拾光 20 字上限跳过不改");
+});
+
+test("REQ-022 编排：分层加载（外呼→内存缓存）；规则通道不耗 AI；AI 结果逐字校验+置信门槛", async () => {
+  await ensureLoaded();
+  await freshCatalogState();
+  const { loadXunjiCatalog, matchXunjiOfficialNames } = await svcP;
+  const catalog = {
+    res: { movements: [{ name: "坐姿划船", type: "背" }, { name: "哑铃酒杯深蹲", type: "腿" }, { name: "高位下拉", type: "背" }] },
+  };
+  const { fetcher, calls } = stubFetcher({ catalog });
+  const snap = await loadXunjiCatalog(fetcher);
+  assert.equal(snap.names.size, 3);
+  await loadXunjiCatalog(fetcher);
+  assert.equal(calls.filter((c) => c.url.includes("movement_catalog")).length, 1, "内存 1h 缓存命中");
+
+  let aiCalls = 0;
+  const aiMatch = async (pending: string[]) => {
+    aiCalls += 1;
+    assert.deepEqual(pending, ["坐姿绳索划船", "划船机", "反手高位"]);
+    return [
+      { source: "坐姿绳索划船", official: "坐姿划船", confidence: 0.9 },
+      { source: "划船机", official: "编造的动作", confidence: 0.99 },
+      { source: "反手高位", official: "高位下拉", confidence: 0.4 },
+      { source: "不在输入里", official: "坐姿划船", confidence: 0.9 },
+    ];
+  };
+  const m = await matchXunjiOfficialNames(UA, ["高脚杯深蹲", "坐姿绳索划船", "划船机", "反手高位"], { aiMatch });
+  assert.equal(aiCalls, 1);
+  assert.equal(m.get("高脚杯深蹲"), "哑铃酒杯深蹲", "alias 走规则通道不耗 AI");
+  assert.equal(m.get("坐姿绳索划船"), "坐姿划船");
+  assert.equal(m.has("划船机"), false, "目录外官方名（编造）被拦");
+  assert.equal(m.has("反手高位"), false, "低置信被拦");
+  assert.equal(m.has("不在输入里"), false, "幻觉 source 被拦");
+
+  const m2 = await matchXunjiOfficialNames(UA, ["高脚杯深蹲", "坐姿绳索划船"], {
+    aiMatch: async () => {
+      throw new Error("glm down");
+    },
+  });
+  assert.equal(m2.get("高脚杯深蹲"), "哑铃酒杯深蹲", "AI 失败降级：规则通道结果保留");
+  assert.equal(m2.has("坐姿绳索划船"), false, "AI 失败的待匹配名保留原名");
+});
+
+test("REQ-022 编排：外呼失败回退 DB 旧快照；目录完全不可得 → 空集（同步仍走 alias 兜底）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  const { loadXunjiCatalog, resetXunjiCatalogCache } = await svcP;
+  // 先用 stub 外呼写一份新快照进 DB
+  await freshCatalogState();
+  const good = stubFetcher({ catalog: { res: { movements: [{ name: "坐姿划船", type: "背" }] } } });
+  await loadXunjiCatalog(good.fetcher);
+  await new Promise((r) => setTimeout(r, 200)); // 写回 fire-and-forget
+  // 快照过期 + 外呼失败 → 回退 DB 旧快照（坐姿划船仍在）
+  resetXunjiCatalogCache();
+  await pool.query(`update fitness_xunji_catalog set fetched_at = now() - interval '8 days' where id = 1`);
+  const fail = async () => ({ ok: false, status: 500, text: async () => JSON.stringify({ error: "boom" }) });
+  const snap = await loadXunjiCatalog(fail as any);
+  assert.equal(snap.names.has("坐姿划船"), true, "外呼失败回退 DB 旧快照");
+  resetXunjiCatalogCache();
+});
+
+test("REQ-022 真库：savePlanDraft 落库前对齐官方名（note 记佳易名）→ 同步训记不再报「不在官方动作库」", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await freshCatalogState();
+  await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
+  const day = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+
+  const catalog = { res: { movements: [{ name: "坐姿划船", type: "背" }, { name: "哑铃卧推", type: "胸" }] } };
+  const stub = stubFetcher({ catalog });
+  const saved = await fitnessService.savePlanDraft(UA, {
+    planDate: day,
+    moduleCode: "strength",
+    source: "import",
+    content: {
+      title: "佳明力量课",
+      exercises: [
+        { name: "坐姿绳索划船", sets: 3, repsText: "10-12", weightG: 40000 },
+        { name: "哑铃胸部推举", sets: 3, repsText: "10", weightG: 20000 },
+      ],
+    },
+  }, {
+    fetcher: stub.fetcher,
+    aiMatch: async () => [
+      { source: "坐姿绳索划船", official: "坐姿划船", confidence: 0.95 },
+      { source: "哑铃胸部推举", official: "哑铃卧推", confidence: 0.85 },
+    ],
+  });
+  const ex = saved.plan.content.exercises;
+  assert.equal(ex[0].name, "坐姿划船", "佳明识别名替换为训记官方名");
+  assert.equal(ex[0].note, "佳易名：坐姿绳索划船");
+  assert.equal(ex[1].name, "哑铃卧推");
+  assert.equal(ex[1].note, "佳易名：哑铃胸部推举");
+
+  // 同步训记：动作名全在目录内直接通过；upsert body 里的 movement 名是官方名
+  let upsertBody: any = null;
+  const syncFetcher = async (url: string, init?: any) => {
+    const r = await stubFetcher({ catalog, upsert: { res: [{ localid: "xj-022", movements: [] }] } }).fetcher(url, init);
+    if (url.includes("api_upsert_trains")) upsertBody = JSON.parse(init.body);
+    return r;
+  };
+  const synced = await fitnessService.syncPlanToXunji(UA, saved.plan.id, syncFetcher as any);
+  assert.equal(synced.synced, true);
+  assert.equal(upsertBody.res[0].movements[0].name, "坐姿划船");
+  assert.equal(upsertBody.res[0].movements[1].name, "哑铃卧推");
+  // 清理：删测试计划；目录缓存不重置（下一用例如需特定目录自行 freshCatalogState）
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]).catch(() => {});
 });

@@ -320,6 +320,15 @@ export const AI_INPUT_REGISTRY: Record<PromptKey, InputSpec> = {
     injects: [REQ("text", "课表文本", "用户粘贴的佳明课表/力量课安排原文，解析对象本体", "本次输入")],
     caps: [],
   },
+  xunji_name_match: {
+    userTemplate: `待匹配动作名：{names}\n候选目录（每行一个官方名，括号内为分类）：\n{catalog}\n请为每个待匹配名选出最匹配的官方名，输出 JSON。`,
+    placeholders: ["names", "catalog"],
+    injects: [
+      REQ("names", "待匹配动作名", "识别出的力量动作名 JSON 数组（规则通道未消化的残余）", "解析结果"),
+      REQ("catalog", "候选动作目录", "训记官方动作目录候选行（全量或字符重叠预筛），每行一名含分类标注", "训记 Open API 目录快照（fitness_xunji_catalog）"),
+    ],
+    caps: [],
+  },
 };
 
 /** 合并 DB 覆盖与注册表默认：inject 缺省=注册表默认，caps 数值钳制到 [min,max]；userData（个性化注入）原样透传 */

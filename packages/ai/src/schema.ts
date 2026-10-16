@@ -494,3 +494,20 @@ export const FitnessPlanDraftV2 = z
 export type FitnessPlanDraft = z.infer<typeof FitnessPlanDraftV2>;
 export type RunPlanDraftT = z.infer<typeof RunPlanDraft>;
 export type StrengthPlanDraftT = z.infer<typeof StrengthPlanDraft>;
+
+// ============ 训记动作名匹配契约（REQ-022）：识别出的动作名 → 训记官方动作库 ============
+// apps/api 编排（规则快速通道 + 本契约批量匹配），返回的 official 由 api 侧校验必须 ∈ 目录（防编造）。
+
+/** 单条匹配结果：official=null 表示目录里没有合理匹配（保留原名）；confidence 低于阈值同样视为未匹配 */
+export const XunjiNameMatchItem = z.object({
+  /** 待匹配原动作名（须与输入列表一致） */
+  source: z.string().min(1).max(20),
+  /** 训记官方动作名（必须逐字取自目录，禁止改写/编造） */
+  official: z.string().min(1).max(30).nullish(),
+  confidence: llmConfidence,
+});
+
+export const XunjiNameMatchResult = z.object({
+  matches: z.array(XunjiNameMatchItem).min(1).max(15),
+});
+export type XunjiNameMatchResultT = z.infer<typeof XunjiNameMatchResult>;

@@ -379,6 +379,7 @@ function ContentPreview({
             {e.rir != null ? <span className="text-ink-mute">（RIR {e.rir}）</span> : null}
             {meta ? <span className="ml-1 text-ink-mute">· {meta.muscle_primary.join("/")}</span> : null}
             <span className="block pl-2 text-[11px] leading-snug text-ink-mute/80">{meta?.benefit}</span>
+            {e.note ? <span className="block pl-2 text-[11px] leading-snug text-ink-mute/80">{e.note}</span> : null}
           </p>
         );
       })}

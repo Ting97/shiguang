@@ -199,6 +199,21 @@ export const fitnessRepo = {
     );
   },
 
+  // ---- 训记动作目录快照（REQ-022 单行缓存表；分层加载见 service.loadXunjiCatalog） ----
+
+  /** 读目录快照（单行设计：无行返回 null） */
+  getXunjiCatalog() {
+    return pool.query(`select movements, fetched_at from fitness_xunji_catalog where id = 1`);
+  },
+  /** 外呼刷新成功后写回（movements 为规范化后的 [{name, type, exetype, aliases}]） */
+  upsertXunjiCatalog(movements: unknown[]) {
+    return pool.query(
+      `insert into fitness_xunji_catalog (id, movements, fetched_at) values (1, $1::jsonb, now())
+       on conflict (id) do update set movements = excluded.movements, fetched_at = now()`,
+      [JSON.stringify(movements)],
+    );
+  },
+
   // ---- 今日行动联动（todos.fitness_plan_id）----
 
   /** 用户的活动分类挂「健身」（预设 id='fitness'；用户可能没有该行（如测试直插 profiles）——查不到返回 null，todos.activity_id 允许空） */

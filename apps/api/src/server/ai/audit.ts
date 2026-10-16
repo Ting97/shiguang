@@ -21,7 +21,8 @@ export interface AuditRecord {
     | "jev_shadow"
     | "admin_data"
     | "ai_profile"
-    | "fitness_parse";
+    | "fitness_parse"
+    | "xunji_name_match";
   model: string | null;
   engine?: string | null;
   latencyMs?: number | null;
