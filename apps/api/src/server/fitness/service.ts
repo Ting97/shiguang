@@ -1,6 +1,6 @@
 /**
  * fitness 域 service（REQ-016）：手写校验 + ApiError + 编排 repo。
- * 计划为中心：POST /plans = create-or-replace 草稿（已 confirmed 及之后 409）；
+ * 计划为中心：POST /plans = 新增草稿（REQ-021：一天同模块可多条并存）；DELETE /plans/[id] 删除（行动级联清理）；
  * 计划落库即联动今日行动（syncPlanTodos 单一规则：计划存在且未 skipped → 行动与计划同步）；
  * 打卡 done/partial 落执行记录并把联动行动置完成。
  * AI：POST /plans/parse 粘贴文本或佳明截图 → FitnessPlanDraftV2（GLM + 一次修复重问）→ 整数口径草稿（不入库）。
@@ -345,32 +345,21 @@ async function attachExerciseIds(moduleCode: string, content: RunPlanContent | S
   return content;
 }
 
-/** POST /api/fitness/plans —— create-or-replace 草稿并联动今日行动 */
+/** POST /api/fitness/plans —— 新增草稿并联动今日行动（REQ-021：一天同模块可多条并存，旧 create-or-replace 废止） */
 async function savePlanDraft(userId: string, body: unknown) {
   const v = parseBody(PlanSaveInput, body);
   const content = validateContent(v.moduleCode, v.content);
   const enriched = await attachExerciseIds(v.moduleCode, content);
-  const { rows: existing } = await fitnessRepo.findPlan(userId, v.planDate, v.moduleCode);
-  let planRow;
-  if (existing.length) {
-    if (existing[0].status !== "draft") {
-      throw ApiError.conflict("该日该模块已有生效计划（confirmed 及之后不可覆盖），可在计划卡上改状态");
-    }
-    const sets = ["content = $1::jsonb", "source = $2", "rationale = $3", "origin_conversation_id = $4"];
-    const vals: unknown[] = [JSON.stringify(enriched), v.source, v.rationale ?? null, v.originConversationId ?? null, existing[0].id, userId];
-    planRow = (await fitnessRepo.updatePlan(existing[0].id, userId, sets, vals)).rows[0];
-  } else {
-    planRow = (
-      await fitnessRepo.insertPlan(userId, {
-        planDate: v.planDate,
-        moduleCode: v.moduleCode,
-        source: v.source,
-        content: enriched,
-        rationale: v.rationale ?? null,
-        originConversationId: v.originConversationId ?? null,
-      })
-    ).rows[0];
-  }
+  const planRow = (
+    await fitnessRepo.insertPlan(userId, {
+      planDate: v.planDate,
+      moduleCode: v.moduleCode,
+      source: v.source,
+      content: enriched,
+      rationale: v.rationale ?? null,
+      originConversationId: v.originConversationId ?? null,
+    })
+  ).rows[0];
   const sync = await syncPlanTodos(userId, planRow);
   let xunjiWarning: string | null = null;
   if (v.syncXunji) {
@@ -382,6 +371,17 @@ async function savePlanDraft(userId: string, body: unknown) {
     }
   }
   return { plan: planRow, syncedActions: sync.synced, xunjiWarning };
+}
+
+/** DELETE /api/fitness/plans/[id] —— 删除计划（任意状态）。
+ * 联动今日行动随 FK 级联删除；已打卡的执行记录保留（plan_id 置空，转独立打卡历史）；
+ * 训记侧已同步的训练不回滚（如需可在训记 App 自行删除） */
+async function deletePlan(userId: string, id: string) {
+  if (!isUuid(id)) throw ApiError.badRequest("id 参数不合法");
+  const { rows } = await fitnessRepo.planOwned(id, userId);
+  if (!rows.length) throw ApiError.notFound("计划不存在");
+  await fitnessRepo.deletePlan(id, userId);
+  return { deleted: true };
 }
 
 const PlanPatchInput = z.object({
@@ -833,6 +833,7 @@ export const fitnessService = {
   listPlans,
   savePlanDraft,
   updatePlan,
+  deletePlan,
   parsePlanDraft,
   syncPlanToXunji,
   pullXunjiCompletion,

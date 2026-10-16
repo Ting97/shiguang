@@ -94,7 +94,7 @@ export const fitnessRepo = {
               m.name as module_name, m.icon as module_icon
        from fitness_daily_plans p join fitness_modules m on m.code = p.module_code
        where p.user_id = $1 and p.plan_date between $2 and $3
-       order by p.plan_date desc, m.sort`,
+       order by p.plan_date desc, m.sort, p.created_at`,
       [userId, from, to],
     );
   },
@@ -105,11 +105,12 @@ export const fitnessRepo = {
       [id, userId],
     );
   },
-  findPlan(userId: string, planDate: string, moduleCode: string) {
+  /** 删除计划行：联动 todos 由 FK on delete cascade 清掉（含已完成），
+   * 执行记录 fitness_session_logs.plan_id 由 FK on delete set null 保留为独立打卡历史 */
+  deletePlan(id: string, userId: string) {
     return pool.query(
-      `select id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id
-       from fitness_daily_plans where user_id = $1 and plan_date = $2 and module_code = $3`,
-      [userId, planDate, moduleCode],
+      `delete from fitness_daily_plans where id = $1 and user_id = $2 returning id`,
+      [id, userId],
     );
   },
   insertPlan(

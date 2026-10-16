@@ -49,6 +49,8 @@ const todayStr = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0
 
 async function cleanup() {
   await pool.query(`delete from fitness_daily_plans where user_id = any($1::uuid[])`, [[UA, UB]]);
+  // 执行记录不随计划级联（REQ-021 删除转独立历史），测试自行清理防跨用例残留
+  await pool.query(`delete from fitness_session_logs where user_id = any($1::uuid[])`, [[UA, UB]]);
   await pool.query(`delete from fitness_goals where user_id = $1`, [UA]);
   await pool.query(`delete from fitness_body_metrics where user_id = $1`, [UA]);
   await pool.query(`delete from chat_proposals where user_id = $1`, [UA]);
@@ -152,7 +154,7 @@ test("REQ-020 截图入参守卫：MIME 白名单/base64/体积 + 空文本带�
   );
 });
 
-test("计划保存 → 今日行动联动（父任务+子行动，幂等重建）", async (t) => {
+test("计划保存 → 今日行动联动（父任务+子行动）；同日同模块多条并存（REQ-021）", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
   await upsertUser(UA, "fitness冒烟A");
@@ -190,21 +192,28 @@ test("计划保存 → 今日行动联动（父任务+子行动，幂等重建�
   assert.equal(linked[1].title, "高脚杯深蹲 3×10-12");
   assert.equal(linked[2].title, "哑铃卧推 30kg×3×8-12");
 
-  // 再保存（draft replace）→ 幂等：不重复累积
-  await fitnessService.savePlanDraft(UA, {
+  // 再保存（同日同模块）→ REQ-021：新增第二条计划并存，各自联动行动独立
+  const second = (await fitnessService.savePlanDraft(UA, {
     planDate: today,
     moduleCode: "strength",
     source: "import",
     content: {
-      title: "力量课 A · 推+轻腿",
+      title: "力量课 A · 推+轻腿（晚练）",
       exercises: [
         { name: "高脚杯深蹲", sets: 3, repsText: "10-12" },
         { name: "哑铃卧推", sets: 3, repsText: "8-12", weightG: 32500 },
       ],
     },
-  });
+  })) as any;
+  assert.notEqual(second.plan.id, planId, "第二次保存应新增计划而非覆盖");
+  assert.equal(second.syncedActions, 3, "第二条计划独立联动（1 父 + 2 子）");
   ({ rows: linked } = await pool.query(`select * from todos where fitness_plan_id = $1`, [planId]));
-  assert.equal(linked.length, 3, "编辑后按最新内容重建（1 父 + 2 子）");
+  assert.equal(linked.length, 4, "原计划行动不受影响");
+  const { rows: plans } = await pool.query(
+    `select * from fitness_daily_plans where user_id = $1 and plan_date = $2 and module_code = 'strength'`,
+    [UA, today],
+  );
+  assert.equal(plans.length, 2, "同日同模块两条计划并存");
 });
 
 test("计划状态机：确认 → 打卡落执行记录 + 行动自动完成；skipped 清理", async (t) => {
@@ -231,13 +240,13 @@ test("计划状态机：确认 → 打卡落执行记录 + 行动自动完成；
   assert.equal(runTodos.length, 1);
   assert.equal(runTodos[0].kind, "action");
 
-  // 已 confirmed 的计划不可被 POST 覆盖（409）
+  // 已 confirmed 后再 POST → REQ-021：新增并存（旧 409 废止）
   await fitnessService.updatePlan(UA, run.plan.id, { status: "confirmed" });
-  await assert.rejects(
-    () => fitnessService.savePlanDraft(UA, { planDate: today, moduleCode: "run", source: "manual", content: { workoutType: "easy", title: "轻松跑", segments: [] } }),
-    /生效计划/,
-    "confirmed 后 create-or-replace 应 409",
-  );
+  const second = (await fitnessService.savePlanDraft(UA, {
+    planDate: today, moduleCode: "run", source: "manual",
+    content: { workoutType: "easy", title: "傍晚轻松跑", segments: [] },
+  })) as any;
+  assert.notEqual(second.plan.id, run.plan.id, "confirmed 后仍可新增同模块计划");
 
   // 打卡：落执行记录 + 行动置完成
   const checked = (await fitnessService.updatePlan(UA, run.plan.id, {
@@ -268,6 +277,49 @@ test("计划状态机：确认 → 打卡落执行记录 + 行动自动完成；
   await fitnessService.updatePlan(UA, s2.plan.id, { status: "skipped" });
   const { rows: left } = await pool.query(`select * from todos where fitness_plan_id = $1`, [s2.plan.id]);
   assert.equal(left.length, 0, "skipped 应清理联动行动");
+});
+
+test("REQ-021 删除计划：草稿删（行动级联清理）；已打卡删（执行记录保留为独立历史）；越权 404", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await upsertUser(UA, "fitness冒烟A");
+  await upsertUser(UB, "fitness冒烟B");
+  await cleanup();
+  const today = todayStr();
+
+  // 草稿删除：联动行动级联清理
+  const draft = (await fitnessService.savePlanDraft(UA, {
+    planDate: today, moduleCode: "strength", source: "import",
+    content: { title: "待删课", exercises: [{ name: "卧推", sets: 3, repsText: "10" }] },
+  })) as any;
+  assert.equal(draft.syncedActions, 2);
+  const del1 = (await fitnessService.deletePlan(UA, draft.plan.id)) as any;
+  assert.equal(del1.deleted, true);
+  const { rows: gone } = await pool.query(`select * from todos where fitness_plan_id = $1`, [draft.plan.id]);
+  assert.equal(gone.length, 0, "删除计划应连带清理联动行动");
+
+  // 已打卡计划删除：执行记录保留（plan_id 置空，转独立打卡历史）
+  const done = (await fitnessService.savePlanDraft(UA, {
+    planDate: today, moduleCode: "run", source: "manual",
+    content: { workoutType: "easy", title: "删前打卡跑", segments: [{ label: "主课", distanceM: 5000 }] },
+  })) as any;
+  await fitnessService.updatePlan(UA, done.plan.id, { status: "done", actual: { distanceM: 5200, durationS: 1800 } });
+  await fitnessService.deletePlan(UA, done.plan.id);
+  const { rows: keptLog } = await pool.query(`select * from fitness_session_logs where user_id = $1 and log_date = $2`, [UA, today]);
+  assert.equal(keptLog.length, 1, "执行记录应保留");
+  assert.equal(keptLog[0].plan_id, null, "plan_id 置空转独立历史");
+  assert.equal(keptLog[0].actual.distanceM, 5200, "打卡数据不受删除影响");
+
+  // 已删除/不存在 404；非法 id 400；越权 404
+  await assert.rejects(() => fitnessService.deletePlan(UA, draft.plan.id), /不存在/);
+  await assert.rejects(() => fitnessService.deletePlan(UA, "not-a-uuid"), /id 参数不合法/);
+  const mine = (await fitnessService.savePlanDraft(UA, {
+    planDate: today, moduleCode: "run", source: "manual",
+    content: { workoutType: "easy", title: "越权目标", segments: [] },
+  })) as any;
+  await assert.rejects(() => fitnessService.deletePlan(UB, mine.plan.id), /不存在/);
+  const { rows: still } = await pool.query(`select * from fitness_daily_plans where id = $1`, [mine.plan.id]);
+  assert.equal(still.length, 1, "越权删除不得生效");
 });
 
 test("A.5 提案工具：只写 chat_proposals；accept → 计划落库+联动；dismiss → 不落库；越权隔离", async (t) => {

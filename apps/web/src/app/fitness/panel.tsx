@@ -404,6 +404,7 @@ function PlanCard({
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const meta = PLAN_STATUS_META[plan.status];
   const log = logs.find((l) => l.plan_id === plan.id) ?? null;
   const xunjiSynced = Boolean(plan.xunji_sync?.localids?.length);
@@ -436,6 +437,20 @@ function PlanCard({
     }
   }
 
+  async function remove() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(`/api/fitness/plans/${plan.id}`, "DELETE");
+      toast("已删除计划，联动行动已清理");
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <article className={`rounded-2xl border border-line-soft bg-surface p-4 ${plan.status === "skipped" ? "opacity-55" : ""}`}>
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -460,35 +475,40 @@ function PlanCard({
         </div>
       ) : null}
 
-      {plan.status !== "skipped" && plan.status !== "done" && plan.status !== "partial" && (
-        <div className="mt-3 flex flex-wrap justify-end gap-2">
-          {plan.status === "draft" && (
-            <button className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "confirmed" }, "已确认计划")}>
-              确认
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        {plan.status !== "skipped" && plan.status !== "done" && plan.status !== "partial" && (
+          <>
+            {plan.status === "draft" && (
+              <button className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "confirmed" }, "已确认计划")}>
+                确认
+              </button>
+            )}
+            <button
+              className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50"
+              disabled={busy}
+              onClick={() => setChecking(true)}
+            >
+              打卡
             </button>
-          )}
-          <button
-            className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50"
-            disabled={busy}
-            onClick={() => setChecking(true)}
-          >
-            打卡
-          </button>
-          {xunjiEnabled ? (
-            <>
-              <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={syncXunji}>
-                {xunjiSynced ? "更新训记" : "同步训记"}
-              </button>
-              <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => setPulling(true)}>
-                从训记同步完成
-              </button>
-            </>
-          ) : null}
-          <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "skipped" }, "已跳过（联动行动已清理）")}>
-            跳过
-          </button>
-        </div>
-      )}
+            {xunjiEnabled ? (
+              <>
+                <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={syncXunji}>
+                  {xunjiSynced ? "更新训记" : "同步训记"}
+                </button>
+                <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => setPulling(true)}>
+                  从训记同步完成
+                </button>
+              </>
+            ) : null}
+            <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "skipped" }, "已跳过（联动行动已清理）")}>
+              跳过
+            </button>
+          </>
+        )}
+        <button className="btn-ghost px-3 py-1.5 text-xs text-danger disabled:opacity-50" disabled={busy} onClick={() => setConfirmDel(true)}>
+          删除
+        </button>
+      </div>
       <p className="mt-2 text-[11px] text-ink-mute/70">
         ✅ 已同步到首页「今日行动」，打卡后行动自动完成
         {xunjiSynced ? " · 📲 训记已同步" : ""}
@@ -496,6 +516,29 @@ function PlanCard({
 
       {checking && <CheckInModal plan={plan} onClose={() => setChecking(false)} onDone={() => { setChecking(false); reload(); }} />}
       {pulling && <PullXunjiModal plan={plan} onClose={() => setPulling(false)} onDone={() => { setPulling(false); reload(); }} />}
+      {confirmDel && (
+        <Modal title={`删除计划 · ${planTitle(plan)}`} onClose={() => setConfirmDel(false)}>
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed">
+              确定删除这条计划？删除后不可恢复，联动的今日行动会一并清理。
+              {log ? " 该计划已打卡，执行记录将保留为独立打卡历史（趋势统计不受影响）。" : ""}
+              {xunjiSynced ? " 已同步到训记的训练不受影响，如需可在训记 App 里删除。" : ""}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setConfirmDel(false)}>
+                取消
+              </button>
+              <button
+                className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50"
+                disabled={busy}
+                onClick={remove}
+              >
+                {busy ? "删除中…" : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </article>
   );
 }
