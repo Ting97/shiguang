@@ -28,11 +28,11 @@ import {
   catalogToNameSet,
   fetchCatalogMovements,
   makeLocalResolver,
-  makeOfficialResolver,
   planToTrain,
   readTrains,
   renameExercisesToOfficial,
   ruleMatchOfficialNames,
+  splitOfficialNames,
   trainsToRunActual,
   trainsToStrengthActual,
   upsertTrains,
@@ -391,7 +391,11 @@ async function savePlanDraft(userId: string, body: unknown, opts?: XunjiNormaliz
   let xunjiWarning: string | null = null;
   if (v.syncXunji) {
     try {
-      await syncPlanToXunji(userId, planRow.id);
+      const sync = await syncPlanToXunji(userId, planRow.id);
+      // 目录外动作名待确认（REQ-023）：不视作失败——提示用户去计划卡完成确认
+      if ("needsConfirmation" in sync && sync.needsConfirmation) {
+        xunjiWarning = `有 ${sync.unmatched.length} 个动作需确认训记官方名：请在计划卡点「同步训记」完成确认`;
+      }
     } catch (e) {
       // 训记失败不回滚拾光（计划与行动联动已生效）；warning 交前端提示
       xunjiWarning = e instanceof Error ? e.message : String(e);
@@ -672,7 +676,11 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
   if (!names.length) return mapping;
   const snapshot = await loadXunjiCatalog(opts.fetcher);
   if (!snapshot.names.size) return mapping;
-  const { matched, pending } = ruleMatchOfficialNames(names, snapshot.names);
+  const aliasRows = await fitnessRepo.listXunjiAliases(userId);
+  const userAliases: Record<string, string> = Object.fromEntries(
+    aliasRows.rows.map((r: { local_name: string; official_name: string }) => [r.local_name, r.official_name]),
+  );
+  const { matched, pending } = ruleMatchOfficialNames(names, snapshot.names, userAliases);
   for (const [k, v] of matched) mapping.set(k, v);
   if (!pending.length) return mapping;
 
@@ -749,25 +757,98 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
   return mapping;
 }
 
-/** 计划 → 训记（用户已经过确认卡/按钮确认）。已同步过的计划带 localid 走更新，防重复建训练 */
-async function syncPlanToXunji(userId: string, planId: string, fetcher?: XunjiFetchLike) {
+/** 计划 → 训记（用户已经过确认卡/按钮确认）。已同步过的计划带 localid 走更新，防重复建训练。
+ * REQ-023：力量动作名先经 用户别名→内置别名→目录 分流，仍有目录外名字时返回
+ * needsConfirmation（含候选官方名）交前端弹窗确认；确认调用带 mappings/skips——
+ * 映射落别名表（此后自动生效）并可勾选跳过某动作（该动作不写入训记） */
+async function syncPlanToXunji(
+  userId: string,
+  planId: string,
+  fetcher?: XunjiFetchLike,
+  confirm?: { mappings?: Record<string, string>; skips?: string[] },
+) {
   const { rows } = await fitnessRepo.planOwned(planId, userId);
   if (!rows.length) throw ApiError.notFound("计划不存在");
   const plan = rows[0];
   if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("已打卡计划不再同步训记");
   if (plan.status === "skipped") throw ApiError.badRequest("已跳过计划不同步训记");
 
-  let catalog = new Set<string>();
-  try {
-    catalog = (await loadXunjiCatalog(fetcher)).names;
-  } catch {
-    catalog = new Set(); // 目录完全不可得时仅信任实测确认的别名映射（makeOfficialResolver 的兜底分支）
+  const snapshot = await loadXunjiCatalog(fetcher);
+  const aliasRows = await fitnessRepo.listXunjiAliases(userId);
+  const userAliases: Record<string, string> = Object.fromEntries(
+    aliasRows.rows.map((r: { local_name: string; official_name: string }) => [r.local_name, r.official_name]),
+  );
+
+  let resolved = new Map<string, string>();
+  let skips = new Set<string>();
+  let runCardioOk = true;
+  if (plan.module_code === "strength") {
+    const content = plan.content as StrengthPlanContent;
+    const skipSet = new Set(confirm?.skips ?? []);
+    const names = [...new Set(content.exercises.map((e) => e.name).filter((n) => n && !skipSet.has(n)))];
+    const { resolved: split, unmatched } = splitOfficialNames(names, snapshot.names, userAliases);
+
+    // 确认调用：校验并持久化映射（官方名必须 ∈ 目录快照，防拼错写进训记）
+    if (confirm?.mappings) {
+      const entries: { localName: string; officialName: string }[] = [];
+      for (const [localName, officialName] of Object.entries(confirm.mappings)) {
+        if (skipSet.has(localName)) continue;
+        if (!snapshot.names.size || snapshot.names.has(officialName)) {
+          entries.push({ localName, officialName });
+          split.set(localName, officialName);
+        }
+      }
+      if (entries.length) {
+        await fitnessRepo.upsertXunjiAliases(userId, entries);
+        for (const e of entries) userAliases[e.localName] = e.officialName;
+      }
+    }
+    if (unmatched.length) {
+      if (!snapshot.names.size) {
+        // 目录不可得（未配 key/接口故障）：无候选可确认，退回旧拦截文案
+        throw ApiError.badRequest(
+          `动作「${unmatched[0]}」不在训记官方动作库——请改名或先在训记 App 确认可用动作名（当前无法获取动作目录）`,
+        );
+      }
+      const stillUnmatched = unmatched.filter((n) => !split.has(n));
+      if (stillUnmatched.length && !confirm) {
+        return {
+          needsConfirmation: true as const,
+          unmatched: stillUnmatched.map((name) => ({
+            name,
+            candidates: prefilterCandidates(name, snapshot.movements, 8).map((m) => ({ name: m.name, type: m.type })),
+          })),
+        };
+      }
+      if (stillUnmatched.length) {
+        throw ApiError.badRequest(`动作「${stillUnmatched.join("」「")}」缺少确认映射，无法写入训记`);
+      }
+    }
+    resolved = split;
+    skips = skipSet;
+
+    // 确认后回写计划内容：映射名替换 + 佳易名备注（与保存路径同管线，保持两端一致）
+    const renameMap = new Map([...resolved.entries()].filter(([local, official]) => local !== official));
+    if (confirm && renameMap.size) {
+      const renamed = renameExercisesToOfficial(content, renameMap);
+      if (renamed !== content) {
+        await fitnessRepo.updatePlan(planId, userId, ["content = $1::jsonb"], [JSON.stringify(renamed), planId, userId]);
+      }
+    }
+  } else if (plan.module_code === "run") {
+    runCardioOk = !snapshot.names.size || snapshot.names.has("跑步");
   }
-  const officialName = makeOfficialResolver(catalog);
+  if (!runCardioOk) throw ApiError.badRequest("动作「跑步」不在训记官方动作库，无法同步有氧日");
+
+  const officialName = (name: string) =>
+    skips.has(name) ? null : resolved.get(name) ?? (snapshot.names.has(name) ? name : null);
   const train = planToTrain(
     { module_code: plan.module_code, plan_date: plan.plan_date, content: plan.content },
     officialName,
   );
+  if (!train.movements.length) {
+    throw ApiError.badRequest("没有可写入训记的动作（全部被跳过或缺目标），请检查计划内容");
+  }
   const prev = (plan.xunji_sync ?? null) as { localids?: string[] } | null;
   if (prev?.localids?.length) train.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
 
@@ -779,6 +860,7 @@ async function syncPlanToXunji(userId: string, planId: string, fetcher?: XunjiFe
     updated: Boolean(prev?.localids?.length),
     movements: train.movements.length,
     localids,
+    skipped: [...skips],
   };
 }
 

@@ -406,22 +406,54 @@ function PlanCard({
   const [checking, setChecking] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  /** REQ-023 同步确认：目录外动作名 → 用户挑官方名/跳过；picks 记录每个名字的选择 */
+  const [xunjiConfirm, setXunjiConfirm] = useState<{ name: string; candidates: { name: string; type: string | null }[] }[] | null>(null);
+  const [xunjiPicks, setXunjiPicks] = useState<Record<string, string>>({});
   const meta = PLAN_STATUS_META[plan.status];
   const log = logs.find((l) => l.plan_id === plan.id) ?? null;
   const xunjiSynced = Boolean(plan.xunji_sync?.localids?.length);
 
-  async function syncXunji() {
+  async function syncXunji(confirm?: { mappings: Record<string, string>; skips: string[] }) {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await api<{ synced: boolean; updated: boolean; movements: number }>(`/api/fitness/plans/${plan.id}/sync-xunji`, "POST");
-      toast(`${r.updated ? "已更新训记训练" : "已写入训记 App"}（${r.movements} 项），训练时在训记里打勾`);
+      const r = await api<{
+        synced?: boolean;
+        updated?: boolean;
+        movements?: number;
+        skipped?: string[];
+        needsConfirmation?: boolean;
+        unmatched?: { name: string; candidates: { name: string; type: string | null }[] }[];
+      }>(`/api/fitness/plans/${plan.id}/sync-xunji`, "POST", confirm);
+      if (r.needsConfirmation && r.unmatched?.length) {
+        // 默认选第一个候选；无候选的动作只能跳过
+        const defaults: Record<string, string> = {};
+        for (const u of r.unmatched) defaults[u.name] = u.candidates[0]?.name ?? "__skip__";
+        setXunjiPicks(defaults);
+        setXunjiConfirm(r.unmatched);
+        return;
+      }
+      const skippedNote = r.skipped?.length ? `，跳过 ${r.skipped.length} 项` : "";
+      toast(`${r.updated ? "已更新训记训练" : "已写入训记 App"}（${r.movements ?? 0} 项${skippedNote}），训练时在训记里打勾`);
+      setXunjiConfirm(null);
       reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setBusy(false);
     }
+  }
+
+  function confirmXunjiMappings() {
+    if (!xunjiConfirm) return;
+    const mappings: Record<string, string> = {};
+    const skips: string[] = [];
+    for (const u of xunjiConfirm) {
+      const pick = xunjiPicks[u.name] ?? "__skip__";
+      if (pick === "__skip__") skips.push(u.name);
+      else mappings[u.name] = pick;
+    }
+    syncXunji({ mappings, skips });
   }
 
   async function patch(body: Record<string, unknown>, okMsg: string) {
@@ -493,7 +525,7 @@ function PlanCard({
             </button>
             {xunjiEnabled ? (
               <>
-                <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={syncXunji}>
+                <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => syncXunji()}>
                   {xunjiSynced ? "更新训记" : "同步训记"}
                 </button>
                 <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => setPulling(true)}>
@@ -517,6 +549,42 @@ function PlanCard({
 
       {checking && <CheckInModal plan={plan} onClose={() => setChecking(false)} onDone={() => { setChecking(false); reload(); }} />}
       {pulling && <PullXunjiModal plan={plan} onClose={() => setPulling(false)} onDone={() => { setPulling(false); reload(); }} />}
+      {xunjiConfirm && (
+        <Modal title="确认训记动作名" onClose={() => setXunjiConfirm(null)} size="lg">
+          <div className="space-y-3">
+            <p className="text-xs leading-relaxed text-ink-mute">
+              以下动作在训记官方动作库里没有同名项（多为佳明截图的自重/循环动作）。请为每个动作挑一个训记官方名——
+              确认后记住映射，以后自动套用；没有合适候选可以跳过，该动作不写入训记 App。
+            </p>
+            {xunjiConfirm.map((u) => (
+              <label key={u.name} className="block text-sm">
+                <span className="mb-1 block font-medium">{u.name}</span>
+                <select
+                  className="input-glow w-full text-sm"
+                  value={xunjiPicks[u.name] ?? u.candidates[0]?.name ?? "__skip__"}
+                  onChange={(e) => setXunjiPicks((p) => ({ ...p, [u.name]: e.target.value }))}
+                >
+                  {u.candidates.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                      {c.type ? `（${c.type}）` : ""}
+                    </option>
+                  ))}
+                  <option value="__skip__">跳过——不写入训记</option>
+                </select>
+              </label>
+            ))}
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setXunjiConfirm(null)}>
+                取消
+              </button>
+              <button className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50" disabled={busy} onClick={confirmXunjiMappings}>
+                {busy ? "同步中…" : "确认并同步训记"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {confirmDel && (
         <Modal title={`删除计划 · ${planTitle(plan)}`} onClose={() => setConfirmDel(false)}>
           <div className="space-y-3">

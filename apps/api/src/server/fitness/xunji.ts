@@ -117,15 +117,22 @@ export function exerciseToMovement(
   return mv;
 }
 
-/** 拾光计划 → 训记 train（单条；跑步=有氧日 cardio）。名称官方化（alias + catalog 校验）在调用侧完成 */
+/** 拾光计划 → 训记 train（单条；跑步=有氧日 cardio）。名称官方化在调用侧完成：
+ * officialName 返回 null 表示用户确认跳过的动作——该动作不写入训记（REQ-023） */
 export function planToTrain(
   plan: { module_code: string; plan_date: string; content: RunPlanContent | StrengthPlanContent },
-  officialName: (name: string) => string,
+  officialName: (name: string) => string | null,
 ): XunjiTrain {
   if (plan.module_code === "strength") {
     const c = plan.content as StrengthPlanContent;
     if (c.exercises.length > 15) throw ApiError.badRequest("训记单条训练最多 15 个动作");
-    return { datestr: plan.plan_date, title: c.title, movements: c.exercises.map((e) => exerciseToMovement(e, officialName(e.name))) };
+    const movements: XunjiMovement[] = [];
+    for (const e of c.exercises) {
+      const official = officialName(e.name);
+      if (official == null) continue;
+      movements.push(exerciseToMovement(e, official));
+    }
+    return { datestr: plan.plan_date, title: c.title, movements };
   }
   const c = plan.content as RunPlanContent;
   const metrics: Record<string, string | number> = {};
@@ -345,11 +352,21 @@ export function catalogToNameSet(movements: XunjiCatalogMovement[]): Set<string>
   return names;
 }
 
-/** 规则快速通道：别名映射（XUNJI_NAME_ALIAS）→ 目录精确命中视为已消化；返回待 AI 匹配的残余名单 */
-export function ruleMatchOfficialNames(names: string[], catalog: Set<string>): { matched: Map<string, string>; pending: string[] } {
+/** 规则快速通道：用户确认别名 → 内置实测别名（XUNJI_NAME_ALIAS）→ 目录精确命中视为已消化；
+ * 返回待确认/待 AI 匹配的残余名单（REQ-023 起 userAliases 优先级最高） */
+export function ruleMatchOfficialNames(
+  names: string[],
+  catalog: Set<string>,
+  userAliases: Record<string, string> = {},
+): { matched: Map<string, string>; pending: string[] } {
   const matched = new Map<string, string>();
   const pending: string[] = [];
   for (const name of names) {
+    const userAlias = userAliases[name];
+    if (userAlias && (!catalog.size || catalog.has(userAlias))) {
+      matched.set(name, userAlias);
+      continue;
+    }
     const alias = XUNJI_NAME_ALIAS[name];
     if (alias && catalog.has(alias)) {
       matched.set(name, alias);
@@ -359,6 +376,35 @@ export function ruleMatchOfficialNames(names: string[], catalog: Set<string>): {
     pending.push(name);
   }
   return { matched, pending };
+}
+
+/** 名单按目录/别名分流（REQ-023 同步前置解析）：resolved 进同步载荷，unmatched 交确认弹窗。
+ * catalog 为空（目录不可得）时退回旧语义：内置别名照用，其余全部 unmatched */
+export function splitOfficialNames(
+  names: string[],
+  catalog: Set<string>,
+  userAliases: Record<string, string> = {},
+): { resolved: Map<string, string>; unmatched: string[] } {
+  const resolved = new Map<string, string>();
+  const unmatched: string[] = [];
+  for (const name of names) {
+    const userAlias = userAliases[name];
+    if (userAlias && (!catalog.size || catalog.has(userAlias))) {
+      resolved.set(name, userAlias);
+      continue;
+    }
+    const alias = XUNJI_NAME_ALIAS[name];
+    if (alias && (!catalog.size || catalog.has(alias))) {
+      resolved.set(name, alias);
+      continue;
+    }
+    if (catalog.has(name)) {
+      resolved.set(name, name);
+      continue;
+    }
+    unmatched.push(name);
+  }
+  return { resolved, unmatched };
 }
 
 /** 把匹配到的官方名写回力量计划：name 替换为官方名，原名以「佳易名：xxx」并入 note（保序：原名标注在前）。
