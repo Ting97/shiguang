@@ -180,21 +180,40 @@ public class MainActivity extends Activity {
                 if (request.equals(pendingMicRequest)) pendingMicRequest = null;
             }
 
-            // —— CSV 账单导入：<input type="file"> 触发 ——
+            // —— <input type="file"> 触发（CSV 账单导入 / 佳明课表截图上传 REQ-020）——
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                                              FileChooserParams params) {
                 if (filePathCallback != null) filePathCallback.onReceiveValue(null); // 旧回调必须消费，否则后续无法再弹
                 filePathCallback = callback;
 
+                // 按网页 accept 分流：image/*（训练页截图识别）走系统图片选择器（相册/照片可选）；
+                // 其余（CSV 账单导入）沿用放宽 mime 的文档选择器
+                boolean wantsImage = false;
+                String[] acceptTypes = params.getAcceptTypes();
+                if (acceptTypes != null) {
+                    for (String t : acceptTypes) {
+                        if (t != null && t.toLowerCase().contains("image")) {
+                            wantsImage = true;
+                            break;
+                        }
+                    }
+                }
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*"); // 支付宝/微信导出的 csv 常被识别成 excel/plain，mime 过滤过严会选不到
-                intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                        "text/csv", "text/comma-separated-values", "text/plain",
-                        "application/csv", "application/vnd.ms-excel"});
+                String title;
+                if (wantsImage) {
+                    intent.setType("image/*");
+                    title = "选择课表截图";
+                } else {
+                    intent.setType("*/*"); // 支付宝/微信导出的 csv 常被识别成 excel/plain，mime 过滤过严会选不到
+                    intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                            "text/csv", "text/comma-separated-values", "text/plain",
+                            "application/csv", "application/vnd.ms-excel"});
+                    title = "选择账单文件";
+                }
                 try {
-                    startActivityForResult(Intent.createChooser(intent, "选择账单文件"), REQ_FILE_CHOOSER);
+                    startActivityForResult(Intent.createChooser(intent, title), REQ_FILE_CHOOSER);
                 } catch (Exception e) {
                     filePathCallback = null;
                     Toast.makeText(MainActivity.this, "没有可用的文件选择器", Toast.LENGTH_SHORT).show();

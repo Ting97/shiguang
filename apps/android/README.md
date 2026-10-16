@@ -33,6 +33,7 @@ cd apps/android
 | 麦克风录音链 | `voice-button.tsx`：getUserMedia + MediaRecorder + AudioContext 重采样 WAV | `RECORD_AUDIO` 运行时权限 + `onPermissionRequest` 仅授权音频采集；webm/opus WebView 原生支持，前端逻辑不动 |
 | Cookie 会话 | HttpOnly `shiguang_session` | CookieManager 默认持久化，`onPause` 时 `flush()` 落盘 |
 | CSV 账单导入 | `bill-import.tsx` `<input type="file">` | `onShowFileChooser` + `ACTION_GET_CONTENT`（mime 放宽到 `*/*`，支付宝/微信 CSV 常被识别为 excel/plain） |
+| 佳明课表截图上传（REQ-020） | `fitness/panel.tsx` `<input type="file" accept="image/*">` | `onShowFileChooser` 按网页 accept 分流：含 `image` → `image/*` 图片选择器（相册可选）；否则走 CSV 放宽选择器 |
 | 数据导出 | profile 页 `<a href="/api/export">` 直链 | `setDownloadListener` → 系统 `DownloadManager`，透传 Cookie，下载完成 Toast 提示 |
 | localStorage 主题 | `shiguang_theme` 等键 | `setDomStorageEnabled(true)` |
 | 返回键 / 离线 | — | 返回键：`canGoBack ? goBack : 双击退出`；断网：原生重试浮层（非 assets 页面，避开 file:// 跳转 https 的坑） |
