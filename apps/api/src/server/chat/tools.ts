@@ -724,7 +724,7 @@ const queryFitnessPlans: ChatTool = {
 const queryFitnessLogs: ChatTool = {
   name: "query_fitness_logs",
   description:
-    "查询健身执行记录（打卡的实际完成）：逐日实际距离/时长/配速/心率、力量实际组次、疲劳/酸痛，并附每日睡眠序列（sleep，独立记录——调整协议「睡眠<6h 降级」看这里）。适用：点评昨天训练、最近执行得怎么样、身体状态信号、排课前看恢复情况。单位同计划工具。",
+    "查询健身执行记录（打卡的实际完成）：逐日实际距离/时长/配速/心率、力量实际组次、疲劳/酸痛，并附每日睡眠序列（sleep：时长/主观感受/手环App睡眠得分——调整协议「睡眠<6h 降级」看这里）。适用：点评昨天训练、最近执行得怎么样、身体状态信号、排课前看恢复情况。单位同计划工具。",
   params: z.object({
     from: bjDate.optional().describe("开始日期（含），默认近 14 天"),
     to: bjDate.optional().describe("结束日期（含），默认今天"),
@@ -745,12 +745,17 @@ const queryFitnessLogs: ChatTool = {
       ),
       pool
         .query(
-          `select log_date, sleep_h_x10 from fitness_sleep_logs
+          `select log_date, sleep_h_x10, feeling, score from fitness_sleep_logs
            where user_id = $1 and log_date >= $2::date and log_date < $3::date order by log_date desc`,
           [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
         )
-        .then((r: { rows: { log_date: string; sleep_h_x10: number }[] }) =>
-          (r.rows ?? []).map((row) => ({ log_date: row.log_date, hours: row.sleep_h_x10 / 10 })),
+        .then((r: { rows: { log_date: string; sleep_h_x10: number; feeling: string | null; score: number | null }[] }) =>
+          (r.rows ?? []).map((row) => ({
+            log_date: row.log_date,
+            hours: row.sleep_h_x10 / 10,
+            feeling: row.feeling ?? undefined,
+            score: row.score ?? undefined,
+          })),
         )
         .catch(() => [] as { log_date: string; hours: number }[]),
     ]);
@@ -758,7 +763,8 @@ const queryFitnessLogs: ChatTool = {
       range: { from: fromBj, to: toBj },
       items: rows,
       sleep,
-      unitHint: "距离米、配速秒每公里；睡眠为独立每日记录（sleep[].hours，单位小时）——items 里的 sleep_h_x10 是迁移前历史值",
+      unitHint:
+        "距离米、配速秒每公里；睡眠为独立每日记录（sleep[].hours 小时、feeling 主观感受 good/ok/bad、score 为手环/运动 App 的睡眠得分 0-100）——排课前结合时长+感受+得分判断恢复状态",
     };
   },
 };

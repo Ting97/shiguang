@@ -677,7 +677,13 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
   if (!names.length) return mapping;
   const snapshot = await loadXunjiCatalog(opts.fetcher);
   if (!snapshot.names.size) return mapping;
-  const aliasRows = await fitnessRepo.listXunjiAliases(userId);
+  // 别名读与目录读同口径降级：失败按无别名处理，匹配是增强路径不因库抖动阻断保存
+  let aliasRows: { rows: { local_name: string; official_name: string }[] } = { rows: [] };
+  try {
+    aliasRows = await fitnessRepo.listXunjiAliases(userId);
+  } catch {
+    /* 降级 */
+  }
   const userAliases: Record<string, string> = Object.fromEntries(
     aliasRows.rows.map((r: { local_name: string; official_name: string }) => [r.local_name, r.official_name]),
   );
@@ -992,13 +998,15 @@ async function listSleep(userId: string, from: string, to: string) {
 const SleepInput = z.object({
   date: bjDate,
   hours: z.number().min(0).max(16),
+  feeling: z.enum(["good", "ok", "bad"]).nullable().optional(),
+  score: z.number().int().min(0).max(100).nullable().optional(),
 });
 
-/** POST /api/fitness/sleep —— 按日 upsert（昨晚睡眠，小时；同日重录=更新） */
+/** POST /api/fitness/sleep —— 按日 upsert（昨晚睡眠，小时 + 可选感受/App 得分；同日重录=更新） */
 async function saveSleep(userId: string, body: unknown, source: "manual" | "checkin" = "manual") {
   const v = parseBody(SleepInput, body);
-  const { rows } = await fitnessRepo.upsertSleep(userId, v.date, Math.round(v.hours * 10), source);
-  const row = rows[0] as { log_date: string; sleep_h_x10: number; source: string };
+  const { rows } = await fitnessRepo.upsertSleep(userId, v.date, Math.round(v.hours * 10), source, v.feeling ?? null, v.score ?? null);
+  const row = rows[0] as { log_date: string; sleep_h_x10: number; feeling: string | null; score: number | null; source: string };
   return { sleep: { ...row, hours: row.sleep_h_x10 / 10 } };
 }
 
