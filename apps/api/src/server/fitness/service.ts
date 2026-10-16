@@ -3,7 +3,7 @@
  * 计划为中心：POST /plans = create-or-replace 草稿（已 confirmed 及之后 409）；
  * 计划落库即联动今日行动（syncPlanTodos 单一规则：计划存在且未 skipped → 行动与计划同步）；
  * 打卡 done/partial 落执行记录并把联动行动置完成。
- * AI：POST /plans/parse 粘贴文本 → FitnessPlanDraftV2（GLM + 一次修复重问）→ 整数口径草稿（不入库）。
+ * AI：POST /plans/parse 粘贴文本或佳明截图 → FitnessPlanDraftV2（GLM + 一次修复重问）→ 整数口径草稿（不入库）。
  */
 import { z } from "zod";
 import { ApiError } from "../platform/http/errors";
@@ -14,8 +14,10 @@ import {
   extractJson,
   GlmError,
   activeModel,
+  activeVisionModel,
   FitnessPlanDraftV2,
   buildRepairUserPrompt,
+  type ChatImage,
   type FitnessPlanDraft,
 } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle, writeAuditRecord } from "@/server/ai";
@@ -71,8 +73,12 @@ export const RunPlanContentSchema = z.object({
       z.object({
         label: z.string().min(1).max(20),
         distanceM: z.number().int().positive().max(300_000).nullable().optional(),
+        /** 分段时长（分钟，佳明时间驱动课步骤）；与 distanceM 二选一 */
+        durationMin: z.number().min(0.5).max(300).nullable().optional(),
         paceSPerKm: z.number().int().positive().max(1200).nullable().optional(),
         hrZone: z.number().int().min(1).max(5).nullable().optional(),
+        /** 强度目标 bpm 区间原文（如 "134-161"，佳明截图）；不折算 hrZone */
+        hrBpmText: z.string().max(20).nullable().optional(),
         reps: z.number().int().min(2).max(40).nullable().optional(),
         note: z.string().max(60).nullable().optional(),
       }),
@@ -100,6 +106,8 @@ export const StrengthPlanContentSchema = z.object({
     )
     .min(1)
     .max(15),
+  /** 课表总时长（佳明截图概述「总时长」，分钟） */
+  durationMin: z.number().int().min(5).max(600).nullable().optional(),
   note: z.string().max(200).nullable().optional(),
 });
 
@@ -135,8 +143,10 @@ export function draftToCanonicalPlan(draft: FitnessPlanDraft): { moduleCode: "ru
         segments: r.segments.map((s) => ({
           label: s.label,
           distanceM: s.distanceKm != null ? Math.round(s.distanceKm * 1000) : null,
+          durationMin: s.durationMin ?? null,
           paceSPerKm: parsePaceText(s.paceText),
           hrZone: s.hrZone ?? null,
+          hrBpmText: s.hrBpmText ?? null,
           reps: s.reps ?? null,
           note: s.note ?? null,
         })),
@@ -161,6 +171,7 @@ export function draftToCanonicalPlan(draft: FitnessPlanDraft): { moduleCode: "ru
           rir: e.rir ?? null,
           note: e.note ?? null,
         })),
+        durationMin: s.durationMin ?? null,
         note: s.note ?? null,
       }),
     };
@@ -686,10 +697,14 @@ async function listExercises(moduleCode: string | null) {
 }
 
 // ---------------------------------------------------------------------------
-// AI：粘贴文本 → 结构化草稿（不入库；调用方确认后走 savePlanDraft）
+// AI：粘贴文本 / 佳明截图 → 结构化草稿（不入库；调用方确认后走 savePlanDraft）
 // ---------------------------------------------------------------------------
 
 const PARSE_TEXT_MAX = 2000;
+
+/** 截图入参约束（REQ-020）：客户端压缩后常规 <1MB，上限为防滥用兜底 */
+const PARSE_IMAGE_MAX_BYTES = 6 * 1024 * 1024;
+const PARSE_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
 /** 休息日语义（REQ-019 FR-A1）：短文本直接命中不耗 AI；模型判 rest 的草稿转同款 400 文案 */
 const REST_TEXT_RE = /无安排|没有(课表|训练|安排)|休息日?|^rest$/i;
@@ -697,22 +712,39 @@ export function restDayMessage(note?: string | null) {
   return `识别为休息日：今天没有训练安排，无需导入计划${note ? `（${note}）` : ""}`;
 }
 
-/** POST /api/fitness/plans/parse —— GLM 解析 + 一次修复重问；输出整数口径草稿（含动作库挂接） */
-async function parsePlanDraft(userId: string, text: string) {
+/** POST /api/fitness/plans/parse —— GLM 解析 + 一次修复重问；输出整数口径草稿（含动作库挂接）。
+ * text 与 image 至少一项：image（佳明训练详情截图）走视觉模型 GLM_VISION_MODEL，text 作补充说明可空 */
+async function parsePlanDraft(userId: string, text: string, image?: ChatImage) {
   const t = text.trim();
-  if (!t || t.length > PARSE_TEXT_MAX) throw ApiError.badRequest(`课表文本长度须为 1~${PARSE_TEXT_MAX} 字`);
-  if (t.length <= 30 && REST_TEXT_RE.test(t)) throw ApiError.badRequest(restDayMessage());
+  if (t.length > PARSE_TEXT_MAX) throw ApiError.badRequest(`课表文本长度须为 0~${PARSE_TEXT_MAX} 字`);
+  if (!t && !image) throw ApiError.badRequest("课表文本或截图至少提供一项");
+  // 休息日短文本短路只对纯文本输入生效——附图时文字可能只是补充说明
+  if (!image && t && t.length <= 30 && REST_TEXT_RE.test(t)) throw ApiError.badRequest(restDayMessage());
+  if (image) validateParseImage(image);
 
   const bundle = await getPromptBundle("fitness_plan_parse");
-  const base = await assembleUserPrompt("fitness_plan_parse", bundle, { text: t });
+  const base = await assembleUserPrompt(
+    "fitness_plan_parse",
+    bundle,
+    { text: t || (image ? "（见附图：佳明训练详情截图，以截图步骤为准）" : "") },
+  );
   const startedAt = Date.now();
   let usage = { prompt_tokens: 0, completion_tokens: 0 };
   const onUsage = (u: { prompt_tokens: number; completion_tokens: number }) => {
     usage = u;
   };
+  const auditModel = image ? activeVisionModel() : activeModel();
 
   const runOnce = async (userPrompt: string) => {
-    const raw = await chat({ system: bundle.system, user: userPrompt, onUsage });
+    const raw = await chat({
+      system: bundle.system,
+      user: userPrompt,
+      // 截图识别延迟高于纯文本（视觉模型+图编码），预算与输出上限同放宽
+      images: image ? [image] : undefined,
+      maxTokens: image ? 2048 : undefined,
+      timeoutMs: image ? 60_000 : undefined,
+      onUsage,
+    });
     let json: unknown;
     try {
       json = extractJson(raw);
@@ -741,7 +773,7 @@ async function parsePlanDraft(userId: string, text: string) {
     await writeAuditRecord({
       userId,
       stage: "fitness_parse",
-      model: activeModel(),
+      model: auditModel,
       latencyMs: Date.now() - startedAt,
       textLen: t.length,
       ok: true,
@@ -761,7 +793,7 @@ async function parsePlanDraft(userId: string, text: string) {
     await writeAuditRecord({
       userId,
       stage: "fitness_parse",
-      model: activeModel(),
+      model: auditModel,
       latencyMs: Date.now() - startedAt,
       textLen: t.length,
       ok: false,
@@ -774,6 +806,19 @@ async function parsePlanDraft(userId: string, text: string) {
     }
     if (e instanceof GlmError && e.kind === "auth") throw ApiError.upstream("AI 未配置或鉴权失败，无法解析");
     throw e;
+  }
+}
+
+/** 截图入参守卫：MIME 白名单 + base64 字符集 + 解码体积粗检（详细魔数校验交给视觉服务端） */
+function validateParseImage(image: ChatImage): void {
+  if (!(PARSE_IMAGE_MIMES as readonly string[]).includes(image.mimeType)) {
+    throw ApiError.badRequest("截图仅支持 JPEG/PNG/WebP/GIF 格式");
+  }
+  if (image.base64.length < 100 || !/^[A-Za-z0-9+/=\r\n]+$/.test(image.base64)) {
+    throw ApiError.badRequest("截图数据不合法");
+  }
+  if (Math.floor(image.base64.length * 0.75) > PARSE_IMAGE_MAX_BYTES) {
+    throw ApiError.badRequest("截图过大（解码后超过 6MB），请压缩后再试");
   }
 }
 

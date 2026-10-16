@@ -37,12 +37,14 @@ export interface FitnessGoal {
   updated_at: string;
 }
 
-/** 跑步计划分段（整数口径：米 / 秒每公里） */
+/** 跑步计划分段（整数口径：米 / 秒每公里；durationMin=佳明时间驱动课分段分钟，hrBpmText=bpm 区间原文） */
 export interface RunSegment {
   label: string;
   distanceM?: number | null;
+  durationMin?: number | null;
   paceSPerKm?: number | null;
   hrZone?: number | null;
+  hrBpmText?: string | null;
   reps?: number | null;
   note?: string | null;
 }
@@ -72,6 +74,8 @@ export interface StrengthExerciseItem {
 export interface StrengthPlanContent {
   title: string;
   exercises: StrengthExerciseItem[];
+  /** 课表总时长（佳明截图概述，分钟） */
+  durationMin?: number | null;
   note?: string | null;
 }
 

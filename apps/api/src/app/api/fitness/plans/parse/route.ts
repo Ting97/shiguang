@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/server/platform/http/route";
 import { fitnessService } from "@/server/fitness";
 
-/** POST /api/fitness/plans/parse —— 粘贴课表文本 → AI 结构化草稿（不入库，返回给前端预览） */
+/** POST /api/fitness/plans/parse —— 粘贴课表文本或佳明训练截图 → AI 结构化草稿（不入库，返回给前端预览）。
+ * image：{mimeType, base64（不含 data: 前缀）}；text 与 image 至少一项，text 在附图时可空（作补充说明） */
 export const POST = withAuth(async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as { text?: string };
-  return NextResponse.json(await fitnessService.parsePlanDraft(user.id, String(body.text ?? "")));
+  const body = (await req.json().catch(() => ({}))) as {
+    text?: string;
+    image?: { mimeType?: string; base64?: string };
+  };
+  const image =
+    body.image?.base64 && typeof body.image.base64 === "string"
+      ? { mimeType: String(body.image.mimeType ?? "image/jpeg"), base64: String(body.image.base64) }
+      : undefined;
+  return NextResponse.json(await fitnessService.parsePlanDraft(user.id, String(body.text ?? ""), image));
 });

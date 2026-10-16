@@ -4,7 +4,7 @@
  * - initConfig() 在 instrumentation 启动时调用一次：fail-fast——缺失必需项列清单退出；
  *   生产环境 AUTH_DISABLED 非空即拒绝启动、弱默认连接串须显式 ALLOW_INSECURE=1 越过
  */
-import { GLM_DEFAULT_BASE_URL, GLM_DEFAULT_MODEL } from "@shiguangri/ai";
+import { GLM_DEFAULT_BASE_URL, GLM_DEFAULT_MODEL, GLM_DEFAULT_VISION_MODEL } from "@shiguangri/ai";
 
 /** SMTP 邮件通道（EMAIL_SMTP_* 五项任缺视为通道未开通，业务侧降级） */
 export interface SmtpConfig {
@@ -43,6 +43,8 @@ export interface AppConfig {
   staticDir: string | null;
   glmModel: string;
   glmBaseUrl: string;
+  /** 视觉模型（REQ-020 课表截图识别；默认 glm-4.5v） */
+  glmVisionModel: string;
   jevModel: string;
   /** Jev 模式默认值（运行时实际生效值由 app_config 覆盖优先，见 lib/ai-mode） */
   jevMode: "off" | "shadow" | "on";
@@ -120,6 +122,7 @@ export function loadConfig(): AppConfig {
     staticDir: process.env.STATIC_DIR ?? null,
     glmModel: process.env.GLM_MODEL ?? GLM_DEFAULT_MODEL,
     glmBaseUrl: process.env.ZHIPUAI_BASE_URL ?? GLM_DEFAULT_BASE_URL,
+    glmVisionModel: process.env.GLM_VISION_MODEL ?? GLM_DEFAULT_VISION_MODEL,
     jevModel: process.env.JEV_MODEL ?? "jev-latest",
     jevMode: (["off", "shadow", "on"] as const).includes(process.env.JEV_MODE as never)
       ? (process.env.JEV_MODE as "off" | "shadow" | "on")

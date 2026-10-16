@@ -423,13 +423,17 @@ export type LlmExtraction = z.infer<typeof LlmExtraction>;
 // 模型友好单位（km/min/kg/配速原文），apps/api 侧映射为整数口径（m/s/g）再入库；
 // 力量动作不要求对齐动作库 id（模型不查库）——按名称在 api 侧匹配 fitness_exercises。
 
-/** 跑步课分段（热身/间歇组/放松等） */
+/** 跑步课分段（热身/间歇组/放松等）；距离驱动课给 distanceKm/paceText，时间驱动课（佳明截图步骤）给 durationMin */
 export const RunSegmentDraft = z.object({
   label: z.string().min(1).max(20),
   distanceKm: z.coerce.number().positive().max(300).nullish(),
+  /** 分段时长（分钟，"10:00" → 10）；与 distanceKm 二选一 */
+  durationMin: z.coerce.number().min(0.5).max(300).nullish(),
   /** 配速原文（如 5'50" / 6:00-6:15），api 侧解析为秒每公里 */
   paceText: z.string().max(20).nullish(),
   hrZone: z.coerce.number().int().min(1).max(5).nullish(),
+  /** 强度目标心率 bpm 原文（如 "134-161"）；用户心率分区未知，禁止折算进 hrZone */
+  hrBpmText: z.string().max(20).nullish(),
   /** 重复次数（如 6×400m 的 6；无结构重复 null） */
   reps: z.coerce.number().int().min(2).max(40).nullish(),
   note: z.string().max(60).nullish(),
@@ -459,6 +463,8 @@ export const StrengthExerciseDraft = z.object({
 export const StrengthPlanDraft = z.object({
   title: z.string().min(1).max(30),
   exercises: z.array(StrengthExerciseDraft).min(1).max(15),
+  /** 课表总时长（分钟，佳明截图概述「总时长」如 25:00 → 25）；课表没给就 null */
+  durationMin: z.coerce.number().int().min(5).max(600).nullish(),
   note: z.string().max(200).nullish(),
 });
 

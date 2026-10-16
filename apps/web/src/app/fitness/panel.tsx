@@ -5,12 +5,13 @@
  * 今日 = 粘贴导入（AI 解析草稿 → 预览确认入库）+ 当日计划卡（确认/打卡/跳过）+ 周一体重腰围；
  * 计划 = 按周分组的计划 vs 实际对照；计划落库自动联动首页「今日行动」（后端 syncPlanTodos）。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SubNav from "@/components/sub-nav";
 import Skeleton from "@/components/skeleton";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
+import { blobToDataUrl, compressImage } from "@/lib/image";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 import FitnessTrends from "./charts";
 import FitnessArchive from "./archive";
@@ -180,22 +181,44 @@ function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: 
   );
 }
 
-/** 粘贴导入：AI 解析 → 草稿预览 → 确认入库 */
+/** 粘贴导入：AI 解析 → 草稿预览 → 确认入库（文字课表或佳明训练截图，REQ-020） */
 function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: string; reload: () => void }) {
   const [text, setText] = useState("");
+  const [image, setImage] = useState<{ mimeType: string; base64: string; previewUrl: string } | null>(null);
+  const [picking, setPicking] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [draft, setDraft] = useState<{ moduleCode: string; content: RunPlanContent | StrengthPlanContent; rationale: string | null } | null>(null);
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
 
+  async function pickImage(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || picking) return;
+    setPicking(true);
+    try {
+      // 佳明截图文字密集：沿用动态图压缩（长边 ≤1920 / JPEG 0.85）保证 OCR 可读
+      const { blob } = await compressImage(file);
+      const dataUrl = await blobToDataUrl(blob);
+      setImage({ mimeType: blob.type || "image/jpeg", base64: dataUrl.split(",")[1] ?? "", previewUrl: dataUrl });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "err");
+    } finally {
+      setPicking(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function parse() {
-    if (parsing || !text.trim()) return;
+    if (parsing || (!text.trim() && !image)) return;
     setParsing(true);
     try {
       const res = await api<{ draft: { moduleCode: string; content: RunPlanContent | StrengthPlanContent; rationale: string | null } }>(
         "/api/fitness/plans/parse",
         "POST",
-        { text: text.trim() },
+        {
+          text: text.trim() || undefined,
+          image: image ? { mimeType: image.mimeType, base64: image.base64 } : undefined,
+        },
       );
       setDraft(res.draft);
       setDate(today);
@@ -220,6 +243,7 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
       toast(`✅ 已导入${res.syncedActions ? `，联动 ${res.syncedActions} 条今日行动` : ""}`);
       setDraft(null);
       setText("");
+      setImage(null);
       reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
@@ -228,10 +252,12 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
     }
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <section className="rounded-2xl border border-line-soft bg-surface p-4">
-      <h2 className="mb-2 text-sm font-medium">📥 粘贴导入课表</h2>
-      <p className="mb-2 text-xs text-ink-mute">把佳明当日课表（或力量课安排）文字粘进来，AI 解析成结构化计划草稿。</p>
+      <h2 className="mb-2 text-sm font-medium">📥 导入课表</h2>
+      <p className="mb-2 text-xs text-ink-mute">把佳明当日课表文字粘进来，或上传佳明 App 训练详情截图，AI 解析成结构化计划草稿。</p>
       <textarea
         className="input-glow h-20 w-full text-sm"
         value={text}
@@ -239,11 +265,35 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
         placeholder="例：间歇跑 8 公里，55 分钟。热身 1 公里 @6:15；6×400 米 @5:20，组间 400 米慢跑；放松 1 公里"
         maxLength={2000}
       />
-      <div className="mt-2 flex justify-end">
-        <button className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50" onClick={parse} disabled={parsing || !text.trim()}>
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage(e.target.files)} />
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button
+          className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={picking || parsing}
+        >
+          {picking ? "处理中…" : "📷 佳明截图识别"}
+        </button>
+        <button
+          className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50"
+          onClick={parse}
+          disabled={parsing || (!text.trim() && !image)}
+        >
           {parsing ? "解析中…" : "AI 解析"}
         </button>
       </div>
+      {image && (
+        <div className="mt-2 flex items-start gap-2 rounded-xl border border-line-soft bg-wash/40 p-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image.previewUrl} alt="课表截图预览" className="h-20 w-14 rounded-lg border border-line-soft object-cover" />
+          <div className="min-w-0 flex-1 text-xs text-ink-mute">
+            已附截图，可与文字备注一起解析（如「明天的课」）
+            <button className="mt-1 block text-accent hover:underline" onClick={() => setImage(null)}>
+              移除截图
+            </button>
+          </div>
+        </div>
+      )}
       {draft && (
         <Modal title="解析草稿（确认后入库）" onClose={() => setDraft(null)} size="lg">
           <div className="space-y-3">
@@ -273,6 +323,12 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
   );
 }
 
+/** 分段时长展示：整分钟给 "10 分钟"；小数是秒级步骤（佳明 0:40 → 0.67），换算回 "40 秒" */
+function fmtStepMinutes(min: number): string {
+  if (Number.isInteger(min)) return `${min} 分钟`;
+  return `${Math.round(min * 60)} 秒`;
+}
+
 /** 计划 content 预览（导入草稿与计划卡共用） */
 function ContentPreview({
   content,
@@ -289,15 +345,17 @@ function ContentPreview({
       <div className="space-y-1">
         <p className="font-medium">
           {RUN_WORKOUT_LABELS[c.workoutType] ?? c.workoutType} · {c.title}
-          {c.totalDistanceM ? <span className="ml-2 text-xs text-ink-mute">{km(c.totalDistanceM)}{c.durationMin ? ` / ${c.durationMin} 分钟` : ""}</span> : null}
+          {c.totalDistanceM ? <span className="ml-2 text-xs text-ink-mute">{km(c.totalDistanceM)}{c.durationMin ? ` / ${c.durationMin} 分钟` : ""}</span> : c.durationMin ? <span className="ml-2 text-xs text-ink-mute">{c.durationMin} 分钟</span> : null}
         </p>
         {c.segments?.map((s, i) => (
           <p key={i} className="text-xs text-ink-mute">
             {s.label}
             {s.reps ? ` ×${s.reps}` : ""}
             {s.distanceM ? ` ${km(s.distanceM)}` : ""}
+            {s.durationMin ? ` ${fmtStepMinutes(s.durationMin)}` : ""}
             {s.paceSPerKm ? ` @ ${pace(s.paceSPerKm)}/km` : ""}
             {s.hrZone ? `（心率 ${s.hrZone} 区）` : ""}
+            {s.hrBpmText ? `（目标心率 ${s.hrBpmText} bpm）` : ""}
           </p>
         ))}
         {c.note ? <p className="text-xs text-ink-mute">备注:{c.note}</p> : null}
@@ -307,7 +365,10 @@ function ContentPreview({
   const c = content as StrengthPlanContent;
   return (
     <div className="space-y-1">
-      <p className="font-medium">{c.title}</p>
+      <p className="font-medium">
+        {c.title}
+        {c.durationMin ? <span className="ml-2 text-xs text-ink-mute">{c.durationMin} 分钟</span> : null}
+      </p>
       {c.exercises.map((e, i) => {
         const meta = exercises ? exerciseMeta(e, exercises) : undefined;
         return (

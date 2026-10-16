@@ -69,3 +69,51 @@ test("FitnessPlanDraftV2：单位越界拒绝（距离>300km / 重量>500kg）",
   });
   assert.ok(!heavy.success);
 });
+
+test("FitnessPlanDraftV2：佳明截图字段（分段时长/bpm 区间 + 力量总时长）通过（REQ-020）", () => {
+  // 乳酸阈值跑截图：时间驱动步骤 + bpm 强度目标（不折算 hrZone）
+  const run = FitnessPlanDraftV2.safeParse({
+    reasoning: "佳明乳酸阈值跑截图",
+    module: "run",
+    run: {
+      workoutType: "tempo",
+      title: "乳酸阈值",
+      segments: [
+        { label: "热身", durationMin: 10, hrBpmText: "134-161" },
+        { label: "跑步", durationMin: 15, hrBpmText: "170-180" },
+        { label: "缓和", durationMin: 10, hrBpmText: "134-161" },
+      ],
+      durationMin: 35,
+    },
+    confidence: 0.95,
+  });
+  assert.ok(run.success);
+  assert.equal(run.data.run?.segments[1]?.durationMin, 15);
+  assert.equal(run.data.run?.segments[1]?.hrBpmText, "170-180");
+
+  // 全身循环截图：N 组=sets、0:40=repsText、体重=weightKg 0、总时长 25
+  const strength = FitnessPlanDraftV2.safeParse({
+    reasoning: "佳明全身循环截图",
+    module: "strength",
+    strength: {
+      title: "全身循环3",
+      exercises: [
+        { name: "臀桥", sets: 3, repsText: "40s", weightKg: 0 },
+        { name: "俯卧撑", sets: 3, repsText: "40s", weightKg: 0 },
+      ],
+      durationMin: 25,
+    },
+    confidence: 0.95,
+  });
+  assert.ok(strength.success);
+  assert.equal(strength.data.strength?.durationMin, 25);
+  assert.equal(strength.data.strength?.exercises[0]?.weightKg, 0, "体重=自重应存 0");
+
+  // 分段时长越界拒绝（>300 分钟）
+  const long = FitnessPlanDraftV2.safeParse({
+    module: "run",
+    run: { workoutType: "long", title: "超长步骤", segments: [{ label: "主课", durationMin: 400 }] },
+    confidence: 0.9,
+  });
+  assert.ok(!long.success);
+});

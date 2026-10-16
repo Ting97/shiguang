@@ -15,8 +15,18 @@ import type { z } from "zod";
 /** GLM 连接默认值——全仓唯一来源（apps/api config / PoC 报告均引用此处，REQ-004 AC-3） */
 export const GLM_DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 export const GLM_DEFAULT_MODEL = "glm-5.3-flash";
+/** 视觉模型默认值（REQ-020：健身课表截图等图片识别走 GLM_VISION_MODEL） */
+export const GLM_DEFAULT_VISION_MODEL = "glm-4.5v";
 const DEFAULT_BASE_URL = GLM_DEFAULT_BASE_URL;
 const DEFAULT_MODEL = GLM_DEFAULT_MODEL;
+
+/** 随消息附带的图片（OpenAI 兼容 image_url 载荷） */
+export interface ChatImage {
+  /** 图片 MIME（image/jpeg | image/png | image/webp | image/gif） */
+  mimeType: string;
+  /** 不含 data: 前缀的 base64 载荷 */
+  base64: string;
+}
 
 /** 传输层选择：sdk = Vercel AI SDK（默认）；legacy = 自研 fetch（等价回退开关，GLM_TRANSPORT=legacy） */
 export function glmTransport(): "sdk" | "legacy" {
@@ -74,6 +84,8 @@ export interface ChatUsage {
 interface ChatOptions {
   system: string;
   user: string;
+  /** 附图（非空时整次调用改走视觉模型 GLM_VISION_MODEL；限流降级不切文本兜底模型——文本模型不收图） */
+  images?: ChatImage[];
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
@@ -83,6 +95,27 @@ interface ChatOptions {
   onUsage?: (usage: ChatUsage) => void;
   /** 思考强度（仅 GLM-5.3 系列生效，仅支持 low/high/max）；解析类任务默认 low */
   reasoningEffort?: "low" | "high" | "max";
+}
+
+/** 本次调用的对话模型：带图走视觉模型（GLM_VISION_MODEL），否则主模型 */
+function chatModelOf(opts: ChatOptions): string {
+  if (opts.images?.length) return process.env.GLM_VISION_MODEL || GLM_DEFAULT_VISION_MODEL;
+  return process.env.GLM_MODEL ?? DEFAULT_MODEL;
+}
+
+/** 视觉调用当前生效的模型名（供审计 model 字段，与 chatModelOf 带图分支一致） */
+export function activeVisionModel(): string {
+  return process.env.GLM_VISION_MODEL || GLM_DEFAULT_VISION_MODEL;
+}
+
+/** 多模态 user content：纯文本给 string；带图给 OpenAI 兼容的 image_url 数组（legacy 直发，SDK 侧转换） */
+type MultimodalPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+function userContentOf(opts: ChatOptions): string | MultimodalPart[] {
+  if (!opts.images?.length) return opts.user;
+  return [
+    { type: "text", text: opts.user },
+    ...opts.images.map((img) => ({ type: "image_url" as const, image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })),
+  ];
 }
 
 /** GLM 私有扩展（thinking/reasoning_effort/max_tokens 提升）按目标模型计算：
@@ -105,8 +138,9 @@ export async function chat(opts: ChatOptions): Promise<string> {
   const key = process.env.ZHIPUAI_API_KEY;
   if (!key) throw new GlmError("auth", "缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
   const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
-  const model = process.env.GLM_MODEL ?? DEFAULT_MODEL;
+  const model = chatModelOf(opts);
   const fallback = process.env.GLM_FALLBACK_MODEL || "glm-4-flash";
+  const userContent = userContentOf(opts);
 
   // GLM 私有扩展不再在顶层按主模型一次性构建：legacy 降级到 fallback 模型时必须按目标模型
   // 重算（glm-5.3 的 thinking enabled 发给 glm-4-flash 会报 1210，把限流降级通道本身打挂）
@@ -115,7 +149,7 @@ export async function chat(opts: ChatOptions): Promise<string> {
     max_tokens: opts.maxTokens ?? 1024,
     messages: [
       { role: "system", content: opts.system },
-      { role: "user", content: opts.user },
+      { role: "user", content: userContent },
     ],
   };
 
@@ -202,7 +236,8 @@ export async function chat(opts: ChatOptions): Promise<string> {
     return await chatOnce(model, deadline);
   } catch (e) {
     if (e instanceof GlmError && e.kind === "quota") tripQuotaBreaker();
-    if (fallback && fallback !== model && e instanceof GlmError && e.kind === "rate" && deadline - Date.now() > 5_000) {
+    // 带图调用不切文本兜底模型（glm-4-flash 不收 image_url，切了必失败）——限流耗尽照常报错
+    if (fallback && fallback !== model && !opts.images?.length && e instanceof GlmError && e.kind === "rate" && deadline - Date.now() > 5_000) {
       console.warn(`[ai] ${model} 持续限流，降级 ${fallback} 兜底`);
       return await chatOnce(fallback, deadline);
     }
@@ -364,7 +399,8 @@ function createSdkProvider(base: string, key: string, opts: ChatOptions) {
   });
 }
 
-/** SDK 单次调用（Vercel AI SDK）：provider 由 chat() 复用传入；结构化错误 → GlmError 分类 */
+/** SDK 单次调用（Vercel AI SDK）：provider 由 chat() 复用传入；结构化错误 → GlmError 分类。
+ * 带图时 user 转多模态 messages（image part 传 data URL，openai-compatible 层自动映射 image_url） */
 async function sdkOnce(
   m: string,
   deadline: number,
@@ -374,10 +410,21 @@ async function sdkOnce(
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), Math.max(0, deadline - Date.now()));
   try {
+    const messages = opts.images?.length
+      ? [
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: opts.user },
+              ...opts.images.map((img) => ({ type: "image" as const, image: `data:${img.mimeType};base64,${img.base64}` })),
+            ],
+          },
+        ]
+      : undefined;
     const { text, reasoning, usage } = await generateText({
       model: provider.chatModel(m),
       system: opts.system,
-      prompt: opts.user,
+      ...(messages ? { messages } : { prompt: opts.user }),
       temperature: opts.temperature ?? 0.1,
       maxTokens: opts.maxTokens ?? 1024,
       abortSignal: ctl.signal,

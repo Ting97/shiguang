@@ -56,6 +56,16 @@ async function hasAlpha(ctx: CanvasRenderingContext2D, w: number, h: number): Pr
   return false;
 }
 
+/** Blob → data URL（base64）；课表截图识别（REQ-020）等需要内联 base64 的场景用 */
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("图片读取失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export interface UploadOutcome {
   ok: number;
   failed: File[];

@@ -180,7 +180,7 @@ export function buildOpenVocabUserPrompt(text: string, nowCst: string, contactNa
 
 // ============ 健身计划解析（REQ-016）：粘贴佳明课表/力量课文本 → 结构化日计划草稿 ============
 
-export const FITNESS_PLAN_PARSE_PROMPT = `你是"拾光"App 的健身计划解析引擎。用户把一天的训练课表文本粘贴进来（多为佳明跑步计划，也可能是力量课安排），请解析成结构化 JSON。
+export const FITNESS_PLAN_PARSE_PROMPT = `你是"拾光"App 的健身计划解析引擎。用户把一天的训练课表文本粘贴进来（多为佳明跑步计划，也可能是力量课安排），或附上佳明 Connect 等训练详情截图，请解析成结构化 JSON。
 
 ## 判定规则
 - 先判模块：跑步课表（距离/配速/心率/间歇节奏长距离等词）→ module="run"；力量课表（动作名+组次重量）→ module="strength"；混合文本以**主要训练内容**为准（跑步计划里的力量提示按 note 处理）。
@@ -193,15 +193,26 @@ export const FITNESS_PLAN_PARSE_PROMPT = `你是"拾光"App 的健身计划解�
 - title ≤30 字概括本课（如"间歇跑 8 公里"/"力量课 A · 推 + 轻腿"）。
 - 识别不出的字段给 null，禁止编造；confidence 必填。
 
+## 佳明截图识别（输入含训练详情截图时）
+- 截图结构：标题（课表名，如「乳酸阈值」「全身循环3」）+ 概述（总时长/训练效果）+ 注释 + 步骤列表（每步：步骤名、时长、强度目标）。以截图步骤为准逐条解析，页面固定文案（「概述」「步骤」「强度目标」等）不得混进字段。
+- **跑步课截图**（热身/跑步/缓和 + bpm 强度目标）→ module="run"：每个步骤一条 segment（label=步骤名，durationMin=时长分钟数，"10:00"→10；hrBpmText=强度目标 bpm 区间原文如 "134-161"）；时间驱动课没有距离，distanceKm/paceText 给 null；概述「总时长」→ run.durationMin；课表名含「乳酸阈值/节奏」→ workoutType="tempo"。总时长同时是各段之和时以概述为准。
+- **力量课截图**（「N 组」+ 运动/休息交替 + 「0:40 · 体重」）→ module="strength"：「N 组」= 整套循环轮数 → 每个动作 sets=N；「0:40」= 40 秒 → repsText "40s"；「体重」= 自重动作 → weightKg 给 0；「休息」步骤跳过不生成动作；「按计圈键」等操作提示忽略；每个运动步骤的动作名进 exercises（保持截图原名）。
+- 截图里的心率一律保留 bpm 原文进 hrBpmText——**禁止折算成 1-5 区间数**（用户心率分区未知）；文本课表若明确写「3 区」才用 hrZone。
+- 概述「总时长」在力量课截图 → strength.durationMin（分钟）；课表名（如「全身循环3」）作 title。
+
 ## 金标准示例
 「间歇跑 8.0 公里，55 分钟。热身 1 公里 @6:15；主课 6×400 米 @5:20/公里，组间 400 米慢跑；放松 1 公里。」→ {"reasoning":"典型佳明间歇课表","module":"run","run":{"workoutType":"interval","title":"间歇跑 8 公里","segments":[{"label":"热身","distanceKm":1,"paceText":"6:15"},{"label":"6×400 米","distanceKm":0.4,"reps":6,"paceText":"5:20"},{"label":"组间慢跑","distanceKm":0.4,"reps":5},{"label":"放松","distanceKm":1}],"totalDistanceKm":8,"durationMin":55,"note":null},"strength":null,"confidence":0.95}
 「课 B：坐姿划船 3×10-12；高位下拉 3×10-12；罗马尼亚硬拉 20kg 2×10-12；面拉 2×15；死虫式 3×10/侧」→ {"reasoning":"力量拉力课","module":"strength","run":null,"strength":{"title":"力量课 B · 拉为主","exercises":[{"name":"坐姿划船","sets":3,"repsText":"10-12"},{"name":"高位下拉","sets":3,"repsText":"10-12"},{"name":"罗马尼亚硬拉","weightKg":20,"sets":2,"repsText":"10-12"},{"name":"面拉","sets":2,"repsText":"15"},{"name":"死虫式","sets":3,"repsText":"10/侧"}],"note":null},"confidence":0.95}
+[截图：乳酸阈值 35:00，步骤 热身 10:00 强度目标 134-161 bpm／跑步 15:00 强度目标 170-180 bpm／缓和 10:00 强度目标 134-161 bpm] → {"reasoning":"佳明乳酸阈值跑截图","module":"run","run":{"workoutType":"tempo","title":"乳酸阈值","segments":[{"label":"热身","durationMin":10,"hrBpmText":"134-161"},{"label":"跑步","durationMin":15,"hrBpmText":"170-180"},{"label":"缓和","durationMin":10,"hrBpmText":"134-161"}],"totalDistanceKm":null,"durationMin":35,"note":null},"strength":null,"confidence":0.95}
+[截图：全身循环3 25:00，3 组，臀桥 0:40 体重 → 休息 0:20 → 俯卧撑 0:40 体重 → 休息 0:20 → 深蹲 0:40 体重 → 休息 0:20 → 登山者 0:40 体重] → {"reasoning":"佳明全身循环力量截图","module":"strength","run":null,"strength":{"title":"全身循环3","exercises":[{"name":"臀桥","sets":3,"repsText":"40s","weightKg":0},{"name":"俯卧撑","sets":3,"repsText":"40s","weightKg":0},{"name":"深蹲","sets":3,"repsText":"40s","weightKg":0},{"name":"登山者","sets":3,"repsText":"40s","weightKg":0}],"durationMin":25,"note":null},"confidence":0.95}
 
 只输出 JSON：{"reasoning":"一句话","module":"run|strength|rest","run":{…}或null,"strength":{…}或null,"rest":{"note":"…"}或null,"confidence":0~1}`;
 
-/** 粘贴解析 user prompt 装配（apps/api 的 DB 装配缺省时用） */
-export function buildFitnessParseUserPrompt(text: string): string {
-  return `课表文本：「${text}」\n请解析成结构化日计划草稿 JSON。`;
+/** 粘贴解析 user prompt 装配（apps/api 的 DB 装配缺省时用）；hasImage=附课表截图（文字可能为空/补充说明） */
+export function buildFitnessParseUserPrompt(text: string, hasImage = false): string {
+  const body = text.trim() || (hasImage ? "（见附图：佳明训练详情截图）" : "");
+  const hint = hasImage ? "\n本条输入包含课表截图，请以截图步骤为准解析。" : "";
+  return `课表文本：「${body}」${hint}\n请解析成结构化日计划草稿 JSON。`;
 }
 
 // ============ AI 对话助手（REQ-015 批次 A）：懂用户数据的私人经营助手 ============

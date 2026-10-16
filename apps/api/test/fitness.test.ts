@@ -80,12 +80,76 @@ test("纯函数：配速文本解析 + 草稿→整数口径映射", async (t) =
   assert.equal(canonical.content.segments[0].paceSPerKm, 320);
   assert.equal(canonical.content.totalDistanceM, 8000);
 
+  // REQ-020 佳明截图字段：分段时长 + bpm 区间原文透传（不折算 hrZone）；力量总时长
+  const garminRun = draftToCanonicalPlan({
+    module: "run",
+    run: {
+      workoutType: "tempo",
+      title: "乳酸阈值",
+      segments: [
+        { label: "热身", durationMin: 10, hrBpmText: "134-161" },
+        { label: "跑步", durationMin: 15, hrBpmText: "170-180" },
+      ],
+      durationMin: 35,
+    },
+    confidence: 0.95,
+  } as any) as any;
+  assert.equal(garminRun.content.segments[0].durationMin, 10);
+  assert.equal(garminRun.content.segments[1].hrBpmText, "170-180");
+  assert.equal(garminRun.content.segments[1].hrZone, null);
+  assert.equal(garminRun.content.durationMin, 35);
+
+  const garminStrength = draftToCanonicalPlan({
+    module: "strength",
+    strength: {
+      title: "全身循环3",
+      exercises: [{ name: "臀桥", sets: 3, repsText: "40s", weightKg: 0 }],
+      durationMin: 25,
+    },
+    confidence: 0.95,
+  } as any) as any;
+  assert.equal(garminStrength.content.exercises[0].weightG, 0, "体重=自重存 0（前端不展示）");
+  assert.equal(garminStrength.content.durationMin, 25);
+
   const strength = draftToCanonicalPlan({
     module: "strength",
     strength: { title: "课A", exercises: [{ name: "高脚杯深蹲", sets: 3, repsText: "10-12", weightKg: 16 }] },
     confidence: 0.9,
   } as any) as any;
   assert.equal(strength.content.exercises[0].weightG, 16000, "kg→g");
+});
+
+test("REQ-020 截图入参守卫：MIME 白名单/base64/体积 + 空文本带图放行到 AI 层", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+
+  // 文本与截图都为空 → 400
+  await assert.rejects(() => fitnessService.parsePlanDraft(UA, ""), /至少提供一项/);
+  // MIME 白名单
+  await assert.rejects(
+    () => fitnessService.parsePlanDraft(UA, "", { mimeType: "image/bmp", base64: "a".repeat(200) }),
+    /仅支持/,
+  );
+  // base64 字符集
+  await assert.rejects(
+    () => fitnessService.parsePlanDraft(UA, "", { mimeType: "image/jpeg", base64: "不!!合法##" }),
+    /不合法/,
+  );
+  // 体积上限（解码后 >6MB）
+  await assert.rejects(
+    () => fitnessService.parsePlanDraft(UA, "", { mimeType: "image/jpeg", base64: "a".repeat(9 * 1024 * 1024) }),
+    /过大/,
+  );
+  // 空文本 + 合法截图：通过入参守卫，走到 AI 层抛配额/鉴权类错误（不真实调 AI）
+  await assert.rejects(
+    () => fitnessService.parsePlanDraft(UA, "", { mimeType: "image/jpeg", base64: "a".repeat(200) }),
+    (e: any) => !/至少提供一项|仅支持|不合法|过大/.test(String(e?.message)),
+  );
+  // 附图时休息日文本不短路（文字可能只是补充说明）
+  await assert.rejects(
+    () => fitnessService.parsePlanDraft(UA, "休息日", { mimeType: "image/jpeg", base64: "a".repeat(200) }),
+    (e: any) => !/休息日/.test(String(e?.message)),
+  );
 });
 
 test("计划保存 → 今日行动联动（父任务+子行动，幂等重建）", async (t) => {
