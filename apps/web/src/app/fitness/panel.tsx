@@ -52,7 +52,7 @@ interface PageData {
   logs: FitnessSessionLog[];
   metrics: FitnessBodyMetric[];
   exercises: FitnessExercise[];
-  sleep: { log_date: string; hours: number; source: string }[];
+  sleep: { log_date: string; hours: number; feeling?: string | null; score?: number | null; source: string }[];
 }
 
 export default function FitnessPanel() {
@@ -84,7 +84,7 @@ export default function FitnessPanel() {
         api<{ logs: FitnessSessionLog[] }>(`/api/fitness/logs?from=${from}&to=${to}`),
         api<{ metrics: FitnessBodyMetric[] }>(`/api/fitness/metrics?from=${mFrom}&to=${today}`),
         api<{ exercises: FitnessExercise[] }>("/api/fitness/exercises"),
-        api<{ sleep: { log_date: string; hours: number; source: string }[] }>(`/api/fitness/sleep?from=${mFrom}&to=${today}`),
+        api<{ sleep: { log_date: string; hours: number; feeling?: string | null; score?: number | null; source: string }[] }>(`/api/fitness/sleep?from=${mFrom}&to=${today}`),
       ]);
       setData({
         modules: mods.modules ?? [],
@@ -185,25 +185,55 @@ function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: 
   );
 }
 
-/** 睡眠独立记录（REQ-024）：每日一条，教练调整协议「睡眠<6h 降级」的数据源 */
-function SleepCard({ today, sleep, reload }: { today: string; sleep: { log_date: string; hours: number; source: string }[]; reload: () => void }) {
+/** 睡眠独立记录（REQ-024）：每日一条，教练调整协议「睡眠<6h 降级」的数据源；REQ-025 加主观感受与 App 得分 */
+const SLEEP_FEELING_META: { key: "good" | "ok" | "bad"; label: string }[] = [
+  { key: "good", label: "饱满" },
+  { key: "ok", label: "一般" },
+  { key: "bad", label: "疲惫" },
+];
+
+function SleepCard({
+  today,
+  sleep,
+  reload,
+}: {
+  today: string;
+  sleep: { log_date: string; hours: number; feeling?: string | null; score?: number | null; source: string }[];
+  reload: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [hours, setHours] = useState("");
+  const [feeling, setFeeling] = useState<"good" | "ok" | "bad" | "">("");
+  const [score, setScore] = useState("");
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
 
   const last = sleep[sleep.length - 1] ?? null;
   const last7 = sleep.slice(-7);
   const avg7 = last7.length ? Math.round((last7.reduce((s, r) => s + r.hours, 0) / last7.length) * 10) / 10 : null;
+  const feelingLabel = (f?: string | null) => SLEEP_FEELING_META.find((m) => m.key === f)?.label ?? null;
+
+  function openModal(forDate: string) {
+    const existing = sleep.find((r) => r.log_date === forDate);
+    setDate(forDate);
+    setHours(existing ? String(existing.hours) : "");
+    setFeeling((existing?.feeling as "good" | "ok" | "bad" | undefined) ?? "");
+    setScore(existing?.score != null ? String(existing.score) : "");
+    setOpen(true);
+  }
 
   async function save() {
     if (busy || !hours) return;
     setBusy(true);
     try {
-      await api("/api/fitness/sleep", "POST", { date, hours: Number(hours) });
+      await api("/api/fitness/sleep", "POST", {
+        date,
+        hours: Number(hours),
+        feeling: feeling || null,
+        score: score ? Number(score) : null,
+      });
       toast("✅ 已记录睡眠");
       setOpen(false);
-      setHours("");
       reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
@@ -216,28 +246,62 @@ function SleepCard({ today, sleep, reload }: { today: string; sleep: { log_date:
     <section className="rounded-2xl border border-line-soft bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium">😴 睡眠</h2>
-        <button className="text-xs text-accent hover:underline" onClick={() => { setDate(today); setOpen(true); }}>
+        <button className="text-xs text-accent hover:underline" onClick={() => openModal(today)}>
           {last?.log_date === today ? "改今天" : "+ 记录"}
         </button>
       </div>
       {last ? (
         <p className="mt-2 text-xs text-ink-mute">
           最近（{mdLabel(last.log_date)}）：{last.hours} 小时
-          {avg7 != null ? ` · 近 7 天均值 ${avg7} 小时（低于 6 小时教练会建议降级训练）` : ""}
+          {last.feeling ? ` · ${feelingLabel(last.feeling)}` : ""}
+          {last.score != null ? ` · 得分 ${last.score}` : ""}
+          {avg7 != null ? ` · 近 7 天均值 ${avg7} 小时` : ""}
         </p>
       ) : (
-        <p className="mt-2 text-xs text-ink-mute">每天记一晚睡眠——教练排课时会参考（睡眠不足会建议降级）。</p>
+        <p className="mt-2 text-xs text-ink-mute">每天记一晚睡眠（可选手环 App 得分与感受）——教练排课时会参考。</p>
       )}
       {open && (
         <Modal title={`睡眠 · ${mdLabel(date)}`} onClose={() => setOpen(false)}>
           <div className="space-y-3">
             <label className="block text-xs text-ink-mute">
               日期
-              <input className="input-glow w-full text-sm" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} />
+              <input
+                className="input-glow w-full text-sm"
+                type="date"
+                value={date}
+                max={today}
+                onChange={(e) => {
+                  const d = e.target.value;
+                  setDate(d);
+                  const existing = sleep.find((r) => r.log_date === d);
+                  setHours(existing ? String(existing.hours) : "");
+                  setFeeling((existing?.feeling as "good" | "ok" | "bad" | undefined) ?? "");
+                  setScore(existing?.score != null ? String(existing.score) : "");
+                }}
+              />
             </label>
             <label className="block text-xs text-ink-mute">
               昨晚睡眠（小时）
               <input className="input-glow w-full text-sm" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} placeholder="6.5" autoFocus />
+            </label>
+            <div className="text-xs text-ink-mute">
+              睡眠感受
+              <div className="mt-1 flex gap-2">
+                {SLEEP_FEELING_META.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    className={`flex-1 rounded-xl border px-2 py-1.5 text-sm ${feeling === m.key ? "border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400" : "border-line-soft text-ink-mute"}`}
+                    onClick={() => setFeeling(feeling === m.key ? "" : m.key)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="block text-xs text-ink-mute">
+              App 睡眠得分（0-100，佳明/手环等，选填）
+              <input className="input-glow w-full text-sm" inputMode="numeric" value={score} onChange={(e) => setScore(e.target.value.replace(/[^\d]/g, ""))} placeholder="82" />
             </label>
             <div className="flex justify-end gap-2">
               <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setOpen(false)}>

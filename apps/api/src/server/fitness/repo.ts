@@ -187,19 +187,23 @@ export const fitnessRepo = {
 
   listSleep(userId: string, from: string, to: string) {
     return pool.query(
-      `select log_date::text as log_date, sleep_h_x10, source from fitness_sleep_logs
+      `select log_date::text as log_date, sleep_h_x10, feeling, score, source from fitness_sleep_logs
        where user_id = $1 and log_date between $2 and $3 order by log_date`,
       [userId, from, to],
     );
   },
-  upsertSleep(userId: string, logDate: string, sleepHX10: number, source: "manual" | "checkin") {
+  upsertSleep(userId: string, logDate: string, sleepHX10: number, source: "manual" | "checkin", feeling?: string | null, score?: number | null) {
     return pool.query(
-      `insert into fitness_sleep_logs (user_id, log_date, sleep_h_x10, source)
-       values ($1,$2,$3,$4)
+      `insert into fitness_sleep_logs (user_id, log_date, sleep_h_x10, feeling, score, source)
+       values ($1,$2,$3,$4,$5,$6)
        on conflict (user_id, log_date) do update set
-         sleep_h_x10 = excluded.sleep_h_x10, source = excluded.source, updated_at = now()
-       returning log_date::text as log_date, sleep_h_x10, source`,
-      [userId, logDate, sleepHX10, source],
+         sleep_h_x10 = excluded.sleep_h_x10,
+         -- 感受/得分缺省时保留已有值（打卡兼容路径只带时长，不抹掉白天录的主观项）
+         feeling = coalesce(excluded.feeling, fitness_sleep_logs.feeling),
+         score = coalesce(excluded.score, fitness_sleep_logs.score),
+         source = excluded.source, updated_at = now()
+       returning log_date::text as log_date, sleep_h_x10, feeling, score, source`,
+      [userId, logDate, sleepHX10, feeling ?? null, score ?? null, source],
     );
   },
 

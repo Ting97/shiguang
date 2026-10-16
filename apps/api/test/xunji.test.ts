@@ -11,9 +11,12 @@ import assert from "node:assert/strict";
 const UA = "22250000-2225-4222-8222-222500001171"; // 训记冒烟用户
 const UB = "22250000-2225-4222-8222-222500001172"; // 越权隔离用户
 
-// 纯函数/客户端模块不依赖 DB：进程内先加载（loadConfig 需最小 env）
+// 纯函数/客户端模块不依赖 DB：进程内先加载（loadConfig 需最小 env）。
+// DATABASE_URL 顶层就指向真库（有 SHIGUANGRI_TEST_DB 时）：本文件顶层 import service 链会
+// 构建 pg Pool 且 connectionString 冻结——若先落 placeholder 再由 ensureLoaded 改 env，
+// 池已指向占位库（与 ensureLoaded 的模块导入存在竞态，全量套件下稳定落在 placeholder）
 process.env.XUNJI_API_KEY ??= "xjllm_test_key";
-process.env.DATABASE_URL ??= "postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder";
+process.env.DATABASE_URL ??= process.env.SHIGUANGRI_TEST_DB ?? "postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder";
 
 // 纯函数/客户端模块不依赖 DB（CJS 输出不支持顶层 await：模块级 Promise，各 test 内 await）
 const modP = import("../src/server/fitness/xunji");

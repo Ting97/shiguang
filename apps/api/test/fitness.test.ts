@@ -444,14 +444,23 @@ test("REQ-024 睡眠独立记录：manual upsert/同日二写更新/区间过滤
 
   // manual 录入 + 同日二写 = 更新（覆盖打卡迁移值也走同一路径）
   await fitnessService.saveSleep(UA, { date: today, hours: 6.5 });
-  await fitnessService.saveSleep(UA, { date: today, hours: 7.2 });
-  await fitnessService.saveSleep(UA, { date: yesterday, hours: 5.8 });
+  await fitnessService.saveSleep(UA, { date: today, hours: 7.2, feeling: "ok", score: 82 });
+  await fitnessService.saveSleep(UA, { date: yesterday, hours: 5.8, feeling: "bad" });
   const list = (await fitnessService.listSleep(UA, yesterday, today)) as any;
   assert.equal(list.sleep.length, 2, "两日两条");
   assert.equal(list.sleep[1].hours, 7.2, "同日二写更新");
-  const { rows: raw } = await pool.query(`select sleep_h_x10, source from fitness_sleep_logs where user_id = $1 and log_date = $2`, [UA, today]);
+  assert.equal(list.sleep[1].feeling, "ok", "主观感受落库");
+  assert.equal(list.sleep[1].score, 82, "App 睡眠得分落库");
+  const { rows: raw } = await pool.query(`select sleep_h_x10, feeling, score, source from fitness_sleep_logs where user_id = $1 and log_date = $2`, [UA, today]);
   assert.equal(raw[0].sleep_h_x10, 72, "小时×10 整数口径");
   assert.equal(raw[0].source, "manual");
+
+  // REQ-025：打卡兼容入参（只带时长）不抹掉已有感受/得分
+  await fitnessService.saveSleep(UA, { date: today, hours: 7.0 });
+  const preserved = (await fitnessService.listSleep(UA, today, today)) as any;
+  assert.equal(preserved.sleep[0].hours, 7.0);
+  assert.equal(preserved.sleep[0].feeling, "ok", "时长更新保留 feeling");
+  assert.equal(preserved.sleep[0].score, 82, "时长更新保留 score");
 
   // 打卡兼容入参覆盖同日 manual（checkin 优先级=后写者胜）
   const saved = (await fitnessService.savePlanDraft(UA, {
