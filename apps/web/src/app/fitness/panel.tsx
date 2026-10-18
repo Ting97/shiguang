@@ -5,7 +5,7 @@
  * 今日 = 粘贴导入（AI 解析草稿 → 预览确认入库）+ 当日计划卡（确认/打卡/跳过）+ 周一体重腰围；
  * 计划 = 按周分组的计划 vs 实际对照；计划落库自动联动首页「今日行动」（后端 syncPlanTodos）。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import SubNav from "@/components/sub-nav";
 import Skeleton from "@/components/skeleton";
 import { Modal } from "@/components/ui/modal";
@@ -328,8 +328,7 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
 
-  async function pickImage(files: FileList | null) {
-    const file = files?.[0];
+  async function pickImage(file: File | null) {
     if (!file || picking) return;
     setPicking(true);
     try {
@@ -341,7 +340,6 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
       toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setPicking(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -389,8 +387,6 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
     }
   }
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   return (
     <section className="rounded-2xl border border-line-soft bg-surface p-4">
       <h2 className="mb-2 text-sm font-medium">📥 导入课表</h2>
@@ -402,15 +398,24 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
         placeholder="例：间歇跑 8 公里，55 分钟。热身 1 公里 @6:15；6×400 米 @5:20，组间 400 米慢跑；放松 1 公里"
         maxLength={2000}
       />
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => pickImage(e.target.files)} />
+      {/* 移动端选图走「label 包隐藏 input + 具体 MIME 列表」原生路径（同 publish-sheet）：
+          image/* 会触发系统相册全量枚举（微信内置/大相册手机弹窗卡数秒），程序化 .click() 在部分 WebView 响应慢 */}
       <div className="mt-2 flex items-center justify-between gap-2">
-        <button
-          className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={picking || parsing}
+        <label
+          className={`btn-ghost px-3 py-1.5 text-xs ${picking || parsing ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
         >
           {picking ? "处理中…" : "📷 佳明截图识别"}
-        </button>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = "";
+              pickImage(f);
+            }}
+          />
+        </label>
         <button
           className="btn-primary px-4 py-1.5 text-sm disabled:opacity-50"
           onClick={parse}
