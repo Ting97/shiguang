@@ -13,6 +13,8 @@ import { TagChip } from "@/components/tag-chip";
 import type { Space } from "@/lib/types";
 import { bjToday } from "@/lib/date"; // 北京口径今天：本地 getter 在海外设备会差一天
 import { api, ApiClientError } from "@/shared/api";
+import { useSession } from "@/shared/session";
+import ModuleLocked from "@/components/module-locked";
 import { toast } from "@/shared/ui/toast";
 import Skeleton from "@/components/skeleton";
 
@@ -149,6 +151,23 @@ export default function SpacesPage() {
 
   const active = (spaces ?? []).filter((s) => s.status === "active");
   const archived = (spaces ?? []).filter((s) => s.status === "archived");
+
+  // 模块关闭兜底（REQ-028）：API 层已 403，直连 /spaces 出未开通页
+  const { user } = useSession();
+  if (user && !user.modules.includes("goal")) {
+    return (
+      <main className="min-h-screen text-ink">
+        <div className="mx-auto max-w-2xl px-5 py-8">
+          <ModuleLocked
+            title="目标"
+            desc="该模块已关闭。可在【我的 → 功能管理】重新开启（数据保留不丢），或联系管理员。"
+            backHref="/"
+            backLabel="返回首页"
+          />
+        </div>
+      </main>
+    );
+  }
 
   /** pg date 字段按北京日期还原（node-pg 序列化为 UTC ISO，直接 slice 会差一天） */
   const bjDay = (iso: string) => new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);

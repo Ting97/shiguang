@@ -10,6 +10,7 @@ import SubNav from "@/components/sub-nav";
 import Skeleton from "@/components/skeleton";
 import { Modal } from "@/components/ui/modal";
 import { api } from "@/shared/api";
+import { useSession } from "@/shared/session";
 import { toast } from "@/shared/ui/toast";
 import { blobToDataUrl, compressImage } from "@/lib/image";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
@@ -61,6 +62,9 @@ export default function FitnessPanel() {
   const [data, setData] = useState<PageData | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [xunjiEnabled, setXunjiEnabled] = useState(false); // 训记集成配置（REQ-017 按钮显隐）
+  // sleep 子模块（REQ-028）：关闭时跳过睡眠取数与睡眠卡（/api/fitness/sleep 已 403，不发注定失败的请求）
+  const { user } = useSession();
+  const sleepOn = !user || user.modules.includes("sleep");
 
   useEffect(() => setToday(bjToday()), []);
   useEffect(() => {
@@ -84,7 +88,9 @@ export default function FitnessPanel() {
         api<{ logs: FitnessSessionLog[] }>(`/api/fitness/logs?from=${from}&to=${to}`),
         api<{ metrics: FitnessBodyMetric[] }>(`/api/fitness/metrics?from=${mFrom}&to=${today}`),
         api<{ exercises: FitnessExercise[] }>("/api/fitness/exercises"),
-        api<{ sleep: { log_date: string; hours: number; feeling?: string | null; score?: number | null; source: string }[] }>(`/api/fitness/sleep?from=${mFrom}&to=${today}`),
+        sleepOn
+          ? api<{ sleep: { log_date: string; hours: number; feeling?: string | null; score?: number | null; source: string }[] }>(`/api/fitness/sleep?from=${mFrom}&to=${today}`).catch(() => ({ sleep: [] }))
+          : Promise.resolve({ sleep: [] }),
       ]);
       setData({
         modules: mods.modules ?? [],
@@ -99,7 +105,7 @@ export default function FitnessPanel() {
     } catch (e) {
       setLoadErr(e instanceof Error ? e.message : String(e));
     }
-  }, [today]);
+  }, [today, sleepOn]);
   useEffect(() => {
     load();
   }, [load]);
@@ -119,7 +125,7 @@ export default function FitnessPanel() {
           <Skeleton rows={4} />
         ) : (
           <>
-            {tab === "today" && <TodayTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
+            {tab === "today" && <TodayTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} sleepOn={sleepOn} />}
             {tab === "plans" && <PlansTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
             {tab === "trends" && <FitnessTrends metrics={data.metrics} plans={data.plans} sleep={data.sleep} today={today} />}
             {tab === "archive" && (
@@ -142,7 +148,7 @@ export default function FitnessPanel() {
 // 今日 tab
 // ---------------------------------------------------------------------------
 
-function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: PageData; reload: () => void; xunjiEnabled: boolean }) {
+function TodayTab({ today, data, reload, xunjiEnabled, sleepOn }: { today: string; data: PageData; reload: () => void; xunjiEnabled: boolean; sleepOn: boolean }) {
   const tomorrow = bjAddDays(today, 1);
   const todays = data.plans.filter((p) => p.plan_date === today);
   const tomorrows = data.plans.filter((p) => p.plan_date === tomorrow);
@@ -180,7 +186,7 @@ function TodayTab({ today, data, reload, xunjiEnabled }: { today: string; data: 
       )}
 
       <MetricCard today={today} last={lastMetric} reload={reload} />
-      <SleepCard today={today} sleep={sleep} reload={reload} />
+      {sleepOn && <SleepCard today={today} sleep={sleep} reload={reload} />}
     </div>
   );
 }

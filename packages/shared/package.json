@@ -15,6 +15,7 @@
     "./graph": "./src/graph.ts",
     "./lunar": "./src/lunar.ts",
     "./mood": "./src/mood.ts",
+    "./modules": "./src/modules.ts",
     "./reminders": "./src/reminders.ts",
     "./social": "./src/social.ts",
     "./types": "./src/types.ts"

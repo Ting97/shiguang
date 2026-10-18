@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { ApiError } from "@/server/platform/http/errors";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ const KEY_RE = /^\d{4}(-\d{2})?(-\d{2})?$/;
  * period：day=YYYY-MM-DD / week=周一 YYYY-MM-DD（与 POST 缓存键一致）/ month=YYYY-MM / year=YYYY。
  * 无论缓存新旧都返回上次的小结（供卡片挂载时展示）；无则 review=null。
  */
-export const GET = withAuth(async (req, { user }) => {
+export const GET = withModule("insight", async (req, { user }) => {
   const { searchParams } = new URL(req.url);
   const kind = searchParams.get("kind") as (typeof KINDS)[number] | null;
   const period = searchParams.get("period");

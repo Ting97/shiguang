@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth, optionalTrimmed, assertUuidParam } from "@/server/platform/http/validate";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
@@ -12,7 +12,7 @@ const TZ = "Asia/Shanghai";
 
 /** GET /api/transactions?month=YYYY-MM&status=all|draft|confirmed&limit=&offset= —— 月度流水列表。
  * limit>0 时分页返回并附 total 计数（配合「加载更多」）；limit 缺省/0 = 全量，兼容旧调用方 */
-export const GET = withAuth(async (req, { user }) => {
+export const GET = withModule("finance", async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
   const status = url.searchParams.get("status") ?? "all";
@@ -54,7 +54,7 @@ export const GET = withAuth(async (req, { user }) => {
 });
 
 /** POST /api/transactions —— 手动记账（直接为已确认流水） */
-export const POST = withAuth(async (req, { user }) => {
+export const POST = withModule("finance", async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     direction?: "out" | "in";
     amountCents?: number;

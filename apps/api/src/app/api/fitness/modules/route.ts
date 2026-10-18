@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { fitnessService } from "@/server/fitness";
 
-export const GET = withAuth(async () => {
+export const GET = withModule("fitness", async () => {
   return NextResponse.json(await fitnessService.listModules());
 });

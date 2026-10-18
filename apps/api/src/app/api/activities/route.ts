@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { createActivity, listActivities } from "@/server/time";
 
@@ -15,10 +15,10 @@ function assertNumericBody(body: unknown): void {
 }
 
 /** GET /api/activities —— 全部分类（空则自愈播种，兜底早期注册的存量账号） */
-export const GET = withAuth(async (_req, { user }) => NextResponse.json(await listActivities(user.id)));
+export const GET = withModule("time", async (_req, { user }) => NextResponse.json(await listActivities(user.id)));
 
 /** POST /api/activities —— 新增自定义分类 */
-export const POST = withAuth(async (req, { user }) => {
+export const POST = withModule("time", async (req, { user }) => {
   const body = await req.json().catch(() => ({}));
   assertNumericBody(body);
   return NextResponse.json(await createActivity(user.id, body));

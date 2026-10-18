@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/accounts —— 全部账户（余额=期初，流水不入账；备付参与标记；camelCase 规范字段，snake_case 旧别名兼容一版） */
-export const GET = withAuth(async (_req, { user }) => {
+export const GET = withModule("finance", async (_req, { user }) => {
   const { rows } = await pool.query(
     `select a.id, a.name, a.icon, a.sort_order,
             a.opening_balance_cents, a.opening_balance_cents as "openingBalanceCents",
@@ -24,7 +24,7 @@ export const GET = withAuth(async (_req, { user }) => {
 });
 
 /** POST /api/accounts —— 新建账户 {name, icon?, openingBalanceCents?} */
-export const POST = withAuth(async (req, { user }) => {
+export const POST = withModule("finance", async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
     icon?: string;

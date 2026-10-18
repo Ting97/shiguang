@@ -6,14 +6,10 @@ import { useEffect, useRef } from "react";
 import { LogOut } from "lucide-react";
 import ThemeToggle from "./theme-toggle";
 import { useSession } from "@/shared/session";
+import { MODULE_REGISTRY } from "@shiguangri/shared/modules";
 
-const LINKS = [
-  { href: "/", label: "动态" },
-  { href: "/spaces", label: "目标" },
-  { href: "/schedule", label: "日程" },
-  { href: "/contacts", label: "人际" },
-  { href: "/finance", label: "财务" },
-];
+// 导航项来自模块注册表（REQ-028 单一事实源）：域级带 nav 的项；core 恒显
+const NAV_LINKS = MODULE_REGISTRY.filter((m) => m.nav).map((m) => ({ ...m.nav!, key: m.key, core: m.core ?? false }));
 
 // 预认证页不渲染导航（根布局统一挂载，登录/初始化页除外）
 const NAVLESS_PATHS = ["/login", "/setup"];
@@ -48,7 +44,7 @@ export default function Nav() {
     // 根布局统一挂载：宽度恒为视口宽（不再随各页 max-w 容器变化），页内容间距由各页容器 pt 提供
     <nav className="sticky top-0 z-40 flex items-center justify-between gap-2 rounded-b-2xl border border-t-0 border-line-soft bg-surface/80 p-1 pl-4 pr-3 text-sm shadow-lg shadow-scrim/50 backdrop-blur-xl safe-top">
       <div ref={scrollRef} className="scrollbar-none flex min-w-0 flex-1 justify-start gap-1 overflow-x-auto sm:justify-center">
-        {LINKS.map((l) => {
+        {NAV_LINKS.filter((l) => l.core || !user || user.modules.includes(l.key)).map((l) => {
           const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
           return (
             <Link key={l.href} href={l.href} data-path={l.href} className={linkCls(active)}>

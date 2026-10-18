@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam, optionalTrimmed } from "@/server/platform/http/validate";
 import { isParsableMoment } from "@/server/platform/http/datetime";
@@ -10,7 +10,7 @@ import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 export const runtime = "nodejs";
 
 /** PATCH /api/transactions/:id —— 修正流水（方向/金额/类别/交易对象/账户/备注/发生时间）；{confirm:true} 草稿转正 */
-export const PATCH = withAuthParams(async (req, { user, params }) => {
+export const PATCH = withModuleParams("finance", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as {
@@ -114,7 +114,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
 });
 
 /** DELETE /api/transactions/:id —— 删除识别错的流水 */
-export const DELETE = withAuthParams(async (_req, { user, params }) => {
+export const DELETE = withModuleParams("finance", async (_req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
   // 先取 occurred_at 再删：删除会让复盘水位（max）回退、缓存被判「仍新鲜」，需按发生日显式失效

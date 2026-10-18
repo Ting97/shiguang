@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { dedupeKey, parseBill, type ImportRow } from "@shiguangri/shared/csv-import";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  *   UTF-8 优先解码，出现替换符（GBK 乱码特征）回退 GBK（Node full-ICU TextDecoder）
  * dryRun=true 只解析与去重做预览，不落库；false 时直接入账（is_draft=false, source=csv_import）
  */
-export const POST = withAuth(async (req, { user }) => {
+export const POST = withModule("finance", async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
     base64?: string;

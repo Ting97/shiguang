@@ -9,6 +9,8 @@ import ContactFormModal from "@/components/contact-form";
 import ContactGraph from "@/components/contact-graph";
 import { TagChip, FilterChip, TONE_BG } from "@/components/tag-chip";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
+import { useSession } from "@/shared/session";
+import ModuleLocked from "@/components/module-locked";
 import { toast } from "@/shared/ui/toast";
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
 import { yuan } from "@/lib/finance";
@@ -103,6 +105,23 @@ export default function ContactsPage() {
           (c.notes ?? "").toLowerCase().includes(kw)),
     );
   }, [contacts, groups, q]);
+
+  // 模块关闭兜底（REQ-028）：入口隐藏后仍可能直连 /contacts——API 层已 403，这里出未开通页
+  const { user } = useSession();
+  if (user && !user.modules.includes("people")) {
+    return (
+      <main className="min-h-screen text-ink">
+        <div className="mx-auto max-w-2xl px-5 py-8">
+          <ModuleLocked
+            title="人际"
+            desc="该模块已关闭。可在【我的 → 功能管理】重新开启（数据保留不丢），或联系管理员。"
+            backHref="/"
+            backLabel="返回首页"
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen text-ink">

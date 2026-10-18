@@ -7,6 +7,7 @@ import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
+import ModulePrefsSection from "@/components/module-prefs-section";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 
 const zhDate = (iso: string | null) => {
@@ -163,6 +164,9 @@ export default function ProfilePage() {
                 </button>
               </div>
             </section>
+
+            {/* 功能管理（REQ-028 用户自选层）：放在账号资料后，最高频设置位 */}
+            <ModulePrefsSection />
 
             {/* 修改密码 */}
             <section className="glass rounded-2xl p-5">

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import AssistantChat, { SCOPE_META, type ChatScope } from "@/app/assistant/chat-core";
+import { useSession } from "@/shared/session";
 
 /**
  * 助手悬浮 Dock（REQ-015 追加；REQ-019 分域参数化）：
@@ -34,6 +35,12 @@ export default function AssistantDock({ scope = "global" }: { scope?: ChatScope 
     setMounted(true);
     setOpen((v) => !v);
   }, []);
+
+  // 模块联动（REQ-028）：ai 关 → 全站不挂；scope 域模块关 → 该页不挂（ChatScope 域值恰与模块 key 同名）
+  const { user } = useSession();
+  if (user && (!user.modules.includes("ai") || (scope !== "global" && !user.modules.includes(scope)))) {
+    return null;
+  }
 
   return (
     <>

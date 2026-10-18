@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { chatService } from "@/server/chat";
@@ -13,7 +13,7 @@ const renameSchema = z.object({
 });
 
 /** PATCH /api/chat/[id] —— 会话改名 */
-export const PATCH = withAuthParams(async (req, { user, params }) => {
+export const PATCH = withModuleParams("ai", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
   const parsed = renameSchema.safeParse(await req.json().catch(() => ({})));
@@ -23,7 +23,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
 });
 
 /** DELETE /api/chat/[id] —— 会话软删（列表隐藏，消息保留审计追溯） */
-export const DELETE = withAuthParams(async (_req, { user, params }) => {
+export const DELETE = withModuleParams("ai", async (_req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
   await chatService.deleteConversation(user.id, id);

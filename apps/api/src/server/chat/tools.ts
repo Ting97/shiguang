@@ -30,7 +30,7 @@ export const CHAT_READABLE_TABLES = [
   "liability_payments",
   "trades",
   "trade_accounts",
-  "user_module_grants",
+  "user_module_controls",
   "profiles",
   // 财务/目标/饮食/备付（全数据面接入）
   "diet_records",
@@ -90,16 +90,13 @@ const bjTs = (col: string) => `to_char(${col} at time zone 'Asia/Shanghai', 'MM-
 /** timestamptz 列 → 北京钟面展示（null 透传 null）；todo 到期/完成时间用 */
 const dueExpr = (col: string) => `case when ${col} is null then null else ${bjTs(col)} end`;
 
-/** 模块门禁（负债/交易是授权模块）：与路由 getModuleUser 同口径——admin 直通，普通用户查 user_module_grants */
+/** 模块门禁（REQ-028）：与路由 getModuleUser 同口径——admin 直通，普通用户走三层有效态 */
 async function moduleAllowed(ctx: ChatToolCtx, module: "debt" | "trading"): Promise<boolean> {
-  const { rows } = await pool.query(
-    `select case when p.role = 'admin' then true else exists(
-       select 1 from user_module_grants g where g.user_id = p.id and g.module = $2
-     ) end as allowed
-     from profiles p where p.id = $1`,
-    [ctx.userId, module],
-  );
-  return Boolean(rows[0]?.allowed);
+  const { resolveUserModules } = await import("@/server/platform/modules");
+  const { rows } = await pool.query(`select role from profiles where id = $1`, [ctx.userId]);
+  const role = String(rows[0]?.role ?? "user");
+  const { modules } = await resolveUserModules({ id: ctx.userId, role });
+  return modules.includes(module);
 }
 
 /** 授权模块未开通时的统一返回：模型据此如实告知而非报错 */

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { milestoneService } from "@/server/goal";
 
@@ -7,14 +7,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/spaces/:id/milestones —— 阶段目标全部列表（历史保留，active 在前） */
-export const GET = withAuthParams(async (_req, { user, params }) => {
+export const GET = withModuleParams("goal", async (_req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
   return NextResponse.json(await milestoneService.list(user.id, id));
 });
 
 /** POST /api/spaces/:id/milestones —— 新建阶段目标 { title, targetDate? }（201） */
-export const POST = withAuthParams(async (req, { user, params }) => {
+export const POST = withModuleParams("goal", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
   const body = (await req.json().catch(() => ({}))) as { title?: string; targetDate?: string | null };

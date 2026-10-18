@@ -6,6 +6,8 @@ import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
 import { yuan } from "@/lib/finance";
 import { api } from "@/shared/api";
+import { useSession } from "@/shared/session";
+import ModuleLocked from "@/components/module-locked";
 import { toast } from "@/shared/ui/toast";
 import AssistantDock from "@/components/assistant-dock";
 
@@ -121,6 +123,23 @@ export default function FinancePage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
     }
+  }
+
+  // 模块关闭兜底（REQ-028）：入口隐藏后仍可能直连 /finance——API 层已 403，这里出未开通页
+  const { user: meUser } = useSession();
+  if (meUser && !meUser.modules.includes("finance")) {
+    return (
+      <main className="min-h-screen text-ink">
+        <div className="mx-auto max-w-2xl px-5 py-8">
+          <ModuleLocked
+            title="财务"
+            desc="该模块已关闭。可在【我的 → 功能管理】重新开启（数据保留不丢），或联系管理员。"
+            backHref="/"
+            backLabel="返回首页"
+          />
+        </div>
+      </main>
+    );
   }
 
   // mounted 门：month 未就绪时与首帧 SSG HTML 同构地渲染骨架（此时 loadErr 必为 null，不会误显错误态）

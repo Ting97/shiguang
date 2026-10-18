@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { milestoneService } from "@/server/goal";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** PATCH /api/spaces/:id/milestones/:mid —— 编辑/达成/放弃 { title?, targetDate?, status? } */
-export const PATCH = withAuthParams(async (req, { user, params }) => {
+export const PATCH = withModuleParams("goal", async (req, { user, params }) => {
   const { id, mid } = await params;
   assertUuidParam(id, "id");
   assertUuidParam(mid, "mid");

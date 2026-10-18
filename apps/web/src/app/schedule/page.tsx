@@ -8,6 +8,8 @@ import ActivityPanel from "@/components/activity-panel";
 import TodoLogo from "@/components/todo-logo";
 import SubNav from "@/components/sub-nav";
 import AssistantDock from "@/components/assistant-dock";
+import { useSession } from "@/shared/session";
+import ModuleLocked from "@/components/module-locked";
 
 /**
  * 日程模块：日历（时间统计四视图）+ TODO（待办管理）+ 分类（活动分类管理）。
@@ -39,6 +41,23 @@ export default function SchedulePage() {
   useEffect(() => {
     setMounted((m) => (m[tab] ? m : { ...m, [tab]: true }));
   }, [tab]);
+
+  // 模块关闭兜底（REQ-028）：API 层已 403，直连 /schedule 出未开通页
+  const { user } = useSession();
+  if (user && !user.modules.includes("time")) {
+    return (
+      <main className="min-h-screen text-ink">
+        <div className="mx-auto max-w-2xl px-5 py-8">
+          <ModuleLocked
+            title="日程"
+            desc="该模块已关闭。可在【我的 → 功能管理】重新开启（数据保留不丢），或联系管理员。"
+            backHref="/"
+            backLabel="返回首页"
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen text-ink">

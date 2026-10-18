@@ -17,10 +17,14 @@ import {
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { useSession } from "@/shared/session";
 import { combineHM, zhTime } from "@/lib/bj-time";
 
 /** 日程页 · 日历子页：原 /calendar 页的四视图（日/周/月/年）+ AI 复盘，逻辑不变整体平移 */
 export default function CalendarPanel({ initialAnchor }: { initialAnchor?: string }) {
+  // AI 复盘卡联动（REQ-028）：insight 关闭时不渲染四档小结卡（API 已 403，不出注定失败的生成按钮）
+  const { user } = useSession();
+  const insightOn = !user || user.modules.includes("insight");
   const [view, setView] = useState<"day" | "week" | "month" | "year">("week"); // 默认周视图（2026-10-04 用户偏好）：一周安排一屏可见
   const [anchor, setAnchor] = useState<string>(bjToday()); // 当前锚定日期（北京口径，海外设备的本地日会错 8 小时）
   // SSG 防 hydration mismatch：服务端/客户端首帧都渲染同一骨架，mount 后再渲染带日期的真内容
@@ -258,7 +262,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
             <div className="mt-4 border-t border-line-soft pt-3 text-xs text-ink-dim">
               共 {dayBlocks.length} 段 · {zhDuration(dayBlocks.reduce((s, b) => s + dayClampedMin(b), 0))}
             </div>
-            <DayReviewCard key={`day-${anchor}`} date={anchor} hasRecords={dayBlocks.length > 0 || hasExtras} notify={setErr} />
+            {insightOn && <DayReviewCard key={`day-${anchor}`} date={anchor} hasRecords={dayBlocks.length > 0 || hasExtras} notify={setErr} />}
           </aside>
           <div className="order-last lg:order-none">
             {editing && (
@@ -273,25 +277,25 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
       {!loading && view === "week" && (
         <>
           <WeekView days={weekDays} blocks={blocks} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-          <WeekReviewCard
+          {insightOn && <WeekReviewCard
             key={`week-${weekDays[0]}`}
             weekStart={weekDays[0]}
             weekEnd={weekDays[6]}
             hasRecords={blocks.length > 0 || hasExtras}
             notify={setErr}
-          />
+          />}
         </>
       )}
       {!loading && view === "month" && (
         <>
         <MonthView month={startOfMonth(anchor)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-        <MonthReviewCard key={`month-${anchor.slice(0, 7)}`} month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />
+        {insightOn && <MonthReviewCard key={`month-${anchor.slice(0, 7)}`} month={anchor.slice(0, 7)} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />}
         </>
       )}
       {!loading && view === "year" && (
         <>
         <YearView year={anchor.slice(0, 4)} stats={stats} activities={activities} onPickDay={(d) => { setAnchor(d); setView("day"); }} />
-        <YearReviewCard key={`year-${anchor.slice(0, 4)}`} year={anchor.slice(0, 4)} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />
+        {insightOn && <YearReviewCard key={`year-${anchor.slice(0, 4)}`} year={anchor.slice(0, 4)} hasRecords={[...stats.values()].length > 0 || hasExtras} notify={setErr} />}
         </>
       )}
     </>

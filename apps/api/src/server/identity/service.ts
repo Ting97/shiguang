@@ -128,15 +128,17 @@ export async function me(user: {
   role: string;
 }) {
   const { rows } = await profilesRepo.info(user.id);
-  // 模块授权（031）在 platform；4-D 迁移后由 server/platform/modules 提供
-  const { listUserModules } = await import("@/server/platform/modules");
+  // 模块开关（028）在 platform：modules=有效 key 全量（存量 includes 判断兼容），modulePrefs=功能管理区明细
+  const { resolveUserModules } = await import("@/server/platform/modules");
+  const resolved = await resolveUserModules(user);
   return {
     id: user.id,
     nickname: user.nickname,
     phone: user.phone,
     authDisabled: loadConfig().authDisabled,
     isAdmin: user.role === "admin",
-    modules: await listUserModules(user.id, user.role),
+    modules: resolved.modules,
+    modulePrefs: resolved.prefs,
     phoneVerified: rows[0]?.phone_verified ?? false,
     wechatBound: rows[0]?.wechat_bound ?? false,
     createdAt: rows[0]?.created_at ?? null,

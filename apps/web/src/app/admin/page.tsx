@@ -1,22 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Bot, Lightbulb, Megaphone } from "lucide-react";
+import { BarChart3, Bot, Lightbulb, Megaphone, Puzzle } from "lucide-react";
 import { useSession } from "@/shared/session";
 import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
 import AdminAiPanel from "@/components/admin-ai-panel";
 import AdminDataPanel from "@/components/admin-data-panel";
 import AdminMarketingPanel from "@/components/admin-marketing-panel";
+import AdminModulesPanel from "@/components/admin-modules-panel";
 import { FilterChip, TagChip } from "@/components/tag-chip";
 
 /**
- * /admin 后台（REQ-001 R4 + REQ-005 R5）：仅管理员。AI 管理（prompt 在线调优 + AI 协助优化）
- * + 营销管理 + 数据面（类别清单/数据目录/在线试查）。
+ * /admin 后台（REQ-001 R4 + REQ-005 R5 + REQ-028）：仅管理员。AI 管理（prompt 在线调优 + AI 协助优化）
+ * + 营销管理 + 模块开关（全局层/按用户覆盖）+ 数据面（类别清单/数据目录/在线试查）。
  * 门禁：静态导出页面无服务端鉴权——前端 403 态 + /api/admin/* 层 role 硬校验（安全边界）。
  */
 
-type Tab = "ai" | "marketing" | "data";
+type Tab = "ai" | "marketing" | "modules" | "data";
 
 export default function AdminPage() {
     // 会话走 useSession() 单源（session.tsx 约定：子页面禁止散拉 /api/auth/me——旧版与 Provider 双请求）
@@ -52,6 +53,7 @@ export default function AdminPage() {
               <div className="flex rounded-full border border-line-soft bg-bg/50 p-0.5 text-xs sm:w-auto">
                 <FilterChip variant="pill" active={tab === "ai"} onClick={() => setTab("ai")} icon={<Bot size={12} />} label="AI 管理" />
                 <FilterChip variant="pill" active={tab === "marketing"} onClick={() => setTab("marketing")} icon={<Megaphone size={12} />} label="营销管理" />
+                <FilterChip variant="pill" active={tab === "modules"} onClick={() => setTab("modules")} icon={<Puzzle size={12} />} label="模块" />
                 <FilterChip variant="pill" active={tab === "data"} onClick={() => setTab("data")} icon={<BarChart3 size={12} />} label="数据" />
               </div>
             </div>
@@ -71,6 +73,8 @@ export default function AdminPage() {
               </section>
             ) : tab === "marketing" ? (
               <AdminMarketingPanel notify={notify} />
+            ) : tab === "modules" ? (
+              <AdminModulesPanel notify={notify} />
             ) : (
               <AdminDataPanel notify={notify} />
             )}

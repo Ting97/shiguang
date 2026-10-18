@@ -7,6 +7,7 @@ import FitnessPanel from "@/app/fitness/panel";
 import AssistantDock from "@/components/assistant-dock";
 import ReflectionEditor from "@/components/reflection-editor";
 import SpacePicker from "@/components/space-picker";
+import { useSession } from "@/shared/session";
 import { FilterChip } from "@/components/tag-chip";
 import HeaderCard from "./detail/header-card";
 import LinkPickerModal from "./detail/link-picker-modal";
@@ -44,6 +45,10 @@ export default function Detail() {
   const reflection = useReflection({ id, load, setMsg });
   const momentLink = useMomentLink({ id, load, setMsg });
   const { pickerRow, setPickerRow, pickSpace } = todoActions;
+  // 训练 tab 联动（REQ-028）：fitness 模块关闭时不渲染入口与面板（?tab=fitness 深链也回退）
+  const { user } = useSession();
+  const fitnessOn = !user || user.modules.includes("fitness");
+  const activeTab: SpaceTab = tab === "fitness" && !fitnessOn ? "todo" : tab;
 
   if (notFound) {
     return (
@@ -108,28 +113,28 @@ export default function Detail() {
 
         {/* 分区 tab（REQ-002 N2）：TODO·行动 / 感悟 / 动态；内置运动空间首位多一栏「训练」（REQ-018） */}
         <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto pb-1">
-          {space.kind === "sport" && <FilterChip label="训练" active={tab === "fitness"} onClick={() => setTab("fitness")} />}
-          <FilterChip label="TODO·行动" count={todos.length} active={tab === "todo"} onClick={() => setTab("todo")} />
-          <FilterChip label="感悟" count={space.reflection_count ?? 0} active={tab === "reflection"} onClick={() => setTab("reflection")} />
+          {space.kind === "sport" && fitnessOn && <FilterChip label="训练" active={activeTab === "fitness"} onClick={() => setTab("fitness")} />}
+          <FilterChip label="TODO·行动" count={todos.length} active={activeTab === "todo"} onClick={() => setTab("todo")} />
+          <FilterChip label="感悟" count={space.reflection_count ?? 0} active={activeTab === "reflection"} onClick={() => setTab("reflection")} />
           {/* 动态计数用 feed total（未被 limit=20 封顶）；接口未带 total 时回退 header-card 的 entry_count 保持口径一致 */}
-          <FilterChip label="动态" count={momentsTotal ?? space.entry_count ?? 0} active={tab === "moments"} onClick={() => setTab("moments")} />
+          <FilterChip label="动态" count={momentsTotal ?? space.entry_count ?? 0} active={activeTab === "moments"} onClick={() => setTab("moments")} />
         </div>
 
         {/* 训练栏（REQ-018）：健身面板整体嵌入——今日/计划/趋势/目标&档案 */}
-        {tab === "fitness" && space.kind === "sport" && <FitnessPanel />}
+        {activeTab === "fitness" && space.kind === "sport" && fitnessOn && <FitnessPanel />}
 
         {/* 关联 TODO·行动 */}
-        {tab === "todo" && (
+        {activeTab === "todo" && (
           <TodoSection todos={todos} doneTodos={doneTodos} actions={todoActions} activities={activities} setMsg={setMsg} />
         )}
 
         {/* 感悟（REQ-002 N2） */}
-        {tab === "reflection" && (
+        {activeTab === "reflection" && (
           <ReflectionSection id={id} reflection={reflection} setMsg={setMsg} load={load} />
         )}
 
         {/* 关联动态 */}
-        {tab === "moments" && (
+        {activeTab === "moments" && (
           <MomentsSection
             moments={moments}
             total={momentsTotal}

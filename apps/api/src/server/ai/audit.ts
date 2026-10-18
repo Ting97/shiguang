@@ -22,7 +22,9 @@ export interface AuditRecord {
     | "admin_data"
     | "ai_profile"
     | "fitness_parse"
-    | "xunji_name_match";
+    | "xunji_name_match"
+    | "module_prefs"
+    | "module_admin";
   model: string | null;
   engine?: string | null;
   latencyMs?: number | null;

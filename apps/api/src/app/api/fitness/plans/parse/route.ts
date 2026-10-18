@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { fitnessService } from "@/server/fitness";
 
 /** POST /api/fitness/plans/parse —— 粘贴课表文本或佳明训练截图 → AI 结构化草稿（不入库，返回给前端预览）。
  * image：{mimeType, base64（不含 data: 前缀）}；text 与 image 至少一项，text 在附图时可空（作补充说明） */
-export const POST = withAuth(async (req, { user }) => {
+export const POST = withModule("fitness", async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
     image?: { mimeType?: string; base64?: string };

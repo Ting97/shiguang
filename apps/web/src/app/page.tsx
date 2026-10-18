@@ -19,6 +19,8 @@ import FeedSection from "./home/feed-section";
 import RemindersBanner from "./home/reminders-banner";
 import TodaySchedule from "./home/today-schedule";
 import { useHomeData } from "./home/use-home-data";
+import { useSession } from "@/shared/session";
+import { MODULE_REGISTRY } from "@shiguangri/shared/modules";
 
 /**
  * 动态首页入口：状态与发布编排留在本文件，
@@ -239,6 +241,9 @@ export default function Home() {
         {/* W12 提醒横幅：生日/纪念日/到期 todo（可一键加入今日） */}
         <RemindersBanner items={reminderItems} load={loadVoid} />
 
+        {/* 模块全关空态引导（REQ-028 FR-A11）：除核心动态外所有域级模块都关闭时指路功能管理 */}
+        <AllModulesOffHint />
+
         {/* 取数失败态：给出重试入口，避免失败后整页静默空态（对齐 spaces 页范式） */}
         {/* 输入区（桌面端；移动端改用底部悬浮圆圈：点按打字 / 长按说话） */}
         <DesktopComposer
@@ -407,4 +412,26 @@ function shiftYmd(ymd: string, n: number): string {
 function zhYmd(ymd: string): string {
   const [, m, d] = ymd.split("-").map(Number);
   return `${m}月${d}日`;
+}
+
+/** 全模块关闭引导卡（REQ-028 FR-A11）：除 core（动态）外所有域级模块均关闭时出现，指路功能管理 */
+function AllModulesOffHint() {
+  const { user } = useSession();
+  if (!user) return null;
+  const domains = MODULE_REGISTRY.filter((m) => m.level === "domain" && !m.core);
+  const allOff = domains.length > 0 && domains.every((m) => !user.modules.includes(m.key));
+  if (!allOff) return null;
+  return (
+    <div className="glass mb-4 rounded-2xl p-4 text-center">
+      <p className="text-xs text-ink-dim">
+        其余功能模块都已关闭中——想找回目标、日程、人际、财务或 AI 助手？
+      </p>
+      <a
+        href="/profile"
+        className="mt-2 inline-block rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20"
+      >
+        去【我的 → 功能管理】开启
+      </a>
+    </div>
+  );
 }

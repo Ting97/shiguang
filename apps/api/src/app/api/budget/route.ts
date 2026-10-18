@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/budget —— 月度上限配置 */
-export const GET = withAuth(async (_req, { user }) => {
+export const GET = withModule("finance", async (_req, { user }) => {
   const { rows } = await pool.query(
     `select monthly_limit_cents, alert_threshold from budgets where user_id = $1`,
     [user.id],
@@ -18,7 +18,7 @@ export const GET = withAuth(async (_req, { user }) => {
 });
 
 /** PUT /api/budget —— 保存月度上限 {monthlyLimitCents, alertThreshold?} */
-export const PUT = withAuth(async (req, { user }) => {
+export const PUT = withModule("finance", async (req, { user }) => {
   const body = (await req.json().catch(() => ({}))) as {
     monthlyLimitCents?: number;
     alertThreshold?: number;

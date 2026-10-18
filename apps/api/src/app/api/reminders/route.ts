@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * - remind_at 已到、仍未完成的待办（创建待办时 remind_at = due - 15 分钟）
  * 条目筛选/排序由 lib/reminders.pickReminders 完成
  */
-export const GET = withAuth(async (_req, { user }) => {
+export const GET = withModule("people", async (_req, { user }) => {
   // 9-F：两查互不依赖，并行执行
   const [{ rows: contacts }, { rows: todos }] = await Promise.all([
     pool.query(

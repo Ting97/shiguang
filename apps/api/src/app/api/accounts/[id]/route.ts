@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 
 export const runtime = "nodejs";
 
 /** PATCH /api/accounts/:id —— 改名/图标/期初余额/排序/归档 */
-export const PATCH = withAuthParams(async (req, { user, params }) => {
+export const PATCH = withModuleParams("finance", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as {
@@ -82,7 +82,7 @@ export const PATCH = withAuthParams(async (req, { user, params }) => {
 });
 
 /** DELETE /api/accounts/:id —— 归档账户（不物理删除，历史流水完整保留） */
-export const DELETE = withAuthParams(async (_req, { user, params }) => {
+export const DELETE = withModuleParams("finance", async (_req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const updated = (

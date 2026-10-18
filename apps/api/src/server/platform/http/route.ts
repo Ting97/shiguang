@@ -129,7 +129,7 @@ export function withModuleParams(
   });
 }
 
-/** 模块授权门禁（debt / trade_review）：admin 直通，普通用户查授权 */
+/** 模块授权门禁（REQ-028 注册表 key；admin 直通，普通用户走三层有效态） */
 export function withModule(
   module: ModuleKey,
   handler: Handler<AuthedCtx>,
@@ -140,6 +140,18 @@ export function withModule(
     if (!user) throw new ApiError(403, "forbidden", "未开通该模块");
     setRequestUserId(user.id);
     return handler(req, { req, user, log });
+  });
+}
+
+/** 模块门禁 + zod body 校验（withModule 与 withAuthSchema 的组合，REQ-028） */
+export function withModuleSchema<S extends z.ZodTypeAny>(
+  module: ModuleKey,
+  schema: S,
+  handler: Handler<AuthedCtx & { valid: z.infer<S> }>,
+): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
+  return withModule(module, async (req, ctx) => {
+    const raw = await readJsonCapped(req);
+    return handler(req, { ...ctx, valid: parseWith(schema, raw) });
   });
 }
 

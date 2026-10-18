@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasApiKey } from "@shiguangri/ai";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { acquireGeneration, releaseGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
@@ -22,7 +22,7 @@ interface WeekReview {
  * date 为该周任一天；聚合本周时间/待办/收支/人际/心情事实 → LLM 解读，不落库即时生成。
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
-export const POST = withAuth(async (req, { user }) => {
+export const POST = withModule("insight", async (req, { user }) => {
   const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
   // 形状校验放行 2025-13-45 → ::date cast 500 且周期静默算错：需为真实日历日
   if (!date || !isValidCalendarDate(date)) {

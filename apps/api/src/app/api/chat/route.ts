@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withAuth, withAuthSchema } from "@/server/platform/http/route";
+import { withModule, withModuleSchema } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { chatService, parseScope } from "@/server/chat";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * GET /api/chat —— 会话列表 + 当日配额（首屏一次拉齐）；?scope= 域过滤（REQ-019 FR-C1）；
  * GET /api/chat?id=<uuid> —— 单会话消息（分页：默认最近 6 条=3 轮，before=上一页游标向前翻）。
  */
-export const GET = withAuth(async (req, { user }) => {
+export const GET = withModule("ai", async (req, { user }) => {
   const sp = new URL(req.url).searchParams;
   const id = sp.get("id");
   if (id) {
@@ -36,7 +36,7 @@ const sendSchema = z.object({
 });
 
 /** POST /api/chat —— 发送消息，AI 工具循环查库后回答（MVP 非流式；LLM+查询总预算 60s，客户端超时需放宽） */
-export const POST = withAuthSchema(sendSchema, async (_req, { user, valid }) => {
+export const POST = withModuleSchema("ai", sendSchema, async (_req, { user, valid }) => {
   const r = await chatService.sendMessage(user.id, valid);
   return NextResponse.json(r);
 });

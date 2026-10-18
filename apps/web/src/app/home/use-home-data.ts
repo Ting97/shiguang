@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/shared/api";
+import { useSession } from "@/shared/session";
 import { pickReminders, type ReminderContact, type ReminderItem, type ReminderTodo } from "@/lib/reminders";
 import type { Activity, Block, FeedMoment, Space, TodoItem, TodoRow } from "@/lib/types";
 
@@ -14,6 +15,10 @@ const FEED_PAGE_SIZE = 10; // 动态流每页条数，「加载更多」按页�
  */
 export function useHomeData(opts?: { notify?: (text: string) => void }) {
   const notifyError = opts?.notify;
+  // 模块联动（REQ-028）：people/goal 关闭时不发对应请求（服务端虽会 403 且各有 catch 兜底，但不发更干净）
+  const { user } = useSession();
+  const peopleOn = !user || user.modules.includes("people");
+  const goalOn = !user || user.modules.includes("goal");
   const [moments, setMoments] = useState<FeedMoment[]>([]);
   const [feedTotal, setFeedTotal] = useState(0);
   const [searchInput, setSearchInput] = useState("");
@@ -55,8 +60,8 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
       const [j, f, rj] = await Promise.all([
         api("/api/today"),
         api(`/api/feed?limit=${lim}${q ? `&q=${encodeURIComponent(q)}` : ""}${sp !== "all" ? `&spaceId=${sp}` : ""}${bf ? `&before=${encodeURIComponent(bf)}` : ""}`),
-        // W12 提醒横幅：接口失败不打扰主流程
-        api("/api/reminders").catch(() => null),
+        // W12 提醒横幅：接口失败不打扰主流程；people 模块关闭时直接空态（不发注定 403 的请求）
+        peopleOn ? api("/api/reminders").catch(() => null) : Promise.resolve(null),
       ]);
       // 已卸载或已有更新的请求发出：丢弃过期响应，避免旧数据覆盖新视图（连续快切空间场景）
       if (!aliveRef.current || seq !== seqRef.current) return "stale";
@@ -80,14 +85,18 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
       // 本次取数周期落幕即复位「加载更多」；若已被更新的请求取代，则由那个周期的 finally 负责复位
       if (aliveRef.current && seq === seqRef.current) setLoadingMore(false);
     }
-  }, [query, spaceFilter]);
+  }, [query, spaceFilter, peopleOn]);
 
-  // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）
+  // 空间切换条数据（active 空间；失败静默——切换条隐藏，feed 照常）；goal 关闭时置空不发请求
   useEffect(() => {
+    if (!goalOn) {
+      setSpaces([]);
+      return;
+    }
     api("/api/spaces")
       .then((j) => setSpaces(j.spaces.filter((s: Space) => s.status === "active")))
       .catch(() => setSpaces([]));
-  }, []);
+  }, [goalOn]);
 
   // 卸载标记的翻转：卸载后一切晚到响应作废（StrictMode 重挂载时恢复 true）
   useEffect(() => {

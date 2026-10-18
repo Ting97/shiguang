@@ -10,12 +10,25 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useRouter } from "next/navigation";
 import { api, ApiClientError, NO_REDIRECT_PATHS } from "./api";
 
+export interface ModulePref {
+  key: string;
+  name: string;
+  level: "domain" | "submodule";
+  parent: string | null;
+  effective: boolean;
+  controllable: boolean;
+  value: boolean | null;
+}
+
 export interface SessionUser {
   id: string;
   nickname: string | null;
   phone: string | null;
   isAdmin: boolean;
+  /** 有效开启的模块 key 全量（REQ-028 三层计算结果） */
   modules: string[];
+  /** 功能管理区明细（【我的】→功能管理 消费） */
+  modulePrefs?: ModulePref[];
   phoneVerified: boolean;
   /** 本地开发后门（AUTH_DISABLED=1）时为 true：导航栏隐藏账号/登出入口 */
   authDisabled?: boolean;

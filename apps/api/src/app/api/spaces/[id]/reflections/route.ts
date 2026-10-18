@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withAuthParams } from "@/server/platform/http/route";
+import { withModuleParams } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { reflectionService } from "@/server/goal";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/spaces/:id/reflections?limit=20&offset=0 —— 感悟列表（倒序；预览 300 字 + 字数） */
-export const GET = withAuthParams(async (req, { user, params }) => {
+export const GET = withModuleParams("goal", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const url = new URL(req.url);
@@ -22,7 +22,7 @@ export const GET = withAuthParams(async (req, { user, params }) => {
 });
 
 /** POST /api/spaces/:id/reflections —— 新建感悟 { content } */
-export const POST = withAuthParams(async (req, { user, params }) => {
+export const POST = withModuleParams("goal", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   const body = (await req.json().catch(() => ({}))) as { content?: string };
