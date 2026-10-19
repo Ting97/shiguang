@@ -31,6 +31,7 @@ import {
   planToTrain,
   readTrains,
   renameExercisesToOfficial,
+  resolveRunOfficialName,
   ruleMatchOfficialNames,
   splitOfficialNames,
   trainsToRunActual,
@@ -767,7 +768,9 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
 /** 计划 → 训记（用户已经过确认卡/按钮确认）。已同步过的计划带 localid 走更新，防重复建训练。
  * REQ-023：力量动作名先经 用户别名→内置别名→目录 分流，仍有目录外名字时返回
  * needsConfirmation（含候选官方名）交前端弹窗确认；确认调用带 mappings/skips——
- * 映射落别名表（此后自动生效）并可勾选跳过某动作（该动作不写入训记） */
+ * 映射落别名表（此后自动生效）并可勾选跳过某动作（该动作不写入训记）。
+ * REQ-023 v1.1：跑步（有氧日）写入名自动对齐目录内官方跑步条目（「跑步（有氧）」优先），
+ * 不再因目录无逐字「跑步」而 400；目录确无跑步类条目时回退直写并带 warning */
 async function syncPlanToXunji(
   userId: string,
   planId: string,
@@ -788,7 +791,8 @@ async function syncPlanToXunji(
 
   let resolved = new Map<string, string>();
   let skips = new Set<string>();
-  let runCardioOk = true;
+  let runOfficialName = "跑步";
+  let runWarning: string | undefined;
   if (plan.module_code === "strength") {
     const content = plan.content as StrengthPlanContent;
     const skipSet = new Set(confirm?.skips ?? []);
@@ -843,15 +847,17 @@ async function syncPlanToXunji(
       }
     }
   } else if (plan.module_code === "run") {
-    runCardioOk = !snapshot.names.size || snapshot.names.has("跑步");
+    const officialRun = resolveRunOfficialName(snapshot.movements);
+    if (officialRun) runOfficialName = officialRun;
+    else if (snapshot.names.size) runWarning = "训记动作目录暂无跑步类条目，已按「跑步」直写有氧日";
   }
-  if (!runCardioOk) throw ApiError.badRequest("动作「跑步」不在训记官方动作库，无法同步有氧日");
 
   const officialName = (name: string) =>
     skips.has(name) ? null : resolved.get(name) ?? (snapshot.names.has(name) ? name : null);
   const train = planToTrain(
     { module_code: plan.module_code, plan_date: plan.plan_date, content: plan.content },
     officialName,
+    runOfficialName,
   );
   if (!train.movements.length) {
     throw ApiError.badRequest("没有可写入训记的动作（全部被跳过或缺目标），请检查计划内容");
@@ -868,6 +874,7 @@ async function syncPlanToXunji(
     movements: train.movements.length,
     localids,
     skipped: [...skips],
+    warning: runWarning,
   };
 }
 
