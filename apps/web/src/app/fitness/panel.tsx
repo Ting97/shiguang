@@ -570,6 +570,7 @@ function PlanCard({
         updated?: boolean;
         movements?: number;
         skipped?: string[];
+        warning?: string;
         needsConfirmation?: boolean;
         unmatched?: { name: string; candidates: { name: string; type: string | null }[] }[];
       }>(`/api/fitness/plans/${plan.id}/sync-xunji`, "POST", confirm);
@@ -581,6 +582,7 @@ function PlanCard({
         setXunjiConfirm(r.unmatched);
         return;
       }
+      if (r.warning) toast(r.warning);
       const skippedNote = r.skipped?.length ? `，跳过 ${r.skipped.length} 项` : "";
       toast(`${r.updated ? "已更新训记训练" : "已写入训记 App"}（${r.movements ?? 0} 项${skippedNote}），训练时在训记里打勾`);
       setXunjiConfirm(null);

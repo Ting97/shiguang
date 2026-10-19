@@ -5,8 +5,9 @@
  * user_module_controls 按用户强制/可见性（管理员）→ user_module_prefs 用户自选。
  * user_module_grants（031/037）保留停写：063 已把存量授权搬为「按用户强制开」。
  *
- * 有效态自上而下短路：core 恒开 → 全局关 → 祖先链关（级联）→ 强制关 →
- * 强制开 → 用户自选/注册表默认。开关可见性独立计算（【我的】功能管理区用）。
+ * 有效态自上而下短路：core 恒开 → 显式全局关（module_states.enabled=false）→ 祖先链关（级联）→
+ * 强制关 → 强制开 → 用户自选/注册表默认（defaultOn 仅第 6 步兜底，可被按用户强制开覆盖）。
+ * 开关可见性独立计算（【我的】功能管理区用）。
  * admin 直通=全部模块 on（后台自身不被关掉）。
  */
 import { pool } from "@/server/platform/db";
@@ -105,9 +106,9 @@ function resolveFromRaw(raw: ModuleRawState): ResolvedModules {
       on = true; // 1. core 恒开
     } else {
       const st = raw.states.get(key);
-      const globalOn = st ? st.enabled : def.defaultOn;
-      if (!globalOn) {
-        on = false; // 2. 全局关
+      if (st && !st.enabled) {
+        on = false; // 2. 显式全局关（管理员下线）。无行=未配置不在此短路——
+        // 否则 defaultOn=false 被当作全局关，按用户强制开永远压不过默认关（031 搬迁语义回归，v1.1 修复）
       } else if (def.parent && !effOf(def.parent)) {
         on = false; // 3. 祖先链关（级联，不写子状态）
       } else {
@@ -117,7 +118,7 @@ function resolveFromRaw(raw: ModuleRawState): ResolvedModules {
         } else if (ctl?.force === "on") {
           on = true; // 5. 强制开（不看自选）
         } else {
-          on = raw.prefs.get(key) ?? def.defaultOn; // 6. 用户自选/默认
+          on = raw.prefs.get(key) ?? def.defaultOn; // 6. 用户自选/注册表默认兜底
         }
       }
     }
