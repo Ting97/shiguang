@@ -61,7 +61,11 @@ export function handleMarkdownKey(ta: HTMLTextAreaElement, e: React.KeyboardEven
   const r = applyMarkdown(ta, kind);
   if (!r) return false;
   e.preventDefault();
-  ta.value = r.value;
+  // 必须经原型原生 setter 写值：直接 ta.value=... 会同步 React 值追踪器，
+  // 随后派发的 input 事件被 updateValueIfChanged 判为「值未变」吞掉，受控 state 不更新（历史 bug：快捷键改动静默丢失）
+  const nativeSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  if (nativeSetter) nativeSetter.call(ta, r.value);
+  else ta.value = r.value;
   ta.setSelectionRange(r.selStart, r.selEnd);
   // 让 React 受控值同步：派发原生 input 事件（React onChange 监听它）
   ta.dispatchEvent(new Event("input", { bubbles: true }));

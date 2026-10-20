@@ -578,6 +578,20 @@ body {
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
+/* ---------- 金额/数值输入 ---------- */
+
+/* 隐藏 number 输入的原生 spinner（记账/预算/账户等金额框）：
+   深色主题下系统样式突兀、点击热区小；触屏走系统数字键盘（inputMode），桌面键入即可 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* ---------- 触屏可达性 ---------- */
 
 /* 无 hover 设备：行内操作按钮常显（桌面端靠 group-hover 控制淡入） */

@@ -8,6 +8,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { setSessionToken } from "@shiguangri/shared/client-api";
 import { api, ApiClientError, NO_REDIRECT_PATHS } from "./api";
 
 export interface ModulePref {
@@ -86,6 +87,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await api("/api/auth/logout", "POST").catch(() => {});
+    // 服务端 200 即已吊销：显式清本机 token（旧版只靠下次任意请求 401 兜底，共享设备上是敏感残留）
+    await setSessionToken(null).catch(() => {});
     setUser(null);
     router.replace(LOGIN_PATH);
   }, [router]);

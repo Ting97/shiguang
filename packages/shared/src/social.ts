@@ -147,8 +147,12 @@ export function birthdayInfoOf(
   }
   const m = String(c.birthday ?? "").match(/(\d{4})?-?(\d{2})-(\d{2})/);
   if (!m) return null;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  // 脏数据（"00-00"/"99-99"）不产展示行：countdown 返回 null 但 date 会拼出「0月0日」
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   return {
-    date: `${Number(m[2])}月${Number(m[3])}日`,
+    date: `${month}月${day}日`,
     countdown: birthdayCountdown(c.birthday, today),
     lunar: false,
     nextSolar: null,

@@ -1,5 +1,6 @@
 /** 负债档案字段校验（debts 路由共用；route 文件不可导出非 handler，故放这里） */
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
+import { ApiError } from "@/server/platform/http/errors";
 
 /** bigint/numeric 列在 node-pg 返回 string，date 列返回 Date 对象 —— 统一转 number/字符串再下发 */
 export function serializeDebt(row: Record<string, unknown>) {
@@ -30,8 +31,9 @@ export function serializePayment(row: Record<string, unknown>) {
 /** 负债金额上限（分）：对齐 transactions 的 ¥100 万口径。bigint 列吃 1e19 会 22003 → 500，
  * ≥2^53 的整数经 float64 序列化还会静默丢分，必须在入口拦下 */
 const DEBT_CENTS_LIMIT = 100_000_000;
+// 抛 ApiError（原裸对象靠路由层 catch(e).message 兜底才没变 500 [object Object]，新调用点漏包即炸）
 const assertCentsLimit = (v: number, label: string) => {
-  if (v > DEBT_CENTS_LIMIT) throw { message: `${label}不能超过 ¥100 万` };
+  if (v > DEBT_CENTS_LIMIT) throw ApiError.badRequest(`${label}不能超过 ¥100 万`);
 };
 
 export function validateDebtBody(body: Record<string, unknown>, partial: boolean) {

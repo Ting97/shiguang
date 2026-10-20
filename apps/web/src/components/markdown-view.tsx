@@ -46,35 +46,37 @@ const MarkdownView = memo(function MarkdownView({ value, size = "xs" }: { value:
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: (props) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2" />,
-          h1: (p) => <h2 {...p} className={s.h1} />,
-          h2: (p) => <h3 {...p} className={s.h2} />,
-          h3: (p) => <h4 {...p} className={s.h3} />,
-          h4: (p) => <h5 {...p} className={s.h4} />,
+          // react-markdown v10 会向每个自定义组件注入 node（hast Element 对象）：解构剔除，
+          // 不让它随 {...p} 铺到 DOM 上产生非法属性 node="[object Object]"（dev 控制台告警 + DOM 污染）
+          a: ({ node: _n, ...p }) => <a {...p} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2" />,
+          h1: ({ node: _n, ...p }) => <h2 {...p} className={s.h1} />,
+          h2: ({ node: _n, ...p }) => <h3 {...p} className={s.h2} />,
+          h3: ({ node: _n, ...p }) => <h4 {...p} className={s.h3} />,
+          h4: ({ node: _n, ...p }) => <h5 {...p} className={s.h4} />,
           // pre-wrap：用户手写感悟的单换行保留；AI 回复的「结论/依据」换行同样受益
-          p: (p) => <p {...p} className="my-1.5 whitespace-pre-wrap first:mt-0 last:mb-0" />,
-          strong: (p) => <strong {...p} className="font-semibold text-ink" />,
-          em: (p) => <em {...p} className="italic" />,
-          del: (p) => <del {...p} className="text-ink-faint" />,
-          ul: (p) => <ul {...p} className={`list-disc ${s.list}`} />,
-          ol: (p) => <ol {...p} className={`list-decimal ${s.list}`} />,
-          li: (p) => <li {...p} className="pl-0.5 marker:text-ink-faint" />,
-          blockquote: (p) => <blockquote {...p} className="my-1.5 border-l-2 border-line-strong pl-3 text-ink-mute" />,
-          code: (p) =>
+          p: ({ node: _n, ...p }) => <p {...p} className="my-1.5 whitespace-pre-wrap first:mt-0 last:mb-0" />,
+          strong: ({ node: _n, ...p }) => <strong {...p} className="font-semibold text-ink" />,
+          em: ({ node: _n, ...p }) => <em {...p} className="italic" />,
+          del: ({ node: _n, ...p }) => <del {...p} className="text-ink-faint" />,
+          ul: ({ node: _n, ...p }) => <ul {...p} className={`list-disc ${s.list}`} />,
+          ol: ({ node: _n, ...p }) => <ol {...p} className={`list-decimal ${s.list}`} />,
+          li: ({ node: _n, ...p }) => <li {...p} className="pl-0.5 marker:text-ink-faint" />,
+          blockquote: ({ node: _n, ...p }) => <blockquote {...p} className="my-1.5 border-l-2 border-line-strong pl-3 text-ink-mute" />,
+          code: ({ node: _n, ...p }) =>
             String(p.className ?? "").includes("language-") ? (
               <code {...p} className={s.codeBlock} />
             ) : (
               <code {...p} className={s.codeInline} />
             ),
-          pre: (p) => <pre {...p} className="my-1.5 overflow-x-auto first:mt-0 last:mb-0" />,
-          table: (p) => (
+          pre: ({ node: _n, ...p }) => <pre {...p} className="my-1.5 overflow-x-auto first:mt-0 last:mb-0" />,
+          table: ({ node: _n, ...p }) => (
             <div className="my-1.5 overflow-x-auto">
               <table {...p} className={s.table} />
             </div>
           ),
-          th: (p) => <th {...p} className="border border-line-soft bg-elevated px-2 py-1 text-left font-medium text-ink" />,
-          td: (p) => <td {...p} className="border border-line-soft px-2 py-1 align-top" />,
-          hr: (p) => <hr {...p} className="my-2 border-line-soft" />,
+          th: ({ node: _n, ...p }) => <th {...p} className="border border-line-soft bg-elevated px-2 py-1 text-left font-medium text-ink" />,
+          td: ({ node: _n, ...p }) => <td {...p} className="border border-line-soft px-2 py-1 align-top" />,
+          hr: ({ node: _n, ...p }) => <hr {...p} className="my-2 border-line-soft" />,
         }}
       >
         {value}

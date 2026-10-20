@@ -50,7 +50,8 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     ? (await pool.query(`select name, description from goal_spaces where id = $1 and user_id = $2`, [todo.space_id, user.id])).rows[0]
     : null;
   const parent = isAction && hasParent
-    ? (await pool.query(`select title, note, due_at from todos where id = $1`, [todo.parent_todo_id])).rows[0]
+    // 归属收口：父待办 id 虽来自本人 todo 行，仍按约定 where user_id（FK 非复合，跨用户隔离依赖应用层）
+    ? (await pool.query(`select title, note, due_at from todos where id = $1 and user_id = $2`, [todo.parent_todo_id, user.id])).rows[0]
     : null;
   // 去重范围：有父行动=同父兄弟；独立行动=全部独立行动；顶层 todo=其子行动
   const siblings = isAction && hasParent

@@ -39,8 +39,8 @@ export const pace = (sPerKm?: number | null) => {
   const s = Math.round(sPerKm % 60);
   return `${m}'${String(s).padStart(2, "0")}"`;
 };
-/** 小时×10 → "6.5h" 展示 */
-export const hours = (x10?: number | null) => (x10 != null ? `${Math.round(x10 / 10) / 1}h` : "—");
+/** 小时×10 → "6.5h" 展示（一位小数；旧版 Math.round(x/10)/1 会把 6.5 吞成 7） */
+export const hours = (x10?: number | null) => (x10 != null ? `${Math.round(x10) / 10}h` : "—");
 
 export const RUN_WORKOUT_LABELS: Record<RunPlanContent["workoutType"], string> = {
   interval: "间歇",

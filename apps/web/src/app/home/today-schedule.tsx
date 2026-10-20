@@ -127,7 +127,8 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
         return { title: "", start: hmLocal(h * 60), end: hmLocal((h + 1) * 60), activityId: "other" };
       }
     }
-    return { title: "", start: hmLocal(curH * 60), end: hmLocal(Math.min(24, curH + 1) * 60), activityId: "other" };
+    // 23 点兜底槽：end 钳 23:59（<input type="time"> 无法表示 24:00，会显示为空并触发必填校验）
+    return { title: "", start: hmLocal(curH * 60), end: hmLocal(Math.min(23 * 60 + 59, (curH + 1) * 60)), activityId: "other" };
   }
 
   useEffect(() => {
@@ -136,20 +137,30 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
 
   async function submitListDraft() {
     if (!listDraft || !listDraft.title.trim() || listSaving) return;
-    setListSaving(true);
     const [sh, sm] = listDraft.start.split(":").map(Number);
     const [eh, em] = listDraft.end.split(":").map(Number);
-    // 北京今天 0 点作基：必须显式 +08:00（T00:00:00Z 是 UTC 零点=北京 08:00，
-    // 旧版所有补录块整体晚 8 小时；本地午夜基在海外设备又会错 8 小时）
-    const dayMs = Date.parse(`${bjToday()}T00:00:00+08:00`);
-    const ok = await createBlock({
-      title: listDraft.title.trim(),
-      startAt: new Date(dayMs + (sh * 60 + sm) * 60_000).toISOString(),
-      endAt: new Date(dayMs + (eh * 60 + em) * 60_000).toISOString(),
-      activityId: listDraft.activityId,
-    });
-    setListSaving(false);
-    if (ok) setListDraft(null);
+    // HH:MM 形状守卫：清空 time 输入后 split 出 NaN，Date 构造抛 Invalid time value 且
+    // setListSaving(false) 永不执行 → 按钮永久卡「保存中…」（只能刷新页面）
+    const badTime = [sh, sm, eh, em].some((n) => !Number.isFinite(n)) || sh > 23 || eh > 23 || sm > 59 || em > 59;
+    if (badTime) {
+      toast("请填写完整的开始与结束时间", "err");
+      return;
+    }
+    setListSaving(true);
+    try {
+      // 北京今天 0 点作基：必须显式 +08:00（T00:00:00Z 是 UTC 零点=北京 08:00，
+      // 旧版所有补录块整体晚 8 小时；本地午夜基在海外设备又会错 8 小时）
+      const dayMs = Date.parse(`${bjToday()}T00:00:00+08:00`);
+      const ok = await createBlock({
+        title: listDraft.title.trim(),
+        startAt: new Date(dayMs + (sh * 60 + sm) * 60_000).toISOString(),
+        endAt: new Date(dayMs + (eh * 60 + em) * 60_000).toISOString(),
+        activityId: listDraft.activityId,
+      });
+      if (ok) setListDraft(null);
+    } finally {
+      setListSaving(false);
+    }
   }
 
   return (

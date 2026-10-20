@@ -254,15 +254,16 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !isValidCalendarDate(from)) throw ApiError.badRequest("from 需为真实存在的日期（YYYY-MM-DD）");
   if (Date.parse(from) > Date.parse(to)) throw ApiError.badRequest("from 不能晚于 to");
+  // 半开区间 [from 00:00, to 次日 00:00)：上界 23:59:59 会丢当天最后一秒的流水（该笔落入下次增量窗口，表现为「消失一天后出现」）
   const fromTimeMs = Date.parse(`${from}T00:00:00+08:00`);
-  const toTimeMs = Date.parse(`${to}T23:59:59+08:00`);
+  const toTimeMs = Date.parse(`${to}T00:00:00+08:00`) + 86_400_000;
   const cred = await loadCred(userId, keyLabel);
 
   // minTs：流水倒序返回，整页早于窗口下界即停——近 30 天的增量同步几十页内结束
   const all = await fetchCfdRecords<CfdRecord>(cred, { fetcher, minTs: fromTimeMs });
   const inWindow = all.filter((r) => {
     const t = Number(r.ts);
-    return t >= fromTimeMs && t <= toTimeMs;
+    return t >= fromTimeMs && t < toTimeMs;
   });
   const grouped = groupCfdRecords(inWindow);
   const result = grouped.rows.length

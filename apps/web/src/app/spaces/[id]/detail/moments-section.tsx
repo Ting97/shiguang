@@ -1,7 +1,7 @@
 "use client";
 
 import { Link2, Sprout } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TagChip } from "@/components/tag-chip";
 import type { FeedMoment } from "@/lib/types";
 import type { MomentLinkActions } from "./use-moment-link";
@@ -26,6 +26,10 @@ export default function MomentsSection(opts: {
   const { moments, total, loadingMore, onLoadMore, momentLink } = opts;
   const { openMomentLink } = momentLink;
   const [exhausted, setExhausted] = useState(false);
+  // 关联新动态后 load() 会把 moments 重置回第一页：exhausted 不复位会让「加载更多」永久消失
+  useEffect(() => {
+    if (exhausted && (total == null || moments.length < total)) setExhausted(false);
+  }, [exhausted, total, moments.length]);
   const hasMore = !exhausted && (total == null || moments.length < total);
   return (
     <section className="glass rounded-2xl p-5">

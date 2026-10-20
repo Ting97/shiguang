@@ -10,6 +10,7 @@ import type { Activity, FeedMoment } from "@/lib/types";
 import { TX_CATEGORIES } from "@/lib/finance";
 import { COMMON_MOODS } from "./moment-feed";
 import { api } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import { bjInputToIso } from "@/lib/bj-time";
 
 const SIX = [
@@ -90,9 +91,12 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
       // due 是 datetime-local 裸值：直发会被服务端按宿主时区解析（UTC 容器上统一错 8 小时），显式按北京口径转 ISO
       else if (key === "todo") payload = { title: text, dueAt: bjInputToIso(due) };
       else if (key === "finance") {
-        // 手动记收支不允许 0/负金额（对齐 finance/forms 的保存口径；按钮 disabled 之外的兜底）
+        // 手动记收支不允许 0/负/非法金额（"1e" 这类输入 Number() 为 NaN：静默 return 只会 busy 闪一下）
         const v = Number(yuan);
-        if (!Number.isFinite(v) || v <= 0) return;
+        if (!Number.isFinite(v) || v <= 0) {
+          toast("请输入正确的金额", "err");
+          return;
+        }
         payload = { direction, yuan: v, category };
       }
       else if (key === "mood") payload = { label: mood };

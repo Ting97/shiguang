@@ -98,9 +98,7 @@ export function useSpaceData() {
     if (momentsLoadingMore) return false;
     setMomentsLoadingMore(true);
     try {
-      const seq = ++seqRef.current;
       const j = await api<any>(`/api/feed?limit=20&offset=${momentsOffsetRef.current}&spaceId=${id}`, "GET");
-      if (seq !== seqRef.current) return true;
       const batch = (j.moments as FeedMoment[]) ?? [];
       setMoments((prev) => {
         const seen = new Set(prev.map((m) => m.id));

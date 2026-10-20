@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NotebookPen, Pencil, Trash2 } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
@@ -43,15 +43,20 @@ export default function SpaceReflections({
   const [loadErr, setLoadErr] = useState<string | null>(null);
   // 删除两步确认（全站规范，替代原生 confirm）
   const armDelete = useArmConfirm();
+  // 请求序号守卫：spaceId/rev 快速变化时旧响应晚到会用旧空间的列表覆盖新空间（同 use-todo-data 范式）
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(
     async (offset: number) => {
+      const seq = ++loadSeqRef.current;
       try {
         const j = await api<any>(`/api/spaces/${spaceId}/reflections?limit=20&offset=${offset}`, "GET");
+        if (seq !== loadSeqRef.current) return;
         setLoadErr(null);
         setTotal(j.total ?? 0);
         setItems((prev) => (offset === 0 ? (j.items as ReflectionItem[]) : [...(prev ?? []), ...(j.items as ReflectionItem[])]));
       } catch (e) {
+        if (seq !== loadSeqRef.current) return;
         const text = `感悟加载失败：${e instanceof Error ? e.message : e}`;
         setLoadErr(text);
         notify({ ok: false, text });

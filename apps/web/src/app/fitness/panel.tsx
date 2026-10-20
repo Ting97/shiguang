@@ -963,6 +963,20 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
 
   async function save() {
     if (busy) return;
+    // Number.isFinite 守卫："6a" 之类非法输入 Number() 得 NaN，JSON.stringify 会静默序列化成 null
+    //（等价「留空保持原值」），请求 200 后 toast 成功实则 no-op
+    const fields: Array<[string, string, string]> = [
+      ["weightKg", weightKg, "体重"],
+      ["waistCm", waistCm, "腰围"],
+      ["heightCm", heightCm, "身高"],
+      ["bodyFatPct", bodyFatPct, "体脂率"],
+    ];
+    for (const [, v, label] of fields) {
+      if (v && !Number.isFinite(Number(v))) {
+        toast(`${label}格式不正确`, "err");
+        return;
+      }
+    }
     setBusy(true);
     try {
       await api("/api/fitness/metrics", "POST", {

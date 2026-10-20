@@ -33,7 +33,10 @@ export function parseMt5Time(text: string, offsetHours = 3): string | null {
 
 function num(text: string | undefined): number | null {
   if (text == null) return null;
-  const v = Number(String(text).replace(/[,\s]/g, ""));
+  const trimmed = String(text).replace(/[,\s]/g, "");
+  // 空串按缺格处理（Number("") === 0）：稀疏矩阵的空单元格静默成 0 会污染开/平仓价与盈亏统计
+  if (trimmed === "") return null;
+  const v = Number(trimmed);
   return Number.isFinite(v) ? v : null;
 }
 

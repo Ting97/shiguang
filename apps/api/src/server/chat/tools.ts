@@ -64,11 +64,12 @@ export interface ChatTool {
 
 // ---- 公共构件 ----
 
-/** 北京日期串（YYYY-MM-DD）校验：合法日历日 + 不早于 2020 年（挡脏输入，非业务约束） */
+/** 北京日期串（YYYY-MM-DD）校验：合法日历日（防 2025-02-30 静默滚动成 3 月）+ 不早于 2020 年（挡脏输入，非业务约束） */
 const bjDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期须为 YYYY-MM-DD").refine(
   (s) => {
-    const d = new Date(`${s}T00:00:00+08:00`);
-    return !Number.isNaN(d.getTime()) && s >= "2020-01-01";
+    const [y, m, d] = s.split("-").map(Number);
+    const real = m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return real && s >= "2020-01-01";
   },
   { message: "日期不合法" },
 );
@@ -114,17 +115,21 @@ const queryTimeBlocks: ChatTool = {
   async execute(ctx, p) {
     const { from, to } = p as { from: string; to: string };
     const [start, end] = rangeOf(from, to);
+    // 与统计页同口径（time/repo statsRepo）：按区间交集钳制时长、含跨天块（昨晚 23:00 的睡眠块
+    // start_at 在区间外，旧 start_at 过滤会漏掉，模型口径与统计页对不上）
     const { rows: byActivity } = await pool.query(
-      `select a.name as activity, count(*)::int as blocks, sum(b.duration_min)::int as minutes
+      `select a.name as activity, count(*)::int as blocks,
+              sum(floor(extract(epoch from least(b.end_at, $3::timestamptz) - greatest(b.start_at, $2::timestamptz)) / 60))::int as minutes
        from time_blocks b join activities a on a.id = b.activity_id
-       where b.user_id = $1 and b.start_at >= $2 and b.start_at < $3
+       where b.user_id = $1 and b.start_at < $3::timestamptz and b.end_at > $2::timestamptz
        group by a.name order by minutes desc nulls last`,
       [ctx.userId, start, end],
     );
     const { rows: detail } = await pool.query(
-      `select b.title, a.name as activity, ${bjTs("b.start_at")} as start_bj, b.duration_min as minutes
+      `select b.title, a.name as activity, ${bjTs("b.start_at")} as start_bj,
+              floor(extract(epoch from least(b.end_at, $3::timestamptz) - greatest(b.start_at, $2::timestamptz)) / 60)::int as minutes
        from time_blocks b join activities a on a.id = b.activity_id
-       where b.user_id = $1 and b.start_at >= $2 and b.start_at < $3
+       where b.user_id = $1 and b.start_at < $3::timestamptz and b.end_at > $2::timestamptz
        order by b.start_at desc limit 10`,
       [ctx.userId, start, end],
     );
@@ -855,7 +860,11 @@ const queryXunjiTrains: ChatTool = {
   params: z.object({
     date: bjDate.optional().describe("北京日期（默认昨天）"),
   }),
-  async execute(_ctx, p) {
+  async execute(ctx, p) {
+    // 训记读的是部署级唯一 XUNJI_API_KEY（运营者账号）的数据，与请求用户无关：
+    // 仅管理员可用，普通注册用户问「昨天练了什么」不得读到他人训练数据（跨用户泄露面）
+    const { rows: roleRows } = await pool.query(`select role from profiles where id = $1`, [ctx.userId]);
+    if (roleRows[0]?.role !== "admin") return { enabled: false, hint: "训记查询未绑定当前账号，仅管理员账号可用" };
     const { date } = p as { date?: string };
     if (!loadConfig().xunjiApiKey) return { enabled: false, hint: "未配置 XUNJI_API_KEY，训记查询不可用" };
     const target = date ?? bjAddDays(bjToday(), -1);

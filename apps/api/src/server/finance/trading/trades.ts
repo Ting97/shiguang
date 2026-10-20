@@ -38,6 +38,13 @@ export interface ImportBody {
 const TRADE_FIELD_LIMITS: Record<string, number> = {
   openPrice: 9_999_999, closePrice: 9_999_999, lots: 99_999_999, profit: 9_999_999_999, commission: 9_999_999_999, swap: 9_999_999_999,
 };
+/** 带时区后缀的串按原样解析；无后缀的 ISO 形状串钉 +08:00（MT5/Bitget 报表时间为北京时间），不依赖宿主时区 */
+function toUtcIso(s: string | number | Date): string {
+  const str = (s instanceof Date ? s.toISOString() : String(s)).trim();
+  if (/([+-]\d{2}:?\d{2}|Z)$/i.test(str)) return new Date(str).toISOString();
+  const isoish = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(str);
+  return new Date(isoish ? str.replace(" ", "T") + "+08:00" : str).toISOString();
+}
 function validateRows(rows: TradeRowInput[]) {
   if (!Array.isArray(rows) || rows.length === 0) throw ApiError.badRequest("rows 为空");
   if (rows.length > 50_000) throw ApiError.badRequest("单次导入上限 50000 笔");
@@ -50,9 +57,10 @@ function validateRows(rows: TradeRowInput[]) {
     if (Date.parse(r.openTime) > Date.parse(r.closeTime))
       throw ApiError.badRequest(`第 ${i + 1} 行开仓时间晚于平仓时间（负持仓时长）`);
     // 归一为 UTC ISO：JS Date.parse 放行的格式（2024/01/05 10:00）PG timestamptz 拒绝 → 整批 500；
-    // 无时区后缀的串（2024-01-05 10:35:22）原样落库会按 DB 会话时区（生产 UTC）解析，北京时刻偏 8 小时
-    r.openTime = new Date(r.openTime).toISOString();
-    r.closeTime = new Date(r.closeTime).toISOString();
+    // 无时区后缀的串必须显式钉 +08:00（MT5 报表为本地北京时间）——直接 new Date() 会按宿主时区解释，
+    // 生产 UTC 宿主上北京时刻偏 8 小时（dailyPnl 切日/时段统计全部错位）
+    r.openTime = toUtcIso(r.openTime);
+    r.closeTime = toUtcIso(r.closeTime);
     if (!Number.isFinite(Number(r.lots)) || Number(r.lots) <= 0) throw ApiError.badRequest(`第 ${i + 1} 行手数非法`);
     for (const k of ["profit"] as const) {
       if (!Number.isFinite(Number(r[k]))) throw ApiError.badRequest(`第 ${i + 1} 行 profit 非法`);

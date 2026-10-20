@@ -230,7 +230,8 @@ export const FinanceDraftV2 = z
   .object({
     hasAmount: llmBoolean,
     direction: z.enum(["out", "in"]).nullish(),
-    amountCents: z.coerce.number().int().max(100_000_000).nullish(),
+    // 正数约束：hasAmount=false 时负数/0 可过 schema，mapAiResult 的 Math.abs 兜底会产出「hasAmount=false 但金额>0」的中介脏形态
+    amountCents: z.coerce.number().int().max(100_000_000).refine((v) => v == null || v > 0).nullish(),
     // 截断到手动补录路径同款上限（分类/对方 ≤30）：模型抽风超长词直落流水列表/409 文案/AI 画像 prompt。
     // 用 transform 而非 max——max 会打回重问，整次抽取失败的代价远大于静默截断（title 同款取舍）
     category: z.string().nullish().transform((v) => capCodepoints(v, 30)),

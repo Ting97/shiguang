@@ -117,7 +117,11 @@ export function ContactDetailPage() {
     setProfiling(true);
     try {
       const j = await api(`/api/contacts/${id}/ai-profile`, "POST", undefined, undefined, { timeoutMs: 100_000 });
-      setContact((c) => (c ? { ...c, ai_profile: j.profile, ai_profile_at: new Date().toISOString() } : c));
+      // 渲染处直读 .likes.length / .dislikes / .facts：畸形 200 缺数组会整页崩溃，先验形状（同 use-todo-actions 对 decompose 的防御）
+      const p = j?.profile as Contact["ai_profile"] | null | undefined;
+      const okShape = !!p && Array.isArray(p.likes) && Array.isArray(p.dislikes) && Array.isArray(p.facts);
+      setContact((c) => (c ? { ...c, ai_profile: okShape ? p : null, ai_profile_at: okShape ? new Date().toISOString() : null } : c));
+      if (!okShape) throw new Error("画像数据不完整，请稍后重试");
       toast("✨ 交往画像已更新");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");

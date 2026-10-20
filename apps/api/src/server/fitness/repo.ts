@@ -116,16 +116,17 @@ export const fitnessRepo = {
   insertPlan(
     userId: string,
     d: { planDate: string; moduleCode: string; source: string; content: unknown; rationale: string | null; originConversationId: string | null },
+    exec: Pick<typeof pool, "query"> = pool,
   ) {
-    return pool.query(
+    return exec.query(
       `insert into fitness_daily_plans (user_id, plan_date, module_code, source, content, rationale, origin_conversation_id)
        values ($1,$2,$3,$4,$5::jsonb,$6,$7)
        returning id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id`,
       [userId, d.planDate, d.moduleCode, d.source, JSON.stringify(d.content), d.rationale, d.originConversationId],
     );
   },
-  updatePlan(id: string, userId: string, sets: string[], vals: unknown[]) {
-    return pool.query(
+  updatePlan(id: string, userId: string, sets: string[], vals: unknown[], exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(
       `update fitness_daily_plans set ${sets.join(", ")}, updated_at = now() where id = $${vals.length - 1} and user_id = $${vals.length}
        returning id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id`,
       vals,
@@ -151,9 +152,10 @@ export const fitnessRepo = {
   insertLog(
     userId: string,
     d: { logDate: string; moduleCode: string; planId: string | null; actual: unknown; fatigue: number | null; soreness: string | null; note: string | null },
+    exec: Pick<typeof pool, "query"> = pool,
   ) {
     // 睡眠不在打卡里存（REQ-024 移至 fitness_sleep_logs）；列保留供历史行读取
-    return pool.query(
+    return exec.query(
       `insert into fitness_session_logs (user_id, log_date, module_code, plan_id, actual, fatigue, soreness, note)
        values ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)
        returning id, user_id, log_date::text as log_date, module_code, plan_id, actual, fatigue, sleep_h_x10, soreness, note`,
@@ -192,8 +194,8 @@ export const fitnessRepo = {
       [userId, from, to],
     );
   },
-  upsertSleep(userId: string, logDate: string, sleepHX10: number, source: "manual" | "checkin", feeling?: string | null, score?: number | null) {
-    return pool.query(
+  upsertSleep(userId: string, logDate: string, sleepHX10: number, source: "manual" | "checkin", feeling?: string | null, score?: number | null, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(
       `insert into fitness_sleep_logs (user_id, log_date, sleep_h_x10, feeling, score, source)
        values ($1,$2,$3,$4,$5,$6)
        on conflict (user_id, log_date) do update set
@@ -270,9 +272,9 @@ export const fitnessRepo = {
   },
 
   /** 删除该计划所有未完成联动行动（已完成行动保留作历史；父行动删除级联子行动） */
-  deletePendingPlanTodos(planId: string) {
+  deletePendingPlanTodos(planId: string, exec: Pick<typeof pool, "query"> = pool) {
     // 先删未完成子行动（父行动若是 pending 会被下一步连带删除，这里防孤立 action 残留）
-    return pool.query(
+    return exec.query(
       `delete from todos where fitness_plan_id = $1 and status = 'pending'`,
       [planId],
     );
@@ -282,8 +284,9 @@ export const fitnessRepo = {
   insertPlanTodo(
     userId: string,
     d: { planId: string; title: string; dueAtIso: string; source: "ai" | "manual"; kind: "todo" | "action"; parentId: string | null; sort: number; activityId: string | null; spaceId: string | null },
+    exec: Pick<typeof pool, "query"> = pool,
   ) {
-    return pool.query(
+    return exec.query(
       `insert into todos (user_id, title, activity_id, due_at, remind_at, source, kind, parent_todo_id, sort, fitness_plan_id, space_id)
        values ($1, $2, $3::text, $4::timestamptz, $4::timestamptz - interval '15 minutes', $5, $6, $7, $8, $9, $10::uuid)
        returning id`,
@@ -295,8 +298,8 @@ export const fitnessRepo = {
     return pool.query(`select id from goal_spaces where user_id = $1 and kind = 'sport' limit 1`, [userId]);
   },
   /** 打卡完成：该计划的未完成联动行动全部置完成 */
-  completePlanTodos(planId: string) {
-    return pool.query(
+  completePlanTodos(planId: string, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(
       `update todos set status = 'done', done_at = now()
        where fitness_plan_id = $1 and status = 'pending'`,
       [planId],
