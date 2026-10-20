@@ -100,13 +100,17 @@ test("矩阵③强制关：按用户 controls 优先于自选与默认", async (
   assert.equal(await has("people"), false);
 });
 
-test("矩阵④强制开：defaultOn false 的模块可被按用户强制开（031 搬迁语义）", async () => {
+test("矩阵④强制开：defaultOn false 的模块可被按用户强制开（031 搬迁语义）；显式全局关仍压过强制开", async () => {
   if (!dbReady) return;
   await pool.query(
     `insert into user_module_controls (user_id, module, force_state) values ($1,'debt','on')`,
     [U1],
   );
-  assert.equal(await has("debt"), true);
+  assert.equal(await has("debt"), true, "无 module_states 行时 defaultOn=false 不构成全局关，强制开生效");
+  // v1.1 回归：显式全局关（管理员下线）优先于按用户强制开
+  await pool.query(`insert into module_states (module, enabled, user_toggleable) values ('debt', false, false)`);
+  invalidateModuleCache();
+  assert.equal(await has("debt"), false, "显式全局关压过强制开");
 });
 
 test("矩阵⑤用户自选：prefs 覆盖默认开（关闭保留数据语义）", async () => {

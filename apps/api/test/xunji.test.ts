@@ -54,7 +54,7 @@ function stubFetcher(handlers: { catalog?: unknown; read?: unknown; upsert?: unk
   const fetcher = async (url: string, init?: { body?: string }) => {
     const body = init?.body ? JSON.parse(init.body) : {};
     calls.push({ url, body });
-    if (url.includes("movement_catalog")) return json(handlers.catalog ?? { res: [{ name: "哑铃卧推" }, { name: "哑铃酒杯深蹲" }, { name: "哑铃推肩" }, { name: "坐姿划船" }, { name: "平板支撑" }, { name: "跑步" }] });
+    if (url.includes("movement_catalog")) return json(handlers.catalog ?? { res: [{ name: "哑铃卧推" }, { name: "哑铃酒杯深蹲" }, { name: "哑铃推肩" }, { name: "坐姿划船" }, { name: "平板支撑" }, { name: "跑步（有氧）", type: "有氧" }] });
     if (url.includes("api_trains_for_llm")) return json(handlers.read ?? { res: [] });
     if (url.includes("api_upsert_trains")) return json(handlers.upsert ?? { res: [] });
     throw new Error(`stub 未覆盖的 URL：${url}`);
@@ -116,11 +116,35 @@ test("纯函数：计划→train（力量 15 动作上限/跑步 cardio 有氧�
     (n: string) => n,
   );
   const cardio = run.movements[0];
+  assert.equal(cardio.name, "跑步", "默认写入名「跑步」");
   assert.equal(cardio.cardio, true);
   assert.equal(cardio.recordPreset, "running");
   assert.equal(cardio.metrics.distance, "9.5km");
   assert.equal(cardio.metrics.duration, "58min");
   assert.equal(cardio.sets, undefined);
+
+  const runOfficial = planToTrain(
+    { module_code: "run", plan_date: todayStr(), content: { workoutType: "easy", title: "轻松跑", segments: [], totalDistanceM: 5000 } },
+    (n: string) => n,
+    "跑步（有氧）",
+  );
+  assert.equal(runOfficial.movements[0].name, "跑步（有氧）", "v1.1：写入名可对齐目录官方条目");
+});
+
+test("纯函数：跑步官方名解析（精确命中/分类优先级/无跑步条目返回 null）", async () => {
+  const { resolveRunOfficialName } = (await modP) as any;
+  const mv = (name: string, type: string | null) => ({ name, type, exetype: null, aliases: [] });
+  assert.equal(resolveRunOfficialName([mv("跑步", null)]), "跑步", "逐字命中直接用");
+  assert.equal(
+    resolveRunOfficialName([mv("跑步(计时)", "计时动作"), mv("坐姿划船", "背"), mv("跑步（有氧）", "有氧")]),
+    "跑步（有氧）",
+    "有氧分类优先于计时/其他",
+  );
+  assert.equal(resolveRunOfficialName([mv("跑步(计时)", "计时动作")]), "跑步(计时)", "仅有计时条目时用计时");
+  assert.equal(resolveRunOfficialName([mv("跑步_有氧训练", "热身动作")]), "跑步_有氧训练", "兜底热身分类");
+  assert.equal(resolveRunOfficialName([mv("坐姿划船", "背"), mv("跑步机步行", "全身")]), null, "非「跑步」开头不算（跑步机步行属全身）");
+  assert.equal(resolveRunOfficialName([mv("坐姿划船", "背")]), null, "无跑步类条目返回 null");
+  assert.equal(resolveRunOfficialName([]), null, "目录不可得返回 null");
 });
 
 test("纯函数：训记读回 → actual（done 过滤/末组重量/名称反查/有氧 metrics）", async () => {
@@ -667,5 +691,52 @@ test("REQ-022 真库：savePlanDraft 落库前对齐官方名（note 记佳易�
   assert.equal(upsertBody.res[0].movements[0].name, "坐姿划船");
   assert.equal(upsertBody.res[0].movements[1].name, "哑铃卧推");
   // 清理：删测试计划；目录缓存不重置（下一用例如需特定目录自行 freshCatalogState）
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]).catch(() => {});
+});
+
+// REQ-023 v1.1：实测目录无逐字「跑步」条目（有氧分类下为「跑步（有氧）」），
+// 原 run 门禁逐字校验导致所有跑步计划同步必 400——改为写入名自动对齐目录官方条目
+test("真库：跑步计划同步——目录无逐字「跑步」自动对齐「跑步（有氧）」；无跑步类条目回退直写+warning", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await freshCatalogState();
+  await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
+  const day = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+
+  const saved = await fitnessService.savePlanDraft(UA, {
+    planDate: day,
+    moduleCode: "run",
+    source: "manual",
+    content: { workoutType: "tempo", title: "节奏跑", segments: [{ label: "主课", distanceM: 6000 }], totalDistanceM: 9500, durationMin: 58 },
+  }, { fetcher: stubFetcher({ catalog: { res: { movements: [{ name: "坐姿划船", type: "背" }] } } }).fetcher });
+
+  // 目录含「跑步（有氧）」但无逐字「跑步」→ 写入名对齐官方条目，不再 400
+  const catalog = { res: { movements: [{ name: "坐姿划船", type: "背" }, { name: "跑步(计时)", type: "计时动作" }, { name: "跑步（有氧）", type: "有氧" }] } };
+  let upsertBody: any = null;
+  const syncFetcher = async (url: string, init?: any) => {
+    const r = await stubFetcher({ catalog, upsert: { res: [{ localid: "xj-run-1", movements: [] }] } }).fetcher(url, init);
+    if (url.includes("api_upsert_trains")) upsertBody = JSON.parse(init.body);
+    return r;
+  };
+  const r1 = await fitnessService.syncPlanToXunji(UA, saved.plan.id, syncFetcher as any);
+  assert.equal(r1.synced, true);
+  assert.equal(upsertBody.res[0].movements[0].name, "跑步（有氧）", "写入名=目录有氧分类官方条目");
+  assert.equal(upsertBody.res[0].movements[0].cardio, true);
+  assert.equal(r1.warning, undefined);
+
+  // 目录刷新后无任何跑步类条目 → 回退直写「跑步」（017 旧语义）+ warning，不再硬报错
+  await freshCatalogState();
+  const catalog2 = { res: { movements: [{ name: "坐姿划船", type: "背" }] } };
+  let upsertBody2: any = null;
+  const syncFetcher2 = async (url: string, init?: any) => {
+    const r = await stubFetcher({ catalog: catalog2, upsert: { res: [{ localid: "xj-run-2", movements: [] }] } }).fetcher(url, init);
+    if (url.includes("api_upsert_trains")) upsertBody2 = JSON.parse(init.body);
+    return r;
+  };
+  const r2 = await fitnessService.syncPlanToXunji(UA, saved.plan.id, syncFetcher2 as any);
+  assert.equal(r2.synced, true, "目录无跑步条目时不再 400");
+  assert.equal(upsertBody2.res[0].movements[0].name, "跑步");
+  assert.ok(r2.warning, "回退直写带 warning 提示");
   await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]).catch(() => {});
 });

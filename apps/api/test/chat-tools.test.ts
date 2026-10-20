@@ -90,10 +90,12 @@ async function seedData() {
     [UA, contact[0].id],
   );
   await pool.query(`insert into entries (user_id, source, raw_text, mood, mood_score) values ($1, 'keyboard', '今天很开心', '开心', 60)`, [UA]);
-  // 负债/交易模块授权（admin 才直通；测试用户是普通角色必须显式授权）
+  // 负债/交易模块授权（admin 才直通；测试用户是普通角色必须显式授权）。
+  // REQ-028 起写入/读取走 user_module_controls（031 旧表停写；031 搬迁语义=强制开）
+  await pool.query(`delete from user_module_controls where user_id = $1`, [UA]);
   await pool.query(
-    `insert into user_module_grants (user_id, module) values ($1, 'debt'), ($1, 'trading')
-     on conflict (user_id, module) do nothing`,
+    `insert into user_module_controls (user_id, module, force_state) values ($1, 'debt', 'on'), ($1, 'trading', 'on')
+     on conflict (user_id, module) do update set force_state = 'on'`,
     [UA],
   );
   await pool.query(

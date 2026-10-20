@@ -118,10 +118,12 @@ export function exerciseToMovement(
 }
 
 /** 拾光计划 → 训记 train（单条；跑步=有氧日 cardio）。名称官方化在调用侧完成：
- * officialName 返回 null 表示用户确认跳过的动作——该动作不写入训记（REQ-023） */
+ * officialName 返回 null 表示用户确认跳过的动作——该动作不写入训记（REQ-023）；
+ * runOfficialName 为跑步有氧日写入名（v1.1：默认对齐目录内官方条目，见 resolveRunOfficialName） */
 export function planToTrain(
   plan: { module_code: string; plan_date: string; content: RunPlanContent | StrengthPlanContent },
   officialName: (name: string) => string | null,
+  runOfficialName = "跑步",
 ): XunjiTrain {
   if (plan.module_code === "strength") {
     const c = plan.content as StrengthPlanContent;
@@ -144,7 +146,7 @@ export function planToTrain(
     title: c.title,
     movements: [
       {
-        name: "跑步",
+        name: runOfficialName,
         cardio: true,
         recordPreset: "running",
         metrics,
@@ -350,6 +352,23 @@ export function catalogToNameSet(movements: XunjiCatalogMovement[]): Set<string>
     for (const a of m.aliases) names.add(a);
   }
   return names;
+}
+
+/** 跑步有氧日官方名解析（REQ-023 v1.1）：实测目录无逐字「跑步」条目（有氧分类下为「跑步（有氧）」），
+ * 按分类优先级对齐目录内跑步条目：精确「跑步」→「有氧」→「计时动作」→「热身动作」（名字须以「跑步」开头）。
+ * 目录不可得或无任何跑步类条目返回 null——调用方回退直写「跑步」（017 旧语义） */
+export function resolveRunOfficialName(movements: XunjiCatalogMovement[]): string | null {
+  let cardio: string | null = null;
+  let timed: string | null = null;
+  let warmup: string | null = null;
+  for (const m of movements) {
+    if (m.name === "跑步") return "跑步";
+    if (!m.name.startsWith("跑步")) continue;
+    if (m.type === "有氧" && cardio == null) cardio = m.name;
+    else if (m.type === "计时动作" && timed == null) timed = m.name;
+    else if (m.type === "热身动作" && warmup == null) warmup = m.name;
+  }
+  return cardio ?? timed ?? warmup;
 }
 
 /** 规则快速通道：用户确认别名 → 内置实测别名（XUNJI_NAME_ALIAS）→ 目录精确命中视为已消化；
