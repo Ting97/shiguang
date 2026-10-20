@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, ChevronRight, Gem, Wrench } from "lucide-react";
-import { api } from "@/shared/api";
+import { api, apiBase } from "@/shared/api";
+import { setSessionToken } from "@shiguangri/shared/client-api";
 import Skeleton from "@/components/skeleton";
 import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
@@ -228,6 +229,8 @@ export default function ProfilePage() {
                   // 两步确认（全站规范）：首点进入待确认态，3 秒内再点执行
                   if (!armLogout.arm("logout-all")) return;
                   await api("/api/auth/logout-all", "POST").catch(() => {});
+                  // 全端登出吊销所有会话：本机 token 同步清除（与 session.logout 同口径）
+                  await setSessionToken(null).catch(() => {});
                   window.location.href = "/login";
                 }}
                 className={`w-full rounded-xl border py-2.5 text-sm font-medium transition ${armLogout.armedId ? "border-rose-500 bg-rose-500/20 text-danger" : "border-rose-500/40 bg-rose-500/10 text-danger hover:bg-rose-500/20"}`}
@@ -309,14 +312,15 @@ export default function ProfilePage() {
               <h2 className="text-sm font-semibold text-ink-soft"><TagChip icon={<Archive size={12} />} label="导出我的数据" tone="slate" /></h2>
               <p className="mt-1 text-xs text-ink-dim">全量备份包含动态、日程、todo、流水、联系人与往来；Markdown 版可读性更好。建议定期下载备份。</p>
               <div className="mt-3 flex gap-2">
+                {/* apiBase() 对齐：分离部署时裸 /api 会打到静态站点 origin 而 404 */}
                 <a
-                  href="/api/export?format=json"
+                  href={`${apiBase()}/api/export?format=json`}
                   className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-xs font-medium text-accent transition hover:bg-sky-500/20"
                 >
                   全量备份 (JSON)
                 </a>
                 <a
-                  href="/api/export?format=md"
+                  href={`${apiBase()}/api/export?format=md`}
                   className="rounded-xl border border-line-soft bg-surface/60 px-4 py-2 text-xs text-ink-soft transition hover:border-sky-500/50"
                 >
                   动态日记 (Markdown)

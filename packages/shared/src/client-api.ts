@@ -43,7 +43,8 @@ export function setTokenStore(s: TokenStore): void {
   store = s;
 }
 
-function apiBase(): string {
+/** API 基址（分离部署时指向 API 域；同域部署为 ""）。导出供 fetch 之外的入口（<a href> 数据导出直链）对齐 */
+export function apiBase(): string {
   // Next/Expo 分别在构建期内联自己的 PUBLIC_ 变量；无打包器的环境落到 ""
   if (typeof process !== "undefined" && process.env) {
     return process.env.NEXT_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_BASE || "";

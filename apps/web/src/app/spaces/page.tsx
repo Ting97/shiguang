@@ -345,11 +345,14 @@ export default function SpacesPage() {
               // dirty 判定覆盖全部草稿字段（旧版只比 name，改图标/颜色/日期/描述被静默丢弃）。
               // 新建以「EMPTY + 默认开始日（北京今天）」为基线：一打开就关闭不再误报「已取消，未保存」
               const base = spaces?.find((s) => s.id === editingId);
+              const bjDayOf = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10) : "");
               const dirty = editingId
                 ? editing.name.trim() !== (base?.name ?? "") ||
                   editing.description !== (base?.description ?? "") ||
                   editing.icon !== (base?.icon ?? "") ||
-                  editing.color !== (base?.color ?? "")
+                  editing.color !== (base?.color ?? "") ||
+                  editing.startedAt !== bjDayOf(base?.started_at ?? null) ||
+                  editing.targetDate !== bjDayOf(base?.target_date ?? null)
                 : !!editing.name.trim() ||
                   editing.description !== EMPTY.description ||
                   editing.icon !== EMPTY.icon ||

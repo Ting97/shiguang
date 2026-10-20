@@ -55,10 +55,15 @@ const RULE_KEYWORDS: Array<[RegExp, LlmExtractionT["schedule"]["activity"]]> = [
   [/吃饭|聊|电话|爸妈|朋友|同事|随礼|满月|搬家|帮忙/, "social"],
 ];
 
-/** 规则人物识别（FR-D2.3）：演示人名已移除——由调用方传入的联系人名单动态生成；空名单不产人物 */
+/** 规则人物识别（FR-D2.3）：演示人名已移除——由调用方传入的联系人名单动态生成；空名单不产人物。
+ * 空白名单项必须剔除：new RegExp("") 匹配一切位置 + 「n.includes("") 恒真」会把所有真人名滤空（contacts.name 无非空 CHECK） */
 function peopleRegexFrom(names: string[] | undefined): RegExp[] {
   if (!names || names.length === 0) return [];
-  return names.slice(0, 100).map((n) => new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"));
+  return names
+    .slice(0, 100)
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0)
+    .map((n) => new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"));
 }
 
 const DIET_RE = /(吃了|吃了个|吃了点|吃了顿|吃饭|喝了一?杯|喝了杯|喝了瓶|早茶|早饭|早餐|午饭|晚餐|晚饭|下午茶|加餐|夜宵|宵夜|奶茶|咖啡|汉堡|烧烤|火锅|面条|牛肉面|米饭|泡面|外卖|零食|可乐|雪碧|啤酒|水果|苹果|香蕉|火腿肠)/;

@@ -60,6 +60,9 @@ export function classifyGlmFailure(status: number | null, bodyText: string): Glm
   if (code === "429" || status === 429) return "rate";
   if (["1000", "1001", "1002", "1003", "1005", "1006", "401"].includes(code) || status === 401 || status === 403) return "auth";
   if (status !== null && status >= 500) return "server";
+  // 其余 4xx（如 1210 参数错且未带可识别业务码）：重试无意义——归 network 会被 chatAgent
+  // 的重试集合（rate/server/network）白烧一次上游调用
+  if (status !== null && status >= 400) return "badOutput";
   return "network";
 }
 
@@ -135,6 +138,9 @@ function glmExtensions(m: string, base: string, opts: ChatOptions): Record<strin
 
 /** 单轮对话，返回文本内容。timeoutMs 是所有重试的总预算（默认 30s）；429/5xx/超时/网络异常均重试；429 耗尽后降级 GLM_FALLBACK_MODEL */
 export async function chat(opts: ChatOptions): Promise<string> {
+  // 熔断为传输层不变量：所有入口（直调 chat 的 admin/拆解/画像/复盘输入等）在欠费冷却期内统一短路，
+  // 不依赖各调用方自觉检查（parse/chatAgent 各自把门只护住了自己那条链）
+  if (isQuotaTripped()) throw new GlmError("quota", "额度熔断生效中（5 分钟后自动恢复）");
   const key = process.env.ZHIPUAI_API_KEY;
   if (!key) throw new GlmError("auth", "缺少 ZHIPUAI_API_KEY（复制 .env.example 为 .env 并填入）");
   const base = process.env.ZHIPUAI_BASE_URL ?? DEFAULT_BASE_URL;
@@ -317,6 +323,8 @@ export interface TranscribeOptions {
  * 4-E（FR-D2.4）：2 次重试 + 总预算控制；鉴权/参数类与超时（AbortError→转写超时）立即失败不重试——
  * 超时重试会把单次 30s 拖成 ~90s，与 chat()「预算耗尽即停」语义一致。 */
 export async function transcribeAudio(opts: TranscribeOptions): Promise<string> {
+  // 熔断传输层不变量（与 chat() 同口径）：欠费冷却期内直接短路，不再白打上游 3 次
+  if (isQuotaTripped()) throw new GlmError("quota", "额度熔断生效中（5 分钟后自动恢复）");
   let lastErr: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -324,7 +332,7 @@ export async function transcribeAudio(opts: TranscribeOptions): Promise<string> 
     } catch (e) {
       lastErr = e;
       if (e instanceof GlmError && e.kind === "auth") throw e; // 缺 Key：重试无意义（旧版文案不含 HTTP 4xx 会被白重试 3 次）
-      if (e instanceof GlmError && e.kind === "quota") throw e; // 欠费/配额尽：熔断已触发，重试只会重复烧
+      if (e instanceof GlmError && (e.kind === "quota" || e.kind === "badOutput")) throw e; // 欠费：熔断已触发；参数类 4xx：重试只会重复失败
       if (e instanceof Error && /HTTP 4(0[13]|0[04])/.test(e.message)) throw e; // 鉴权/参数类不重试
       if (e instanceof Error && /转写超时/.test(e.message)) throw e; // 单次预算已耗尽，重试只会再超时
       if (attempt < 3) await new Promise((r) => setTimeout(r, 400 * attempt));

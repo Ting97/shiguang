@@ -6,7 +6,7 @@
  * - 401 单点跳转：会话失效统一回 /login（登录/初始化页除外——其自身调用 401 是正常业务语义）
  * - 调用方按状态码分支时捕获 ApiClientError 检查 e.status（如 409 冲突）
  */
-import { api as baseApi, apiForm as baseApiForm, ApiClientError } from "@shiguangri/shared/client-api";
+import { api as baseApi, apiForm as baseApiForm, apiBase as baseApiBase, ApiClientError } from "@shiguangri/shared/client-api";
 
 const NO_REDIRECT_PATHS = ["/login", "/setup"];
 export { NO_REDIRECT_PATHS };
@@ -42,3 +42,6 @@ export function apiForm<T = any>(url: string, form: FormData, method = "POST"): 
 }
 
 export { ApiClientError };
+
+/** API 基址（数据导出 <a href> 直链等 fetch 之外入口用） */
+export const apiBase = baseApiBase;

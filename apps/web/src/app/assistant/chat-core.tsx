@@ -274,33 +274,42 @@ export default function AssistantChat({
   }, [loadList]);
 
   function newConversation() {
+    convSeq.current += 1; // 作废在途会话加载回包
     setActiveId(null);
     setMessages([]);
     setHasMore(false);
     setProposals([]);
   }
 
+  // 会话切换请求序号守卫：快速切 A→B 时 A 的慢回包不得 setMessages 串台到 B；
+  // loadOlder 与 openConversation 并发时同理（旧会话更早页 prepend 进新会话列表）
+  const convSeq = useRef(0);
+
   async function openConversation(id: string) {
     if (sending || id === activeId) return;
+    const seq = ++convSeq.current;
     setConvLoading(true);
     setActiveId(id);
     try {
       // 首屏只拉最近 3 轮（6 条），更早的按页向前翻
       const j = await api<{ conversation: ConvItem; messages: MsgItem[]; hasMore: boolean; proposals?: ProposalItem[] }>(`/api/chat?id=${id}`);
+      if (seq !== convSeq.current) return;
       setMessages(j.messages ?? []);
       setHasMore(j.hasMore ?? false);
       setProposals(j.proposals ?? []);
     } catch (e) {
+      if (seq !== convSeq.current) return;
       toast(e instanceof Error ? e.message : String(e), "err");
       setActiveId(null);
     } finally {
-      setConvLoading(false);
+      if (seq === convSeq.current) setConvLoading(false);
     }
   }
 
   /** 向前翻一页（更早 3 轮）：追加后按增量恢复滚动位置，不跳底 */
   async function loadOlder() {
     if (!activeId || !hasMore || loadingMore || sending) return;
+    const seq = ++convSeq.current;
     setLoadingMore(true);
     try {
       const box = scrollBoxRef.current;
@@ -308,13 +317,14 @@ export default function AssistantChat({
       const j = await api<{ messages: MsgItem[]; hasMore: boolean }>(
         `/api/chat?id=${activeId}&before=${messages[0]?.id ?? ""}`,
       );
+      if (seq !== convSeq.current) return;
       setMessages((ms) => [...(j.messages ?? []), ...ms]);
       setHasMore(j.hasMore ?? false);
     } catch (e) {
       prependHeightRef.current = null;
-      toast(e instanceof Error ? e.message : String(e), "err");
+      if (seq === convSeq.current) toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
-      setLoadingMore(false);
+      if (seq === convSeq.current) setLoadingMore(false);
     }
   }
 

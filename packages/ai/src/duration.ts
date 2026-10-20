@@ -128,15 +128,23 @@ export function parseAmountCents(text: string): number | null {
   //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类；
   //    "万千百"也必须入——它们由量词组消费，留在原文意味着量词组匹配失败，整体应放弃而非缩水成裸数字）
   //    万/千量词："花了1万"=100万分（旧实现漏乘，静默缩小 100/10 倍）；
-  //    口语尾数："花了1万2"=1.2万、"花了1万2千"=12000、"花了2千5"=2500
+  //    口语尾数按位下降链："花了1万2"=1.2万、"1万2千"=12000、"1万2千5"=12500、"2千5"=2500、
+  //    "1万2千5百"=12500——两级尾数组缺一会让整场匹配失败返回 null，该笔花销静默消失（历史 bug）
   const noUnit = norm.match(
-    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(?:(\d{1,2})(千|百)?)?(?![\d.天日个月年时分秒小周万千百])/,
+    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(?:(\d{1,2})(千|百)?)?\s*(?:(\d{1,2})(百)?)?(?![\d.天日个月年时分秒小周万千百])/,
   );
   if (noUnit) {
     const mult = noUnit[2] === "万" ? 10_000 : noUnit[2] === "千" ? 1_000 : 1;
-    const tailMult = noUnit[4] === "千" ? 1_000 : noUnit[4] === "百" ? 100 : mult / 10; // 「1万2」尾数按 mult/10 位补足
-    const tail = noUnit[3] ? parseInt(noUnit[3], 10) * tailMult : 0;
-    const value = noUnit[2] ? parseFloat(noUnit[1]) * mult + tail : parseFloat(noUnit[1]);
+    let value = parseFloat(noUnit[1]) * (noUnit[2] ? mult : 1);
+    let place = noUnit[2] ? mult / 10 : 0; // 下一段裸尾数的默认位值（万→千、千→百、百→十）
+    for (const g of [3, 5] as const) {
+      const digits = noUnit[g];
+      if (!digits) break; // 位值链断裂（lookahead 已保证不会发生，防御性终止）
+      const unit = noUnit[g + 1];
+      const p = unit === "千" ? 1_000 : unit === "百" ? 100 : place;
+      value += parseInt(digits, 10) * p;
+      place = p / 10;
+    }
     const cents = Math.round(value * 100);
     return cents > CAP ? CAP : cents;
   }

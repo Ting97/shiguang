@@ -86,7 +86,9 @@ export async function uploadImages(entryId: string, files: File[]): Promise<Uplo
   const results = await Promise.allSettled(
     compressed.map(({ blob }) => {
       const form = new FormData();
-      const name = blob instanceof File ? blob.name : "photo.jpg";
+      // 文件名与实际 mime 对齐（压缩产物统一叫 photo.jpg 会名实不符，靠服务端魔数白名单兜底）
+      const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+      const name = blob instanceof File ? blob.name : `photo.${ext}`;
       form.append("files", blob, name);
       return apiForm("/api/entries/" + entryId + "/images", form);
     }),

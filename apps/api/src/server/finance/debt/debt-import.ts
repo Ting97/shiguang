@@ -32,10 +32,12 @@ export interface ImportPayload {
 
 const DEBT_TYPES = new Set(["credit_card", "mortgage", "car_loan", "consumer_loan", "bnpl", "family"]);
 
-/** 金额上限（分）：与 validateDebtBody 同口径（¥100 万）——bigint 列 1e19 越界 22003 会让整单 500 */
+/** 金额界限（分）：与 validateDebtBody 同口径（¥100 万）——bigint 列 1e19 越界 22003 会让整单 500；
+ * 负向下限对称补齐（-2e19 可穿透 int 校验直落 bigint 列同样 22003） */
 const IMPORT_CENTS_LIMIT = 100_000_000;
 const assertImportCents = (v: unknown, label: string, row: string) => {
-  if (typeof v === "number" && v > IMPORT_CENTS_LIMIT) throw ApiError.badRequest(`${row}${label}不能超过 ¥100 万`);
+  if (typeof v === "number" && (v > IMPORT_CENTS_LIMIT || v < -IMPORT_CENTS_LIMIT))
+    throw ApiError.badRequest(`${row}${label}超出允许范围（±¥100 万）`);
 };
 
 function validateRows(data: ImportPayload) {

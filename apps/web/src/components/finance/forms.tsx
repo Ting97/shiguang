@@ -10,16 +10,20 @@ import { useArmConfirm } from "@/lib/use-arm-confirm";
 
 export function TxForm({
   initial,
+  accounts = [],
   onCancel,
   onSubmit,
 }: {
   initial?: Tx | null;
+  /** 账户列表（记一笔可挂账户；空列表=不显示账户选择，保持旧行为） */
+  accounts?: Account[];
   onCancel: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [direction, setDirection] = useState<"out" | "in">(initial?.direction ?? "out");
   const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
   const [category, setCategory] = useState(initial?.category ?? "餐饮");
+  const [accountId, setAccountId] = useState<string>(initial?.account_id ?? (accounts[0]?.id ?? ""));
   const [date, setDate] = useState(
     initial
       ? toLocalInput(initial.occurred_at).slice(0, 16)
@@ -46,7 +50,8 @@ export function TxForm({
         direction,
         amountCents: cents,
         category,
-        // 流水只作记录不入账：不挂账户（历史流水的账户标签保留不动）
+        // 账户：与语音记账/CSV 导入同口径挂账户（余额=期初口径不受影响）；显式选「不挂账户」时不带字段
+        ...(accountId ? { accountId } : {}),
         // date 是北京墙上时间串（toLocalInput 产），须按 +08:00 解析——裸 new Date() 按宿主时区解释，海外设备记错账时间
         occurredAt: fromLocalInput(date) ?? new Date().toISOString(),
         note: note || null,
@@ -107,6 +112,23 @@ export function TxForm({
           ))}
         </select>
       </div>
+      {accounts.length > 0 && (
+        <div className="flex gap-2">
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            title="挂到哪个账户（只作标签，不改变账户余额）"
+            className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-sm outline-none focus:border-sky-500"
+          >
+            <option value="">不挂账户</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="flex gap-2">
         <input
           type="datetime-local"
@@ -203,8 +225,9 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
               <input
                 type="number"
                 step="0.01"
+                key={`${a.id}:${a.openingBalanceCents}`}
                 defaultValue={a.openingBalanceCents / 100}
-                title="当前余额（元）"
+                title="期初余额（元，改后账户余额=新期初+流水）"
                 onBlur={async (e) => {
                   const v = yuanToCents(e.target.value);
                   if (v == null) {

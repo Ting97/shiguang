@@ -47,7 +47,8 @@ export const GET = withAuth(async (req, { user }) => {
        group by category order by cents desc`,
       [user.id, start, end],
     );
-    for (const r of cats.rows) byCat[r.category] = r.cents;
+    // ::bigint 列 node-pg 返回 string：不转 Number 会让前端占比累加变成字符串拼接（历史 bug：分类占比恒 0%）
+    for (const r of cats.rows) byCat[r.category] = Number(r.cents);
     return { outCents: Number(rows[0].out_cents), inCents: Number(rows[0].in_cents), byCategory: byCat };
   };
 
@@ -101,6 +102,11 @@ export const GET = withAuth(async (req, { user }) => {
   // ::bigint 防 int4 溢出，但 node-pg 对 bigint 返回 string：序列化统一 Number()，响应类型不变
   const accountList = accounts.map((r) => ({ ...r, balanceCents: Number(r.balanceCents) }));
 
+  // monthly_limit_cents 为 bigint（node-pg 返回 string）：与账户余额同口径转 Number
+  const budget = budgetRows[0]
+    ? { monthly_limit_cents: Number(budgetRows[0].monthly_limit_cents), alert_threshold: budgetRows[0].alert_threshold }
+    : { monthly_limit_cents: 0, alert_threshold: 80 };
+
   return NextResponse.json({
     month,
     outCents: cur.outCents,
@@ -109,7 +115,7 @@ export const GET = withAuth(async (req, { user }) => {
     prev: { outCents: prev.outCents, inCents: prev.inCents },
     trend,
     draftCount: draftRows[0].n,
-    budget: budgetRows[0] ?? { monthly_limit_cents: 0, alert_threshold: 80 },
+    budget,
     accounts: accountList,
   });
 });

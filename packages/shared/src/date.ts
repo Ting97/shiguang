@@ -88,9 +88,10 @@ export function bjAddDays(dateStr: string, n: number): string {
   return new Date(t + n * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** 北京日历日所属周的周一（周一为周界） */
+/** 北京日历日所属周的周一（周一为周界）；非法入参原值返回（NaN.toISOString() 会抛 Invalid time value，对齐 bjAddDays 守卫口径） */
 export function bjMondayOf(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dateStr;
   return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
 }
 
@@ -121,19 +122,24 @@ export function zhTime(iso: string): string {
 /** 用原块北京日期 + 新的 HH:MM 组装 ISO（改时间只换钟点、日期不动；本地 setHours 会存错 8 小时） */
 export function combineHM(originalIso: string, hm: string): string {
   const [h, m] = hm.split(":").map(Number);
-  // 非法输入（空串/残缺 "HH:"/负数 "-1:30"）不再让 setUTCHours(NaN/-1) 产生 Invalid Date 或回卷一天 → 保持原值
+  // 非法输入（空串/残缺 "HH:"/负数 "-1:30"）不再让 setUTCHours(NaN/-1) 产生 Invalid Date 或回卷一天 → 保持原值；
+  // originalIso 非法（getTime()=NaN）时 toISOString() 会抛 Invalid time value → 同样保持原值不抛
   if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || m < 0 || h > 23 || m > 59) return originalIso;
-  const d = new Date(new Date(originalIso).getTime() + 8 * 3600_000);
+  const t = new Date(originalIso).getTime();
+  if (!Number.isFinite(t)) return originalIso;
+  const d = new Date(t + 8 * 3600_000);
   d.setUTCHours(h, m, 0, 0);
   return new Date(d.getTime() - 8 * 3600_000).toISOString();
 }
 
 /** 「开始时刻 + 结束 HH:MM」跨日组合：结束先按开始的北京日历日拼接，≤ 开始自动 +1 天
- * （如 23:00–06:00 的睡眠块）。hm 非法 → 回退 fallbackEndIso（结束保持原值不动）。 */
+ * （如 23:00–06:00 的睡眠块）。hm 或 startIso 非法 → 回退 fallbackEndIso（结束保持原值不动）。 */
 export function combineHmEndCrossDay(startIso: string, endHm: string, fallbackEndIso: string): string {
   const [h, m] = endHm.split(":").map(Number);
   if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || m < 0 || h > 23 || m > 59) return fallbackEndIso;
-  const s = new Date(new Date(startIso).getTime() + 8 * 3600_000);
+  const st = new Date(startIso).getTime();
+  if (!Number.isFinite(st)) return fallbackEndIso;
+  const s = new Date(st + 8 * 3600_000);
   const e = new Date(s);
   e.setUTCHours(h, m, 0, 0);
   if (e.getTime() <= s.getTime()) e.setUTCDate(e.getUTCDate() + 1);

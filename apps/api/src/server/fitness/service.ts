@@ -6,6 +6,7 @@
  * AI：POST /plans/parse 粘贴文本或佳明截图 → FitnessPlanDraftV2（GLM + 一次修复重问）→ 整数口径草稿（不入库）。
  */
 import { z } from "zod";
+import { pool } from "../platform/db";
 import { ApiError } from "../platform/http/errors";
 import { isValidCalendarDate } from "../platform/http/datetime";
 import { isUuid } from "../platform/http/validate";
@@ -377,17 +378,31 @@ async function savePlanDraft(userId: string, body: unknown, opts?: XunjiNormaliz
   const v = parseBody(PlanSaveInput, body);
   const content = validateContent(v.moduleCode, v.content);
   const enriched = await attachExerciseIds(userId, v.moduleCode, content, opts);
-  const planRow = (
-    await fitnessRepo.insertPlan(userId, {
-      planDate: v.planDate,
-      moduleCode: v.moduleCode,
-      source: v.source,
-      content: enriched,
-      rationale: v.rationale ?? null,
-      originConversationId: v.originConversationId ?? null,
-    })
-  ).rows[0];
-  const sync = await syncPlanTodos(userId, planRow);
+  // 计划落库与联动行动重建同事务：中途失败整体回滚，不再出现「计划已存而行动为空」的半程态
+  const client = await pool.connect();
+  type PlanRow = { id: string; plan_date: string; module_code: string; source: string; status: string; content: unknown };
+  let planRow: PlanRow;
+  let synced: { synced: number };
+  try {
+    await client.query("begin");
+    planRow = (
+      await fitnessRepo.insertPlan(userId, {
+        planDate: v.planDate,
+        moduleCode: v.moduleCode,
+        source: v.source,
+        content: enriched,
+        rationale: v.rationale ?? null,
+        originConversationId: v.originConversationId ?? null,
+      }, client)
+    ).rows[0] as PlanRow;
+    synced = await syncPlanTodos(userId, planRow, client);
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
   let xunjiWarning: string | null = null;
   if (v.syncXunji) {
     try {
@@ -401,7 +416,7 @@ async function savePlanDraft(userId: string, body: unknown, opts?: XunjiNormaliz
       xunjiWarning = e instanceof Error ? e.message : String(e);
     }
   }
-  return { plan: planRow, syncedActions: sync.synced, xunjiWarning };
+  return { plan: planRow, syncedActions: synced.synced, xunjiWarning };
 }
 
 /** DELETE /api/fitness/plans/[id] —— 删除计划（任意状态）。
@@ -436,9 +451,6 @@ async function updatePlan(userId: string, id: string, body: unknown) {
   const plan = rows[0];
   const doneLike = v.status === "done" || v.status === "partial";
 
-  if (plan.status === "done" || plan.status === "partial") {
-    throw ApiError.badRequest("该计划已打卡，不能再次修改");
-  }
   // 打卡类字段必须伴随 status=done/partial（单独发 actual 没有语义）
   if (!doneLike && (v.actual !== undefined || v.fatigue !== undefined || v.sleepHours !== undefined)) {
     throw ApiError.badRequest("打卡实际数据需携带 status=done/partial");
@@ -454,7 +466,6 @@ async function updatePlan(userId: string, id: string, body: unknown) {
     sets.push(`${col} = $${vals.length}${json ? "::jsonb" : ""}`);
   };
 
-  let planRow = plan;
   if (v.content !== undefined) {
     const content = validateContent(plan.module_code, v.content);
     push("content", await attachExerciseIds(userId, plan.module_code, content), true);
@@ -463,29 +474,51 @@ async function updatePlan(userId: string, id: string, body: unknown) {
   if (v.status !== undefined) push("status", v.status);
   if (!sets.length) throw ApiError.badRequest("没有可更新的字段");
   vals.push(id, userId);
-  planRow = (await fitnessRepo.updatePlan(id, userId, sets, vals)).rows[0];
 
-  // skipped → 清理未完成联动行动；done/partial → 落执行记录 + 完成联动行动
-  if (v.status === "skipped") {
-    await fitnessRepo.deletePendingPlanTodos(id);
-  } else if (doneLike) {
-    await fitnessRepo.insertLog(userId, {
-      logDate: planRow.plan_date,
-      moduleCode: planRow.module_code,
-      planId: id,
-      actual: v.actual ?? {},
-      fatigue: v.fatigue ?? null,
-      soreness: v.soreness ?? null,
-      note: v.note ?? null,
-    });
-    // 睡眠独立记录（REQ-024）：打卡兼容入参落到 sleep_logs（log_date=计划日），session_logs 不再存
-    if (v.sleepHours != null) await fitnessRepo.upsertSleep(userId, planRow.plan_date, Math.round(v.sleepHours * 10), "checkin");
-    await fitnessRepo.completePlanTodos(id);
-  } else {
-    // 内容/状态变化 → 行动与最新计划同步
-    await syncPlanTodos(userId, planRow);
+  // 状态迁移与后续写（执行记录/睡眠/联动行动）收进同一事务，事务首语句锁计划行并锁内重读状态：
+  // 并发双击/重发打卡时只有一个请求能通过「未打卡」守卫（历史 bug：锁外快照守卫 + 无条件 UPDATE 可重复落执行记录）；
+  // 事务也消除「计划已置 done 而执行记录插入失败」的半程态
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const locked = await client.query(
+      `select status from fitness_daily_plans where id = $1 and user_id = $2 for update`,
+      [id, userId],
+    );
+    if (!locked.rows.length) throw ApiError.notFound("计划不存在");
+    if (locked.rows[0].status === "done" || locked.rows[0].status === "partial") {
+      throw ApiError.badRequest("该计划已打卡，不能再次修改");
+    }
+    const planRow = (await fitnessRepo.updatePlan(id, userId, sets, vals, client)).rows[0];
+
+    // skipped → 清理未完成联动行动；done/partial → 落执行记录 + 完成联动行动
+    if (v.status === "skipped") {
+      await fitnessRepo.deletePendingPlanTodos(id, client);
+    } else if (doneLike) {
+      await fitnessRepo.insertLog(userId, {
+        logDate: planRow.plan_date,
+        moduleCode: planRow.module_code,
+        planId: id,
+        actual: v.actual ?? {},
+        fatigue: v.fatigue ?? null,
+        soreness: v.soreness ?? null,
+        note: v.note ?? null,
+      }, client);
+      // 睡眠独立记录（REQ-024）：打卡兼容入参落到 sleep_logs（log_date=计划日），session_logs 不再存
+      if (v.sleepHours != null) await fitnessRepo.upsertSleep(userId, planRow.plan_date, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client);
+      await fitnessRepo.completePlanTodos(id, client);
+    } else {
+      // 内容/状态变化 → 行动与最新计划同步
+      await syncPlanTodos(userId, planRow, client);
+    }
+    await client.query("commit");
+    return { plan: planRow };
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
   }
-  return { plan: planRow };
 }
 
 // ---------------------------------------------------------------------------
@@ -499,8 +532,10 @@ async function updatePlan(userId: string, id: string, body: unknown) {
 async function syncPlanTodos(
   userId: string,
   plan: { id: string; plan_date: string; module_code: string; source: string; status: string; content: unknown },
+  exec: Pick<typeof pool, "query"> = pool,
 ) {
-  await fitnessRepo.deletePendingPlanTodos(plan.id);
+  // 「删旧插新」由调用方事务包裹：中途失败可整体回滚，避免行动丢失（历史窗口：计划已存而联动行动为空）
+  await fitnessRepo.deletePendingPlanTodos(plan.id, exec);
   if (plan.status === "skipped") return { synced: 0 };
   const dueAtIso = `${plan.plan_date}T18:00:00+08:00`;
   const source: "ai" | "manual" = plan.source === "manual" ? "manual" : "ai";
@@ -526,7 +561,7 @@ async function syncPlanTodos(
         sort: 0,
         activityId,
         spaceId,
-      })
+      }, exec)
     ).rows[0].id;
     synced += 1;
     for (let i = 0; i < exs.length; i++) {
@@ -541,7 +576,7 @@ async function syncPlanTodos(
         sort: i + 1,
         activityId,
         spaceId,
-      });
+      }, exec);
       synced += 1;
     }
   } else if ((content as RunPlanContent).title) {
@@ -557,7 +592,7 @@ async function syncPlanTodos(
       sort: 0,
       activityId,
       spaceId,
-    });
+    }, exec);
     synced += 1;
   }
   return { synced };
@@ -943,6 +978,11 @@ const LogInput = z.object({
 /** POST /api/fitness/logs —— 独立补录（不经计划打卡） */
 async function addLog(userId: string, body: unknown) {
   const v = parseBody(LogInput, body);
+  // planId 只验 uuid 不够：需校验计划归属，防止把执行记录挂到他人计划上（FK 只保证存在性）
+  if (v.planId) {
+    const own = await fitnessRepo.planOwned(v.planId, userId);
+    if (!own.rows.length) throw ApiError.badRequest("关联计划不存在");
+  }
   const { rows } = await fitnessRepo.insertLog(userId, {
     logDate: v.logDate,
     moduleCode: v.moduleCode,

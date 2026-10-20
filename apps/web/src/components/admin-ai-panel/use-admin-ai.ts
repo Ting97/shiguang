@@ -116,6 +116,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   }
 
   function pick(item: PromptItem) {
+    aiSeq.current += 1; // 作废在途的 optimize/preview 回包（防串台到新选中的 prompt）
     setSel(item);
     setDraft(item.dbContent ?? item.defaultContent);
     setEnabled(item.enabled);
@@ -203,33 +204,40 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
     }
   }
 
+  // AI 优化/预览请求序号守卫（与 verSeq 同范式）：请求期间点另一条 prompt（pick 会清空
+  // suggestion/previewText），慢回包无条件 setState 会把 A 的建议/预览挂到 B 的编辑上下文，
+  // adoptSuggestion 一键写入 B 草稿 → 生产 prompt 被静默串台污染
+  const aiSeq = useRef(0);
+
   async function optimize() {
     if (!sel || optimizing) return;
+    const seq = ++aiSeq.current;
     setOptimizing(true);
     setSuggestion(null);
     try {
       const j = await api<any>(`/api/admin/prompts/${sel.key}/optimize`, "POST", { hint: optHint });
-      setSuggestion(j.suggestion);
+      if (seq === aiSeq.current) setSuggestion(j.suggestion);
     } catch (e) {
-      notify(e instanceof Error ? e.message : String(e), false);
+      if (seq === aiSeq.current) notify(e instanceof Error ? e.message : String(e), false);
     } finally {
-      setOptimizing(false);
+      if (seq === aiSeq.current) setOptimizing(false);
     }
   }
 
   async function runPreview() {
     if (!sel || previewing) return;
+    const seq = ++aiSeq.current;
     setPreviewing(true);
     try {
       const j = await api<any>(`/api/admin/prompts/${sel.key}/preview`, "POST", {
         sample: previewSample || undefined,
         period: previewPeriod || undefined,
       });
-      setPreviewText(j.userPrompt);
+      if (seq === aiSeq.current) setPreviewText(j.userPrompt);
     } catch (e) {
-      notify(e instanceof Error ? e.message : String(e), false);
+      if (seq === aiSeq.current) notify(e instanceof Error ? e.message : String(e), false);
     } finally {
-      setPreviewing(false);
+      if (seq === aiSeq.current) setPreviewing(false);
     }
   }
 

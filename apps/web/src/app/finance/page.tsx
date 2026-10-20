@@ -257,6 +257,7 @@ export default function FinancePage() {
         {adding && (
           <Modal title="记一笔" onClose={() => setAdding(false)}>
             <TxForm
+              accounts={ov.accounts}
               onCancel={() => setAdding(false)}
               onSubmit={async (payload) => {
                 try {

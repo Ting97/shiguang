@@ -150,9 +150,12 @@ export async function runDailyReminderPush(): Promise<void> {
     const targets = [...byUser.entries()].filter(([, c]) => summarize(c) != null);
     if (targets.length === 0) return;
 
-    // 取启用中的推送 token（一台设备一个 token；同一用户多设备各发一条）
+    // 取启用中的推送 token（一台设备一个 token；同一用户多设备各发一条）。
+    // join profiles 只推 active 用户：被禁用账号不再收到推送（旧版全站扫描后不过滤账号状态）
     const { rows: tokenRows } = await pool.query<{ user_id: string; token: string }>(
-      `select user_id, token from device_tokens where enabled and user_id = any($1::uuid[])`,
+      `select dt.user_id, dt.token from device_tokens dt
+       join profiles p on p.id = dt.user_id and p.status = 'active'
+       where dt.enabled and dt.user_id = any($1::uuid[])`,
       [targets.map(([uid]) => uid)],
     );
     if (tokenRows.length === 0) return;

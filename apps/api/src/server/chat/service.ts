@@ -9,7 +9,7 @@ import { ApiError } from "@/server/platform/http/errors";
 import { activeModel, chatAgent, toCstWallClock, type AgentTurn } from "@shiguangri/ai";
 import { assembleUserPrompt, getPromptBundle, writeAuditRecord, type PromptKey } from "@/server/ai";
 import { toAgentTools, TOOL_LABELS, CHAT_SCOPES, type ChatScope, type ChatToolCtx } from "./tools";
-import { checkChatQuota, getChatQuota, FREE_CHAT_CALLS_PER_DAY, type ChatQuotaInfo } from "./chat-quota";
+import { acquireChatQuota, releaseChatQuota, getChatQuota, FREE_CHAT_CALLS_PER_DAY, type ChatQuotaInfo } from "./chat-quota";
 
 /** 注入模型的对话历史长度上限（user+assistant 计数；更早历史丢弃——MVP 不做摘要压缩） */
 const HISTORY_LIMIT = 20;
@@ -202,8 +202,9 @@ export async function sendMessage(
   if (!text || text.length > 2000) throw ApiError.badRequest("消息长度须为 1~2000 字");
   const requestedScope = parseScope(input.scope);
 
-  const quotaCheck = await checkChatQuota(userId);
-  if (!quotaCheck.allowed) {
+  // 原子占位（并发修正）：占位成功才放行，调用失败在 catch 回退占位
+  const quota = await acquireChatQuota(userId);
+  if (!quota.allowed) {
     throw ApiError.quota(`今日 AI 助手次数已用完（免费版每天 ${FREE_CHAT_CALLS_PER_DAY} 次），明天再来或升级 Pro`);
   }
 
@@ -325,7 +326,8 @@ export async function sendMessage(
       proposals: await listProposals(userId, conversationId),
     };
   } catch (e) {
-    // 失败也计量（ok=false）：用户消息已保留，配额只扣成功调用（口径与 ai 域一致）
+    // 失败回退占位（口径：配额只扣成功调用）+ 计量审计（ok=false）：用户消息已保留
+    await releaseChatQuota(userId, quota.dayKey).catch(() => {});
     await writeAuditRecord({
       userId,
       stage: "chat",

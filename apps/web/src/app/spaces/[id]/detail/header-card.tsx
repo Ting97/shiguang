@@ -9,6 +9,7 @@ import InlineRename from "@/components/inline-rename";
 import { Modal } from "@/components/ui/modal";
 import type { Space, SpaceMilestone } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import { bjDate, bjToday } from "./kit";
 import type { Msg, Pos } from "./types";
 
@@ -70,9 +71,9 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
       const r = await api<{ milestones: SpaceMilestone[] }>(`/api/spaces/${id}/milestones`);
       setItems(r.milestones);
       syncCounts(r.milestones);
-    } catch {
-      // 异常收口为状态文案，不抛出点击处理器（裸 rejection 会触发整页刷新）
-      setDraft((v) => v);
+    } catch (e) {
+      // 异常收口为失败提示（原 setDraft((v)=>v) 是 no-op，失败零反馈让人以为已保存）
+      toast(e instanceof ApiClientError ? e.message : "阶段目标创建失败，请重试", "err");
     } finally {
       setBusy(false);
     }
@@ -86,8 +87,9 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
       const r = await api<{ milestones: SpaceMilestone[] }>(`/api/spaces/${id}/milestones`);
       setItems(r.milestones);
       syncCounts(r.milestones);
-    } catch {
-      /* 保留原列表 */
+    } catch (e) {
+      // 标记达成/放弃/编辑失败必须有反馈（网络/400 时保留原列表但要让用户知道没保存）
+      toast(e instanceof ApiClientError ? e.message : "操作失败，请重试", "err");
     } finally {
       setBusy(false);
     }

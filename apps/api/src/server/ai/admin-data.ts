@@ -178,9 +178,10 @@ export async function queryDataset(
     if (!to || !isYmd(to)) throw ApiError.badRequest("to 需为 YYYY-MM-DD");
     // 首尾均含：天数 = 差值 + 1（如 6-23 ~ 9-23 为 93 天，应拒绝）
     if (Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1 > 92) throw ApiError.badRequest("时间范围上限 92 天");
-    // 北京时间口径显式 +08：裸 YYYY-MM-DD 会被按 DB 会话 TimeZone 解释（UTC 库会少采当天 0-8 点）
-    vals.push(`${from} 00:00:00+08`, `${to} 23:59:59+08`);
-    where.push(`${spec.timeCol} between $${vals.length - 1}::timestamptz and $${vals.length}::timestamptz`);
+    // 北京时间口径显式 +08：裸 YYYY-MM-DD 会被按 DB 会话 TimeZone 解释（UTC 库会少采当天 0-8 点）。
+    // 半开区间 [from 00:00, to 次日 00:00)：旧上界 23:59:59 会漏掉当天最后一秒的数据
+    vals.push(`${from} 00:00:00+08`, `${to} 00:00:00+08`);
+    where.push(`${spec.timeCol} >= $${vals.length - 1}::timestamptz and ${spec.timeCol} < ($${vals.length}::timestamptz + interval '1 day')`);
   }
   if (opts.category && spec.categoryCol) {
     vals.push(opts.category);
