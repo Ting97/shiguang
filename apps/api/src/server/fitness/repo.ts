@@ -172,9 +172,10 @@ export const fitnessRepo = {
     );
   },
   /** 同日行优先、否则最近一条早于 measuredOn 的指标行：saveMetric 留空字段继承旧值用
-   *  （UI 承诺「留空的项保持原值不被清除」；身高体脂可只在变化时记录） */
-  latestMetricAtOrBefore(userId: string, measuredOn: string) {
-    return pool.query(
+   *  （UI 承诺「留空的项保持原值不被清除」；身高体脂可只在变化时记录）。
+   *  exec 可传事务 client：saveMetric 的读旧值+upsert 需在 per-user advisory lock 内串行 */
+  latestMetricAtOrBefore(userId: string, measuredOn: string, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(
       `select weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note
        from fitness_body_metrics
        where user_id = $1 and measured_on <= $2
@@ -186,8 +187,9 @@ export const fitnessRepo = {
   upsertMetric(
     userId: string,
     d: { measuredOn: string; weightG: number | null; waistMm: number | null; bodyFatPctX10: number | null; heightMm: number | null; restingHr: number | null; note: string | null },
+    exec: Pick<typeof pool, "query"> = pool,
   ) {
-    return pool.query(
+    return exec.query(
       `insert into fitness_body_metrics (user_id, measured_on, weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note)
        values ($1,$2,$3,$4,$5,$6,$7,$8)
        on conflict (user_id, measured_on) do update set

@@ -61,6 +61,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // 账号切换（共用设备直接登录另一账号，不经登出）时清 SW 的 /api/* 缓存：
+  // 旧缓存是上一账号的 feed/contacts/finance 个人数据，弱网/离线下 network-first 回退会读到
+  const switchUser = useCallback((next: SessionUser | null) => {
+    setUser((prev) => {
+      if (next && prev && next.id !== prev.id) clearCachedApiData();
+      return next;
+    });
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const me = await api<SessionUser>("/api/auth/me", "GET");
@@ -96,7 +105,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     router.replace(LOGIN_PATH);
   }, [router]);
 
-  const value = useMemo(() => ({ user, loading, refresh, logout, setUser }), [user, loading, refresh, logout]);
+  const value = useMemo(() => ({ user, loading, refresh, logout, setUser: switchUser }), [user, loading, refresh, logout, switchUser]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

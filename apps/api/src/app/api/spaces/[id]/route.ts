@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { spaceService, type SpacePatchInput } from "@/server/goal";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const PATCH = withModuleParams("goal", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
-  const body = (await req.json().catch(() => ({}))) as SpacePatchInput;
+  const body = (await readJsonCapped(req) as any) as SpacePatchInput;
   return NextResponse.json(await spaceService.update(user.id, id, body));
 });
 

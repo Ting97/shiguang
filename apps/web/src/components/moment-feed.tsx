@@ -57,7 +57,9 @@ export default function MomentFeed(props: MomentFeedProps) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 pl-1 text-micro tabular-nums text-ink-dim sm:hidden">{t.clock}</div>
-                    <MomentCard m={m} {...props} />
+                    {/* 只传卡片所需三项：整包 {...props} 会把 moments 新引用/moreCount/searchKeyword
+                        一并下发，memo(MomentCard) 在每次刷新/键入时全列表失效重渲染 */}
+                    <MomentCard m={m} activities={props.activities} onRefresh={props.onRefresh} />
                   </div>
                 </div>
               );

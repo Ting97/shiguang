@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { contactDetail, deleteContact, updateContact } from "@/server/people";
 
@@ -17,7 +17,7 @@ export const GET = withModuleParams("people", async (_req, { user, params }) => 
 export const PATCH = withModuleParams("people", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
-  return NextResponse.json(await updateContact(user.id, id, await req.json().catch(() => ({}))));
+  return NextResponse.json(await updateContact(user.id, id, await readJsonCapped(req) as any));
 });
 
 /** DELETE /api/contacts/:id —— 删除联系人（往来事件级联删除，动态本体与流水不受影响） */

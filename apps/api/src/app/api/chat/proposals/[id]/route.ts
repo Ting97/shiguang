@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { chatService } from "@/server/chat";
 
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const POST = withModuleParams("ai", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
-  const body = (await req.json().catch(() => ({}))) as { action?: string };
+  const body = (await readJsonCapped(req) as any) as { action?: string };
   if (body.action !== "accept" && body.action !== "dismiss") {
     return NextResponse.json({ error: "action 须为 accept 或 dismiss", code: "invalid_input" }, { status: 400 });
   }

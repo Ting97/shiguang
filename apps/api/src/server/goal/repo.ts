@@ -504,7 +504,7 @@ export const reflectionRepo = {  async spaceOwned(spaceId: string, userId: strin
               (updated_at > created_at) as edited
        from space_reflections
        where space_id = $1
-       order by created_at desc
+       order by created_at desc, id desc
        limit $2 offset $3`,
       [spaceId, limit, offset],
     );

@@ -38,14 +38,15 @@ export async function getQuota(userId: string): Promise<QuotaInfo> {
 
   // 口径 = 注释所述「计费 stage 全阶段的成功调用」：
   // - stage 过滤：space_classify/jev_shadow/chat 等旁路阶段不计（否则一条动态 parse+space_classify 双扣）；
-  //   fitness_parse（AI 课表解析）与 xunji_name_match（训记名匹配）为真实 GLM 消耗，纳入计费
+  //   fitness_parse（AI 课表解析）、xunji_name_match（训记名匹配）与 decompose（待办 AI 拆解）为
+  //   真实 GLM 消耗，纳入计费——decompose 路由用 checkAiQuota 把门，不入此集则拆解永不计数（免费无限用）
   // - ok 过滤：LLM 调用失败（降级规则/整体失败）不扣
   // - 纯规则兜底（model=''，ok=true）也是一次成功的 parse 尝试，保留计数
   // - jev% 模型行继续排除（jev-shadow/接管模式的影子与旁路行）
   const { rows: usedRows } = await pool.query(
     `select count(*)::int as n from audit_logs
      where user_id = $1 and created_at > now() - interval '30 days'
-       and stage in ('parse', 'review', 'asr', 'fitness_parse', 'xunji_name_match')
+       and stage in ('parse', 'review', 'asr', 'fitness_parse', 'xunji_name_match', 'decompose')
        and ok
        and coalesce(model, '') not like 'jev%'`,
     [userId],

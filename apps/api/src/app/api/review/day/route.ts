@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasApiKey } from "@shiguangri/ai";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { acquireGeneration, releaseGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
@@ -23,7 +23,7 @@ interface DayReview {
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
 export const POST = withModule("insight", async (req, { user }) => {
-  const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
+  const { date, refresh } = (await readJsonCapped(req) as any) as { date?: string; refresh?: boolean };
   // 形状校验放行 2025-13-45 → buildReviewCtx ::date cast 500：需为真实日历日
   if (!date || !isValidCalendarDate(date)) {
     throw ApiError.badRequest("date 需为真实存在的 YYYY-MM-DD 日期");

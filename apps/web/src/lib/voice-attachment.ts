@@ -1,18 +1,16 @@
 /**
  * 语音动态音频上传（POST /api/entries/:id/audio，multipart file=16k wav）。
- * 失败抛 Error（message 为服务端可读文案）。
+ * 统一走 apiForm()（Bearer + apiBase 与全站一致）：旧裸 fetch 在分离部署（NEXT_PUBLIC_API_BASE）
+ * 或 Token 鉴权下会 401/打到静态 origin 404。失败抛 Error（message 为服务端可读文案）。
  */
+import { apiForm } from "@/shared/api";
+
 export async function uploadEntryAudio(entryId: string, wav: Blob): Promise<void> {
   const form = new FormData();
   form.append("file", new File([wav], "voice.wav", { type: "audio/wav" }));
-  const r = await fetch(`/api/entries/${entryId}/audio`, { method: "POST", body: form });
-  if (!r.ok) {
-    const j = await r.json().catch(() => null);
-    throw new Error(j?.message ?? `语音上传失败（${r.status}）`);
+  try {
+    await apiForm(`/api/entries/${entryId}/audio`, form);
+  } catch (e) {
+    throw new Error(e instanceof Error && e.message ? e.message : `语音上传失败`);
   }
-}
-
-/** 秒数 → m:ss（语音 chip 展示） */
-export function fmtVoiceSeconds(s: number): string {
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }

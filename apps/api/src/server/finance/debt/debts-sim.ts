@@ -87,7 +87,7 @@ export function simulateStrategy(
     totalInterest += interest;
     totalPaid += paid;
     const remaining = debts.reduce((s, d) => s + d.bal, 0);
-    pushRow(schedule, {
+    schedule.push({
       month: monthLabel(startMonth, months - 1),
       paidCents: paid,
       interestCents: interest,
@@ -108,10 +108,6 @@ export function simulateStrategy(
     schedule: sampleSchedule(schedule),
     notCleared: !cleared,
   };
-}
-
-function pushRow(rows: SimMonthRow[], row: SimMonthRow) {
-  rows.push(row);
 }
 
 /** 逐月表压缩到 ≤36 行：前 12 月全量 + 等距抽样 + 末月，保证首尾完整 */

@@ -56,16 +56,33 @@ export default function FinancePage() {
     const seq = ++loadSeq.current;
     setLoadErr(null);
     try {
+      // 已确认流水分块拉取：API 单次 limit 钳 500，旧版直接把窗口传给 limit，
+      // 单月 >500 笔时返回恒 500 条、txs.length < total 恒真 →「加载更多」成死按钮
+      const confirmedPaged = async (): Promise<{ transactions: Tx[]; total: number }> => {
+        const SERVER_PAGE = 500;
+        let rows: Tx[] = [];
+        let total = 0;
+        for (let offset = 0; offset < visible; offset += SERVER_PAGE) {
+          const size = Math.min(SERVER_PAGE, visible - offset);
+          const c = await api<{ transactions?: Tx[]; total?: number }>(
+            `/api/transactions?month=${month}&status=confirmed&limit=${size}&offset=${offset}`,
+          );
+          total = c.total ?? 0;
+          rows = rows.concat(c.transactions ?? []);
+          if ((c.transactions?.length ?? 0) < size) break; // 已到底
+        }
+        return { transactions: rows, total };
+      };
       const [o, d, c] = await Promise.all([
         api<Overview>(`/api/finance/overview?month=${month}`),
         api<{ transactions?: Tx[] }>(`/api/transactions?month=${month}&status=draft`),
-        api<{ transactions?: Tx[]; total?: number }>(`/api/transactions?month=${month}&status=confirmed&limit=${visible}`),
+        confirmedPaged(),
       ]);
       if (seq !== loadSeq.current) return; // 过期响应丢弃
       setOv(o);
       setDrafts(d.transactions ?? []);
-      setConfirmed(c.transactions ?? []);
-      setConfirmedTotal(c.total ?? 0);
+      setConfirmed(c.transactions);
+      setConfirmedTotal(c.total);
     } catch (e) {
       if (seq !== loadSeq.current) return;
       // 失败不停在骨架屏（历史 bug：无 catch 时 unhandled rejection + 永久加载中）

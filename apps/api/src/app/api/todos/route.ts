@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "@/server/platform/http/route";
+import { withAuth, readJsonCapped } from "@/server/platform/http/route";
 import { todoService, type TodoCreateInput } from "@/server/goal";
 
 export const runtime = "nodejs";
@@ -12,6 +12,6 @@ export const GET = withAuth(async (req, { user }) => {
 
 /** POST /api/todos —— 手动新增待办/行动（标题即可；标记/空间/插入定位见 todoService.create） */
 export const POST = withAuth(async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as TodoCreateInput;
+  const body = (await readJsonCapped(req) as any) as TodoCreateInput;
   return NextResponse.json(await todoService.create(user.id, body));
 });

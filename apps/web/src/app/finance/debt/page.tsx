@@ -462,4 +462,3 @@ export default function DebtPage() {
   );
 }
 
-/** 余额曲线 sparkline：本金 → 逐笔还款后的余额（最近 12 个点） */

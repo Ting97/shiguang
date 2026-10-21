@@ -415,7 +415,7 @@ export async function listTrades(
     `select id, ticket, symbol, direction, open_time, close_time, lots, open_price, close_price, net_profit
      from trades
      where ${W()}
-     order by close_time desc
+     order by close_time desc, id desc
      limit $${vals.length + 1} offset $${vals.length + 2}`,
     [...vals, limit, (page - 1) * limit],
   );

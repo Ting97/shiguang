@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
 import { ApiError } from "@/server/platform/http/errors";
-import { withAuth, withAuthSchema } from "@/server/platform/http/route";
+import { withAuth, withAuthSchema, readJsonCapped } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export const POST = withAuthSchema(registerSchema, async (_req, { user, valid })
  * 带 token 只删本人名下该条；不带 token 删本人全部（客户端缓存丢失的兜底）。
  */
 export const DELETE = withAuth(async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as { token?: unknown };
+  const body = (await readJsonCapped(req) as any) as { token?: unknown };
   const token = typeof body.token === "string" ? body.token.trim() : "";
   if (token) {
     await pool.query(`delete from device_tokens where user_id = $1 and token = $2`, [user.id, token]);

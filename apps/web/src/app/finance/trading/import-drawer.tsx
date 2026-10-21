@@ -141,7 +141,7 @@ export default function TradingImportDrawer({
             </button>
             <p className="text-micro leading-relaxed text-ink-faint">
               MT5 行情客户端 → 账户历史 → 右键「报表」导出；解析在本机完成，取「持仓」区块的平仓记录。
-              时间口径：{MT5_TZ_LABEL}（夏令时为 UTC+2，导入前请确认）。
+              时间口径：{MT5_TZ_LABEL}（按 EU 夏令时规则自动判定，个别经纪商服务器时区不同时导入前请核对）。
             </p>
             {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-danger">{error}</p>}
           </div>

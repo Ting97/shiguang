@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth, assertUuidParam } from "@/server/platform/http/validate";
 import { reserveOverview, setReserveCheck } from "@/server/finance";
@@ -17,7 +17,7 @@ export const GET = withModule("debt", async (req, { user }) => {
 
 /** PUT /api/debts/reserve —— 勾选备付：{ym, liabilityId, checked} 单项 / {ym, ids, checked} 批量 / {ym, all, checked} 一键（FR-3.2） */
 export const PUT = withModule("debt", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req) as any) as {
     ym?: string;
     liabilityId?: string;
     ids?: string[];

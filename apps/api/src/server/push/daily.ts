@@ -18,8 +18,37 @@ const STALE_DAYS = 30;
 /** 到期待办只追近 3 天内到期的：更早的过期项不重复打扰（工作台横幅仍完整可见） */
 const DUE_LOOKBACK_DAYS = 3;
 
-/** 内存节流：已跑成功的北京日期串（YYYY-MM-DD）；空串 = 本日尚未跑 */
+/** 内存节流：已跑成功的北京日期串（YYYY-MM-DD）；空串 = 本日尚未跑。
+ * 跨重启幂等由 app_config 的 daily_push:last_date 承接（进程崩溃重启后内存标记丢失，
+ * 只靠内存标记会对全部目标用户重复推送） */
 let lastRunDate = "";
+const PUSH_RUN_KEY = "daily_push:last_date";
+
+/** 读取 DB 侧已跑标记（表不存在/查询异常按未跑处理，不影响主流程） */
+async function dbLastRunDate(): Promise<string> {
+  try {
+    const { rows } = await pool.query<{ value: { date?: string } }>(
+      `select value from app_config where key = $1`,
+      [PUSH_RUN_KEY],
+    );
+    return typeof rows[0]?.value?.date === "string" ? rows[0].value.date : "";
+  } catch {
+    return "";
+  }
+}
+
+/** 写 DB 侧已跑标记（写入失败仅记日志：最坏退回内存标记的单实例口径） */
+async function saveDbRunDate(date: string): Promise<void> {
+  try {
+    await pool.query(
+      `insert into app_config (key, value) values ($1, $2::jsonb)
+       on conflict (key) do update set value = excluded.value, updated_at = now()`,
+      [PUSH_RUN_KEY, JSON.stringify({ date })],
+    );
+  } catch (e) {
+    log.warn({ err: String(e).slice(0, 120) }, "daily-push-marker-save-failed");
+  }
+}
 
 /** 北京当前小时（UTC getter + 8h，禁用本地 getHours——AGENTS 代码规范） */
 function bjHour(): number {
@@ -64,12 +93,20 @@ function summarize(c: ReminderCounts): string | null {
 /**
  * 每日提醒扫描 + 推送。到点（hour >= pushDailyHour）且今天未跑过才执行；
  * 扫描级失败回滚今日标记（下个 tick 重试），投递级失败不重试（避免重复打扰）。
+ * 「已跑」标记先落 app_config 再投递：投递中途进程崩溃/重启后不再对全部用户重复推送
+ * （代价：崩溃窗口内未投到的用户当天漏一轮，漏推优于重复打扰）。
  */
 export async function runDailyReminderPush(): Promise<void> {
   const { pushDailyHour } = loadConfig();
   const today = bjToday();
   if (bjHour() < pushDailyHour || lastRunDate === today) return;
+  if ((await dbLastRunDate()) === today) {
+    // 另一实例/重启前已投递过：对齐内存标记，直接跳过
+    lastRunDate = today;
+    return;
+  }
   lastRunDate = today; // 先占位：同一实例本日只跑一轮
+  await saveDbRunDate(today); // 投递前落库：崩溃重启不重复推
 
   try {
     const bj = today; // 北京今天 YYYY-MM-DD（UTC getter + 8h 口径，与 shared/date 一致）
@@ -169,8 +206,10 @@ export async function runDailyReminderPush(): Promise<void> {
     }
     log.info({ users: targets.length, sent }, "daily-push");
   } catch (e) {
-    // 扫描级失败：回滚今日标记，下个 tick（5 分钟后）重试
+    // 扫描级失败：回滚今日标记（内存 + DB，DB 不回滚会让下个 tick 误判「今天已跑」永久漏推），
+    // 下个 tick（5 分钟后）重试
     lastRunDate = "";
+    await saveDbRunDate("");
     log.warn({ err: String(e).slice(0, 120) }, "daily-push-scan-error");
   }
 }

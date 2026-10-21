@@ -29,3 +29,12 @@ export function optionalTrimmed(v: unknown, label: string): string | undefined {
   if (typeof v !== "string") throw ApiError.badRequest(`${label} 需为字符串`);
   return v.trim();
 }
+
+/** int 列数值字段预检：非数值 defaultMin 过了业务层 Math.min/max 会产 NaN → int 列 500
+ * （activities 路由原两处复制体收敛于此） */
+export function assertNumericBody(body: unknown): void {
+  const b = (body ?? {}) as { defaultMin?: unknown };
+  if (b.defaultMin != null && (typeof b.defaultMin !== "number" || !Number.isInteger(b.defaultMin))) {
+    throw ApiError.badRequest("defaultMin 需为整数（分钟）");
+  }
+}

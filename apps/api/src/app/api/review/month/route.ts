@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasApiKey } from "@shiguangri/ai";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth } from "@/server/platform/http/validate";
 import { acquireGeneration, releaseGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
@@ -24,7 +24,7 @@ interface MonthReview {
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
 export const POST = withModule("insight", async (req, { user }) => {
-  const { month, refresh } = (await req.json().catch(() => ({}))) as { month?: string; refresh?: boolean };
+  const { month, refresh } = (await readJsonCapped(req) as any) as { month?: string; refresh?: boolean };
   // 形状校验放行 2025-13 → 查询永不命中/算错周期：月份需在 01-12
   if (!month || !isValidYearMonth(month)) {
     throw ApiError.badRequest("month 需为 YYYY-MM（月份 01-12）");

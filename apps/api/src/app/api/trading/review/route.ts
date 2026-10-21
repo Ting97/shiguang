@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isUuid } from "@/server/platform/http/validate";
 import { buildDigest, generateTradingReview, getTradingReviewCache } from "@/server/finance";
@@ -18,7 +18,7 @@ export const GET = withModule("trading", async (req, { user }) => {
 /** POST /api/trading/review {accountId, refresh?} —— AI 复盘生成（FR-1.7）；
  * 失败/额度不足回落规则版 {fallback:true, digest}（零 token 兜底）。 */
 export const POST = withModule("trading", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as { accountId?: string; refresh?: boolean };
+  const body = (await readJsonCapped(req) as any) as { accountId?: string; refresh?: boolean };
   const accountId = body.accountId ?? "";
   if (!accountId) throw new ApiError(400, "invalid_input", "accountId 必填");
   if (!isUuid(accountId)) throw new ApiError(400, "invalid_input", "accountId 参数不合法");

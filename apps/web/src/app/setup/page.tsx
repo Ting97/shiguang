@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 
@@ -11,6 +11,10 @@ export default function SetupPage() {
   const [confirm, setConfirm] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // 403「管理员已存在」后的延迟跳转句柄：卸载时清除（等待期手动导航他页不被强拉回 /login）
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (redirectTimer.current) clearTimeout(redirectTimer.current); }, []);
 
   useEffect(() => {
     // 已有账号或已登录 → 回登录/首页（未登录 401 → 停留本页继续初始化）
@@ -43,12 +47,13 @@ export default function SetupPage() {
         setupToken.trim() ? { "x-setup-token": setupToken.trim() } : undefined,
       );
       location.href = "/";
-    } catch (e) {
-      if (e instanceof ApiClientError && e.status === 403 && e.message.includes("管理员已存在")) {
-        toast("管理员已存在，即将跳转登录页…", "err");
-        setTimeout(() => (location.href = "/login"), 1200);
-        return;
-      }
+      } catch (e) {
+        if (e instanceof ApiClientError && e.status === 403 && e.message.includes("管理员已存在")) {
+          toast("管理员已存在，即将跳转登录页…", "err");
+          // 登记到 ref 并在卸载时清除：跳转等待期手动导航他页会被强拉回 /login
+          redirectTimer.current = setTimeout(() => (location.href = "/login"), 1200);
+          return;
+        }
       toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
       setBusy(false);

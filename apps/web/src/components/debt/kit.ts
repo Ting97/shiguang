@@ -1,12 +1,13 @@
 /** 负债页共享类型与工具（004 4-G 自 debt/page.tsx 拆出） */
 "use client";
 
-import { yuan } from "@/lib/finance";
+import { fmtMoney } from "@/components/finance/kit";
 import type { DebtType } from "@/lib/finance";
+import { bjToday as sharedBjToday } from "@shiguangri/shared/date";
 
-export const fmt = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
-
-export const bjToday = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+/** 负号在前版金额格式化（实现单源 finance/kit fmtMoney，原本地浮点/拼接副本收敛于此） */
+export const fmt = fmtMoney;
+export const bjToday = sharedBjToday;
 
 /** 统一取数封装（REQ-004 FR-E1.1）：转发 @/shared/api，导出签名不变，调用方无需改动 */
 export { api } from "@/shared/api";

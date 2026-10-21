@@ -1,19 +1,13 @@
-import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
+import { bjDayIdx, isoToBjInput, bjInputToIso, zhTime } from "@/lib/bj-time";
+import { yuan as sharedYuan } from "@shiguangri/shared/finance";
 
 /**
  * moment-feed 小工具集：时间格式化 / 金额展示 / 表单值互转 / 常量。
  * 纯函数无副作用，被入口与卡片各子组件共用。
  */
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时，与 moment-card 的 bjYmd 同口径） */
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
-
-export const zhClock = (iso: string) => {
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
-  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-};
+/** 北京墙上时钟（实现单源 @shiguangri/shared，UTC+8 推算禁本地 getter） */
+export const zhClock = zhTime;
 
 /** 记录时刻 →「今天 15:32 / 昨天 21:04 / 9月15日 08:30」 */
 export const zhRecordTime = (iso: string) => {
@@ -31,7 +25,8 @@ export const zhRecordTime = (iso: string) => {
   };
 };
 
-export const yuan = (cents: number) => `¥${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+/** 金额展示（¥ 前缀 + shared 整数取商余版 yuan，禁浮点除法） */
+export const yuan = (cents: number) => `¥${sharedYuan(cents)}`;
 
 /** 待办时间标签：有起始时间且与到期同日 →「9:10–9:30」区间；否则退回单时刻 */
 export function todoTimeLabel(startAt: string | null | undefined, dueAt: string | null): string | null {

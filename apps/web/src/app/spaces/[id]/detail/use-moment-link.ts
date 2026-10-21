@@ -52,8 +52,11 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
     debounceRef.current = setTimeout(() => void loadUnlinkedMoments(q, 0), 400);
   }
 
-  /** C1：打开关联动态浮层（重置搜索与列表） */
+  /** C1：打开关联动态浮层（重置搜索与列表）。
+   * 先清挂起中的防抖：输入关键字 → 400ms 内关浮层 → 再打开时旧词回包（seq 更大）
+   * 会覆盖刚加载的全量列表——搜索框为空但列表仍是旧词过滤结果 */
   function openMomentLink() {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     setMomentQuery("");
     setMomentQueryApplied("");
     setMomentItems([]);

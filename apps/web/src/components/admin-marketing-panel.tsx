@@ -52,6 +52,9 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
       });
   }, []);
 
+  // 覆盖矩阵加载失败原因：静默吞错会让矩阵整表显示「跟随」，管理员据此做三态切换
+  // 第一次点击就写出与意图相反的覆盖——落错误终态禁写 + 重试入口
+  const [overridesErr, setOverridesErr] = useState<string | null>(null);
   // 按用户覆盖矩阵（REQ-028）：user_id → module → {force, visible}
   const loadOverrides = useCallback(() => {
     api("/api/admin/grants")
@@ -64,8 +67,11 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
           };
         }
         setOverrides(map);
+        setOverridesErr(null);
       })
-      .catch(() => {});
+      .catch((e) => {
+        setOverridesErr(e instanceof Error ? e.message : String(e));
+      });
   }, []);
 
   useEffect(() => {
@@ -81,6 +87,11 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
     okText: string,
   ) {
     if (mutatingRef.current) return; // 防连点重复提交
+    if (overridesErr) {
+      // 当前态未知（矩阵没加载出来）：显示的「跟随」不可信，禁止写入防误覆盖
+      notify("覆盖矩阵加载失败，请先重试加载", false);
+      return;
+    }
     mutatingRef.current = true;
     try {
       await api("/api/admin/grants", "POST", { userId, module, ...patch });
@@ -142,6 +153,14 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
         <p className="mt-1.5 text-badge text-ink-faint">
           主按钮三态循环：跟随全局 → 强制开 → 强制关（仅该用户）；眼睛按钮控制【我的 → 功能管理】里是否展示该开关项。全局开关在「模块」tab。
         </p>
+        {overridesErr && (
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <p className="text-danger">覆盖矩阵加载失败：{overridesErr}（写入已禁用）</p>
+            <button onClick={loadOverrides} className="btn-primary rounded-lg px-3 py-1 text-micro font-medium">
+              重试
+            </button>
+          </div>
+        )}
         {usersErr ? (
           <div className="mt-2 text-xs">
             <p className="text-danger">加载失败：{usersErr}</p>

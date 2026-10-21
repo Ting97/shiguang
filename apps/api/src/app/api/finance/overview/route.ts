@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withModule } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth } from "@/server/platform/http/validate";
 
@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/finance/overview?month=YYYY-MM —— 月度概览：收支/储蓄率/分类占比/预算进度/环比/草稿数/账户余额 */
-export const GET = withAuth(async (req, { user }) => {
+// withModule("finance")：与同域 transactions/accounts/budget/stats/debts 门禁对齐——
+// 旧 withAuth 让已关闭 finance 模块的用户仍能拉到完整财务总览
+export const GET = withModule("finance", async (req, { user }) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
   // 仅验形状会放行 2025-13 → to_char 永不命中静默空数据：月份需在 01-12

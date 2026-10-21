@@ -6,7 +6,9 @@ import Skeleton from "@/components/skeleton";
 import FinanceTabs from "@/components/finance-tabs";
 import ModuleLocked from "@/components/module-locked";
 import { TagChip, FilterChip } from "@/components/tag-chip";
-import { TX_COLORS, yuan } from "@/lib/finance";
+import { TX_COLORS } from "@/lib/finance";
+import { addDays as sharedAddDays, bjToday as sharedBjToday, startOfWeek } from "@shiguangri/shared/date";
+import { fmtMoney } from "@/components/finance/kit";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 
@@ -31,19 +33,12 @@ interface Review {
   suggestions: string[];
 }
 
-const fmt = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
+const fmt = fmtMoney; // 负号在前版格式化（原本地副本收敛）
 const momPct = (cur: number, base: number) => (base > 0 ? Math.round(((cur - base) / base) * 100) : null);
 
-function bjToday() {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
-function addDays(dateStr: string, n: number) {
-  return new Date(Date.parse(`${dateStr}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-}
-function mondayOf(dateStr: string) {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
-}
+const bjToday = sharedBjToday;
+const addDays = sharedAddDays;
+const mondayOf = startOfWeek; // 周一为一周起点（shared 实现，原本地副本收敛）
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 /** ISO → 北京时间 M/D（生成时间展示；北京时间一律 UTC getter + 8h，禁本地 getter） */
 const bjMD = (iso: string) => {

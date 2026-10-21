@@ -77,7 +77,10 @@ export function ChildArea({
             value={sub.title}
             onChange={(e) => sub.setTitle(e.target.value)}
             onBlur={() => {
-              // blur 即"点空白"（N3）；有未提交内容轻提示
+              // blur 即"点空白"（N3）；有未提交内容轻提示。
+              // 提交在途（Enter 已触发 addSubtask 未返回）不取消：请求会成功建行动，
+              // 此时 blur 弹「已取消，未保存」并关行会诱导用户重录造成重复行动
+              if (sub.adding) return;
               if (sub.title.trim()) toast("已取消，未保存", "info");
               sub.close();
             }}

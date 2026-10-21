@@ -106,7 +106,7 @@ export default function PublishSheet({
 
   if (!open) return null;
 
-  function addImages(files: File[], source: "gallery" | "camera") {
+  function addImages(files: File[]) {
     if (images.length >= 9) {
       setSheetMsg("最多 9 张");
       return;
@@ -118,7 +118,6 @@ export default function PublishSheet({
     if (!imgs.length) setSheetMsg("仅支持 jpg/png/webp/gif 图片");
     else if (imgs.length < files.length) setSheetMsg("最多添加 9 张，多余图片已忽略");
     setImages((prev) => [...prev, ...imgs]);
-    void source;
   }
 
   async function publish() {
@@ -298,7 +297,7 @@ export default function PublishSheet({
                 multiple
                 className="hidden"
                 onChange={(e) => {
-                  addImages(Array.from(e.target.files ?? []), "gallery");
+                  addImages(Array.from(e.target.files ?? []));
                   e.target.value = "";
                 }}
               />
@@ -316,7 +315,7 @@ export default function PublishSheet({
                   capture="environment"
                   className="hidden"
                   onChange={(e) => {
-                    addImages(Array.from(e.target.files ?? []), "camera");
+                    addImages(Array.from(e.target.files ?? []));
                     e.target.value = "";
                   }}
                 />

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { simulateStrategy, type SimDebt } from "@/server/finance";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /** POST /api/debts/simulate {extraMonthlyCents} —— 雪球 vs 雪崩并排模拟（FR-C2.6）
  * 基线 = 仅按各笔最低月供（额外 0）；节省额相对基线。模拟估算，仅供参考。 */
 export const POST = withModule("debt", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as { extraMonthlyCents?: number };
+  const body = (await readJsonCapped(req) as any) as { extraMonthlyCents?: number };
   const extra = body.extraMonthlyCents ?? 0;
   if (!Number.isInteger(extra) || extra < 0 || extra > 100_000_000) {
     throw ApiError.badRequest("每月额外还款需为 0~100 万的整数（分）");

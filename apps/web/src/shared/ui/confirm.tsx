@@ -6,7 +6,7 @@
  * 两步确认在行菜单场景不可靠；本组件走独立渲染树 + 单次点击确认，规避该问题。
  * 用法：if (!(await confirmDialog({ title: "删除空间", message: "…" }))) return;
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 
 export interface ConfirmOptions {
@@ -34,9 +34,14 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 export function ConfirmHost() {
   const [pending, setPending] = useState<PendingConfirm | null>(null);
   const [busy, setBusy] = useState(false);
+  // 未决 promise 单独持有：换新弹窗时先 resolve(false) 旧的——否则旧调用链的 await
+  // confirmDialog() 永久挂起（闭包泄漏），调用方后续逻辑永不执行
+  const pendingRef = useRef<PendingConfirm | null>(null);
+  pendingRef.current = pending;
 
   useEffect(() => {
     ask = (o) => {
+      pendingRef.current?.resolve(false); // 覆盖未决弹窗：前一个按「取消」落定
       setBusy(false);
       setPending(o);
     };

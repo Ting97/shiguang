@@ -4,9 +4,11 @@
  *   + 浏览器原生 DecompressionStream("deflate-raw") 解压 → sharedStrings/sheet1 → 行列矩阵
  *   → 定位「持仓 / Positions」区块表头（列名包含匹配，列序容错）。
  * 通道 B：CSV/TSV（同列结构，含表头行；分隔符嗅探，UTF-8 → GBK/UTF-16 编码兜底）。
- * 时间口径：MT5 报表为服务器时间（夏令时 UTC+2 / 冬令时 UTC+3），统一 parseMt5Time 折算 UTC ISO。
+ * 时间口径：MT5 报表为服务器时间（东欧时区：冬令时 EET=UTC+2 / 夏令时 EEST=UTC+3），
+ * parseMt5Time 按 EU 夏令时规则逐行自动判定折算 UTC ISO（可用 offsetHours 显式覆盖）。
  */
-export const MT5_TZ_LABEL = "MT5 服务器时间（UTC+3）→ 北京时间";
+/** MT5 报表时间（服务器时间）→ 北京时间展示口径标签 */
+export const MT5_TZ_LABEL = "MT5 服务器时间（UTC+3/夏令时 UTC+2 自动判定）→ 北京时间";
 /** 前置校验：文件 ≤10MB */
 export const MAX_MT5_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -21,12 +23,36 @@ export type Mt5Source = "mt5_xlsx" | "csv";
 
 const TD = new TextDecoder();
 
+const MT5_TIME_RE = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?$/;
+
+/** 某年 3 月/10 月的最后一个周日（UTC 零点起算；EU 夏令时切换发生在当地 01:00 UTC = 03:00 EET） */
+function lastSundayUtc(year: number, month: number): number {
+  // month: 3 或 10；取该月最后一天的周几，回退到周日
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDay(); // 0=Sunday
+  return Date.UTC(year, month, 0) - lastDay * 86_400_000;
+}
+
+/**
+ * MT5 服务器时间偏移（小时）自动判定：绝大多数经纪商服务器走东欧时区
+ * （冬令时 EET=UTC+3? 反——EET=UTC+2，夏令时 EEST=UTC+3），夏令时区间按 EU 规则
+ * （3 月最后周日 01:00 UTC 起 ~ 10 月最后周日 01:00 UTC 止）取 +3，其余 +2。
+ * 旧版恒 +3：夏令期（约 3 月末~10 月末）导入的开/平仓时间整体偏 1 小时，临近日界的交易记错天。
+ */
+export function mt5OffsetHours(wall: { y: number; mo: number; d: number; h: number; mi: number }): number {
+  const wallUtc = Date.UTC(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi);
+  const dstStart = lastSundayUtc(wall.y, 3) + 1 * 3600_000; // 01:00 UTC
+  const dstEnd = lastSundayUtc(wall.y, 10) + 1 * 3600_000;
+  return wallUtc >= dstStart && wallUtc < dstEnd ? 3 : 2;
+}
+
 /** MT5 报表时间（服务器时区）→ UTC ISO；容错 `.` 日期、缺秒与 `.mmm` 毫秒 */
-export function parseMt5Time(text: string, offsetHours = 3): string | null {
-  const m = String(text ?? "").trim().match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?$/);
+export function parseMt5Time(text: string, offsetHours?: number): string | null {
+  const m = String(text ?? "").trim().match(MT5_TIME_RE);
   if (!m) return null;
   const [, y, mo, d, h, mi, s, ms] = m;
-  const off = `${offsetHours < 0 ? "-" : "+"}${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
+  const wall = { y: Number(y), mo: Number(mo), d: Number(d), h: Number(h), mi: Number(mi) };
+  const offH = offsetHours ?? mt5OffsetHours(wall); // 缺省自动判定（EET/EEST）
+  const off = `${offH < 0 ? "-" : "+"}${String(Math.abs(offH)).padStart(2, "0")}:00`;
   const t = new Date(`${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}T${h.padStart(2, "0")}:${mi}:${(s ?? "00").padStart(2, "0")}${ms ? `.${ms.padEnd(3, "0")}` : ""}${off}`);
   return Number.isNaN(t.getTime()) ? null : t.toISOString();
 }
@@ -253,7 +279,9 @@ function findPositionsHeader(grid: string[][]): { row: number; cols: ColMap } | 
 
 /** 行列矩阵 → TradeRow[]：表头下一行起取数，ticket 非数字跳过；收集到数据后遇首个非数据行即止（避免吃进订单/成交区块） */
 export function parseMt5Rows(entries: string[][], opts: { offsetHours?: number } = {}): TradeRow[] {
-  const offset = opts.offsetHours ?? 3;
+  // offsetHours 显式传入时全表按该偏移；缺省逐行自动判定（EET 冬 +2 / EEST 夏 +3）——
+  // 同一报表跨切换日的行各按自己的日期取正确偏移
+  const offset = opts.offsetHours;
   const header = findPositionsHeader(entries);
   if (!header) {
     throw new Error(`解析失败：未找到「持仓」区块表头（需含 Ticket / Type / 时间 等列）。首行样例：${sampleLine(entries)}`);

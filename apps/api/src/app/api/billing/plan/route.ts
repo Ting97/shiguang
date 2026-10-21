@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
+import { withAuth, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isUuid } from "@/server/platform/http/validate";
-import { getQuota } from "@/server/ai";
+import { getQuota, writeAuditRecord } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export const POST = withAuth(async (req, { user }) => {
   if (user.role !== "admin") {
     throw ApiError.forbidden("仅管理员可变更套餐");
   }
-  const { userId, plan, months } = (await req.json().catch(() => ({}))) as {
+  const { userId, plan, months } = (await readJsonCapped(req) as any) as {
     userId?: string; plan?: string; months?: number;
   };
   if (plan !== "free" && plan !== "pro") {
@@ -67,5 +67,14 @@ export const POST = withAuth(async (req, { user }) => {
     [plan, expires, target],
   );
   if (!rows[0]) throw ApiError.notFound("用户不存在");
+  // 套餐变更属商业敏感操作，补审计（与 admin/modules 的 module_admin 同口径）；
+  // 免费清配额上限、Pro 放开 30 次窗口——审计是唯一事后追溯口径
+  void writeAuditRecord({
+    userId: user.id,
+    stage: "module_admin",
+    model: null,
+    ok: true,
+    error: `billing_plan target=${target} plan=${plan} months=${months ?? null}`,
+  });
   return NextResponse.json({ ok: true, profile: rows[0] });
 });

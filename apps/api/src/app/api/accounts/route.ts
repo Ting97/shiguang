@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
@@ -32,7 +32,7 @@ export const GET = withModule("finance", async (_req, { user }) => {
 
 /** POST /api/accounts —— 新建账户 {name, icon?, openingBalanceCents?} */
 export const POST = withModule("finance", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req) as any) as {
     name?: string;
     icon?: string;
     openingBalanceCents?: number;

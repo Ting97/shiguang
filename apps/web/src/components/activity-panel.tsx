@@ -44,8 +44,8 @@ export default function ActivityPanel() {
     if (busy) return;
     setBusy(true);
     try {
-      // 默认时长钳制：清空输入 Number("")===0（或非法输入 NaN）会以 0 提交，回退默认 30 并保底 5（服务端口径 5~720）
-      await api<any>("/api/activities", "POST", { ...adding, defaultMin: Math.max(5, Number(adding.defaultMin) || 30) });
+      // 默认时长钳制：清空输入 Number("")===0（或非法输入 NaN）会以 0 提交，回退默认 30 并钳进 5~720（服务端口径，input max 只是软约束）
+      await api<any>("/api/activities", "POST", { ...adding, defaultMin: Math.min(720, Math.max(5, Number(adding.defaultMin) || 30)) });
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "新增失败" : e.message, "err"); return; }
@@ -64,8 +64,8 @@ export default function ActivityPanel() {
     if (busy) return;
     setBusy(true);
     try {
-      // 默认时长钳制：清空输入 Number("")===0（或非法输入 NaN）会以 0 提交，回退默认 30 并保底 5（服务端口径 5~720）
-      await api<any>(`/api/activities/${editing.id}`, "PATCH", { name: editing.name, icon: editing.icon, color: editing.color, defaultMin: Math.max(5, Number(editing.defaultMin) || 30) });
+      // 默认时长钳制：清空输入 Number("")===0（或非法输入 NaN）会以 0 提交，回退默认 30 并钳进 5~720（服务端口径，input max 只是软约束）
+      await api<any>(`/api/activities/${editing.id}`, "PATCH", { name: editing.name, icon: editing.icon, color: editing.color, defaultMin: Math.min(720, Math.max(5, Number(editing.defaultMin) || 30)) });
     } catch (e) {
       // 网络断开等异常收口为提示，不抛出点击处理器（裸 rejection 会触发整页刷新）
       if (e instanceof ApiClientError) { toast(e.message === "操作失败" ? "保存失败" : e.message, "err"); return; }

@@ -178,8 +178,3 @@ export async function releaseGeneration(userId: string, kind: ReviewKind, period
   );
 }
 
-/** 生成成功后消耗一次 */
-export async function consumeGeneration(_userId: string, _kind: ReviewKind, _periodKey: string): Promise<void> {
-  // 占位式语义（009 轮）：acquireGeneration 已原子完成 used+1，成功路径无需再计。
-  // 函数保留导出是为了既有调用点平滑过渡；新生成入口不要再调它（会双计）
-}

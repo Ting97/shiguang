@@ -47,16 +47,20 @@ interface ReserveData {
  * 无镜像月份 = 原合并清单勾选口径。月切换 → 勾选进度 → 储蓄覆盖。
  */
 export default function ReserveSection({ onChanged }: { onChanged?: () => void }) {
-  // 北京时间推算：裸 UTC 在每月 1 日 0-8 点会落到上个月
-  const [ym, setYm] = useState(() => bjToday().slice(0, 7));
+  // 北京时间推算：裸 UTC 在每月 1 日 0-8 点会落到上个月。
+  // SSG 防 hydration mismatch：bjToday() 初值会把构建月烤进静态 HTML，跨月部署后水合期
+  // 月份标签短暂显示错月（finance/page 与 finance/review 同款 mounted 门，此处补齐）
+  const [ym, setYm] = useState<string | null>(null);
   const [data, setData] = useState<ReserveData | null>(null);
   const [savings, setSavings] = useState<Array<{ id: string; name: string; balanceCents: number; reserveTracked: boolean }>>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => setYm(bjToday().slice(0, 7)), []);
 
   // seq 守卫：快速切月时旧响应可能后到，只让最新请求落地
   const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    if (!ym) return; // mounted 前不取数（ym 由 mount effect 初始化）
     const seq = ++loadSeq.current;
     try {
       const r = await api<ReserveData>(`/api/debts/reserve?ym=${ym}`);
@@ -125,6 +129,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   }
 
   function shiftMonth(delta: number) {
+    if (!ym) return;
     const [y, m] = ym.split("-").map(Number);
     const d = new Date(Date.UTC(y, m - 1 + delta, 1));
     setYm(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
@@ -211,7 +216,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
         </h2>
         <div className="flex items-center gap-2 text-xs">
           <button onClick={() => shiftMonth(-1)} aria-label="上一月" className="rounded-lg border border-line-soft px-2 py-1 text-ink-mute hover:text-ink"><ChevronLeft size={12} /></button>
-          <span className="font-medium tabular-nums text-ink">{ym.slice(0, 4)}年{Number(ym.slice(5))}月</span>
+          <span className="font-medium tabular-nums text-ink">{ym ? `${ym.slice(0, 4)}年${Number(ym.slice(5))}月` : "——"}</span>
           <button onClick={() => shiftMonth(1)} aria-label="下一月" className="rounded-lg border border-line-soft px-2 py-1 text-ink-mute hover:text-ink"><ChevronRight size={12} /></button>
           <button
             onClick={() => void toggleAll(true)}

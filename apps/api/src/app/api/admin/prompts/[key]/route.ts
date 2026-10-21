@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAdminParams } from "@/server/platform/http/route";
+import { withAdminParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { AI_INPUT_REGISTRY, invalidatePrompts, PROMPT_KEYS, validateUserTemplate, validateUserDataConfig, type PromptKey } from "@/server/ai";
 
@@ -21,7 +21,7 @@ export const PUT = withAdminParams(async (req, { user, params }) => {
     throw ApiError.notFound("未知的 prompt key");
   }
   const spec = AI_INPUT_REGISTRY[key as PromptKey];
-  const { content, enabled = true, remark, userTemplate, contextConfig } = (await req.json().catch(() => ({}))) as {
+  const { content, enabled = true, remark, userTemplate, contextConfig } = (await readJsonCapped(req) as any) as {
     content?: string; enabled?: boolean; remark?: string | null;
     userTemplate?: string | null; contextConfig?: CtxConfig | null;
   };

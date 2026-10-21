@@ -49,11 +49,13 @@ export async function jscode2session(code: string): Promise<{ openid: string; un
 
 // ---- access_token（cgi 接口共用；模块级缓存，提前 5 分钟刷新） ----
 let tokenCache: { token: string; expiresAt: number } | null = null;
+// single-flight：并发首刷共享同一次远端请求——微信侧新取 token 可使旧 token 失效，
+// 并发各自取会互相踩（后取的作废先取的，401 风暴）
+let tokenInflight: Promise<string> | null = null;
 
-async function getAccessToken(): Promise<string> {
+async function fetchAccessToken(): Promise<string> {
   const cfg = loadConfig().wechat;
   if (!cfg) throw new ApiError(503, "upstream", "微信通道未配置");
-  if (tokenCache && tokenCache.expiresAt > Date.now()) return tokenCache.token;
   const url = `${WA_BASE}/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(cfg.appid)}&secret=${encodeURIComponent(cfg.secret)}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
   const j = (await res.json()) as WxResp;
@@ -62,19 +64,36 @@ async function getAccessToken(): Promise<string> {
   return j.access_token;
 }
 
+async function getAccessToken(forceRefresh = false): Promise<string> {
+  if (!forceRefresh && tokenCache && tokenCache.expiresAt > Date.now()) return tokenCache.token;
+  if (!tokenInflight) {
+    tokenInflight = fetchAccessToken().finally(() => {
+      tokenInflight = null;
+    });
+  }
+  return tokenInflight;
+}
+
 export type UgcVerdict = { ok: true } | { ok: false; reason: string } | { ok: null };
 
-/** 文本安全检测：0=通过、87014=违规、其余/异常=null（调用方降级放行） */
+/** 文本安全检测：0=通过、87014=违规、40001（token 失效，如微信侧被并发刷新作废）强制刷新重试一次、
+ * 其余/异常=null（调用方降级放行） */
 export async function msgSecCheck(openid: string, content: string): Promise<UgcVerdict> {
   try {
-    const token = await getAccessToken();
-    const res = await fetch(`${WA_BASE}/wxa/msg_sec_check?access_token=${encodeURIComponent(token)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ version: 2, scene: 2, openid, content: content.slice(0, 2500) }),
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-    const j = (await res.json()) as WxResp;
+    let token = await getAccessToken();
+    const call = (t: string) =>
+      fetch(`${WA_BASE}/wxa/msg_sec_check?access_token=${encodeURIComponent(t)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: 2, scene: 2, openid, content: content.slice(0, 2500) }),
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      }).then((r) => r.json() as Promise<WxResp>);
+    let j = await call(token);
+    if (j.errcode === 40001) {
+      tokenCache = null; // 缓存的 token 已失效：清缓存强制刷新再试一次
+      token = await getAccessToken(true);
+      j = await call(token);
+    }
     if (j.errcode === 0) return { ok: true };
     if (j.errcode === 87014) return { ok: false, reason: "内容包含违规信息，请修改后发布" };
     return { ok: null };

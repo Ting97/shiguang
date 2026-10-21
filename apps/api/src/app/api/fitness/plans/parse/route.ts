@@ -7,7 +7,7 @@ import { fitnessService } from "@/server/fitness";
  * readJsonCapped 替代裸 req.json()：上限对齐 service 层截图守卫（6MB 解码 ≈ 8MB base64，REQ-020）
  * 而非默认 1MB——否则合规截图会被路由层先行 413 */
 export const POST = withModule("fitness", async (req, { user }) => {
-  const body = (await readJsonCapped(req, 9 * 1024 * 1024)) as {
+  const body = (await readJsonCapped(req, 9 * 1024 * 1024) as any) as {
     text?: string;
     image?: { mimeType?: string; base64?: string };
   };

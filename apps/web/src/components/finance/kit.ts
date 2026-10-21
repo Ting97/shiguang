@@ -3,7 +3,7 @@
 
 import { bjToday } from "@/lib/date";
 import { yuan } from "@/lib/finance";
-import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
+import { bjDayIdx, isoToBjInput, bjInputToIso } from "@/lib/bj-time";
 
 export interface Account {
   id: string;
@@ -40,8 +40,6 @@ export interface Overview {
 }
 
 export const pad = (n: number) => String(n).padStart(2, "0");
-/** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时；参照 contacts/[id]/detail.tsx） */
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 export const zhDay = (iso: string) => {
   const t = Date.parse(iso);
   const diff = bjDayIdx(Date.now()) - bjDayIdx(t);
@@ -53,9 +51,11 @@ export const monthTitle = (m: string) => `${Number(m.slice(0, 4))}年${Number(m.
 /** 负数放负号在前：-¥260（直接拼接会出现 ¥-260） */
 export const fmtMoney = (cents: number) => (cents < 0 ? `-¥${yuan(-cents)}` : `¥${yuan(cents)}`);
 export function shiftMonth(m: string, delta: number): string {
+  // UTC 算术平移（本地 Date getter 违反全站「UTC getter + 8h」口径，与 api 侧 monthOf 同范式；
+  // 月序运算本就安全，收敛实现防被复制到不对称场景）
   const [y, mm] = m.split("-").map(Number);
-  const d = new Date(y, mm - 1 + delta, 1);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  const d = new Date(Date.UTC(y, mm - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
 }
 export const nowMonth = () => bjToday().slice(0, 7); // 北京月：服务端按北京月分组，本地 getter 在海外设备会跨月错位
 
