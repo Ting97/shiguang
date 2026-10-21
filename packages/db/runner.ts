@@ -60,14 +60,34 @@ async function applied(): Promise<Map<string, string | null>> {
 async function main() {
   await client.connect();
   await ensureTable();
-  // 并发防护：CI/CD 与开发者同时跑 db:migrate 会双双判定同一 pending 并重复执行（会话级锁，断开自动释放）
-  await client.query(`select pg_advisory_lock(hashtext('shiguangri-migrate'))`);
+  // 并发防护：CI/CD 与开发者同时跑 db:migrate 会双双判定同一 pending 并重复执行。
+  // 阻塞式 pg_advisory_lock 无超时——对端进程挂死时部署迁移步会无限期卡住无输出
+  // （九轮"卡 20 分钟"同类形态）；改 try + 有限等待（30s），超时报错退出给出可行动文案
+  {
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      const r = await client.query(`select pg_try_advisory_lock(hashtext('shiguangri-migrate')) as ok`);
+      if (r.rows[0]?.ok) break;
+      if (Date.now() > deadline) {
+        console.error("[migrate] ✗ 获取迁移锁超时（30s）：另一个迁移进程可能挂起未释放，请排查后重试");
+        process.exit(1);
+      }
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+  }
   const done = await applied();
   // 严格命名契约：只认 NNN-name.sql——目录里的杂文件（macOS tar 夹带的 ._x.sql 等）
   // 一律忽略，不得进入 pending（曾经真实把 ._001 当迁移执行报 invalid message format）
-  const files = readdirSync(MIGRATIONS_DIR)
+  const allSql = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
+  const files = allSql
     .filter((f) => /^\d{3}-.+\.sql$/.test(f))
     .sort(); // 文件名序即执行序（NNN-name.sql）
+  // 口径告警：*.sql 却不合 NNN-name 命名的文件既不执行也不计入 manifest——静默忽略会让
+  // 手滑命名（65-fix.sql / 065 fix.sql）永远不被发现，而 manifest 若按 endsWith 统计就会出现
+  // 「已应用 < 清单数 → health 永久 migrationPending」（十三轮：manifest 与 runner 共用本过滤器）
+  for (const f of allSql) {
+    if (!files.includes(f)) console.error(`[migrate] ⚠ 目录存在不合命名契约的 .sql（已忽略）：${f}（应为 NNN-name.sql）`);
+  }
 
   // 空库 + --fresh：schema.sql 建基线 + 全量迁移真实执行（测试库/新环境初始化）
   // --status 优先：预检契约是只读，--fresh --status 组合不得真实落库（旧版会执行全部迁移）
@@ -173,6 +193,16 @@ async function main() {
   if (pending.length === 0) {
     console.log(`[migrate] 已是最新（${done.size} 个迁移）`);
     return;
+  }
+
+  // 序号单调校验：pending 序号必须大于已应用最大序号——事后补一个小编号会在 064 之后执行、
+  // 序号语义名存实亡（"迁移只增不改"纪律的机器侧守卫）
+  const maxApplied = Math.max(0, ...[...done.keys()].map((f) => parseInt(f, 10) || 0));
+  for (const f of pending) {
+    if ((parseInt(f, 10) || 0) <= maxApplied) {
+      console.error(`[migrate] pending 序号 ${f} 不大于已应用最大序号 ${maxApplied}——新迁移必须递增编号`);
+      process.exit(1);
+    }
   }
 
   for (const f of pending) {

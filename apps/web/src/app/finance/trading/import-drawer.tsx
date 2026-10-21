@@ -115,6 +115,7 @@ export default function TradingImportDrawer({
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
+                e.target.value = ""; // 清空 fakepath：解析失败重选同一文件时 change 事件不再被吞
                 if (f) pickFile(f);
               }}
             />

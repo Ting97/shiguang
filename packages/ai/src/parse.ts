@@ -116,6 +116,17 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
     if (/(?:下|明)\s*(?:周|礼拜|星期)[一二三四五六日天]/.test(text)) return null;
     return shift(dayRef);
   }
+  // (上|本)个月初/底/末：月初=1 号、月底/末=该月最后一天——与「上个月15号」同属高频补记话术，
+  // 词表空白会落回「模型输出或今天」，跨月错账（十三轮收口）。落在未来（如本月月底但今天未到）→ null
+  const relEdge = /(?:上|本)\s*个?月\s*(初|底|末)/.exec(text);
+  if (relEdge) {
+    const isPrev = relEdge[0].startsWith("上");
+    const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() - (isPrev ? 1 : 0);
+    const day = relEdge[1] === "初" ? 1 : new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12 + 1, 0)).getUTCDate();
+    const cand = new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12, day));
+    if (cand.getTime() <= bj.getTime()) return ymd(cand);
+    return null;
+  }
   // 上(个)月N号 / 本(个)月N号：补记上月的最高频话术——旧版数字月分支要求月前是数字、
   // 裸 N号 lookbehind 又把「月N号」排除，整类话术交回相对月推算不可靠的模型（十一轮 P3 收口）。
   // 数字类含中文数字（「上个月十五号随了600」，与 monthDayBase 同口径 cnToNumber 换算）。
@@ -140,8 +151,10 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
       const year = md[1] ? Number(md[1]) : bj.getUTCFullYear();
       let cand = new Date(Date.UTC(year, mo - 1, day));
       if (!md[1] && cand.getTime() > bj.getTime()) cand = new Date(Date.UTC(year - 1, mo - 1, day));
-      if (cand.getUTCDate() === day) return ymd(cand);
-      return null; // 2月30 之类不存在的日期：宁缺勿错
+      if (cand.getUTCDate() !== day) return null; // 2月30 之类不存在的日期：宁缺勿错
+      // 带显式年份的未来日期同样违反「花销发生日必为过去」不变量（「2027年1月1号转了1000」不得直通）
+      if (cand.getTime() > bj.getTime()) return null;
+      return ymd(cand);
     }
   }
   // N号/N日（裸日，前面不带 月/年 限定）：N 大于今天（未来）→ 往回找最近一个存在 N 日的月份

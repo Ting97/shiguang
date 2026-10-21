@@ -142,14 +142,15 @@ function ProposalCard({
 /** 分域助手元数据（REQ-019 FR-C）：标题/引导语/快捷问句随域切换 */
 export type ChatScope = "global" | "goal" | "time" | "people" | "finance" | "fitness";
 
-export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; dockLabel: string; greeting: string; quick: string[]; placeholder: string }> = {
+export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; dockLabel: string; greeting: string; quick: string[]; placeholder: string; placeholderShort: string }> = {
   global: {
     title: "拾光助手",
     tagline: "懂你数据的私人经营助手",
     dockLabel: "拾光助手",
     greeting: "问我任何关于你的时间、金钱、人际与目标的问题",
     quick: ["这周花了多少钱？花在哪了？", "最近在忙什么？时间都去哪了", "有什么该联系的人了吗", "今天我要做哪些行动", "点评昨天训练，明天力量怎么排"],
-    placeholder: "问问你的数据，如「上个月人情往来花了多少」（Ctrl+Enter 发送）",
+    placeholder: "问问你的数据，如「上个月人情往来花了多少」",
+    placeholderShort: "问问你的数据",
   },
   goal: {
     title: "目标管家",
@@ -158,6 +159,7 @@ export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; doc
     greeting: "问我你的目标空间、阶段目标与行动进度",
     quick: ["哪个空间快到期了？", "考研上岸的行动进度怎么样", "帮我盘点各空间的阶段目标", "今天有哪些待办没完成"],
     placeholder: "如「考研空间最近进度如何」（Ctrl+Enter 发送）",
+    placeholderShort: "如「考研空间最近进度如何」",
   },
   time: {
     title: "日程管家",
@@ -166,6 +168,7 @@ export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; doc
     greeting: "问我你的日程安排与时间去向",
     quick: ["今天还剩什么事？", "这周时间都花在哪了", "周六有空吗", "最近睡眠怎么样"],
     placeholder: "如「这周时间花哪了」（Ctrl+Enter 发送）",
+    placeholderShort: "如「这周时间花哪了」",
   },
   people: {
     title: "人际管家",
@@ -174,6 +177,7 @@ export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; doc
     greeting: "问我你的联系人、往来记录与重要日期",
     quick: ["有什么该联系的人了吗", "最近和谁互动最多", "快到生日的联系人有哪些", "多久没联系老板了"],
     placeholder: "如「最近该联系谁」（Ctrl+Enter 发送）",
+    placeholderShort: "如「最近该联系谁」",
   },
   finance: {
     title: "财务管家",
@@ -182,6 +186,7 @@ export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; doc
     greeting: "问我你的收支、预算、负债与投资",
     quick: ["这个月花了多少？", "哪类支出涨得最快", "预算还剩多少", "最近负债/备付情况如何"],
     placeholder: "如「这个月餐饮花了多少」（Ctrl+Enter 发送）",
+    placeholderShort: "如「这个月餐饮花了多少」",
   },
   fitness: {
     title: "运动教练",
@@ -190,6 +195,7 @@ export const SCOPE_META: Record<ChatScope, { title: string; tagline: string; doc
     greeting: "问我训练安排、执行点评与身体数据",
     quick: ["点评昨天的训练", "明天力量怎么排", "我的体重/腰围趋势", "训记里今天练了什么"],
     placeholder: "如「明天练什么」（Ctrl+Enter 发送）",
+    placeholderShort: "如「明天练什么」",
   },
 };
 
@@ -242,6 +248,16 @@ export default function AssistantChat({
       .catch(() => {});
   }, []);
 
+  // 窄屏用短 placeholder——完整示例在手机宽度会被截断换行
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    // 每次重取 matches 而非缓存 MediaQueryList：个别 WebView/模拟环境 MQL 的 change 事件不可靠
+    const on = () => setNarrow(window.matchMedia("(max-width: 639px)").matches);
+    on();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, []);
@@ -276,6 +292,9 @@ export default function AssistantChat({
 
   function newConversation() {
     convSeq.current += 1; // 作废在途会话加载回包
+    // 在途 openConversation 的回包失配丢弃时 finally 不会复位 convLoading（只有取代它的
+    // 下一次 openConversation 才复位）——此处必须就地复位，否则主区永久卡「加载会话…」假死
+    setConvLoading(false);
     setActiveId(null);
     setMessages([]);
     setHasMore(false);
@@ -672,8 +691,10 @@ export default function AssistantChat({
                 }
               }}
               rows={1}
-              placeholder={meta.placeholder}
-              className="max-h-32 flex-1 resize-none rounded-xl border border-line-soft bg-surface px-3 py-2.5 text-sm outline-none transition placeholder:text-ink-faint focus:border-sky-500/60"
+              placeholder={narrow ? meta.placeholderShort : meta.placeholder}
+              // placeholder 长文案在窄屏被裁切时会出现控件内部滚动条（390 宽实测），隐藏之；
+              // 保留滚动能力（长输入仍可滚到末尾），只是不渲染滚动条
+              className="max-h-32 flex-1 resize-none rounded-xl border border-line-soft bg-surface px-3 py-2.5 text-sm outline-none transition placeholder:text-ink-faint focus:border-sky-500/60 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
             />
             <button
               onClick={() => send()}

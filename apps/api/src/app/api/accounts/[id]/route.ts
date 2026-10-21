@@ -28,7 +28,7 @@ export const PATCH = withModuleParams("finance", async (req, { user, params }) =
     sets.push(`name = $${vals.length}`);
   }
   if (body.icon?.trim()) {
-    vals.push(body.icon.trim());
+    vals.push(body.icon.trim().slice(0, 8)); // 截 8 字与 create/activities 同口径：text 列无界，1MB 串随列表全量回传
     sets.push(`icon = $${vals.length}`);
   }
   if (body.openingBalanceCents != null) {

@@ -129,7 +129,7 @@ for (const { code, liabilityId, balanceCents } of updates) {
     console.warn(`[sync-debt] ${code}: 负债 ${liabilityId} 不存在，跳过`);
     continue;
   }
-  const before = rows[0].balance_cents;
+  const before = Number(rows[0].balance_cents); // node-pg int8 出参是 string，不 Number 化则与 number 恒不等、「无变化」短路永不生效
   if (before === balanceCents) {
     console.log(`[sync-debt] ${code} ${rows[0].name}: ${balanceCents / 100} 元（无变化）`);
     continue;

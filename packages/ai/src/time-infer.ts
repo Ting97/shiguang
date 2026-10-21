@@ -130,6 +130,9 @@ export function parseClock(text: string, period: PeriodHint | null): { hour: num
  * 以区间分隔符（到/至/-/~/—）切两半，各自解析一个钟点；解析不出两个钟点则返回 null。
  * 12/24h 偏移规则：起点在 pm 时段且 <12 → +12；终点 +12 后仍晚于起点才 +12
  * （"下午2.30到3.30"→14:30-15:30；"晚上10.30到6.30"→22:30-次日06:30，不把 6 点抬成 18 点）
+ * 混时段区间（"上午10点到下午3点"/"晚上11点到凌晨2点"）按**片段自带**的时段词解析：
+ * 整句单一时段会把另一端解析成垃圾（旧版：上午10点-下午3点 → end≤start 跨日 +24h → 17 小时块；
+ * 晚上11点-凌晨2点 → 起点不加 12 → 上午 11 点起步的 15 小时"睡眠"）。
  */
 export function parseClockRange(
   text: string,
@@ -138,8 +141,10 @@ export function parseClockRange(
   const parts = text.split(/\s*(?:到|至|~|—|–|-)\s*/);
   if (parts.length !== 2) return null;
   const pmish = period === "afternoon" || period === "evening" || period === "night";
-  const a = parseClock(parts[0], pmish ? period : null);
-  const b = parseClock(parts[1], null);
+  const a = parseClock(parts[0], detectPeriod(parts[0]) ?? (pmish ? period : null));
+  // 终点只在片段自带时段词（"下午3点"/"凌晨2点"）时按片段解析；裸钟点（"6.30"/"3.30"）
+  // 仍传 null 走下方 endHour 钳制——"晚上10.30到6.30"的 6 点不能因整句 evening 被抬成 18 点
+  const b = parseClock(parts[1], detectPeriod(parts[1]));
   if (!a || !b) return null;
   let endHour = b.hour;
   // 终点"12点"在下午/晚上语境指午夜（24:00）非正午——"晚上10点半到12点"= 22:30–24:00；
@@ -157,7 +162,7 @@ const WEEKDAYS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 
  *  独立数码（无十/百骨架）时按约数处理取末位（区间上界保守估计）。「半个月后」≈15 天。 */
 export function relativeOffsetDays(text: string): number | null {
   if (/半个月后/.test(text)) return 15;
-  const m = text.match(/([一两俩二三四五六七八九十百\d]+)\s*(个?月|年|(?:礼拜|星期|周)|天)\s*后/);
+  const m = text.match(/([一两俩二三四五六七八九十百\d]+)\s*(个?月|年|(?:礼拜|星期|周)|天)\s*(?:之|以)?后/);
   if (!m) return null;
   // 约数并列判定先于 cnToNumber：「两三」是「两三天」而非 23 天
   const approx = m[1].match(/^([一两俩二三四五六七八九])([一两俩二三四五六七八九])$/);
@@ -211,11 +216,11 @@ function atHour(base: Date, hour: number, minute = 0): Date {
 /** 话术是否显式提到某个日期（今天/昨天/明天/周X/上周/下周/2026-09-20/9月20日/裸「3号」「15日」…）。
  * 裸 N号/N日 与 parse.ts occurredDate 同款 lookbehind——「3号」是显式日期，
  * 缺此分支会让模型给对的区间被 anchorRangeToToday 整天平移到今天；
- * 上/本/下月 N号、N天/周/月/年后、半个月后、月初同义（十一轮词表收口：hasExplicitDayRef
- * 只表「话术带了日期信息」，宁全勿缺——漏了就会被锚定拉回今天；数字类与 parseDuration
- * 同口径含 俩/百，单位含 年，另收「半个月后」） */
+ * 上/本/下月 N号、N天/周/月/年(之/以)后、半个月后、月初同义（十一轮词表收口：hasExplicitDayRef
+ * 只表「话术带了日期信息」，宁全勿缺——漏了就会被锚定拉回今天；十三轮补「3天之后/一个月以后」
+ * 变体；数字类与 parseDuration 同口径含 俩/百，单位含 年，另收「半个月后」） */
 const EXPLICIT_DAY_RE =
-  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?:上|本|下)个?月\s*[一两俩二三四五六七八九十\d]{1,3}\s*[号日]|[零一两俩二三四五六七八九十百\d]+\s*(?:天|周|礼拜|星期|个?月|年)\s*后|半个月后|月初|月底|月末|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日])/;
+  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?:上|本|下)个?月\s*[一两俩二三四五六七八九十\d]{1,3}\s*[号日]|[零一两俩二三四五六七八九十百\d]+\s*(?:天|周|礼拜|星期|个?月|年)\s*(?:之|以)?后|半个月后|月初|月底|月末|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日])/;
 
 export function hasExplicitDayRef(text: string): boolean {
   return EXPLICIT_DAY_RE.test(text);

@@ -1040,13 +1040,16 @@ export async function addEntryImages(userId: string, entryId: string, form: Form
     }
     await client.query("commit");
     // 落库成功后写盘；失败则回删行（个人系统：极小概率，保证不留死链）
+    const written: typeof prepared = [];
     try {
-      for (const p of prepared) await saveImageFile(p.key, p.data);
+      for (const p of prepared) { await saveImageFile(p.key, p.data); written.push(p); }
     } catch (e) {
       await pool.query(`delete from entry_images where entry_id = $1 and storage_key = any($2)`, [
         entryId,
         prepared.map((p) => p.key),
       ]).catch(() => {});
+      // 已写盘的前若干个文件一并清掉，否则成为无人引用的永久孤儿
+      for (const p of written) void deleteImageFile(p.key);
       throw e;
     }
     return { ok: true as const, images: inserted };

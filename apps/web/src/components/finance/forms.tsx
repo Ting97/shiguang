@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Archive } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
-import { TX_CATEGORIES, yuanToCents } from "@/lib/finance";
+import { TX_CATEGORIES, yuanToCents, centsToYuanInput } from "@/lib/finance";
 import type { Account, Tx } from "./kit";
 import { api, toLocalInput, fromLocalInput } from "./kit";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
@@ -21,7 +21,7 @@ export function TxForm({
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [direction, setDirection] = useState<"out" | "in">(initial?.direction ?? "out");
-  const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
+  const [amount, setAmount] = useState(initial ? centsToYuanInput(initial.amount_cents) : "");
   const [category, setCategory] = useState(initial?.category ?? "餐饮");
   // 编辑态：无账户老流水保持「不挂账户」（??accounts[0] 会把它静默挂上第一账户，保存即改史）；
   // 新建态才默认选第一账户

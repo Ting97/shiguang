@@ -60,7 +60,7 @@ export async function listConversations(userId: string, scope?: ChatScope): Prom
     `select id, title, scope, to_char(updated_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as updated_bj
      from chat_conversations
      where user_id = $1 and deleted_at is null and ($2::text is null or scope = $2::text)
-     order by updated_at desc limit 50`,
+     order by updated_at desc, id desc limit 50`,
     [userId, scope ?? null],
   );
   return {
@@ -147,7 +147,7 @@ async function listProposals(userId: string, conversationId: string): Promise<Ch
     `select id, kind, payload, status, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj
      from chat_proposals
      where user_id = $1 and conversation_id = $2
-     order by (status = 'pending') desc, created_at desc
+     order by (status = 'pending') desc, created_at desc, id desc
      limit 20`,
     [userId, conversationId],
   );
@@ -259,7 +259,7 @@ export async function sendMessage(
     const { rows: historyRows } = await pool.query(
       `select role, content from chat_messages
        where conversation_id = $1 and user_id = $2 and role in ('user','assistant') and content <> ''
-       order by created_at desc limit $3`,
+       order by created_at desc, id desc limit $3`,
       [conversationId, userId, HISTORY_LIMIT],
     );
     turns = historyRows

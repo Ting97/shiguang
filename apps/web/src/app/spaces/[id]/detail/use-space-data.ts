@@ -80,8 +80,10 @@ export function useSpaceData() {
         // 已完成的关联 todo（done 视图按完成时间倒序）
         if (dj.status === "fulfilled") setDoneTodos(((dj.value.todos as TodoItem[]) ?? []).filter((t) => t.space_id === id));
         if (fj.status === "fulfilled") {
-          setMoments(fj.value.moments as FeedMoment[]);
-          momentsOffsetRef.current = (fj.value.moments as FeedMoment[]).length;
+          // ?? [] 与上方 todos 分支同口径：畸形 200 缺 moments 时静默空态，不让 .length 的 TypeError 打成整页失败
+          const fm = ((fj.value.moments as FeedMoment[] | undefined) ?? []);
+          setMoments(fm);
+          momentsOffsetRef.current = fm.length;
           // total=该空间动态总数（未被 limit 封顶）；畸形 200 无 total 时落 null 走 entry_count 兜底
           setMomentsTotal(typeof fj.value.total === "number" ? fj.value.total : null);
         }

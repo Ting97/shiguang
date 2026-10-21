@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { FeedMoment } from "@/lib/types";
-import { TX_CATEGORIES, yuanToCents } from "@/lib/finance";
+import { TX_CATEGORIES, yuanToCents, centsToYuanInput } from "@/lib/finance";
 import { Coins } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
@@ -108,7 +108,7 @@ export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
                     setEditTx({
                       id: x.id,
                       direction: x.direction,
-                      amount: String(x.amountCents / 100),
+                      amount: centsToYuanInput(x.amountCents),
                       category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
                       counterparty: x.counterparty ?? "",
                     }),
@@ -132,7 +132,7 @@ export function TxRows({ m, run, del, delArmed }: TxRowsProps) {
                 setEditTx({
                   id: x.id,
                   direction: x.direction,
-                  amount: String(x.amountCents / 100),
+                  amount: centsToYuanInput(x.amountCents),
                   category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
                   counterparty: x.counterparty ?? "",
                 })

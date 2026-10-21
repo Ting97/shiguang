@@ -40,7 +40,7 @@ export const GET = withModule("finance", async (req, { user }) => {
      from transactions t
      left join accounts a on a.id = t.account_id
      ${where}
-     order by t.occurred_at desc, t.created_at desc${limit > 0 ? ` limit $4 offset $5` : ""}`,
+     order by t.occurred_at desc, t.created_at desc, t.id desc${limit > 0 ? ` limit $4 offset $5` : ""}`,
       limit > 0 ? [user.id, TZ, month, limit, offset] : [user.id, TZ, month],
     ),
     limit > 0

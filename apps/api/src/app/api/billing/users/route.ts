@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth } from "@/server/platform/http/route";
-import { ApiError } from "@/server/platform/http/errors";
+import { withAdmin } from "@/server/platform/http/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/billing/users —— 管理员：全部用户套餐与近 30 天 AI 用量 */
-export const GET = withAuth(async (_req, { user }) => {
-  if (user.role !== "admin") {
-    throw ApiError.forbidden("仅管理员可查看");
-  }
+export const GET = withAdmin(async () => {
   const { rows } = await pool.query(
     `select p.id, p.nickname, p.phone, p.plan, p.plan_expires_at, p.created_at,
             (select count(*)::int from audit_logs a

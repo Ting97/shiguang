@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { FeedMoment } from "@/lib/types";
 import { moodEmoji } from "@/lib/mood";
+import { bjDateKey as bjYmd } from "@shiguangri/shared";
 import { TagChip } from "../tag-chip";
 import { ImageGrid, ImageLightbox } from "../image-grid";
 import VoicePlayer from "./voice-player";
@@ -18,11 +19,6 @@ import { RecognitionSection } from "./recognition-section";
 import { PendingConfirms } from "./pending-confirms";
 import type { Activity } from "@/lib/types";
 import type { IntentTag, MenuPos } from "./types";
-
-/** ISO 时刻 → 北京日历日 YYYY-MM-DD（跨时区设备也按北京日界，与全站 bj* 口径一致） */
-function bjYmd(iso: string): string {
-  return new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
-}
 
 /** 单条动态卡片：原文 + 心情 + AI 识别产物（日程/待办/金额/人物，均可修改/删除） */
 // memo：首页搜索框每键入会页级重渲染，卡片 50+ 时每键全量 reconcile——

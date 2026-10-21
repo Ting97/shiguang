@@ -89,6 +89,12 @@ export function yuan(cents: number): string {
   return neg ? `-${body}` : body;
 }
 
+/** 分 → 表单回填用元输入串：与 yuan() 同商余口径，替代散落各表单的 String(cents / 100)
+ *  浮点除法（本仓约定禁浮点除法；提交侧再走 yuanToCents 字符串解析往返精确） */
+export function centsToYuanInput(cents: number): string {
+  return yuan(cents);
+}
+
 
 
 /** 环比变化百分比：(cur-prev)/prev ×100，prev 为 0 时 null */

@@ -98,6 +98,13 @@ export async function login(input: LoginInput) {
     }
   }
 
+  // 禁用账号凭证即使正确也不发会话：与 getCurrentUser 的 active 谓词（auth.ts）同口径，
+  // 响应走模糊失败——「密码不正确」而非「账号被禁」，不构成账号状态 oracle
+  if (user.status && user.status !== "active") {
+    void noteAttempt(identity, input.ip, false);
+    throw fuzzyFail();
+  }
+
   await noteAttempt(identity, input.ip, true);
   await profilesRepo.touchLastLogin(user.id);
   const token = await createSession(user.id, input.userAgent ?? undefined);
@@ -108,17 +115,6 @@ export async function login(input: LoginInput) {
 export async function logout() {
   await destroySession();
   return { ok: true as const };
-}
-
-/** 吊销当前会话以外的全部会话（改密/换绑手机号后的盗号收敛）；keepToken 为空则全吊销 */
-export async function revokeOtherSessions(userId: string, keepToken: string | null) {
-  if (keepToken) {
-    await pool.query(`delete from sessions where user_id = $1 and token_hash <> $2`, [
-      userId, hashToken(keepToken),
-    ]);
-  } else {
-    await pool.query(`delete from sessions where user_id = $1`, [userId]);
-  }
 }
 
 /** 全端登出：吊销该用户全部会话（FR-C1.3） */
@@ -187,14 +183,27 @@ export async function updateProfile(userId: string, body: ProfileInput, opts?: {
     newHash = hashPassword(body.newPassword!);
   }
 
-  // 校验全过才写库
-  if (nickname !== undefined) await profilesRepo.setNickname(userId, nickname);
-  if (newHash !== undefined) {
-    await profilesRepo.setPasswordHash(userId, newHash);
-    // 改密后吊销其余会话（保留当前会话）：被盗号后受害者改密，攻击者既有 Bearer/cookie
-    // 若不清理仍可存活最长 30 天。token 缺失（理论上不会：双通道必有一个）时退化为全吊销。
-    await revokeOtherSessions(userId, opts?.keepToken ?? null);
-    message = "密码已更新";
+  // 校验全过才写库；昵称/改密/吊销其余会话包进单事务——独立自动提交会在
+  // 改密 SQL 或吊销失败时留下「昵称已改密码未改/旧会话未吊销」的半完成态
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    if (nickname !== undefined) await client.query(`update profiles set nickname = $1 where id = $2`, [nickname, userId]);
+    if (newHash !== undefined) await client.query(`update profiles set password_hash = $1 where id = $2`, [newHash, userId]);
+    if (newHash !== undefined) {
+      // 改密后吊销其余会话（保留当前会话）：被盗号后受害者改密，攻击者既有 Bearer/cookie
+      // 若不清理仍可存活最长 30 天。token 缺失（理论上不会：双通道必有一个）时退化为全吊销。
+      const keep = opts?.keepToken ?? null;
+      if (keep) await client.query(`delete from sessions where user_id = $1 and token_hash <> $2`, [userId, hashToken(keep)]);
+      else await client.query(`delete from sessions where user_id = $1`, [userId]);
+      message = "密码已更新";
+    }
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
   }
 
   return { ok: true as const, nickname, message };

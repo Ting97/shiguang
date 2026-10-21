@@ -5,11 +5,11 @@ export const profilesRepo = {
   byIdentity(identity: string, byEmail: boolean) {
     return byEmail
       ? pool.query(
-          `select id, nickname, phone, email, email_verified, password_hash from profiles where email = $1`,
+          `select id, nickname, phone, email, email_verified, password_hash, status from profiles where email = $1`,
           [identity],
         )
       : pool.query(
-          `select id, nickname, phone, email, email_verified, password_hash from profiles where phone = $1`,
+          `select id, nickname, phone, email, email_verified, password_hash, status from profiles where phone = $1`,
           [identity],
         );
   },

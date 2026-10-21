@@ -52,7 +52,7 @@ export const POST = withModule("finance", async (req, { user }) => {
         `insert into accounts (user_id, name, icon, opening_balance_cents, sort_order)
          values ($1, $2, $3, $4, (select coalesce(max(sort_order), 0) + 1 from accounts where user_id = $1))
          returning *`,
-        [user.id, name, body.icon?.trim() || "💳", opening],
+        [user.id, name, body.icon?.trim().slice(0, 8) || "💳", opening], // icon 截 8 字（与 activities 同口径）：text 列无界，1MB 串会随每次列表全量回传
       )
     ).rows[0];
     // opening_balance_cents（bigint）node-pg 返回 string：与 GET 同口径 Number()，web 端按数值比较/展示

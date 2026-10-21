@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays } from "../src/time-infer.js";
 import { toCstWallClock } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
@@ -302,4 +302,35 @@ test("月历锚带显式钟点/时段时让位（与下周X分支同口径）；
   assert.equal(inferTimeBlock("月底上午9点交房租", NOW, 30).start.getTime(), CST("2026-09-30T09:00:00+08:00"));
   // 「待会儿」类真 soon 仍 now+1h
   assert.equal(inferTimeBlock("待会儿记得倒垃圾", NOW, 30).start.getTime(), NOW.getTime() + 3600_000);
+});
+
+// —— 十三轮回归：混时段显式区间（整句单一时段把另一端解析成垃圾块） ——
+
+test("混时段'上午10点到下午3点'→ 10:00-15:00（终点按片段自身时段，不再跨日 +24h 成 17h 块）", () => {
+  const tb = inferTimeBlock("上午10点到下午3点开了个会", NOW, 60);
+  assert.equal(tb.start.getTime(), CST("2026-09-17T10:00:00+08:00"));
+  assert.equal(tb.end.getTime(), CST("2026-09-17T15:00:00+08:00"));
+});
+
+test("混时段'晚上11点到凌晨2点'→ 23:00-次日02:00（起点按片段 evening +12，跨零点睡眠语义）", () => {
+  const tb = inferTimeBlock("晚上11点到凌晨2点睡觉", NOW, 60);
+  assert.equal(tb.start.getTime(), CST("2026-09-17T23:00:00+08:00"));
+  assert.equal(tb.end.getTime(), CST("2026-09-18T02:00:00+08:00"));
+});
+
+test("回归不破：'晚上10.30到6.30'→ 22:30-次日06:30（裸钟点终点不被整句 evening 抬成 18 点）", () => {
+  const tb = inferTimeBlock("晚上10.30到6.30睡觉", new Date(2026, 8, 20, 23, 30), 60, "evening");
+  assert.equal(tb.start.getTime(), CST("2026-09-20T22:30:00+08:00"));
+  assert.equal(tb.end.getTime(), CST("2026-09-21T06:30:00+08:00"));
+});
+
+// —— 十三轮回归：「N天之后/一个月以后」变体入未来词表（旧版被锚定整平移到今天） ——
+
+test("「3天之后/一周之后/一个月以后」→ relativeOffsetDays 命中 + 显式日期词（锚定豁免）", () => {
+  assert.equal(relativeOffsetDays("3天之后交报告"), 3);
+  assert.equal(relativeOffsetDays("一周之后开会"), 7);
+  assert.equal(relativeOffsetDays("一个月以后还"), 30);
+  assert.equal(hasExplicitDayRef("3天之后交报告"), true);
+  assert.equal(hasExplicitDayRef("一个月以后还"), true);
+  assert.equal(hasExplicitDayRef("3天后交报告"), true); // 旧口径不回归
 });

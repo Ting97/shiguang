@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAuth, readJsonCapped } from "@/server/platform/http/route";
+import { withAuth, withAdmin, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isUuid } from "@/server/platform/http/validate";
 import { getQuota, writeAuditRecord } from "@/server/ai";
@@ -41,10 +41,7 @@ export const GET = withAuth(async (_req, { user }) => {
  * { userId?, plan: 'free'|'pro', months? }  userId 缺省=自己；pro 时 months（缺省 12）设置到期
  * 支付通道（微信/支付宝商户号、RevenueCat）接入后由支付回调调用同一逻辑
  */
-export const POST = withAuth(async (req, { user }) => {
-  if (user.role !== "admin") {
-    throw ApiError.forbidden("仅管理员可变更套餐");
-  }
+export const POST = withAdmin(async (req, { user }) => {
   const { userId, plan, months } = (await readJsonCapped(req) as any) as {
     userId?: string; plan?: string; months?: number;
   };

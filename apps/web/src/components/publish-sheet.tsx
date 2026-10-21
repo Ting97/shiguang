@@ -89,7 +89,8 @@ export default function PublishSheet({
   }, [open]);
 
   /** N3 取消：点空白/Esc/×——内容相对打开时有改动则轻提示"已取消，未保存"。
-   *  useCallback 稳定引用：useDismiss 依赖它订阅全局监听，内联函数会每渲染重订阅 */
+   *  useCallback deps 含 value：随击键换新引用，useDismiss 的 effect 相应每键重订阅
+   *  （开销可忽略，闭包恒最新；注释旧版宣称「稳定引用不重订阅」与实现相反，已如实更正） */
   const cancel = useCallback(() => {
     if (value.trim() && value.trim() !== initialRef.current.trim()) {
       notify?.({ ok: true, text: "已取消，未保存" });
@@ -247,7 +248,7 @@ export default function PublishSheet({
         {/* 已选图片缩略条（上传失败显示重试） */}
         {images.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {images.map((img, i) => (
+            {images.map((img) => (
               <span key={img.url} className={`relative overflow-hidden rounded-lg border ${img.status === "error" ? "border-rose-500/60" : "border-line-soft"}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={img.url} alt="" className="h-14 w-14 object-cover" />
@@ -262,12 +263,12 @@ export default function PublishSheet({
                 ) : (
                   <button
                     type="button"
-                    onClick={() =>
-                      setImages((prev) => {
-                        URL.revokeObjectURL(prev[i]?.url ?? "");
-                        return prev.filter((_, idx) => idx !== i);
-                      })
-                    }
+                    onClick={() => {
+                      // revoke 在 updater 外按 url 定位：updater 必须是纯函数（StrictMode 双调下
+                      // 副作用重复执行）；按下标删除在同帧多删时会拿旧下标删错行
+                      URL.revokeObjectURL(img.url);
+                      setImages((prev) => prev.filter((x) => x.url !== img.url));
+                    }}
                     className="tap-lg absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white"
                     aria-label="移除"
                   >

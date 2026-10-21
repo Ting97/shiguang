@@ -96,6 +96,12 @@ function summarize(c: ReminderCounts): string | null {
  * 「已跑」标记先落 app_config 再投递：投递中途进程崩溃/重启后不再对全部用户重复推送
  * （代价：崩溃窗口内未投到的用户当天漏一轮，漏推优于重复打扰）。
  */
+/** 北京年份是否闰年（2/29 生日平年兜底用） */
+function isLeapBjYear(bj: string): boolean {
+  const y = Number(bj.slice(0, 4));
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
 export async function runDailyReminderPush(): Promise<void> {
   const { pushDailyHour } = loadConfig();
   const today = bjToday();
@@ -170,14 +176,23 @@ export async function runDailyReminderPush(): Promise<void> {
     };
     for (const r of dueRows) ensure(r.user_id).dueTodos = Number(r.n);
     for (const r of staleRows) ensure(r.user_id).staleContacts = Number(r.n);
+    // 阳历 MM-DD 相等匹配；2/29 生日在平年按 2/28 兜底（与 shared birthdayCountdown 同口径，
+    // 否则 2/29 用户平年整年收不到生日提醒）
+    const bjMd = bj.slice(5);
+    const isMdToday = (date: string | null) => {
+      if (date == null) return false;
+      const md = date.slice(5);
+      if (md === bjMd) return true;
+      return md === "02-29" && bjMd === "02-28" && !isLeapBjYear(bj);
+    };
     for (const r of contactRows) {
-      const isSolarBirthdayToday = r.birthday != null && r.birthday.slice(5) === bj.slice(5);
+      const isSolarBirthdayToday = isMdToday(r.birthday);
       const isLunarBirthdayToday =
         r.birthday_cal === "lunar" &&
         r.lunar_month != null &&
         r.lunar_day != null &&
         lunarBirthdayCountdown({ month: r.lunar_month, day: r.lunar_day, leap: r.lunar_leap === true }) === 0;
-      const isAnniversaryToday = r.anniversary != null && r.anniversary.slice(5) === bj.slice(5);
+      const isAnniversaryToday = isMdToday(r.anniversary);
       const c = ensure(r.user_id);
       if (isSolarBirthdayToday || isLunarBirthdayToday) c.birthdays += 1;
       if (isAnniversaryToday) c.anniversaries += 1;

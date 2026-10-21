@@ -271,3 +271,18 @@ test("jevAsk：noul=99 归一为 0.99；归一后仍越界按缺失（null）处
     mock.restoreAll();
   }
 });
+
+/* ---- 十三轮：月历锚「月初/月底」+ 显式年份未来守卫 ---- */
+
+test("occurredDate：「(上|本)个月初/底/末」确定性换算（宁缺勿错：未来落点 → null）", () => {
+  assert.equal(deterministicOccurredDate("上个月底随了600", NOW), "2026-09-30");
+  assert.equal(deterministicOccurredDate("上个月初随了600", NOW), "2026-09-01");
+  assert.equal(deterministicOccurredDate("本月初交了200", NOW), "2026-10-01");
+  // 本月底相对 NOW(10-08) 是未来 → null（不得预记未发生的花销）
+  assert.equal(deterministicOccurredDate("这个月底交房租", NOW), null);
+});
+
+test("occurredDate：带显式年份的未来日期返回 null（「2027年1月1号」违反发生日必为过去）", () => {
+  assert.equal(deterministicOccurredDate("2027年1月1号转了1000", NOW), null);
+  assert.equal(deterministicOccurredDate("2026年1月1号转了1000", NOW), "2026-01-01"); // 历史年份不受影响
+});

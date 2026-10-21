@@ -238,13 +238,14 @@ export default function ContactGraph({
           width={size}
           height={size}
           viewBox={`0 0 ${size} ${size}`}
-          className="block touch-none select-none"
+          // 光标走 CSS（grab/按下 grabbing）：旧写法在渲染期读可变 ref pan.current，松手
+          // endPointer 不触发 setState，光标永久停在 grabbing（十三轮 P3）
+          className="block cursor-grab touch-none select-none active:cursor-grabbing"
           onPointerDown={onSvgPointerDown}
           onPointerMove={onSvgPointerMove}
           onPointerUp={(e) => endPointer(e)}
           onPointerCancel={(e) => endPointer(e)}
           onDoubleClick={resetView}
-          style={{ cursor: pan.current ? "grabbing" : "default" }}
         >
           <defs>
             <radialGradient id="star-center" cx="35%" cy="30%">

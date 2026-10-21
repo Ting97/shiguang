@@ -197,7 +197,7 @@ export async function queryDataset(
   const cols = [pk, ...spec.columns.filter((c) => c !== pk)].join(", ");
   // limit/offset 参数化（值虽经钳制，红线 2 要求不拼值）
   const { rows } = await pool.query(
-    `select ${cols} from ${spec.table} ${W} ${spec.timeCol ? `order by ${spec.timeCol} desc` : ""} limit $${vals.length + 1} offset $${vals.length + 2}`,
+    `select ${cols} from ${spec.table} ${W} ${spec.timeCol ? `order by ${spec.timeCol} desc, ${pk}` : ""} limit $${vals.length + 1} offset $${vals.length + 2}`,
     [...vals, limit, offset],
   );
   return { total, items: rows };

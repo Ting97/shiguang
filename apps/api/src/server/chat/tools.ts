@@ -138,7 +138,7 @@ const queryTimeBlocks: ChatTool = {
               floor(extract(epoch from least(b.end_at, $3::timestamptz) - greatest(b.start_at, $2::timestamptz)) / 60)::int as minutes
        from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
        where b.user_id = $1 and b.start_at < $3::timestamptz and b.end_at > $2::timestamptz
-       order by b.start_at desc limit 10`,
+       order by b.start_at desc, b.id desc limit 10`,
       [ctx.userId, start, end],
     );
     return { range: { from, to }, byActivity, detail };
