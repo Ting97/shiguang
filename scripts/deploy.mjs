@@ -139,7 +139,13 @@ async function smoke(label, cmd, check) {
   }
   return { ok: false, out: last };
 }
-const health = await smoke("health", "curl -s -m 10 https://shiguang.ting97.cn/api/health", (o) => o.includes('"ok":true'));
+// 冒烟含 migrationPending：--skip-migrate 应急发版、或迁移文件命名口径漂移导致迁移没跑时，
+// 其余三条仍全绿——schema 漂移不得带病上线（旧库 manifest 为 null 时容错不拦）
+const health = await smoke(
+  "health",
+  "curl -s -m 10 https://shiguang.ting97.cn/api/health",
+  (o) => o.includes('"ok":true') && (o.includes('"migrationPending":false') || o.includes('"migrationPending":null')),
+);
 const login = await smoke("login", "curl -s -o /dev/null -w '%{http_code}' -m 10 https://shiguang.ting97.cn/login", (o) => o === "200");
 // 鉴权 API 探测：未带凭证必须 401——middleware/会话链路被打挂时 health/login 仍全绿（「API 健康而页面 404」的对称缺口）
 const meAuth = await smoke(
@@ -148,7 +154,10 @@ const meAuth = await smoke(
   (o) => o === "401",
 );
 if (!health.ok || !login.ok || !meAuth.ok) {
-  rollback(`冒烟失败：health=${health.out.slice(0, 80)} login=${login.out} me=${meAuth.out}`);
+  rollback(`冒烟失败：health=${health.out.slice(0, 120)} login=${login.out} me=${meAuth.out}`);
 }
-const rev = sh("git log --oneline -1", { quiet: true });
+let rev = "(no git)";
+try {
+  rev = sh("git log --oneline -1", { quiet: true }); // 非 git 上下文（CI 归档目录）不得让部署成功后整体非零退出
+} catch { /* keep fallback */ }
 console.log(`[deploy] ✓ 完成：health ok，login 200，me 401，当前代码 ${rev}`);

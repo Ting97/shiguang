@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { withAuthParams } from "@/server/platform/http/route";
-import { ApiError } from "@/server/platform/http/errors";
+import { withAdminParams } from "@/server/platform/http/route";
 import { queryDataset, writeAuditRecord, type AuditRecord } from "@/server/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/admin/data/[dataset]?from&to&category&limit&offset —— 在线试查（FR-5.2，只读） */
-export const GET = withAuthParams(async (req, { user, params }) => {
-  if (user.role !== "admin") throw ApiError.forbidden("仅管理员");
+export const GET = withAdminParams(async (req, { user, params }) => {
   const { dataset } = await params;
   const sp = new URL(req.url).searchParams;
   const startedAt = Date.now();

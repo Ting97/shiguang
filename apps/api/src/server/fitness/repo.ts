@@ -94,7 +94,7 @@ export const fitnessRepo = {
               m.name as module_name, m.icon as module_icon
        from fitness_daily_plans p join fitness_modules m on m.code = p.module_code
        where p.user_id = $1 and p.plan_date between $2 and $3
-       order by p.plan_date desc, m.sort, p.created_at`,
+       order by p.plan_date desc, m.sort, p.created_at, p.id`,
       [userId, from, to],
     );
   },

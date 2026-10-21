@@ -183,9 +183,10 @@ export function fmtUsd(n: number): string {
 
 export const pnlColor = (n: number) => (n > 0 ? "text-success" : n < 0 ? "text-danger" : "text-ink-dim");
 
-export function bjToday(): string {
-  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
-}
+// bjToday 收敛到 shared 单源（此处原是第三份 +8h 副本）；改名转发保持 trading 页内调用点不变。
+// 注意 bjDate/bjTime 是「YYYY/M/D」展示格式（含空值兜底"—"），与 shared 的 bjDateKey（YYYY-MM-DD
+// 日历日键）同名不同义，不归拢
+export { bjToday } from "@shiguangri/shared";
 
 export function addDays(ymd: string, n: number): string {
   return new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);

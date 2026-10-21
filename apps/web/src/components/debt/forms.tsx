@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DEBT_TYPES, DEBT_TYPE_META, yuanToCents, type DebtType } from "@/lib/finance";
+import { DEBT_TYPES, DEBT_TYPE_META, yuanToCents, centsToYuanInput, type DebtType } from "@/lib/finance";
 import type { Debt, Account } from "./kit";
 import { fmt, bjToday, api } from "./kit";
 
@@ -22,10 +22,10 @@ export function DebtForm({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<DebtType>(initial?.type ?? "credit_card");
-  const [principal, setPrincipal] = useState(initial ? String(initial.principal_cents / 100) : "");
-  const [balance, setBalance] = useState(initial ? String(initial.balance_cents / 100) : "");
+  const [principal, setPrincipal] = useState(initial ? centsToYuanInput(initial.principal_cents) : "");
+  const [balance, setBalance] = useState(initial ? centsToYuanInput(initial.balance_cents) : "");
   const [rate, setRate] = useState(initial ? String(initial.rate_pct) : "");
-  const [monthly, setMonthly] = useState(initial?.monthly_cents != null ? String(initial.monthly_cents / 100) : "");
+  const [monthly, setMonthly] = useState(initial?.monthly_cents != null ? centsToYuanInput(initial.monthly_cents) : "");
   const [payDay, setPayDay] = useState(initial?.pay_day ? String(initial.pay_day) : "");
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
   const [priority, setPriority] = useState(initial ? String(initial.priority) : "0");

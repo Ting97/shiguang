@@ -286,6 +286,13 @@ export async function readTrains(datestr: string, includeFull = true, fetcher: F
     include_full_data: includeFull,
   }, fetcher);
   const trains = Array.isArray(payload.res) ? payload.res : (payload.res?.trains ?? []);
+  // 容量上限：键是任意 datestr（chat 工具允许管理员查任意日期），无界会常驻进程内存
+  if (readCache.size >= 400) {
+    let oldestKey: string | null = null;
+    let oldestAt = Infinity;
+    for (const [k, v] of readCache) if (v.at < oldestAt) { oldestAt = v.at; oldestKey = k; }
+    if (oldestKey) readCache.delete(oldestKey);
+  }
   readCache.set(datestr, { at: Date.now(), data: trains });
   return trains;
 }

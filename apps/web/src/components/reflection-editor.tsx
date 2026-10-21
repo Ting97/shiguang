@@ -41,8 +41,8 @@ export default function ReflectionEditor({
     return () => clearTimeout(t);
   }, [open, initial]);
 
-  // useCallback 稳定化：内联声明每渲染新建会让 useDismiss 每次击键都重订阅全局 pointerdown/keydown
-  // （publish-sheet 同款先例）；依赖用 value 而非下方 dirty（deps 需在渲染期可读）
+  // deps 含 value：cancel 随击键换新引用，useDismiss 的 effect 相应每键重订阅
+  // （开销可忽略，闭包恒最新；旧注释宣称「稳定化不重订阅」与实现相反，已如实更正）
   const cancel = useCallback(() => {
     // N3.5：有改动时轻提示「已取消，未保存」（不弹确认，保持轻量）
     if (value !== initialRef.current) notify?.({ ok: true, text: "已取消，未保存" });

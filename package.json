@@ -20,7 +20,7 @@
     "poc:live": "npm run poc:live -w @shiguangri/ai",
     "tokens": "tsx packages/design-tokens/scripts/generate.ts",
     "tokens:verify": "tsx packages/design-tokens/scripts/generate.ts --verify",
-    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/api && tsc --noEmit -p packages/ai",
+    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/api && tsc --noEmit -p packages/ai && tsc --noEmit -p apps/miniapp",
     "lint": "eslint . --quiet",
     "db:migrate": "tsx packages/db/runner.ts",
     "db:migrate:status": "tsx packages/db/runner.ts --status",

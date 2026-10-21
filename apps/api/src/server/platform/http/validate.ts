@@ -17,6 +17,13 @@ export function assertUuidParam(v: unknown, label = "id"): string {
   return v;
 }
 
+/** 文本主键入参预检：id 列为 text（预设分类 'sleep' 等非 uuid）的表专用——
+ * 只做非空与长度形状检查防超长串落库，查无此 id 由业务层自然 404。 */
+export function assertTextIdParam(v: unknown, label = "id"): string {
+  if (typeof v !== "string" || !v.trim() || v.length > 64) throw ApiError.badRequest(`${label} 参数不合法`);
+  return v;
+}
+
 /** YYYY-MM 形状且月份 01-12（拒绝 2025-13 静默空数据 / 落 date 列 500） */
 export function isValidYearMonth(v: unknown): v is string {
   return typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);

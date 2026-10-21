@@ -9,6 +9,7 @@ import { api } from "@/shared/api";
 import { useSession } from "@/shared/session";
 import ModuleLocked from "@/components/module-locked";
 import { toast } from "@/shared/ui/toast";
+import { useArmConfirm } from "@/lib/use-arm-confirm";
 import AssistantDock from "@/components/assistant-dock";
 
 import {
@@ -44,10 +45,9 @@ export default function FinancePage() {
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false); // 确认提交中：防双击双发 PATCH
   const [editing, setEditing] = useState<Tx | null>(null);
-  // 删除流水两步确认：待确认的流水 id + 超时复位定时器（卸载清理，防卸载后 setState）
-  const [armDel, setArmDel] = useState<string | null>(null);
-  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); }, []);
+  // 删除流水两步确认：全站规范 useArmConfirm（自带 3s 超时/换目标复位/<16ms 双击 ref 镜像），
+  // 替代手写 armDel state + timer 版（缺 ref 镜像，极速双击需三击才删）
+  const arm = useArmConfirm();
 
   // seq 守卫：快速切月时旧响应可能后到（头部已是新月、数据却是旧月），只让最新请求落地
   const loadSeq = useRef(0);
@@ -131,8 +131,7 @@ export default function FinancePage() {
 
   async function removeTx(t: Tx) {
     // 两步确认（全站规范）：首点进入待确认态（行内按钮变「确认删除?」），3 秒内再点执行
-    if (armDel !== t.id) { setArmDel(t.id); armTimerRef.current && clearTimeout(armTimerRef.current); armTimerRef.current = setTimeout(() => setArmDel(null), 3000); return; }
-    setArmDel(null);
+    if (!arm.arm(t.id)) return;
     try {
       await api(`/api/transactions/${t.id}`, "DELETE");
       toast("🗑 已删除流水");
@@ -250,7 +249,7 @@ export default function FinancePage() {
           onConfirmAll={confirmAllTx}
           onEdit={setEditing}
           onRemove={removeTx}
-          delArmed={armDel}
+          delArmed={arm.armedId}
         />
 
         {/* 流水列表（每月最近 20 条 + 加载更多） */}
@@ -267,7 +266,7 @@ export default function FinancePage() {
             await load();
           }}
           onRemove={removeTx}
-          delArmed={armDel}
+          delArmed={arm.armedId}
         />
 
         {/* 手动记账弹层 */}

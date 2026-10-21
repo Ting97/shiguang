@@ -45,13 +45,13 @@ export async function buildDigest(userId: string, accountId: string) {
   const notable = (
     await pool.query(
       `(select '最大盈利' as label, ticket, symbol, direction, lots, net_profit, close_time from trades
-        where user_id = $1 and account_id = $2 order by net_profit desc limit 3)
+        where user_id = $1 and account_id = $2 order by net_profit desc, ticket desc limit 3)
        union all
        (select '最大亏损', ticket, symbol, direction, lots, net_profit, close_time from trades
-        where user_id = $1 and account_id = $2 order by net_profit asc limit 3)
+        where user_id = $1 and account_id = $2 order by net_profit asc, ticket desc limit 3)
        union all
        (select '最长持仓', ticket, symbol, direction, lots, net_profit, close_time from trades
-        where user_id = $1 and account_id = $2 order by close_time - open_time desc limit 1)`,
+        where user_id = $1 and account_id = $2 order by close_time - open_time desc, ticket desc limit 1)`,
       [userId, accountId],
     )
   ).rows.map((r) => ({

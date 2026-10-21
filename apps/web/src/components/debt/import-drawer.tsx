@@ -66,6 +66,24 @@ export default function DebtImportDrawer({
     }
   }, [open]);
 
+  // Esc 关闭（全站浮层统一；busy 导入中忽略，防中途 Esc 丢反馈）；busy 时遮罩/×同样不关
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busyRef.current) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // busy 的 ref 镜像：keydown effect 不因 busy 翻转重订阅（闭包读最新值即可）
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+
+  const guardClose = () => {
+    if (!busy) onClose();
+  };
+
   // body 滚动锁：抽屉打开期间锁背景滚动，关闭/卸载还原
   useBodyScrollLock(open);
 
@@ -111,14 +129,14 @@ export default function DebtImportDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={guardClose}>
       <div
         className="h-full w-full max-w-xl overflow-y-auto rounded-l-2xl border-l border-line-soft bg-surface p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Download size={14} aria-hidden /> 从 trade 导入负债</h2>
-          <button onClick={onClose} aria-label="关闭" className="p-1 text-ink-mute hover:text-ink"><X size={14} /></button>
+          <button onClick={guardClose} aria-label="关闭" className="p-1 text-ink-mute hover:text-ink"><X size={14} /></button>
         </div>
 
         {!rows && (

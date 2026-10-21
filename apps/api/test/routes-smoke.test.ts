@@ -294,10 +294,19 @@ test("校验层：非法入参 400（时段倒挂/语义日期/坏结构）", as
   assert.ok([400, 404].includes(badEntry.status), "不存在 entry 的 confirm 应 400/404");
 
   // ---- 检视修复回归：非法 uuid 一律 400（不再 22P02 → 500）----
+  // 十三轮：activities.id 是 text、预设分类本就是非 uuid（'sleep'…），PATCH/DELETE 改为
+  // 形状预检——不存在的非法 id 查空自然 404（不再 400）；文本 id 更新通道用自定义分类验证
   const badAct = await call("PATCH", "/api/activities/not-a-uuid", { user: UA, body: { name: "x" } });
-  assert.equal(badAct.status, 400, "activities/[id] 非 uuid 应 400");
+  assert.equal(badAct.status, 404, "activities/[id] 不存在的文本 id 应 404（预设分类非 uuid，不再 uuid 预检）");
+  const mkCat = await call("POST", "/api/activities", { user: UA, body: { name: "冒烟自定义分类", icon: "🧪", color: "#38bdf8", defaultMin: 30 } });
+  assert.equal(mkCat.status, 200, "创建自定义分类应 200");
+  const catId = mkCat.json?.activity?.id;
+  const presetPatch = await call("PATCH", `/api/activities/${catId}`, { user: UA, body: { defaultMin: 45 } });
+  assert.equal(presetPatch.status, 200, "自定义分类 PATCH（defaultMin）应 200（文本 id 更新通道畅通）");
   const badActDel = await call("DELETE", "/api/activities/not-a-uuid", { user: UA });
-  assert.equal(badActDel.status, 400, "activities/[id] DELETE 非 uuid 应 400");
+  assert.equal(badActDel.status, 404, "activities/[id] DELETE 不存在的文本 id 应 404");
+  const delCat = await call("DELETE", `/api/activities/${catId}`, { user: UA });
+  assert.equal(delCat.status, 200, "删除自定义分类应 200（清理冒烟数据）");
   const badBlockAct = await call("POST", "/api/blocks", { user: UA,
     body: { title: "t", startAt: "2026-09-22T09:00:00+08:00", endAt: "2026-09-22T10:00:00+08:00", activityId: "not-a-uuid" },
   });

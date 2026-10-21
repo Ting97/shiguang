@@ -132,6 +132,10 @@ export type SpaceClassificationT = z.infer<typeof SpaceClassification>;
  * 瘦身开放词汇提取契约（REQ-003 3-D）：闭集判断由 Jev 并行完成，GLM 只出本契约字段。
  * 时间字段直接出 ISO-8601（与 FullExtractionV2 同标准）；缺字段按空处理（passthrough 禁止——防闭集字段混入）。
  */
+/** 人名占位词断言：「省略/无/没有/null」不是真名字——V2 全量路径、规则路径、
+ * OpenVocab（hybrid 合并层）三路防护必须同源，唯独一处漏配就会把占位词建成联系人 */
+export const notPlaceholderName = (n: string) => !/^(省略|无|没有|null|none)$/i.test(n.trim());
+
 export const OpenVocabExtraction = z.object({
   title: z.string().max(40).nullish(),
   start: z.string().min(1).nullish(),
@@ -139,7 +143,7 @@ export const OpenVocabExtraction = z.object({
   due: z.string().min(1).nullish(),
   durationMin: z.coerce.number().int().positive().max(24 * 60).nullish(),
   people: z
-    .array(z.object({ name: z.string().min(1).max(20), event: z.string().max(30).nullish() }))
+    .array(z.object({ name: z.string().min(1).max(20).refine(notPlaceholderName, { message: "people[].name 不能是占位词" }), event: z.string().max(30).nullish() }))
     .max(10)
     .nullish(),
   dietItems: z
@@ -319,7 +323,7 @@ export const PersonDraftV2 = z.object({
     .string()
     .min(1)
     .max(20)
-    .refine((n) => !/^(省略|无|没有|null|none)$/i.test(n.trim()), { message: "people[].name 不能是占位词" }),
+    .refine(notPlaceholderName, { message: "people[].name 不能是占位词" }),
   // 摘要截断到手动往来同款上限（≤30）：interactions.summary 直落时间轴与画像输入
   event: z.string().nullish().transform((v) => capCodepoints(v, 30)),
 });

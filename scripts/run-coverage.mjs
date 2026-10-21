@@ -4,7 +4,7 @@
  * 测试库缺失时本地一次性建：createdb shiguangri_test && npm run db:migrate -- --fresh
  */
 import { execSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,6 +35,9 @@ try {
     .filter((f) => f.endsWith(".test.ts"))
     .map((f) => `test/${f}`)
     .join(" ");
+  // 先清 coverage-tmp：--no-clean + 从不清目录会让跨次运行的历史 V8 覆盖并集进来，
+  // 已删分支/重构函数的陈旧覆盖把 60% 门槛撑虚高（十三轮）
+  rmSync(join(root, "coverage-tmp"), { recursive: true, force: true });
   execSync(`npx c8 --no-clean --reporter=none npx tsx --test --test-concurrency=1 ${testFiles}`, {
     cwd: join(root, "apps/api"),
     stdio: "inherit",

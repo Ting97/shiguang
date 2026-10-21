@@ -77,7 +77,7 @@ export const todoRepo = {
       : view === "important" ? `parent_todo_id is null and status = 'pending' and is_important`
       : view === "done" ? `parent_todo_id is null and status = 'done'`
       : `parent_todo_id is null and status = 'pending'`;
-    const order = view === "done" ? "t.done_at desc" : "t.is_important desc, t.created_at desc";
+    const order = view === "done" ? "t.done_at desc, t.id desc" : "t.is_important desc, t.created_at desc, t.id desc";
     return pool.query(`${SELECT_TODO} where t.user_id = $1 and ${where} order by ${order} limit 200`, [userId]);
   },
 

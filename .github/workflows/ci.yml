@@ -52,5 +52,8 @@ jobs:
       - name: Test with coverage gate (identity/finance/timeline/ai ≥ 60% lines)
         run: npm run test:coverage
 
+      - name: Unit tests (all workspaces: ai/shared/web)
+        run: npm test --workspaces --if-present
+
       - name: Build
         run: npm run build

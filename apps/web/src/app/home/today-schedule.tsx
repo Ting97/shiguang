@@ -9,7 +9,7 @@ import { TagChip, FilterChip } from "@/components/tag-chip";
 import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import { bjToday, zhDuration } from "@/lib/date";
-import { combineHM } from "@/lib/bj-time";
+import { combineHM, combineHmEndCrossDay, bjDateKey } from "@/lib/bj-time";
 import type { Activity, Block } from "@/lib/types";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { zhTime } from "./kit";
@@ -47,18 +47,23 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
   /** 用原块北京日期 + 新的 HH:MM 组装 ISO（combineHM 收敛到 @/lib/bj-time，与日程页同源） */
   async function saveEdit() {
     if (!editing || saving) return; // 保存进行中忽略再次提交，防双击重复保存
-    if (editing.end <= editing.start) {
+    const b = blocks.find((x) => x.id === editing.id);
+    if (!b) return;
+    // 跨天块（23:00→次日 00:30）end 钟点 ≤ start 是合法次日语义，不走同日校验；
+    // 结束写回用跨日组合（与 calendar-panel 同范式）——旧逻辑对跨天块恒报
+    // 「结束时间必须晚于开始时间」，改任何字段都保存不了
+    const crossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
+    if (!crossDay && editing.end <= editing.start) {
       toast("结束时间必须晚于开始时间", "err");
       return;
     }
-    const b = blocks.find((x) => x.id === editing.id);
-    if (!b) return;
     setSaving(true);
     try {
+      const startAt = combineHM(b.start_at, editing.start);
       await api(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
-        startAt: combineHM(b.start_at, editing.start),
-        endAt: combineHM(b.end_at, editing.end),
+        startAt,
+        endAt: crossDay ? combineHmEndCrossDay(startAt, editing.end, b.end_at) : combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
       });
     } catch (e) {

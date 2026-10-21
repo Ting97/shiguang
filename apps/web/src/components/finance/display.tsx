@@ -6,7 +6,7 @@ import { TagChip } from "@/components/tag-chip";
 
 // REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
 export { Modal } from "@/components/ui/modal";
-import { yuan, yuanToCents } from "@/lib/finance";
+import { yuan, yuanToCents, centsToYuanInput } from "@/lib/finance";
 import type { Tx } from "./kit";
 import type { Overview } from "./kit";
 import { api, zhDay } from "./kit";
@@ -176,7 +176,7 @@ export function InOutTrend({ trend }: { trend: Overview["trend"] }) {
 
 /** 预算编辑 */
 export function BudgetEditor({ ov, onCancel, onSaved }: { ov: Overview; onCancel: () => void; onSaved: () => Promise<void> }) {
-  const [limit, setLimit] = useState(ov.budget.monthly_limit_cents > 0 ? String(ov.budget.monthly_limit_cents / 100) : "");
+  const [limit, setLimit] = useState(ov.budget.monthly_limit_cents > 0 ? centsToYuanInput(ov.budget.monthly_limit_cents) : "");
   const [threshold, setThreshold] = useState(ov.budget.alert_threshold);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
