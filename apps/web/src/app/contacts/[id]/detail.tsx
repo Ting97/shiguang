@@ -397,7 +397,7 @@ export function ContactDetailPage() {
                           onClick={() => void removeInteraction(t.id)}
                           disabled={deletingId === t.id}
                           title={armDelId === t.id ? "3 秒内再点确认删除（仅删除这条往来，档案与流水不受影响）" : "删除这条往来"}
-                          className={`shrink-0 rounded px-1 py-0.5 text-micro transition ${
+                          className={`row-actions-hidden shrink-0 rounded px-1 py-0.5 text-micro transition ${
                             armDelId === t.id ? "bg-rose-500/15 text-danger" : "text-ink-faint opacity-0 hover:text-danger group-hover:opacity-100 focus:opacity-100"
                           }`}
                         >

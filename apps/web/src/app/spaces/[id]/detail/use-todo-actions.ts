@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TodoItem, TodoRow } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
@@ -26,9 +26,12 @@ export function useTodoActions(opts: {
   const [busyId, setBusyId] = useState<string | null>(null);
   // 行动描述编辑（复用 note 字段；详情页只读展开）
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
-  // 行操作菜单卡片（点「⋯」弹出；桌面锚定浮层 / 移动端底部弹层）
+  // 行操作菜单卡片（点「⋯」弹出；桌面锚定浮层 / 移动端底部弹层）。
+  // 「⋯」再点关闭仲裁（同 todo-board menuClosedRef）：菜单开着再点同行「⋯」，pointerdown
+  // 先被 Dismissable 关闭，随后的 click 若无仲裁会重新打开——菜单永远关不上（十一轮补齐）
   const [menuRow, setMenuRow] = useState<MenuRowState | null>(null);
   const [menuPos, setMenuPos] = useState<Pos | null>(null);
+  const menuClosedRef = useRef<{ at: number; todoId: string } | null>(null);
   // 行内编辑器（与日程 todo-board 同交互）：顶层 todo 标题/截止/分类
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -261,7 +264,7 @@ export function useTodoActions(opts: {
     noteOpen, setNoteOpen, noteTitle, setNoteTitle, noteText, setNoteText, noteDue, setNoteDue,
     noteRepeat, setNoteRepeat, noteDoneCount, openNote, saveNote,
     // 行操作菜单卡片
-    menuRow, setMenuRow, menuPos, setMenuPos,
+    menuRow, setMenuRow, menuPos, setMenuPos, menuClosedRef,
     // 行动草稿
     actionDrafts, setActionDrafts, addAction,
     // 关联已有浮层

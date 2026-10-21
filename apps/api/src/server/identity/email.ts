@@ -59,6 +59,10 @@ export async function sendEmailCode(email: string, purpose: "login" | "bind"): P
       )
     ).rows[0].id;
     await client.query("commit");
+  } catch (e) {
+    // 同 sms.ts 十一轮补齐：事务内失败先回滚再释放，未决事务的连接不得回池
+    await client.query("rollback").catch(() => {});
+    throw e;
   } finally {
     client.release();
   }

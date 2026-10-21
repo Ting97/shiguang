@@ -47,7 +47,10 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private static final String BASE_URL = "https://shiguang.ting97.cn";
-    private static final String HOST_SUFFIX = "ting97.cn";
+    // 站内判定用「等于主站 或 *.ting97.cn 子域」：裸 endsWith 会把 evil-ting97.cn 一类
+    // 注册域也判成站内留在壳里（钓鱼页不弹系统浏览器）
+    private static final String HOST = "shiguang.ting97.cn";
+    private static final String HOST_DOMAIN_SUFFIX = ".ting97.cn";
     private static final int REQ_MIC = 1;
     private static final int REQ_FILE_CHOOSER = 2;
     private static final long BACK_EXIT_INTERVAL = 2000L;
@@ -108,7 +111,8 @@ public class MainActivity extends Activity {
                 Uri uri = request.getUrl();
                 String scheme = uri.getScheme() == null ? "" : uri.getScheme();
                 if (("http".equals(scheme) || "https".equals(scheme))
-                        && uri.getHost() != null && uri.getHost().endsWith(HOST_SUFFIX)) {
+                        && uri.getHost() != null
+                        && (HOST.equals(uri.getHost()) || uri.getHost().endsWith(HOST_DOMAIN_SUFFIX))) {
                     return false; // 站内导航留在壳内
                 }
                 try { // 外站链接与 tel:/mailto: 等交给系统应用

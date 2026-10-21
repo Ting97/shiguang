@@ -109,7 +109,10 @@ async function main() {
       const sql = readSql(join(MIGRATIONS_DIR, f));
       // legacy 迁移（003）自带 begin/commit：仅 fresh 全量执行时剥离、由 runner 事务托管
       //（文件内容不动，checksum 不受影响）；新迁移走 pending 路径的硬校验。
-      // 剥离正则与 assertNoInlineTx 同口径（含 commit work;/rollback work; 变体），剥离面只增不减
+      // 剥离正则与 assertNoInlineTx 同口径（含 commit work;/rollback work; 变体），剥离面只增不减。
+      // 003 之外的文件同样过 assertNoInlineTx：否则 --fresh 测试库静默剥离全绿、
+      // 上线 pending 路径直接 process.exit(1) 部署卡死——预检发现不了（十一轮补齐）
+      if (!f.startsWith("003")) assertNoInlineTx(sql, f);
       const execSql = sql.replace(/^\s*(begin|start\s+transaction|commit|rollback)(\s+work)?\s*;.*$/gim, "");
       const t0 = Date.now();
       try {

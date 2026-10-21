@@ -5,7 +5,7 @@
  * 今日 = 粘贴导入（AI 解析草稿 → 预览确认入库）+ 当日计划卡（确认/打卡/跳过）+ 周一体重腰围；
  * 计划 = 按周分组的计划 vs 实际对照；计划落库自动联动首页「今日行动」（后端 syncPlanTodos）。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SubNav from "@/components/sub-nav";
 import Skeleton from "@/components/skeleton";
 import { Modal } from "@/components/ui/modal";
@@ -73,8 +73,12 @@ export default function FitnessPanel() {
       .catch(() => {});
   }, []);
 
+  // 取数竞态守卫（同 actions-today 的 loadSeq）：连续两次 reload（快速打卡两张卡并发）时，
+  // 先发慢回的旧包会覆盖新包，刚打卡的计划卡短暂回退成未打卡
+  const loadSeqRef = useRef(0);
   const load = useCallback(async () => {
     if (!today) return;
+    const seq = ++loadSeqRef.current;
     setLoadErr(null);
     try {
       const from = bjAddDays(today, -13);
@@ -92,6 +96,7 @@ export default function FitnessPanel() {
           ? api<{ sleep: { log_date: string; hours: number; feeling?: string | null; score?: number | null; source: string }[] }>(`/api/fitness/sleep?from=${mFrom}&to=${today}`).catch(() => ({ sleep: [] }))
           : Promise.resolve({ sleep: [] }),
       ]);
+      if (seq !== loadSeqRef.current) return; // 已有更新的取数在途/完成：丢弃本包
       setData({
         modules: mods.modules ?? [],
         goals: goals.goals ?? [],
@@ -127,7 +132,7 @@ export default function FitnessPanel() {
           <>
             {tab === "today" && <TodayTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} sleepOn={sleepOn} />}
             {tab === "plans" && <PlansTab today={today} data={data} reload={load} xunjiEnabled={xunjiEnabled} />}
-            {tab === "trends" && <FitnessTrends metrics={data.metrics} plans={data.plans} sleep={data.sleep} today={today} />}
+            {tab === "trends" && <FitnessTrends metrics={data.metrics} plans={data.plans} logs={data.logs} sleep={data.sleep} today={today} />}
             {tab === "archive" && (
               <FitnessArchive
                 modules={data.modules}
@@ -262,7 +267,7 @@ function SleepCard({
     <section className="rounded-2xl border border-line-soft bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium">😴 睡眠</h2>
-        <button className="text-xs text-accent hover:underline" onClick={() => openModal(today)}>
+        <button className="tap-lg inline-block py-1 text-xs text-accent hover:underline" onClick={() => openModal(today)}>
           {last?.log_date === today ? "改今天" : "+ 记录"}
         </button>
       </div>
@@ -340,7 +345,7 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
   const [image, setImage] = useState<{ mimeType: string; base64: string; previewUrl: string } | null>(null);
   const [picking, setPicking] = useState(false);
   const [parsing, setParsing] = useState(false);
-  const [draft, setDraft] = useState<{ moduleCode: string; content: RunPlanContent | StrengthPlanContent; rationale: string | null } | null>(null);
+  const [draft, setDraft] = useState<{ moduleCode: string; content: RunPlanContent | StrengthPlanContent; rationale: string | null; dateHint?: "today" | "tomorrow" } | null>(null);
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
 
@@ -363,7 +368,7 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
     if (parsing || (!text.trim() && !image)) return;
     setParsing(true);
     try {
-      const res = await api<{ draft: { moduleCode: string; content: RunPlanContent | StrengthPlanContent; rationale: string | null } }>(
+      const res = await api<{ draft: { moduleCode: string; content: RunPlanContent | StrengthPlanContent; rationale: string | null; dateHint?: "today" | "tomorrow" } }>(
         "/api/fitness/plans/parse",
         "POST",
         {
@@ -372,7 +377,8 @@ function ImportCard({ today, tomorrow, reload }: { today: string; tomorrow: stri
         },
       );
       setDraft(res.draft);
-      setDate(today);
+      // 话术带「明天」类日期词时预选明天（服务端确定性 dateHint），否则默认今天——用户仍可改
+      setDate(res.draft.dateHint === "tomorrow" ? tomorrow : today);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
     } finally {
@@ -657,13 +663,18 @@ function PlanCard({
 
       {log ? (
         <div className="mt-2 rounded-lg bg-emerald-500/5 p-2 text-xs text-ink-mute">
-          实际:
-          {log.actual?.distanceM ? ` ${km(log.actual.distanceM)}` : ""}
-          {log.actual?.paceSPerKm ? ` @ ${pace(log.actual.paceSPerKm)}/km` : ""}
-          {log.actual?.avgHr ? ` · 心率 ${log.actual.avgHr}` : ""}
-          {log.actual?.exercises?.length ? ` · ${log.actual.exercises.length} 个动作` : ""}
-          {log.fatigue ? ` · 疲劳 ${log.fatigue}/10` : ""}
-          {log.soreness ? ` · 酸痛:${log.soreness}` : ""}
+          {/* 分段拼装而非硬编码「·」前缀：力量打卡无距离/配速/心率时，旧版首段「· N 个动作」悬空 */}
+          实际:&nbsp;
+          {[
+            log.actual?.distanceM ? km(log.actual.distanceM) : null,
+            log.actual?.paceSPerKm ? `@ ${pace(log.actual.paceSPerKm)}/km` : null,
+            log.actual?.avgHr ? `心率 ${log.actual.avgHr}` : null,
+            log.actual?.exercises?.length ? `${log.actual.exercises.length} 个动作` : null,
+            log.fatigue ? `疲劳 ${log.fatigue}/10` : null,
+            log.soreness ? `酸痛:${log.soreness}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </div>
       ) : null}
 
@@ -671,12 +682,12 @@ function PlanCard({
         {plan.status !== "skipped" && plan.status !== "done" && plan.status !== "partial" && (
           <>
             {plan.status === "draft" && (
-              <button className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "confirmed" }, "已确认计划")}>
+              <button className="btn-primary tap-lg px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "confirmed" }, "已确认计划")}>
                 确认
               </button>
             )}
             <button
-              className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50"
+              className="btn-primary tap-lg px-3 py-1.5 text-xs disabled:opacity-50"
               disabled={busy}
               onClick={() => setChecking(true)}
             >
@@ -684,20 +695,20 @@ function PlanCard({
             </button>
             {xunjiEnabled ? (
               <>
-                <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => syncXunji()}>
+                <button className="btn-ghost tap-lg px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => syncXunji()}>
                   {xunjiSynced ? "更新训记" : "同步训记"}
                 </button>
-                <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => setPulling(true)}>
+                <button className="btn-ghost tap-lg px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => setPulling(true)}>
                   从训记同步完成
                 </button>
               </>
             ) : null}
-            <button className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "skipped" }, "已跳过（联动行动已清理）")}>
+            <button className="btn-ghost tap-lg px-3 py-1.5 text-xs disabled:opacity-50" disabled={busy} onClick={() => patch({ status: "skipped" }, "已跳过（联动行动已清理）")}>
               跳过
             </button>
           </>
         )}
-        <button className="btn-ghost px-3 py-1.5 text-xs text-danger disabled:opacity-50" disabled={busy} onClick={() => setConfirmDel(true)}>
+        <button className="btn-ghost tap-lg px-3 py-1.5 text-xs text-danger disabled:opacity-50" disabled={busy} onClick={() => setConfirmDel(true)}>
           删除
         </button>
       </div>
@@ -789,9 +800,15 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
 
   async function submit(partial: boolean) {
     if (busy) return;
-    // Number.isFinite 守卫（同 MetricCard）：疲劳/心率非法输入 Number() 得 NaN，
-    // JSON.stringify 会静默序列化成 null，打卡 200 后数据实则缺失
-    for (const [v, label] of [[fatigue, "疲劳度"], [avgHr, "均心率"]] as const) {
+    // Number.isFinite 守卫（同 MetricCard）：疲劳/心率/距离/时长非法输入 Number() 得 NaN，
+    // JSON.stringify 会静默序列化成 null——疲劳/心率成 null、距离时长走 `|| 0` 通道静默归零，
+    // 打卡 200 后 toast 成功实则实绩缺失（十一轮修复：距离/时长并入守卫）
+    for (const [v, label] of [
+      [fatigue, "疲劳度"],
+      [avgHr, "均心率"],
+      [isRun ? distanceKm : "", "距离"],
+      [isRun ? durationMin : "", "时长"],
+    ] as const) {
       if (v && !Number.isFinite(Number(v))) {
         toast(`${label}格式不正确`, "err");
         return;
@@ -1020,7 +1037,7 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
     <section className="rounded-2xl border border-line-soft bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium">⚖️ 身体指标</h2>
-        <button className="text-xs text-accent hover:underline" onClick={() => setOpen(true)}>
+        <button className="tap-lg inline-block py-1 text-xs text-accent hover:underline" onClick={() => setOpen(true)}>
           {last ? "记一笔" : "+ 录入"}
         </button>
       </div>

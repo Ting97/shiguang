@@ -10,6 +10,7 @@ import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
 import ModulePrefsSection from "@/components/module-prefs-section";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
+import { clearCachedApiData } from "@/lib/sw-cache";
 
 const zhDate = (iso: string | null) => {
   if (!iso) return "—";
@@ -229,8 +230,9 @@ export default function ProfilePage() {
                   // 两步确认（全站规范）：首点进入待确认态，3 秒内再点执行
                   if (!armLogout.arm("logout-all")) return;
                   await api("/api/auth/logout-all", "POST").catch(() => {});
-                  // 全端登出吊销所有会话：本机 token 同步清除（与 session.logout 同口径）
+                  // 全端登出吊销所有会话：本机 token 同步清除 + SW 个人数据缓存一并清（与 session.logout 同口径）
                   await setSessionToken(null).catch(() => {});
+                  clearCachedApiData();
                   window.location.href = "/login";
                 }}
                 className={`w-full rounded-xl border py-2.5 text-sm font-medium transition ${armLogout.armedId ? "border-rose-500 bg-rose-500/20 text-danger" : "border-rose-500/40 bg-rose-500/10 text-danger hover:bg-rose-500/20"}`}

@@ -45,12 +45,11 @@ for (const [label, p] of [
 }
 
 console.log("[deploy] 服务器侧备份快照（pg_dump + 当前版本，保留 7 份）…");
+// 两段式（.part → mv，与 scripts/ops/backup.sh 同纪律）：pg_dump 直写终名时中途失败（磁盘满/
+// 连接断）会留下半截 dump 以最新 mtime 占位——回滚指引「用最新 dump」会指到坏档，且下次按
+// mtime 轮转会拿坏档挤掉好档。轮转挪到 dump 成功之后（tail -n +8：现留 7 份）
 sh(
-  `ssh tencent "mkdir -p /opt/shiguangri_backups && ls -1t /opt/shiguangri_backups/db-*.dump 2>/dev/null | tail -n +8 | xargs -r rm --"`,
-  { quiet: true },
-);
-sh(
-  `ssh tencent "sudo -u postgres pg_dump -Fc shiguangri > /opt/shiguangri_backups/db-$(date +%Y%m%d-%H%M%S).dump"`,
+  `ssh tencent "mkdir -p /opt/shiguangri_backups && f=/opt/shiguangri_backups/db-$(date +%Y%m%d-%H%M%S).dump && sudo -u postgres pg_dump -Fc shiguangri > \\"\\$f.part\\" && mv \\"\\$f.part\\" \\"\\$f\\" && ls -1t /opt/shiguangri_backups/db-*.dump | tail -n +8 | xargs -r rm --"`,
   { quiet: true },
 );
 

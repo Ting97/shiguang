@@ -12,13 +12,17 @@ export default function RowMenuModal(opts: {
   actions: TodoActions;
 }) {
   const { menuRow, pos, actions } = opts;
-  const { busyId, setMenuRow, openNote, decompose, removeTodo, startEdit, setPickerRow, pendingCount, addAction, patchTodo } = actions;
+  const { busyId, setMenuRow, menuClosedRef, openNote, decompose, removeTodo, startEdit, setPickerRow, pendingCount, addAction, patchTodo } = actions;
   const row = menuRow.todo;
   return (
     <TodoRowMenu
       info={{ todo: row, isChild: menuRow.isChild, parentTitle: (row as { parent_title?: string | null }).parent_title ?? null }}
       menuPos={pos}
-      onClose={() => setMenuRow(null)}
+      onClose={() => {
+        // 记录关闭时刻与行 id：同一行 300ms 内的 click（同一次点击的 pointerdown 已关）不再重开
+        menuClosedRef.current = { at: Date.now(), todoId: row.id };
+        setMenuRow(null);
+      }}
       actions={{
         decomposingId: busyId,
         patch: (id, body, okText) => patchTodo(id, body, okText ?? "已保存"),

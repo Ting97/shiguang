@@ -280,15 +280,18 @@ test("HTTP admin/prompts：非管理员 403 语义不变（withAdminParams 行�
   }
 });
 
-test("HTTP admin/grants：granted_by 记录操作管理员（审计可追溯）", async (t) => {
+test("HTTP admin/grants：覆盖写入记录操作管理员（审计可追溯）", async (t) => {
   if (!tokA) return t.skip("HTTP 段未就绪");
   const grant = await call("POST", "/api/admin/grants", { user: TCA, body: { userId: TCB, module: "debt" } });
   assert.equal(grant.status, 200, `授权应成功：${JSON.stringify(grant.json)}`);
+  // REQ-028 三态化后写 user_module_controls（旧 user_module_grants 停写）：
+  // 无维度入参 = 兼容旧「授权」语义（force_state=on），审计列 updated_by 记操作管理员
   const { rows } = await pool.query(
-    `select granted_by from user_module_grants where user_id = $1 and module = 'debt'`,
+    `select updated_by, force_state from user_module_controls where user_id = $1 and module = 'debt'`,
     [TCB],
   );
-  assert.equal(rows[0]?.granted_by ?? null, TCA, "granted_by 应为操作管理员 id");
+  assert.equal(rows[0]?.updated_by ?? null, TCA, "updated_by 应为操作管理员 id");
+  assert.equal(rows[0]?.force_state, "on", "兼容旧语义：无维度入参应强制开");
   await call("DELETE", `/api/admin/grants?userId=${TCB}&module=debt`, { user: TCA });
 });
 

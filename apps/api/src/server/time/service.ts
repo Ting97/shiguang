@@ -95,6 +95,9 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
       await blocksRepo.insert(userId, body.activityId, body.title.trim(), startAt, endAt, client)
     ).rows[0];
     await client.query("commit");
+    // 补录历史时刻的块不抬 buildLatest 水位（只认 max(start_at)），当期缓存被误判「仍新鲜」
+    // → 复盘长期缺这块——按块起始日显式失效四档缓存（十一轮 P2，与 deleteBlock 同口径）
+    void invalidateReviewCachesForOccurrence(userId, new Date(startAt));
     return { block };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -153,6 +156,10 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
     }
     updated = (await blocksRepo.updateFields(id, userId, fields, client)).rows[0];
     await client.query("commit");
+    // 跨日改期会让旧日多计/新日漏计（水位只认 max(start_at) 且行还在不触发显式失效）——
+    // 旧、新 start_at 各失效一次（十一轮 P2，与 deleteBlock 同口径）
+    void invalidateReviewCachesForOccurrence(userId, new Date(cur.start_at as string));
+    void invalidateReviewCachesForOccurrence(userId, new Date(newStart as string));
   } catch (e) {
     await client.query("rollback").catch(() => {});
     const msg = String(e);

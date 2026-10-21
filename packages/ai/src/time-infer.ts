@@ -57,9 +57,16 @@ export function detectFuture(text: string): FutureHint | null {
   // 「明儿」对齐「明天」既有处理（+1 天 + 钟点/时段锚）：旧版混入 soon 桶 → now+1h
   if (/明天|明早|明晚|明儿/.test(text)) return "tomorrow";
   if (/下周|下礼拜|下星期/.test(text)) return "nextWeek";
-  // 月底/下个月等未来词（"月底交房租""下个月还贷"旧版全落过去分支，锚定成当天）；
-  // inferFuture 对它们给月历确定性锚，不再吃 soon 桶的 now+1h 兜底（对月级事项偏 30 天、提醒立即误报）
-  if (/月底|月末|下个月|下个月份/.test(text)) return "soon";
+  // 月底/月初/下(个)月/相对偏移（"3天后交报告""两周后复盘""下月15号交房租"）等未来词
+  // （旧版词表缺口：这些话术 detectFuture=null → AI 算对的未来 due 被 anchorMomentToToday
+  //  按「无日期词 → 按当天」整平移到今天，待办当天到期/立即误报——十轮「下周三」同根收尾；
+  //  十一轮补裸「下月」（下个?月份? 全形态，与 monthDayBase 的 dayNumM 同口径，缺「个」不漏）。
+  //  月初/月底用负向后顾排除过去前缀——「上个月初随了600份子」「本月初还了贷」是过去补记，
+  //  裸子串匹配会把它们翻成未来待办、锚到下月 1 号（方向全反）。前缀集不同：
+  //  月初排除 上/本/这/每（月首说话时必已过去）；月底仅排除 上/每（「这个月底交房租」
+  //  在月末前说仍是未来，本月底=当前月末由 monthDayBase 月历锚承接））
+  if (/(?<![上本这每]个?)月初|(?<![上每]个?)月(?:底|末)|下个?月份?/.test(text)) return "soon";
+  if (relativeOffsetDays(text) != null) return "soon";
   if (/待会|等会|等一下|晚点|稍后/.test(text)) return "soon";
   // "一会儿"仅在未来语境算（"过一会儿再去"）；"刚做了一会儿拉伸"是过去
   if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
@@ -144,6 +151,24 @@ export function parseClockRange(
 
 const WEEKDAYS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
 
+/** N天后/N周(礼拜/星期)后/N个月后 → 未来偏移天数（月按 30 天近似）；解析不出 null。
+ *  「3天后交报告」类相对偏移：AI 路径用于锚定豁免，规则兜底路径用于确定性未来锚。
+ *  约数并列（两三天/三四天/七八天）：cnToNumber 按复合进位误读成 23/34/78——两位均为
+ *  独立数码（无十/百骨架）时按约数处理取末位（区间上界保守估计）。「半个月后」≈15 天。 */
+export function relativeOffsetDays(text: string): number | null {
+  if (/半个月后/.test(text)) return 15;
+  const m = text.match(/([一两俩二三四五六七八九十百\d]+)\s*(个?月|年|(?:礼拜|星期|周)|天)\s*后/);
+  if (!m) return null;
+  // 约数并列判定先于 cnToNumber：「两三」是「两三天」而非 23 天
+  const approx = m[1].match(/^([一两俩二三四五六七八九])([一两俩二三四五六七八九])$/);
+  const n = approx ? cnToNumber(approx[2]) : cnToNumber(m[1]);
+  if (n === null || n <= 0) return null;
+  if (m[2] === "天") return n <= 365 ? n : null;
+  if (m[2] === "周" || m[2] === "礼拜" || m[2] === "星期") return n <= 52 ? n * 7 : null;
+  if (m[2] === "年") return n <= 1 ? n * 365 : null; // 一年后；多年后离打卡语境过远不锚
+  return n <= 12 ? n * 30 : null;
+}
+
 const MAX_SPAN_MS = 366 * 24 * 3600_000;
 
 /** 校验 AI 直推的时刻（北京时间本地串）：非法/距当前超 366 天 → null */
@@ -185,9 +210,12 @@ function atHour(base: Date, hour: number, minute = 0): Date {
 
 /** 话术是否显式提到某个日期（今天/昨天/明天/周X/上周/下周/2026-09-20/9月20日/裸「3号」「15日」…）。
  * 裸 N号/N日 与 parse.ts occurredDate 同款 lookbehind——「3号」是显式日期，
- * 缺此分支会让模型给对的区间被 anchorRangeToToday 整天平移到今天 */
+ * 缺此分支会让模型给对的区间被 anchorRangeToToday 整天平移到今天；
+ * 上/本/下月 N号、N天/周/月/年后、半个月后、月初同义（十一轮词表收口：hasExplicitDayRef
+ * 只表「话术带了日期信息」，宁全勿缺——漏了就会被锚定拉回今天；数字类与 parseDuration
+ * 同口径含 俩/百，单位含 年，另收「半个月后」） */
 const EXPLICIT_DAY_RE =
-  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日])/;
+  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?:上|本|下)个?月\s*[一两俩二三四五六七八九十\d]{1,3}\s*[号日]|[零一两俩二三四五六七八九十百\d]+\s*(?:天|周|礼拜|星期|个?月|年)\s*后|半个月后|月初|月底|月末|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日])/;
 
 export function hasExplicitDayRef(text: string): boolean {
   return EXPLICIT_DAY_RE.test(text);
@@ -202,17 +230,37 @@ function cstHour(d: Date): number {
 }
 
 /**
- * 月底/月末/下个月(份) 话术 → 确定性月历日锚（该北京日 00:00 的 Date，供 atHour 落钟点；无月历词 → null）。
- * 「下个月底」两词同现 → 下个月的最后一天。旧版这些词落 soon 桶 now+1h：
- * 「下个月还贷」「月底交房租」提前 30 天生成到期待办，提醒立即误报。
+ * 月历话术 → 确定性月历日锚（该北京日 00:00 的 Date，供 atHour 落钟点；无月历词 → null）。
+ * 支持：月底/月末（末日）、下个月(份)（1 号）、月初（下一个 1 号，今天恰为 1 号则今天）、
+ * 下(个)月 N 号（显式日，1~28）。旧版缺「下月15号」显式日与「月初」：
+ * 「下个月15号交房租」锚成 1 号偏 14 天、「月初还贷」落 now+1h（十一轮 P2 同批收口）。
  * 北京口径全用 UTC getter/setter 推算（禁本地 getter）——月序合成跨年自然进位。
  */
 function monthDayBase(text: string, now: Date): Date | null {
   const monthEnd = /月底|月末/.test(text);
-  const nextMonth = /下个月份?|下月份/.test(text);
-  if (!monthEnd && !nextMonth) return null;
+  const monthStart = /月初/.test(text);
+  const nextMonth = /下个月份?|下月份?/.test(text);
+  // 显式日直接取首个正则的捕获组：旧版二次全文匹配会取到全文第一个「N号」
+  // （「10号发的工资，下个月15号交房租」锚成 11-10），十一轮修正
+  const dayNumM = text.match(/下个?月份?[^号日\d]{0,2}([一两俩二三四五六七八九十\d]{1,3})\s*[号日]/);
+  if (!monthEnd && !monthStart && !nextMonth && !dayNumM) return null;
   const CST_MS = 8 * 3600_000;
   const bj = new Date(now.getTime() + CST_MS);
+  const monthSeqOf = (m0: number) => new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12, 1) - CST_MS);
+  // 下(个)月 N 号：显式日优先于 月初/月底 词。29~31 用日历回读校验（11 月有 30 号、
+  // 2 月无 30 号）——真实存在则用之，不存在则放弃显式日（return null 让路钟点/now+1h），
+  // 不再静默落回 day=1 兜底（旧版「下个月30号还房贷」被锚成下月 1 号，偏 29 天）
+  const dayNum = dayNumM ? cnToNumber(dayNumM[1]) : null;
+  if (nextMonth && dayNum != null && dayNum >= 1 && dayNum <= 31) {
+    const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() + 1; // 次月序
+    const cand = new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12, dayNum) - CST_MS);
+    if (cand.getUTCDate() === dayNum) return cand;
+    return null;
+  }  // 月初（无下个月词）= 下一个 1 号；今天恰为 1 号则今天
+  if (monthStart && !nextMonth && dayNum == null) {
+    const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() + (bj.getUTCDate() === 1 ? 0 : 1);
+    return monthSeqOf(m0);
+  }
   const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() + (nextMonth ? 1 : 0); // 目标月序（0-based）
   const y = Math.floor(m0 / 12);
   const mo = m0 % 12;
@@ -251,10 +299,15 @@ function inferFuture(
 
   let start: Date;
   if (future === "soon") {
-    // 月底/下个月：月历确定性锚（默认 20:00 回顾锚；话术带显式钟点/时段则让位，与下周X分支同口径）
+    // 月底/下个月/下月N号/月初：月历确定性锚（默认 20:00 回顾锚；话术带显式钟点/时段则让位，与下周X分支同口径）
     const monthBase = monthDayBase(text, now);
+    // N天后/N周后/N个月后：相对偏移确定性锚（旧版落 now+1h，「3天后交报告」提醒立即误报）
+    const offsetDays = monthBase ? null : relativeOffsetDays(text);
     if (monthBase) {
       start = atHour(monthBase, clock ? clock.hour : period ? PERIOD_ANCHORS[period] : 20, clock?.minute ?? 0);
+    } else if (offsetDays != null) {
+      const base = new Date(now.getTime() + offsetDays * 24 * 3600_000);
+      start = atHour(base, clock ? clock.hour : period ? PERIOD_ANCHORS[period] : 9, clock?.minute ?? 0);
     } else if (clock) {
       // 待会儿/计划：有钟点且在今天未来 → 用之；否则 now + 1h
       start = atHour(now, clock.hour, clock.minute);

@@ -1054,16 +1054,28 @@ const MetricInput = z.object({
   note: z.string().max(100).nullable().optional(),
 });
 
-/** POST /api/fitness/metrics —— 按日 upsert（周一晨起空腹口径，人体可读单位入参 → 整数口径入库） */
+/** POST /api/fitness/metrics —— 按日 upsert（周一晨起空腹口径，人体可读单位入参 → 整数口径入库）。
+ *  留空字段继承旧值：同日重录不抹掉已录字段；新日期留空继承最近一条非空（身高体脂可只在变化时记录）。
+ *  UI 承诺「留空的项保持原值不被清除」——此前 null 直落新行，「最近」卡片身高/体脂凭空消失
+ *  （十一轮 GUI 深度体验发现修复） */
 async function saveMetric(userId: string, body: unknown) {
   const v = parseBody(MetricInput, body);
+  const prevR = await fitnessRepo.latestMetricAtOrBefore(userId, v.measuredOn);
+  const prev = (prevR.rows[0] ?? {}) as {
+    weight_g: number | null;
+    waist_mm: number | null;
+    body_fat_pct_x10: number | null;
+    height_mm: number | null;
+    resting_hr: number | null;
+  };
+  const keep = (now: number | null | undefined, old: number | null) => (now != null ? now : (old ?? null));
   const { rows } = await fitnessRepo.upsertMetric(userId, {
     measuredOn: v.measuredOn,
-    weightG: v.weightKg != null ? Math.round(v.weightKg * 1000) : null,
-    waistMm: v.waistCm != null ? Math.round(v.waistCm * 10) : null,
-    bodyFatPctX10: v.bodyFatPct != null ? Math.round(v.bodyFatPct * 10) : null,
-    heightMm: v.heightCm != null ? Math.round(v.heightCm * 10) : null,
-    restingHr: v.restingHr ?? null,
+    weightG: keep(v.weightKg != null ? Math.round(v.weightKg * 1000) : null, prev.weight_g),
+    waistMm: keep(v.waistCm != null ? Math.round(v.waistCm * 10) : null, prev.waist_mm),
+    bodyFatPctX10: keep(v.bodyFatPct != null ? Math.round(v.bodyFatPct * 10) : null, prev.body_fat_pct_x10),
+    heightMm: keep(v.heightCm != null ? Math.round(v.heightCm * 10) : null, prev.height_mm),
+    restingHr: keep(v.restingHr ?? null, prev.resting_hr),
     note: v.note ?? null,
   });
   return { metric: rows[0] };
@@ -1176,6 +1188,10 @@ async function parsePlanDraft(userId: string, text: string, image?: ChatImage, o
     }
     const canonical = draftToCanonicalPlan(parsed.data);
     const content = await attachExerciseIds(userId, canonical.moduleCode, canonical.content, opts);
+    // 日期预选提示（确定性，非模型输出）：课表写「明天/明早/明晚/明儿」时 UI 预选明天——
+    // 否则解析弹窗默认「今天」，用户话术里的日期被静默忽略，计划落错天（十一轮 GUI 深度体验发现）。
+    // 仅对文本判定：附图时 text 可能只是补充说明，不可靠
+    const dateHint = !image && /明天|明儿|明早|明晚/.test(t) ? ("tomorrow" as const) : ("today" as const);
     await writeAuditRecord({
       userId,
       stage: "fitness_parse",
@@ -1192,6 +1208,7 @@ async function parsePlanDraft(userId: string, text: string, image?: ChatImage, o
         source: "import" as const,
         content,
         rationale: parsed.data.reasoning ?? null,
+        dateHint,
       },
     };
   } catch (e) {

@@ -117,6 +117,10 @@ export async function confirmPending(
     // 用户确认 = 在动态上落定数据：打点 analyzed_at（幂等），巡检不再补跑识别清掉本条
     await entriesRepo.stampAnalyzedAt(client, entryId);
 
+    // 事件发生日收集：提交后据此失效对应周期的四档复盘缓存（buildLatest 水位多按事件时间列，
+    // 滞后确认历史时刻不抬水位，缓存被误判「仍新鲜」→ 历史复盘长期陈旧；十一轮 P2 修复）
+    const invalidateAts: Date[] = [new Date(entry.created_at)];
+
     switch (domain) {
       case "mood": {
         if (result.label) {
@@ -149,6 +153,7 @@ export async function confirmPending(
              values ($1,$2,$3,$4,$5,$6,'default','keyboard')`,
             [userId, entryId, result.activityId, result.title, result.startAt, result.endAt],
           );
+          invalidateAts.push(new Date(result.startAt));
         }
         break;
       }
@@ -170,6 +175,7 @@ export async function confirmPending(
              values ($1,$2,$3,$4,$5,'keyboard',(select space_id from entries where id = $2))`,
             [userId, entryId, result.title, result.dueAt, new Date(new Date(result.dueAt).getTime() - 15 * 60_000).toISOString()],
           );
+          invalidateAts.push(new Date(result.dueAt));
         }
         break;
       }
@@ -199,6 +205,7 @@ export async function confirmPending(
               occurredAt,
             ],
           );
+          invalidateAts.push(new Date(occurredAt));
         }
         break;
       }
@@ -217,6 +224,8 @@ export async function confirmPending(
 
     // applyRecognition 已在事务内前置完成（状态守卫 + 防重复落库），此处直接提交
     await client.query("commit");
+    // 滞后确认的产物按事件发生日失效复盘缓存（函数内部吞错降级，不阻塞确认）
+    for (const at of invalidateAts) void invalidateReviewCachesForOccurrence(userId, at);
     return { ok: true as const, domain };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -397,6 +406,8 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
     // 后台全域重识别（同发动态：秒回 + fire-and-forget）；成功自打 analyzed_at，失败留巡检
     void analyzeAndPersist(userId, entryId, text)
       .catch((e) => console.error(`[analyze] entry ${entryId} 编辑重识别失败（巡检将补跑）:`, e));
+    // 编辑清派生（历史块/饮食/流水被删）会让对应周期水位盲区陈旧——按动态创建日失效（十一轮 P2）
+    void invalidateReviewCachesForOccurrence(userId, new Date(updated.created_at));
     return { ok: true as const, entry: updated };
   }
 
@@ -404,6 +415,10 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
   const score = label ? (ruleMood(label)?.score ?? 0) : null;
   const updated = (await entriesRepo.setMoodByEntry(entryId, userId, label, score)).rows[0];
   if (!updated) throw ApiError.notFound("动态不存在");
+  // 手设/清除心情改写复盘直接消费的数据（moods 聚合 + 明细行），而 created_at 不变、
+  // 心情不在任何水位列——不显式失效则历史 entry 改心情后该周期复盘持续陈旧（十一轮 P2，
+  // 与 raw_text 编辑分支同口径；函数内部吞错降级，不阻塞心情保存）
+  void invalidateReviewCachesForOccurrence(userId, new Date(updated.created_at));
   return { entry: updated };
 }
 
@@ -442,6 +457,9 @@ export async function appendManual(
     await entriesRepo.stampAnalyzedAt(client, entryId);
     let message = "";
     let result: unknown = {};
+    // 事件发生日收集：提交后据此失效对应周期的四档复盘缓存（滞后补录历史时刻不抬 buildLatest
+    // 水位，缓存被误判「仍新鲜」；十一轮 P2 修复，与 confirmPending 同口径）
+    const invalidateAts: Date[] = [new Date(entry.created_at)];
 
     switch (domain) {
       case "schedule": {
@@ -489,6 +507,7 @@ export async function appendManual(
         );
         result = { title, start, end };
         message = `🕒 已手动添加日程「${title}」`;
+        invalidateAts.push(new Date(start));
         break;
       }
       case "todo": {
@@ -510,6 +529,7 @@ export async function appendManual(
         );
         result = { title, dueAt };
         message = `📋 已手动添加 todo「${title}」`;
+        if (dueAt) invalidateAts.push(new Date(dueAt));
         break;
       }
       case "finance": {
@@ -536,7 +556,10 @@ export async function appendManual(
             userId, entryId, direction, cents,
             category,
             counterparty,
-            entry.raw_text, new Date().toISOString(),
+            entry.raw_text,
+            // 发生日取动态创建日北京钟点（与 confirmPending finance 分支同口径）：
+            // 恒 now() 会把十天前动态上补录的流水记到今天，日账/月视图错天
+            new Date(entry.created_at).toISOString(),
           ],
         );
         result = { direction, yuan: cents / 100 };
@@ -620,6 +643,8 @@ export async function appendManual(
     );
 
     await client.query("commit");
+    // 手动补录按事件发生日失效复盘缓存（函数内部吞错降级，不阻塞补录）
+    for (const at of invalidateAts) void invalidateReviewCachesForOccurrence(userId, at);
     return { ok: true as const, message };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -927,6 +952,12 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
 
     await client.query("commit");
     void writeAuditRecord({ ...auditBase, latencyMs: Date.now() - t0, ok: true });
+    // 重识别删旧插新后按事件发生日失效复盘缓存（旧块/旧流水被删会让对应历史周期水位盲区陈旧；十一轮 P2 同批）
+    void invalidateReviewCachesForOccurrence(userId, new Date(entry.created_at));
+    void invalidateReviewCachesForOccurrence(
+      userId,
+      domain === "schedule" ? new Date(r.time.start) : new Date(r.time.end),
+    );
     return { ok: true as const, applied, domain, message: `${domain === "people" ? "关系" : DOMAIN_LABELS[domain as Domain]}：${message}` };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -1050,6 +1081,11 @@ export async function deleteEntryDiet(userId: string, entryId: string) {
     }
     await client.query("commit");
     if (!rowCount) throw ApiError.notFound("没有饮食记录");
+    // kcal 事实行删除不在任何水位列里（diet_records 无时间列）——按动态创建日失效复盘缓存（十一轮 P2）
+    void invalidateReviewCachesForOccurrence(
+      userId,
+      new Date((await pool.query(`select created_at from entries where id = $1 and user_id = $2`, [entryId, userId])).rows[0]?.created_at),
+    );
     return { ok: true as const };
   } catch (e) {
     await client.query("rollback").catch(() => {});

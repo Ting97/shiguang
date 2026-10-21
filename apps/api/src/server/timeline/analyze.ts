@@ -20,6 +20,7 @@ import { writeAuditRecord } from "@/server/ai/audit";
 import { jevShadowCompare } from "@/server/ai/jev-shadow";
 import { getJevMode } from "@/server/ai/ai-mode";
 import { loadConfig } from "@/server/platform/config";
+import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import { entriesRepo } from "./repo";
 
 /** 空间自动归属置信阈值（低于不写入） */
@@ -463,6 +464,13 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     void classifySpace(userId, entryId, rawText).catch(() => {});
     // Jev 影子对照（3-C：JEV_MODE=shadow 时与 GLM 结果逐闭集字段比对，仅审计，零用户影响）
     void jevShadowCompare(userId, entryId, rawText, r);
+    // 识别落库后按事件发生日失效复盘缓存（与 reRecognize 同口径）：这是流量最大的落库路径，
+    // 建块/流水的 start/occurred 只认各自时间列，补记历史时刻不抬 buildLatest 水位（time_blocks
+    // 无 updated_at 兜底、diet_records 无水位列）——不失效则先生成的周/月报「仍新鲜」而永久缺数
+    // （十一轮 P2：confirmPending/appendManual/reRecognize 均已补，唯独本主路径漏）
+    void invalidateReviewCachesForOccurrence(userId, new Date(current[0].created_at));
+    void invalidateReviewCachesForOccurrence(userId, new Date(r.time.start));
+    void invalidateReviewCachesForOccurrence(userId, new Date(r.time.end));
     return {
       conflictTitle,
       pendingDomains,

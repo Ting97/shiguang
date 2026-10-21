@@ -57,6 +57,11 @@ export async function sendSmsCode(phone: string, purpose: "login" | "bind"): Pro
       )
     ).rows[0].id;
     await client.query("commit");
+  } catch (e) {
+    // 事务内失败必须回滚再释放：node-pg 的 release 不自动回滚，带未决事务的连接回池后，
+    // 后续借用者的语句会在陈旧事务里执行（全站其余事务均有此守卫，此处漏配——十一轮补齐）
+    await client.query("rollback").catch(() => {});
+    throw e;
   } finally {
     client.release();
   }

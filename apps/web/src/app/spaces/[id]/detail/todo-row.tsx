@@ -24,7 +24,7 @@ export default function TodoRowItem(opts: {
     editingId, busyId, patchTodo, decompose, startEdit, pendingCount,
     noteOpen, setNoteOpen, openNote,
     actionDrafts, setActionDrafts, addAction,
-    setMenuRow, setMenuPos,
+    setMenuRow, setMenuPos, menuClosedRef,
   } = actions;
   const done = t.status === "done";
   const open = expanded.has(t.id);
@@ -67,6 +67,9 @@ export default function TodoRowItem(opts: {
             </button>
             <button
               onClick={(e) => {
+                // 「⋯」再点关闭仲裁：菜单开着再点同行「⋯」，pointerdown 已关，300ms 内 click 不重开
+                const closed = menuClosedRef.current;
+                if (closed && closed.todoId === t.id && Date.now() - closed.at < 300) return;
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) });
                 setMenuRow({ todo: t, isChild: false });
@@ -106,6 +109,9 @@ export default function TodoRowItem(opts: {
                     )}
                     <button
                       onClick={(e) => {
+                        // 同顶层「⋯」：300ms 内刚被关闭的行视为关闭操作，不重开
+                        const closed = menuClosedRef.current;
+                        if (closed && closed.todoId === c.id && Date.now() - closed.at < 300) return;
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                         setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
                         setMenuRow({ todo: c, isChild: true });

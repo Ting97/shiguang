@@ -171,6 +171,18 @@ export const fitnessRepo = {
       [userId, from, to],
     );
   },
+  /** 同日行优先、否则最近一条早于 measuredOn 的指标行：saveMetric 留空字段继承旧值用
+   *  （UI 承诺「留空的项保持原值不被清除」；身高体脂可只在变化时记录） */
+  latestMetricAtOrBefore(userId: string, measuredOn: string) {
+    return pool.query(
+      `select weight_g, waist_mm, body_fat_pct_x10, height_mm, resting_hr, note
+       from fitness_body_metrics
+       where user_id = $1 and measured_on <= $2
+       order by (measured_on = $2) desc, measured_on desc
+       limit 1`,
+      [userId, measuredOn],
+    );
+  },
   upsertMetric(
     userId: string,
     d: { measuredOn: string; weightG: number | null; waistMm: number | null; bodyFatPctX10: number | null; heightMm: number | null; restingHr: number | null; note: string | null },

@@ -115,6 +115,19 @@ export function withAdminParams(
   });
 }
 
+/** 管理员门禁 + zod body 校验（withAdmin 与 withAuthSchema 的组合）。
+ *  /api/admin/** 的写方法必须用本组合子而非 withAuthSchema——十一轮检视中 modules PATCH
+ *  与 grants POST 因漏配 withAdmin 被任意登录用户越权（P1），组合子从形状上杜绝该类回归。 */
+export function withAdminSchema<S extends z.ZodTypeAny>(
+  schema: S,
+  handler: Handler<AuthedCtx & { valid: z.infer<S> }>,
+): (req: NextRequest, arg: { params: Promise<any> }) => Promise<Response> {
+  return withAdmin(async (req, ctx) => {
+    const raw = await readJsonCapped(req);
+    return handler(req, { ...ctx, valid: parseWith(schema, raw) });
+  });
+}
+
 /** 带动态路由参数的模块门禁：arg = { params }。语义与 withModule 一致（未登录 401 / 未开通 403） */
 export function withModuleParams(
   module: ModuleKey,

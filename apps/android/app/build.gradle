@@ -15,6 +15,9 @@ android {
         // versionCode 保持 2：本壳独立发版节奏，不跟 Expo 端（app.json versionCode=5）对齐
         versionCode = 2
         versionName = "1.1.3"
+        // MainActivity 的 checkSelfPermission/requestPermissions 为 API 23+：不声明 minSdk 时
+        // AGP 缺省可装到 API 21，页面请求麦克风即 NoSuchMethodError（receiver 注册处已有 33 卫）
+        minSdk = 23
     }
 
     buildTypes {
