@@ -35,7 +35,9 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
   async function saveEdit(mid: string) {
     const t = editTitle.trim();
     if (!t || busy) return;
-    await patch(mid, { title: t, targetDate: editDate || null });
+    // 失败保持编辑态（输入不丢）：patch 内部 catch 后正常返回，需靠返回值判定——
+    // 旧版无条件 setEditingId(null)，网络/400 失败时已输入内容静默丢失（十一轮修）
+    if ((await patch(mid, { title: t, targetDate: editDate || null })) === false) return;
     setEditingId(null);
   }
 
@@ -79,17 +81,20 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
     }
   }
 
-  async function patch(mid: string, body: Record<string, unknown>) {
-    if (busy) return;
+  /** PATCH 里程碑：成功 true / 失败 false（saveEdit 据此保持编辑态，输入不丢） */
+  async function patch(mid: string, body: Record<string, unknown>): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     try {
       await api(`/api/spaces/${id}/milestones/${mid}`, "PATCH", body);
       const r = await api<{ milestones: SpaceMilestone[] }>(`/api/spaces/${id}/milestones`);
       setItems(r.milestones);
       syncCounts(r.milestones);
+      return true;
     } catch (e) {
       // 标记达成/放弃/编辑失败必须有反馈（网络/400 时保留原列表但要让用户知道没保存）
       toast(e instanceof ApiClientError ? e.message : "操作失败，请重试", "err");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -319,10 +324,11 @@ export default function SpaceHeaderCard(opts: {
   onSaveTargetDate: (v: string | null) => Promise<boolean>;
   setSpace: Dispatch<SetStateAction<Space | null>>;
   setMsg: Dispatch<SetStateAction<Msg>>;
-  setSpaceMenu: Dispatch<SetStateAction<boolean>>;
-  setSpaceMenuPos: Dispatch<SetStateAction<Pos | null>>;
+  /** 打开 ⋯ 菜单（detail.tsx 携带「再点关闭」仲裁：菜单开着再点 ⋯，pointerdown 先关、
+   *  click 不再重开——直接传 setSpaceMenu 会关不上，十一轮补齐同 todo-board） */
+  openSpaceMenu: (pos: Pos) => void;
 }) {
-  const { id, space, onSaveTargetDate, setSpace, setMsg, setSpaceMenu, setSpaceMenuPos } = opts;
+  const { id, space, onSaveTargetDate, setSpace, setMsg, openSpaceMenu } = opts;
   // 目标到期时间就地编辑（头部 ⏳ 日期可点击调整/清除）
   const [dateEdit, setDateEdit] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
@@ -421,8 +427,7 @@ export default function SpaceHeaderCard(opts: {
             <button
               onClick={(e) => {
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                setSpaceMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
-                setSpaceMenu(true);
+                openSpaceMenu({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
               }}
               title="更多操作"
               className="rounded px-2 py-1 leading-none text-ink-dim transition hover:bg-soft hover:text-ink"

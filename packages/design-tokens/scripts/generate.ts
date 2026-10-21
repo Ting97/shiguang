@@ -136,7 +136,10 @@ function applyTarget(file: string, next: string) {
   } catch {
     old = null; // 首次生成：文件尚不存在
   }
-  if (old === next) {
+  // 行尾归一后比对（与迁移 runner checksum 同款教训）：core.autocrlf=true 的 Windows 检出
+  // 工作树是 CRLF、生成串是 LF——字节级比对永久假漂移，本地守门失效后真漂移反而被忽视
+  const same = old !== null && old.replace(/\r\n/g, "\n") === next.replace(/\r\n/g, "\n");
+  if (same) {
     results.push({ file, status: "unchanged" });
     return;
   }

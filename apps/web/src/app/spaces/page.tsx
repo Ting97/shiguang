@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { createPortal } from "react-dom";
 import { Archive, Ellipsis, Flag, Hourglass, Pencil, Target, Trash2 } from "lucide-react";
@@ -50,6 +50,9 @@ export default function SpacesPage() {
   // 卡片 ⋯ 菜单（编辑/归档/删除收纳；桌面锚定浮层 / 移动端底部弹层）
   const [cardMenu, setCardMenu] = useState<Space | null>(null);
   const [cardMenuPos, setCardMenuPos] = useState<{ top: number; left: number } | null>(null);
+  // 「⋯」再点关闭仲裁（同 todo-board menuClosedRef）：菜单开着再点同卡「⋯」，pointerdown 先被
+  // Dismissable 关闭，随后的 click 会重新打开——菜单永远关不上（十一轮补齐三处同型入口）
+  const cardMenuClosedRef = useRef<{ at: number; spaceId: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -271,6 +274,8 @@ export default function SpacesPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        const closed = cardMenuClosedRef.current;
+                        if (closed && closed.spaceId === s.id && Date.now() - closed.at < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                         setCardMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
                         setCardMenu(s);
@@ -453,7 +458,10 @@ export default function SpacesPage() {
         {cardMenu &&
           createPortal(
             <Dismissable
-              onClose={() => setCardMenu(null)}
+              onClose={() => {
+                cardMenuClosedRef.current = { at: Date.now(), spaceId: cardMenu.id };
+                setCardMenu(null);
+              }}
               className="fixed inset-x-0 bottom-0 z-[var(--z-max)] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
               style={cardMenuPos ? { top: cardMenuPos.top, left: cardMenuPos.left } : undefined}
             >

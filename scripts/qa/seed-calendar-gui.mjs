@@ -17,7 +17,9 @@ const j = async (method, path, body) => {
 };
 
 const day = (offset, hm = "12:00") => {
-  const d = new Date(Date.now() + offset * 86_400_000);
+  // 基准 +8h 取北京「今天」（同 seed-fitness 口径）：旧版裸 UTC 会在北京 0~8 点把
+  // 「今日块」整体落到昨天，日历深度体验结论失真
+  const d = new Date(Date.now() + 8 * 3600_000 + offset * 86_400_000);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${hm}:00+08:00`;
 };

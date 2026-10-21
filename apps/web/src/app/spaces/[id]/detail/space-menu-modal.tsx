@@ -3,22 +3,22 @@
 import { createPortal } from "react-dom";
 import { Archive, Trash2, Upload } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
-import type { Dispatch, SetStateAction } from "react";
 import type { Space } from "@/lib/types";
 import type { Pos } from "./types";
 
-/** 空间操作菜单（自 detail.tsx 拆出；⋯ 收纳归档/删除；桌面锚定浮层 / 移动端底部弹层） */
+/** 空间操作菜单（自 detail.tsx 拆出；⋯ 收纳归档/删除；桌面锚定浮层 / 移动端底部弹层）。
+ *  onClose 由 detail.tsx 提供（记录关闭时刻，供「⋯」再点关闭仲裁） */
 export default function SpaceMenuModal(opts: {
   space: Space;
   pos: Pos | null;
-  setSpaceMenu: Dispatch<SetStateAction<boolean>>;
+  onClose: () => void;
   setStatus: (status: "active" | "archived") => Promise<void>;
   removeSpace: () => Promise<void>;
 }) {
-  const { space, pos, setSpaceMenu, setStatus, removeSpace } = opts;
+  const { space, pos, onClose, setStatus, removeSpace } = opts;
   return createPortal(
     <Dismissable
-      onClose={() => setSpaceMenu(false)}
+      onClose={onClose}
       className="fixed inset-x-0 bottom-0 z-[61] max-h-[70dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-3 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:w-56 sm:rounded-xl sm:p-2"
       style={pos ? { top: pos.top, left: pos.left } : undefined}
     >
@@ -44,7 +44,7 @@ export default function SpaceMenuModal(opts: {
         )}
         {space.kind === "sport" ? null : (
           <button
-            onClick={() => { setSpaceMenu(false); void removeSpace(); }}
+            onClick={() => { onClose(); void removeSpace(); }}
             className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10"
           >
             <span className="flex w-5 shrink-0 justify-center"><Trash2 size={14} /></span>

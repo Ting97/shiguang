@@ -17,7 +17,7 @@ import {
 import { jevAsk, jevEnabled, JevError } from "./jev";
 import { BASE_FIN_CATEGORY_CRITERIA, extractClosedSetQuestions } from "./questions/jev-sets";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClockRange, resolveExplicitRange, resolveMoment, anchorRangeToToday, anchorMomentToToday, detectDayRef } from "./time-infer";
-import { parseAmountCents, parseDuration } from "./duration";
+import { parseAmountCents, parseDuration, cnToNumber } from "./duration";
 import { ruleMood } from "./mood-rules";
 
 export interface ParseOptions {
@@ -115,6 +115,21 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
     // 双保险：detectFuture 漏网的「下周X/明周X」（周X 前缀为 下/明）同样不得当过去语境消费
     if (/(?:下|明)\s*(?:周|礼拜|星期)[一二三四五六日天]/.test(text)) return null;
     return shift(dayRef);
+  }
+  // 上(个)月N号 / 本(个)月N号：补记上月的最高频话术——旧版数字月分支要求月前是数字、
+  // 裸 N号 lookbehind 又把「月N号」排除，整类话术交回相对月推算不可靠的模型（十一轮 P3 收口）。
+  // 数字类含中文数字（「上个月十五号随了600」，与 monthDayBase 同口径 cnToNumber 换算）。
+  // 花销发生日必为过去：换算结果落在北京今天之后 → null（宁缺勿错，与未来守卫双保险）
+  const relMd = /(?:上|本)\s*个?月\s*([一两俩二三四五六七八九十\d]{1,3})\s*[号日]/.exec(text);
+  if (relMd) {
+    const n = /^\d+$/.test(relMd[1]) ? Number(relMd[1]) : cnToNumber(relMd[1]);
+    if (n !== null && n >= 1 && n <= 31) {
+      const isPrev = relMd[0].startsWith("上");
+      const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() - (isPrev ? 1 : 0);
+      const cand = new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12, n));
+      if (cand.getUTCDate() === n && cand.getTime() <= bj.getTime()) return ymd(cand);
+      return null;
+    }
   }
   // M月N号/M月N日（可带 YYYY 年）：确定性换算（花销发生日必为过去——未带年份且落在中国今天之后 → 按去年）
   const md = /(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[号日]/.exec(text);
@@ -430,7 +445,8 @@ export async function parseHybridInput(text: string, opts: HybridParseOptions = 
   return mapAiResult(ext, text, now, "jev-hybrid");
 }
 
-/** 把全量/单域的 v2 校验结果拼装回统一 Extraction 形状（单域模式其余域为中性"不适用"） */function assembleExtraction(data: unknown, domain: string | undefined): LlmExtractionT {
+/** 把全量/单域的 v2 校验结果拼装回统一 Extraction 形状（单域模式其余域为中性"不适用"） */
+function assembleExtraction(data: unknown, domain: string | undefined): LlmExtractionT {
   const d = data as Record<string, unknown>;
   const neutralSchedule = { applicable: false, activity: "other" as const, title: "", durationMin: null, periodHint: null, confidence: 0.9 };
   const neutralTodo = { applicable: false, due: null, confidence: 0.9 };
@@ -459,7 +475,7 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
   // ① 小模型直接判否（prompt 示例俱全仍回「无事件信号」）；② 开闸但起止缺失（域降级为不适用）。
   // 规则引擎此时能正确给出 12:00–13:00。命中时以 0.5 置信度转「待确认」（低于 0.6 直落阈值）：
   // 不硬覆盖高置信结论，用户一键确认即落库，误救回忽略即可。未来话术（归 todo）不参与。
-  if (!future && !ext.todo.applicable && detectFuture(text) === null) {
+  if (!future && detectFuture(text) === null) {
     const missingSchedule = !ext.schedule.applicable || !ext.schedule.start || !ext.schedule.end;
     if (missingSchedule) {
       const ruleExt = ruleExtract(text, undefined, now);

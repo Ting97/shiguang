@@ -7,6 +7,7 @@ import { api } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import MarkdownView from "@/components/markdown-view";
+import { Dismissable } from "@/components/dismissable";
 
 /**
  * 拾光助手对话核心（REQ-015）：/assistant 整页与首页悬浮 Dock 共用一套状态与消息流。
@@ -434,6 +435,7 @@ export default function AssistantChat({
           <button
             onClick={() => setSwitcherOpen((v) => !v)}
             aria-expanded={switcherOpen}
+            data-popover-trigger
             className="flex w-full items-center gap-2 rounded-xl border border-line-soft bg-surface px-3.5 py-2.5 text-left text-xs"
           >
             <MessageSquare size={13} className="shrink-0 text-ink-faint" aria-hidden />
@@ -442,7 +444,11 @@ export default function AssistantChat({
             <ChevronDown size={14} className={`shrink-0 text-ink-faint transition ${switcherOpen ? "rotate-180" : ""}`} aria-hidden />
           </button>
           {switcherOpen && (
-            <div className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[50vh] overflow-y-auto rounded-xl border border-line-soft bg-surface shadow-lg shadow-scrim/20">
+            /* Dismissable：点页面其他区域收起（旧版只能再点切换钮或选中条目才关） */
+            <Dismissable
+              onClose={() => setSwitcherOpen(false)}
+              className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[50vh] overflow-y-auto rounded-xl border border-line-soft bg-surface shadow-lg shadow-scrim/20"
+            >
               <button
                 onClick={() => {
                   newConversation();
@@ -476,7 +482,7 @@ export default function AssistantChat({
                 </div>
               ))}
               {!conversations.length && <p className="px-3.5 py-3 text-xs text-ink-faint">还没有会话，发第一条消息开始</p>}
-            </div>
+            </Dismissable>
           )}
         </div>
       )}

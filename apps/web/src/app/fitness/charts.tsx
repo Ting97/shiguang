@@ -130,11 +130,14 @@ function HeatGrid({ plans, today }: { plans: FitnessPlan[]; today: string }) {
 export default function FitnessTrends({
   metrics,
   plans,
+  logs = [],
   sleep,
   today,
 }: {
   metrics: FitnessBodyMetric[];
   plans: FitnessPlan[];
+  /** 打卡执行记录：配速/跑量优先取实际（actual），缺失才回退计划口径 */
+  logs?: { plan_id: string | null; actual: { distanceM?: number | null; paceSPerKm?: number | null } }[];
   sleep?: { log_date: string; hours: number }[];
   today: string;
 }) {
@@ -143,9 +146,16 @@ export default function FitnessTrends({
   const heightPts = metrics.filter((m) => m.height_mm != null).map((m) => ({ date: m.measured_on, value: m.height_mm! / 10 }));
   const bodyFatPts = metrics.filter((m) => m.body_fat_pct_x10 != null).map((m) => ({ date: m.measured_on, value: m.body_fat_pct_x10! / 10 }));
   const sleepPts = (sleep ?? []).map((s) => ({ date: s.log_date, value: s.hours }));
+  // logs 按新→旧排序：first-wins 保留同一计划最新一条实绩（后写覆盖会取到最旧，
+  // 与 PlanCard 的 logs.find（取最新）两处展示打架——十一轮修正）
+  const logByPlan = new Map<string, (typeof logs)[number]>();
+  for (const l of logs) if (l.plan_id && !logByPlan.has(l.plan_id)) logByPlan.set(l.plan_id, l);
   const pacePts = plans
     .filter((p) => p.status === "done" && p.module_code === "run")
     .map((p) => {
+      // 打卡实际配速优先（趋势的意义是真实表现）；无实绩回退计划分段均值（历史数据兼容）
+      const actualPace = logByPlan.get(p.id)?.actual?.paceSPerKm;
+      if (actualPace != null) return { date: p.plan_date, value: actualPace };
       const seg = (p.content as { segments?: { paceSPerKm?: number | null }[] }).segments ?? [];
       const paces = seg.map((s) => s.paceSPerKm).filter((v): v is number => v != null);
       const avg = paces.length ? Math.round(paces.reduce((a, b) => a + b, 0) / paces.length) : null;
@@ -155,7 +165,11 @@ export default function FitnessTrends({
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
   const runDone = plans.filter((p) => p.module_code === "run" && p.status === "done");
-  const totalKm = runDone.reduce((sum, p) => sum + ((p.content as { totalDistanceM?: number | null }).totalDistanceM ?? 0), 0);
+  // 实际跑量优先（「已完成跑步课合计」= 真实跑过的距离，米口径），无实绩回退计划距离
+  const totalKm = runDone.reduce((sum, p) => {
+    const actual = logByPlan.get(p.id)?.actual?.distanceM;
+    return sum + (actual != null ? actual : ((p.content as { totalDistanceM?: number | null }).totalDistanceM ?? 0));
+  }, 0);
 
   return (
     <div className="space-y-4">

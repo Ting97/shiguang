@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
-import { withAdmin, withAuthSchema } from "@/server/platform/http/route";
+import { withAdmin, withAdminSchema } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isUuid } from "@/server/platform/http/validate";
 import { getModule } from "@shiguangri/shared/modules";
@@ -37,8 +37,9 @@ const postSchema = z.object({
 /** POST /api/admin/grants {userId, module, force_state?, switch_visible?} —— 写按用户覆盖（REQ-028 三态化）。
  *  维度语义：undefined=不改动；null=清除该维度（跟随上层）；"on"/"off"/boolean=设置。
  *  两维度全缺省=兼容旧「授权」语义（强制开）；清除后两维度皆空=删行。
- *  core 模块不可覆盖；写后失效该用户缓存即时生效；审计。 */
-export const POST = withAuthSchema(postSchema, async (req, { user, valid }) => {
+ *  core 模块不可覆盖；写后失效该用户缓存即时生效；审计。
+ *  管理员写门禁（withAdminSchema）：按用户覆盖可绕过受控模块商业门禁，普通用户 403。 */
+export const POST = withAdminSchema(postSchema, async (req, { user, valid }) => {
   const { userId, module, force_state, switch_visible } = valid;
   const def = getModule(module);
   if (!def) throw ApiError.badRequest(`module 不在注册表（${HINT}）`);

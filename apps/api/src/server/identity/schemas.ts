@@ -49,10 +49,3 @@ export const wechatLoginSchema = z.object({
     })
     .optional(),
 });
-
-export const wechatBindSchema = z.object({
-  // 登录时签发的一次性绑定票据（64hex）
-  bindTicket: z.string().min(16).max(256),
-  phone: z.string().min(1),
-  smsCode: z.string().min(4).max(8),
-});

@@ -27,6 +27,14 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+/* 登出清理（十一轮隐私修复）：/api/* 缓存含上一账号的个人数据（feed/contacts/finance…），
+ * 页面登出时 postMessage 通知全量删除（静态资源下次访问重新回填，离线壳不受影响）。 */
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "CLEAR_USER_CACHE") {
+    event.waitUntil(caches.delete(CACHE_VERSION));
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;

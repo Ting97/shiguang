@@ -5,18 +5,14 @@
  * - bindSessionByWechat：已登录账号凭 code 绑定当前微信（REQ-绑定已有账户）；openid
  *   占用方为自动建号空壳时回收迁移；占用方有数据时返回 409 + 双方数据概览，
  *   前端弹「保留哪份数据」选择 → resolve=current（改绑）/ resolve=wechat（改登对方）
- * - bindWechat：票据 + 手机号 + 短信验证码（purpose=bind）→ 绑定既有账号并建会话
- *   （登录流程不再强制绑定；票据流程保留给「微信号 ↔ 已有手机账号」互通场景）
- * 票据/验证码均为单次消费：票据 DELETE 先认领（原子判定有效性与并发，失败 400 不烧验证码），
- * 验证码在其后核销，「手机号未注册」等前置失败分支同样保码；
- * 票据库只存 sha256（与会话 token/验证码同口径）。
+ * 历史：票据绑定流程（wechat_bind_tickets + 短信验证码）已随 code 直绑（bind-session）下线，
+ * 全仓无票据签发方，bindWechat 端点于十一轮检视删除；wechat_bind_tickets 表按「迁移只增不改」
+ * 留库（patrol 仍清理过期行做卫生）。
  */
 import { pool } from "@/server/platform/db";
 import { jscode2session, enforceUgcText } from "@/server/platform/wechat";
 import { ApiError } from "@/server/platform/http/errors";
 import { createSession } from "@/server/identity/auth";
-import { hashToken, isValidPhone } from "@/server/identity/auth-crypto";
-import { verifySmsCode } from "@/server/identity/sms";
 import { PRESET_ACTIVITIES } from "@/server/time/seed";
 
 export interface WechatLoginInput {
@@ -252,8 +248,9 @@ export async function bindSessionForceCurrent(input: { code: string; userId: str
 
 /**
  * 冲突口子二（resolve=wechat）：用户选择「保留微信账号的数据」——本次会话切换为微信绑定的
- * 账号（凭「A 号密码 + 该微信 code」双重凭证，合法主张双方身份）。两个账号的数据都原样保留，
- * 用户此后以对方账号为准继续使用；当前账号仍可密码登录（网页版不受影响）。
+ * 账号（凭「已登录会话 + 该微信有效 code」：code 只能来自主张者本人微信的 wx.login；
+ * 十一轮修正注释——旧文案「A 号密码 + code 双重凭证」与实现不符，实现无密码校验）。
+ * 两个账号的数据都原样保留，用户此后以对方账号为准继续使用；当前账号仍可密码登录（网页版不受影响）。
  */
 export async function bindSessionSwitchToOwner(input: { code: string; userAgent?: string | null }) {
   const { openid, unionid } = await jscode2session(input.code);
@@ -373,61 +370,4 @@ export async function loginByWechat(input: WechatLoginInput) {
     token,
     user: { id: created.id, nickname: created.nickname },
   };
-}
-
-export interface WechatBindInput {
-  bindTicket: string;
-  phone: string;
-  smsCode: string;
-  userAgent?: string | null;
-}
-
-/** 绑定手机号：票据 DELETE 先认领（原子，过期/并发失败 400 且不烧验证码）→ 账号前置校验（保码）→ 核销验证码 → 落绑定 */
-export async function bindWechat(input: WechatBindInput) {
-  if (!isValidPhone(input.phone)) throw ApiError.badRequest("请填写正确的手机号");
-  if (!input.smsCode.trim()) throw ApiError.badRequest("请填写短信验证码");
-  const ticketHash = hashToken(input.bindTicket);
-  // 票据先认领（DELETE 原子判定有效性与并发，单次消费）：失败 400 时验证码原样保留，
-  // 旧序先核销验证码、票据已过期会白烧一条短信
-  const claimed = await pool.query(
-    `delete from wechat_bind_tickets where ticket_hash = $1 and expires_at > now() returning openid, unionid`,
-    [ticketHash],
-  );
-  const ticket = claimed.rows[0];
-  if (!ticket) throw ApiError.badRequest("绑定凭证无效或已过期，请重新点击微信登录");
-
-  // 以下前置失败分支均在验证码核销前返回（保码）：换号重试不浪费已发短信
-  const { rows } = await pool.query(
-    `select id, nickname, status, wechat_openid from profiles where phone = $1`,
-    [input.phone],
-  );
-  const user = rows[0];
-  if (!user) throw ApiError.notFound("该手机号尚未注册，请先在网页端注册账号");
-  if (user.status !== "active") throw new ApiError(403, "forbidden", "账号已被禁用");
-  if (user.wechat_openid && user.wechat_openid !== ticket.openid) {
-    throw ApiError.conflict("该账号已绑定其他微信，请先用原微信登录");
-  }
-
-  if (!(await verifySmsCode(input.phone, "bind", input.smsCode))) {
-    throw ApiError.unauthorized("验证码错误或已过期");
-  }
-
-  try {
-    const updated = await pool.query(
-      `update profiles
-       set wechat_openid = $1, wechat_unionid = coalesce($2, wechat_unionid),
-           phone_verified = true, last_login_at = now()
-       where id = $3 returning id, nickname`,
-      [ticket.openid, ticket.unionid, user.id],
-    );
-    const bound = updated.rows[0];
-    const token = await createSession(bound.id, input.userAgent ?? "miniapp");
-    return { ok: true as const, token, user: { id: bound.id, nickname: bound.nickname } };
-  } catch (e) {
-    // wechat_openid unique：并发绑定同一 openid 到另一账号
-    if ((e as { code?: string }).code === "23505") {
-      throw ApiError.conflict("该微信已绑定其他账号");
-    }
-    throw e;
-  }
 }

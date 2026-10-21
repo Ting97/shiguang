@@ -545,9 +545,12 @@ async function updateMilestone(userId: string, mid: string, body: MilestonePatch
   if (body.status !== undefined && !["active", "done", "abandoned"].includes(body.status)) {
     throw ApiError.badRequest("status 需为 active/done/abandoned");
   }
+  // targetDate 与 createMilestone 同口径校验：非法日期 400，而非直落 date 列 500（十一轮 P2 修复）
+  const target =
+    body.targetDate === undefined ? undefined : calendarDateOrNull(body.targetDate, "目标日期");
   const { rows } = await milestoneRepo.update(mid, userId, {
     title: typeof body.title === "string" ? body.title.trim() : undefined,
-    targetDate: body.targetDate ?? null,
+    targetDate: target,
     hasTargetDate: body.targetDate !== undefined,
     status: body.status,
   });

@@ -56,10 +56,11 @@ export const entriesRepo = {
   },
   editRawText(client: import("pg").PoolClient, entryId: string, userId: string, text: string) {
     // analyze_retries 同句归零：编辑=新一轮识别（analyzed_at 置 null 触发重识别），
-    // 不清零时巡检按旧失败代次的预算拒绝补跑，新文本识别失败后永远没有重试机会
+    // 不清零时巡检按旧失败代次的预算拒绝补跑，新文本识别失败后永远没有重试机会；
+    // returning 带 created_at：service 层编辑后按发生日失效复盘缓存（缺列 → Invalid Date 静默早退）
     return client.query(
       `update entries set raw_text = $1, mood = null, mood_score = null, analyzed_at = null, analyze_retries = 0
-       where id = $2 and user_id = $3 returning id, raw_text, analyzed_at`,
+       where id = $2 and user_id = $3 returning id, raw_text, analyzed_at, created_at`,
       [text, entryId, userId],
     );
   },
@@ -81,10 +82,11 @@ export const entriesRepo = {
   },
   setMoodByEntry(entryId: string, userId: string, label: string | null, score: number | null) {
     // 同句打点 analyzed_at（与 stampAnalyzedAt 同口径）：心情手设/清除 = 用户已落定数据，
-    // 否则飞行中/巡检补跑的识别会用 analyze 的无条件心情回写把用户设置覆盖掉（静默丢失）
+    // 否则飞行中/巡检补跑的识别会用 analyze 的无条件心情回写把用户设置覆盖掉（静默丢失）；
+    // returning 带 created_at：手设心情也按发生日失效复盘缓存（心情不在任何水位列）
     return pool.query(
       `update entries set mood = $1, mood_score = $2, analyzed_at = coalesce(analyzed_at, now())
-       where id = $3 and user_id = $4 returning id, mood, mood_score`,
+       where id = $3 and user_id = $4 returning id, mood, mood_score, created_at`,
       [label, score, entryId, userId],
     );
   },

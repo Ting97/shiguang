@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import FitnessPanel from "@/app/fitness/panel";
@@ -39,9 +39,16 @@ export default function Detail() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("tab") === "fitness") setTab("fitness");
   }, []);
-  // 空间操作菜单（⋯ 收纳归档/删除）
+  // 空间操作菜单（⋯ 收纳归档/删除）。「再点关闭」仲裁：菜单开着再点 ⋯，pointerdown 先被
+  // Dismissable 关闭，随后的 click 若无 300ms 仲裁会立即重开——菜单永远关不上（十一轮补齐）
   const [spaceMenu, setSpaceMenu] = useState(false);
   const [spaceMenuPos, setSpaceMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const spaceMenuClosedRef = useRef(0);
+  const openSpaceMenu = (pos: { top: number; left: number }) => {
+    if (Date.now() - spaceMenuClosedRef.current < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
+    setSpaceMenuPos(pos);
+    setSpaceMenu(true);
+  };
 
   const mutations = useSpaceMutations({ id, space, setSpace, setAllSpaces, setMsg });
   const todoActions = useTodoActions({ id, todos, load, setMsg });
@@ -110,8 +117,7 @@ export default function Detail() {
           onSaveTargetDate={mutations.saveTargetDate}
           setSpace={setSpace}
           setMsg={setMsg}
-          setSpaceMenu={setSpaceMenu}
-          setSpaceMenuPos={setSpaceMenuPos}
+          openSpaceMenu={openSpaceMenu}
         />
 
         {/* 分区 tab（REQ-002 N2）：TODO·行动 / 感悟 / 动态；内置运动空间首位多一栏「训练」（REQ-018） */}
@@ -162,7 +168,10 @@ export default function Detail() {
           <SpaceMenuModal
             space={space}
             pos={spaceMenuPos}
-            setSpaceMenu={setSpaceMenu}
+            onClose={() => {
+              spaceMenuClosedRef.current = Date.now();
+              setSpaceMenu(false);
+            }}
             setStatus={mutations.setStatus}
             removeSpace={mutations.removeSpace}
           />

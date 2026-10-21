@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withAdmin, withAuthSchema } from "@/server/platform/http/route";
+import { withAdmin, withAdminSchema } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { MODULE_REGISTRY, getModule } from "@shiguangri/shared/modules";
 import { invalidateModuleCache } from "@/server/platform";
@@ -50,8 +50,9 @@ export const GET = withAdmin(async () => {
 });
 
 /** PATCH /api/admin/modules {module, enabled?, user_toggleable?} —— 全局层开关（REQ-028）。
- *  core 模块不可改；两维度全空=400。upsert module_states → 全清缓存（影响所有用户）→ 审计。 */
-export const PATCH = withAuthSchema(patchSchema, async (req, { user, valid }) => {
+ *  core 模块不可改；两维度全空=400。upsert module_states → 全清缓存（影响所有用户）→ 审计。
+ *  管理员写门禁（withAdminSchema）：全局开关影响全站，普通用户 403。 */
+export const PATCH = withAdminSchema(patchSchema, async (req, { user, valid }) => {
   const { module, enabled, user_toggleable } = valid;
   const def = getModule(module);
   if (!def) throw ApiError.badRequest("模块不存在");

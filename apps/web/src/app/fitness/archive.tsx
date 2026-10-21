@@ -25,6 +25,14 @@ function GoalCard({
   const [title, setTitle] = useState(goal?.title ?? "");
   const [targetDate, setTargetDate] = useState(goal?.target_date ?? "");
 
+  /** 打开编辑时按最新 goal 重置表单：state 仅首渲染初始化，新建保存后 goal prop 才有值，
+   *  不重置则再点「编辑」是空表单（十一轮检视修复） */
+  function openEdit() {
+    setTitle(goal?.title ?? "");
+    setTargetDate(goal?.target_date ?? "");
+    setEditing(true);
+  }
+
   async function save() {
     if (busy) return;
     setBusy(true);
@@ -71,7 +79,7 @@ function GoalCard({
         <h3 className="text-sm font-medium">
           {mod.icon} {mod.name}
         </h3>
-        <button className="text-xs text-accent hover:underline" onClick={() => setEditing(true)}>
+        <button className="tap-lg inline-block py-1 text-xs text-accent hover:underline" onClick={openEdit}>
           {goal ? "编辑" : "+ 设定目标"}
         </button>
       </div>
@@ -110,7 +118,7 @@ function GoalCard({
             </label>
             <div className="flex items-center justify-between gap-2">
               {goal ? (
-                <button className="text-xs text-danger hover:underline disabled:opacity-50" onClick={archive} disabled={busy}>
+                <button className="tap-lg inline-block py-1 text-xs text-danger hover:underline disabled:opacity-50" onClick={archive} disabled={busy}>
                   归档
                 </button>
               ) : (
@@ -166,7 +174,7 @@ function ProfileForm({ profile, onSaved }: { profile: FitnessProfile | null; onS
     <section className="rounded-2xl border border-line-soft bg-surface p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">🧍 基本情况</h3>
-        <button className="text-xs text-accent hover:underline" onClick={() => setOpen(true)}>
+        <button className="tap-lg inline-block py-1 text-xs text-accent hover:underline" onClick={() => setOpen(true)}>
           {profile ? "编辑" : "+ 填写"}
         </button>
       </div>
@@ -257,7 +265,7 @@ export default function FitnessArchive({
             ].map((f) => (
               <button
                 key={f.k}
-                className={`rounded-full px-2.5 py-1 text-xs transition ${
+                className={`tap-lg rounded-full px-2.5 py-1 text-xs transition ${
                   modFilter === f.k ? "bg-sky-500/15 font-medium text-sky-600 dark:text-sky-400" : "text-ink-mute hover:bg-wash"
                 }`}
                 onClick={() => setModFilter(f.k)}

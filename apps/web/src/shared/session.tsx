@@ -10,6 +10,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useRouter } from "next/navigation";
 import { setSessionToken } from "@shiguangri/shared/client-api";
 import { api, ApiClientError, NO_REDIRECT_PATHS } from "./api";
+import { clearCachedApiData } from "@/lib/sw-cache";
 
 export interface ModulePref {
   key: string;
@@ -89,6 +90,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await api("/api/auth/logout", "POST").catch(() => {});
     // 服务端 200 即已吊销：显式清本机 token（旧版只靠下次任意请求 401 兜底，共享设备上是敏感残留）
     await setSessionToken(null).catch(() => {});
+    // SW 的 /api/* 缓存含本账号个人数据（feed/contacts/finance）：登出一并清掉（共享设备隐私）
+    clearCachedApiData();
     setUser(null);
     router.replace(LOGIN_PATH);
   }, [router]);

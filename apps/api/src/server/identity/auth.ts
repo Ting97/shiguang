@@ -44,11 +44,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const { rows } = await pool.query(
     `select p.id, p.nickname, p.phone, p.role, s.expires_at
      from sessions s join profiles p on p.id = s.user_id
-     where s.token_hash = $1`,
+     where s.token_hash = $1 and p.status = 'active'`,
     [hashToken(token)],
   );
   const row = rows[0];
   if (!row) return null;
+  // p.status 非 active（被禁用）→ 会话立即失效：与微信登录/每日推送的 active 谓词同口径，
+  // 否则「禁用只拦未来登录，存量会话最长 30 天仍全权有效」（十一轮 P2 修复）
 
   const expiresAt = new Date(row.expires_at);
   if (expiresAt < new Date()) {

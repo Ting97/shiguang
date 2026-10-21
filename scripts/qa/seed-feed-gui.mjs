@@ -29,8 +29,17 @@ const wipe = process.argv.includes("--wipe");
 if (wipe) {
   const feed = await j("GET", "/api/feed?limit=200");
   const mine = (feed.moments ?? []).filter((m) => m.raw_text?.includes("[feed-gui]"));
-  for (const m of mine) await j("DELETE", `/api/entries/${m.id}`).catch(() => {});
-  console.log(`[seed] 已删除本脚本动态 ×${mine.length}`);
+  // DELETE /api/feed/[id]（旧版误写 /api/entries/:id → 404 被吞还报成功，测试数据只进不出）
+  let ok = 0;
+  for (const m of mine) {
+    try {
+      await j("DELETE", `/api/feed/${m.id}`);
+      ok++;
+    } catch {
+      /* 单条失败继续删其余 */
+    }
+  }
+  console.log(`[seed] 已删除本脚本动态 ×${ok}/${mine.length}`);
   process.exit(0);
 }
 

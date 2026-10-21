@@ -246,8 +246,9 @@ export async function setup(input: { nickname?: string; phone?: string; password
   if (!input.nickname?.trim() || !input.phone || !isValidPhone(input.phone)) {
     throw ApiError.badRequest("请填写昵称和正确的手机号");
   }
-  if (!input.password || input.password.length < 8) {
-    throw ApiError.badRequest("密码至少 8 位");
+  // 上限与 login/register/updateProfile 同口径（128）：scryptSync 大密码放大内存面（本文件 ：179 注释）
+  if (!input.password || input.password.length < 8 || input.password.length > 128) {
+    throw ApiError.badRequest("密码需为 8~128 位");
   }
   const existing = await profilesRepo.hasPhoneAccount();
   if (existing.rows.length > 0) {

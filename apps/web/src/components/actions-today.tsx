@@ -176,8 +176,13 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   const [pickerRow, setPickerRow] = useState<{ id: string; spaceId: string | null } | null>(null);
   const [menu, setMenu] = useState<{ info: { todo: TodayAction; isChild: boolean; parentTitle: string | null }; pos: { top: number; left: number } | null } | null>(null);
   const [decomposingId, setDecomposingId] = useState<string | null>(null);
+  // 「⋯」再点关闭仲裁（同 todo-board menuClosedRef）：菜单开着再点「⋯」，pointerdown 先被
+  // Dismissable 在 document 层关闭，随后的 click 若无仲裁会 setMenu 重新打开——菜单永远关不上
+  const menuClosedRef = useRef<{ at: number; todoId: string } | null>(null);
 
   function openMenu(a: TodayAction, el: HTMLElement) {
+    const closed = menuClosedRef.current;
+    if (closed && closed.todoId === a.id && Date.now() - closed.at < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
     const rect = el.getBoundingClientRect();
     // 移动端不传锚点（pos=null）：TodoRowMenu 走底部弹层形态，锚定坐标会被 sm: 样式错位（entry-menu 同口径）
     setMenu({
@@ -298,7 +303,11 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
         <TodoRowMenu
           info={menu.info}
           menuPos={menu.pos}
-          onClose={() => setMenu(null)}
+          onClose={() => {
+            // 记录关闭时刻与行 id：同一行 300ms 内的 click（同一次点击的 pointerdown 已关）不再重开
+            menuClosedRef.current = { at: Date.now(), todoId: menu.info.todo.id };
+            setMenu(null);
+          }}
           actions={{
             decomposingId,
             patch: patchTodo,
