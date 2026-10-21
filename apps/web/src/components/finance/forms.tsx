@@ -23,7 +23,9 @@ export function TxForm({
   const [direction, setDirection] = useState<"out" | "in">(initial?.direction ?? "out");
   const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
   const [category, setCategory] = useState(initial?.category ?? "餐饮");
-  const [accountId, setAccountId] = useState<string>(initial?.account_id ?? (accounts[0]?.id ?? ""));
+  // 编辑态：无账户老流水保持「不挂账户」（??accounts[0] 会把它静默挂上第一账户，保存即改史）；
+  // 新建态才默认选第一账户
+  const [accountId, setAccountId] = useState<string>(initial ? (initial.account_id ?? "") : (accounts[0]?.id ?? ""));
   const [date, setDate] = useState(
     initial
       ? toLocalInput(initial.occurred_at).slice(0, 16)

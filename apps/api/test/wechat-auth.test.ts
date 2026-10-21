@@ -108,21 +108,24 @@ test("wechat：bindWechat 全流程——票据消费即删、phone_verified 置
   await insertSmsCode("246810");
   const { bindWechat } = await import("../src/server/identity");
 
-  // 验证码错误：不消费票据（重试后仍可绑定）
+  // 验证码错误：新序为「票据 DELETE 先认领」——错码烧票据但保码（旧序先核销验证码，
+  // 票据过期会白烧一条短信；票据可重新点击微信登录领取，短信发一条少一条）
   await assert.rejects(
     () => bindWechat({ bindTicket: ticket, phone: PHONE, smsCode: "000000" }),
     (e: any) => e?.status === 401,
     "错码应 401",
   );
-  const stillThere = await pool.query(
+  const goneEarly = await pool.query(
     `select 1 from wechat_bind_tickets where openid = $1`,
     [OPENID],
   );
-  assert.ok(stillThere.rowCount, "错码不应烧票据");
+  assert.equal(goneEarly.rowCount, 0, "票据先认领：错码请求也已消费票据（验证码未核销）");
 
-  // 正确验证码：绑定成功（createSession 无请求作用域会抛非 ApiError——此时绑定已落库）
+  // 正确验证码：换新票据重试（旧票已被错码请求认领），绑定成功
+  // （createSession 无请求作用域会抛非 ApiError——此时绑定已落库）
+  const ticket2 = await insertTicket(OPENID);
   await insertSmsCode("135790");
-  await assert.rejects(() => bindWechat({ bindTicket: ticket, phone: PHONE, smsCode: "135790" }), (e: any) => !(e?.name === "ApiError"));
+  await assert.rejects(() => bindWechat({ bindTicket: ticket2, phone: PHONE, smsCode: "135790" }), (e: any) => !(e?.name === "ApiError"));
   const { rows } = await pool.query(
     `select wechat_openid, phone_verified from profiles where id = $1`,
     [UA],
@@ -151,7 +154,7 @@ test("wechat：票据过期/重复消费拒绝；手机号未注册 404；openid
     "过期票据应 400",
   );
 
-  // 未注册手机号（票据先验通过、验证码直插有效）
+  // 未注册手机号（票据先验通过、验证码直插有效）：404 且验证码保码（核销前的前置失败分支）
   await pool.query(`insert into profiles (id, nickname, phone) values ($1,'wx冲突号',$2)`, [UA_B, "13822270001"]);
   const ticket2 = await insertTicket("wx2226-second");
   await insertSmsCode("222222", "13822270002");
@@ -160,6 +163,8 @@ test("wechat：票据过期/重复消费拒绝；手机号未注册 404；openid
     (e: any) => e?.status === 404 && /尚未注册/.test(e?.message),
     "未注册手机号应 404",
   );
+  const codeKept = await pool.query(`select 1 from sms_codes where phone = $1`, ["13822270002"]);
+  assert.ok(codeKept.rowCount, "未注册 404 不核销验证码");
 
   // openid 冲突：主号已绑 OPENID，另一票据同 openid 绑主号 → 409（同账号同 openid 幂等放行到 update 前被拦）
   await pool.query(

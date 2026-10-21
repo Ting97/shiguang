@@ -100,7 +100,12 @@ export const GET = withAuth(async (req, { user }) => {
     [user.id],
   );
   // ::bigint 防 int4 溢出，但 node-pg 对 bigint 返回 string：序列化统一 Number()，响应类型不变
-  const accountList = accounts.map((r) => ({ ...r, balanceCents: Number(r.balanceCents) }));
+  // openingBalanceCents 一并 Number()：web 端按数值比较期初余额，string 恒 !== 导致未改也发 PATCH（与 /api/accounts GET 同口径）
+  const accountList = accounts.map((r) => ({
+    ...r,
+    balanceCents: Number(r.balanceCents),
+    openingBalanceCents: Number(r.openingBalanceCents),
+  }));
 
   // monthly_limit_cents 为 bigint（node-pg 返回 string）：与账户余额同口径转 Number
   const budget = budgetRows[0]

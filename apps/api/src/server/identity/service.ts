@@ -21,6 +21,12 @@ const noteAttempt = (identity: string, ip: string, ok: boolean) =>
     console.warn("[login-guard] 尝试记录失败（忽略）:", String(e).slice(0, 120)),
   );
 
+/**
+ * 固定哑 hash（模块加载时生成一次）：账号不存在时也执行同成本 scrypt 验证，
+ * 抹平「存在账号走 scrypt、不存在账号直接返回」的响应耗时差（计时 oracle）。
+ */
+const DUMMY_PASSWORD_HASH = hashPassword("shiguangri-timing-equalizer-dummy");
+
 export interface LoginInput {
   phone?: string;
   email?: string;
@@ -60,6 +66,8 @@ export async function login(input: LoginInput) {
     // 验证码登录（无密码）对未注册号也回验证码口径：否则「密码不正确」vs「验证码错误」
     // 两种文案构成账号存在性 oracle（违背本文件「不暴露账号存在性」不变量）
     if (!input.password) throw ApiError.unauthorized("验证码错误或已过期");
+    // 计时对齐：账号不存在也跑一次同成本 scrypt 假验证（对固定哑 hash），避免耗时差暴露账号存在性
+    verifyPassword(input.password, DUMMY_PASSWORD_HASH);
     throw fuzzyFail();
   }
 

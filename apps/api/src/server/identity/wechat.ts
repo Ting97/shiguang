@@ -7,7 +7,8 @@
  *   前端弹「保留哪份数据」选择 → resolve=current（改绑）/ resolve=wechat（改登对方）
  * - bindWechat：票据 + 手机号 + 短信验证码（purpose=bind）→ 绑定既有账号并建会话
  *   （登录流程不再强制绑定；票据流程保留给「微信号 ↔ 已有手机账号」互通场景）
- * 票据/验证码均为单次消费：验证码先核销（天然并发串行），票据 DELETE 认领兜底并发；
+ * 票据/验证码均为单次消费：票据 DELETE 先认领（原子判定有效性与并发，失败 400 不烧验证码），
+ * 验证码在其后核销，「手机号未注册」等前置失败分支同样保码；
  * 票据库只存 sha256（与会话 token/验证码同口径）。
  */
 import { pool } from "@/server/platform/db";
@@ -39,6 +40,7 @@ async function isBusinessEmpty(
   client: import("pg").PoolClient | typeof pool = pool,
 ): Promise<boolean> {
   try {
+    // 新增用户业务表必须同步本清单，否则微信空壳回收会丢数据
     const { rows } = await client.query(
       `select (
         (select count(*) from public.entries where user_id = $1)
@@ -55,6 +57,15 @@ async function isBusinessEmpty(
       + (select count(*) from public.trade_accounts where user_id = $1)
       + (select count(*) from public.budgets where user_id = $1)
       + (select count(*) from public.interactions where user_id = $1)
+      + (select count(*) from public.fitness_profiles where user_id = $1)
+      + (select count(*) from public.fitness_goals where user_id = $1)
+      + (select count(*) from public.fitness_daily_plans where user_id = $1)
+      + (select count(*) from public.fitness_session_logs where user_id = $1)
+      + (select count(*) from public.fitness_body_metrics where user_id = $1)
+      + (select count(*) from public.fitness_sleep_logs where user_id = $1)
+      + (select count(*) from public.fitness_xunji_aliases where user_id = $1)
+      + (select count(*) from public.chat_conversations where user_id = $1)
+      + (select count(*) from public.chat_messages where user_id = $1)
       )::int as n`,
       [userId],
     );
@@ -371,19 +382,13 @@ export interface WechatBindInput {
   userAgent?: string | null;
 }
 
-/** 绑定手机号：验证码先核销（单次），票据 DELETE 认领（并发/过期兜底），最后落绑定 */
+/** 绑定手机号：票据 DELETE 先认领（原子，过期/并发失败 400 且不烧验证码）→ 账号前置校验（保码）→ 核销验证码 → 落绑定 */
 export async function bindWechat(input: WechatBindInput) {
   if (!isValidPhone(input.phone)) throw ApiError.badRequest("请填写正确的手机号");
   if (!input.smsCode.trim()) throw ApiError.badRequest("请填写短信验证码");
   const ticketHash = hashToken(input.bindTicket);
-  const held = await pool.query(
-    `select 1 from wechat_bind_tickets where ticket_hash = $1 and expires_at > now()`,
-    [ticketHash],
-  );
-  if (!held.rows[0]) throw ApiError.badRequest("绑定凭证无效或已过期，请重新点击微信登录");
-  if (!(await verifySmsCode(input.phone, "bind", input.smsCode))) {
-    throw ApiError.unauthorized("验证码错误或已过期");
-  }
+  // 票据先认领（DELETE 原子判定有效性与并发，单次消费）：失败 400 时验证码原样保留，
+  // 旧序先核销验证码、票据已过期会白烧一条短信
   const claimed = await pool.query(
     `delete from wechat_bind_tickets where ticket_hash = $1 and expires_at > now() returning openid, unionid`,
     [ticketHash],
@@ -391,6 +396,7 @@ export async function bindWechat(input: WechatBindInput) {
   const ticket = claimed.rows[0];
   if (!ticket) throw ApiError.badRequest("绑定凭证无效或已过期，请重新点击微信登录");
 
+  // 以下前置失败分支均在验证码核销前返回（保码）：换号重试不浪费已发短信
   const { rows } = await pool.query(
     `select id, nickname, status, wechat_openid from profiles where phone = $1`,
     [input.phone],
@@ -400,6 +406,10 @@ export async function bindWechat(input: WechatBindInput) {
   if (user.status !== "active") throw new ApiError(403, "forbidden", "账号已被禁用");
   if (user.wechat_openid && user.wechat_openid !== ticket.openid) {
     throw ApiError.conflict("该账号已绑定其他微信，请先用原微信登录");
+  }
+
+  if (!(await verifySmsCode(input.phone, "bind", input.smsCode))) {
+    throw ApiError.unauthorized("验证码错误或已过期");
   }
 
   try {

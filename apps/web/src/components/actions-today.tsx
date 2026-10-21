@@ -90,17 +90,24 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
   // 行内编辑保存进行中：防双击重复保存
   const [editSaving, setEditSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
+  // 取数竞态守卫（对齐 use-home-data 的 seqRef 范式）：快速连续触发（如动态识别完成事件与手动刷新
+  // 并发）时只让最新一次 load 的响应落地，旧慢回包不得覆盖新数据
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
       const j = await api("/api/todos?view=today-actions");
+      if (seq !== loadSeq.current) return; // 过期响应丢弃
       setActions(j.actions ?? []);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setActions([]);
       notify({ ok: false, text: `行动清单加载失败：${e instanceof Error ? e.message : e}` });
     }
     // 空间列表（徽标 + 归类选择器）：失败不阻塞行动清单
     try {
       const sp = await api<{ spaces?: Array<{ id: string; name: string; icon: string; color: string; status: string }> }>("/api/spaces");
+      if (seq !== loadSeq.current) return;
       setSpaces((sp.spaces ?? []).filter((x) => x.status === "active"));
     } catch {
       /* 空间列表挂了只影响徽标/归类入口 */
@@ -411,8 +418,10 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                             onChange={(e) => setEditTitle(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit();
-                              // Esc 与 Dismissable onClose 同口径：有改动轻提示（旧版静默丢弃编辑）
+                              // Esc 与 Dismissable onClose 同口径：有改动轻提示（旧版静默丢弃编辑）；
+                              // stopPropagation 拦住冒泡到 Dismissable 的 document keydown，否则同一提示弹两条
                               if (e.key === "Escape") {
+                                e.stopPropagation();
                                 const dirty = editTitle !== a.title || editDue !== isoToLocalInput(a.due_at);
                                 if (dirty) notify({ ok: true, text: "已取消，未保存" });
                                 setEditingId(null);

@@ -179,15 +179,17 @@ export const todoRepo = {
     ).rows[0];
   },
 
-  deleteDoneBlock(client: DB, blockId: string) {
-    return client.query(`delete from time_blocks where id = $1`, [blockId]);
+  /** user_id 谓词纵深防御（id 已随调用方属主校验，仍带上同列收口）；returning 带 start_at：
+   *  删除历史完成块会让复盘水位（max(start_at)）回退，调用方按块起始日显式失效复盘缓存 */
+  deleteDoneBlock(client: DB, blockId: string, userId: string) {
+    return client.query(`delete from time_blocks where id = $1 and user_id = $2 returning start_at`, [blockId, userId]);
   },
 
-  restore(client: DB, id: string) {
+  restore(client: DB, id: string, userId: string) {
     return client.query(
       `update todos set status = 'pending', done_at = null, done_entry_id = null, done_block_id = null
-       where id = $1 returning *`,
-      [id],
+       where id = $1 and user_id = $2 returning *`,
+      [id, userId],
     );
   },
 
@@ -273,7 +275,8 @@ export const todoRepo = {
   },
 
   remove(id: string, userId: string) {
-    return pool.query(`delete from todos where id = $1 and user_id = $2 returning id, title`, [id, userId]);
+    // done_at 供调用方在删除已完成 todo 后按完成日显式失效复盘缓存（复盘只统计 status='done'）
+    return pool.query(`delete from todos where id = $1 and user_id = $2 returning id, title, done_at`, [id, userId]);
   },
 };
 
@@ -326,7 +329,7 @@ export const spaceRepo = {
     return pool.query(`select count(*)::int as n from goal_spaces where user_id = $1 and status = 'active'`, [userId]);
   },
 
-  insert(
+  async insert(
     userId: string,
     name: string,
     description: string | null,
@@ -335,15 +338,29 @@ export const spaceRepo = {
     startedAt: string | null,
     targetDate: string | null,
     maxActive?: number,
-  ) {
-    // 上限守卫并入 insert 单语句：check-then-insert 两步在并发下可击穿（两请求同读 19 各建第 21 个）
-    return pool.query(
-      `insert into goal_spaces (user_id, name, description, icon, color, started_at, target_date)
-       select $1,$2,$3,coalesce($4,'🎯'),coalesce($5,'#38bdf8'),$6,$7
-       where ($8::int is null or (select count(*) from goal_spaces where user_id = $1 and status = 'active') < $8::int)
-       returning *`,
-      [userId, name, description, icon, color, startedAt, targetDate, maxActive ?? null],
-    );
+  ): Promise<{ rows: Record<string, any>[]; rowCount: number }> {
+    // 上限守卫并入 insert 单语句（check-then-insert 两步在并发下可击穿）；
+    // 但 count 子查询是 MVCC 快照读，READ COMMITTED 下两并发事务仍可同读 19 各建第 21 个——
+    // 事务内先取 per-user advisory lock 串行化同用户的空间创建（与 time/todos 路径同款范式），守卫才真正闭合
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`spaces:${userId}`]);
+      const { rows } = await client.query(
+        `insert into goal_spaces (user_id, name, description, icon, color, started_at, target_date)
+         select $1,$2,$3,coalesce($4,'🎯'),coalesce($5,'#38bdf8'),$6,$7
+         where ($8::int is null or (select count(*) from goal_spaces where user_id = $1 and status = 'active') < $8::int)
+         returning *`,
+        [userId, name, description, icon, color, startedAt, targetDate, maxActive ?? null],
+      );
+      await client.query("commit");
+      return { rows, rowCount: rows.length };
+    } catch (e) {
+      await client.query("rollback").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
   },
 
   /** 提供=有值才更新，避免"未传字段"与"清空字段"混淆（前端编辑器每次全量传） */
@@ -438,8 +455,9 @@ export const milestoneRepo = {
     ).rows[0];
   },
 
-  /** 编辑（title/targetDate/status）；status→done 写 completed_at，回 active 清空 */
-  update(mid: string, d: { title?: string; targetDate?: string | null; hasTargetDate?: boolean; status?: string }) {
+  /** 编辑（title/targetDate/status）；status→done 写 completed_at，回 active 清空。
+   *  user_id 谓词纵深防御：id 已随调用方 ownOf 属主校验，仍带上同列收口 */
+  update(mid: string, userId: string, d: { title?: string; targetDate?: string | null; hasTargetDate?: boolean; status?: string }) {
     const sets: string[] = [];
     const vals: unknown[] = [];
     const push = (col: string, val: unknown) => {
@@ -453,9 +471,9 @@ export const milestoneRepo = {
       push("completed_at", d.status === "done" ? new Date().toISOString() : null);
     }
     push("updated_at", new Date().toISOString());
-    vals.push(mid);
+    vals.push(mid, userId);
     return pool.query(
-      `update space_milestones set ${sets.join(", ")} where id = $${vals.length} returning *`,
+      `update space_milestones set ${sets.join(", ")} where id = $${vals.length - 1} and user_id = $${vals.length} returning *`,
       vals,
     );
   },
@@ -519,21 +537,22 @@ export const reflectionRepo = {  async spaceOwned(spaceId: string, userId: strin
     ).rows[0];
   },
 
-  async byId(rid: string) {
+  /** user_id 谓词纵深防御（id 已随调用方 ownOf 属主校验，仍带上同列收口） */
+  async byId(rid: string, userId: string) {
     return (
-      await pool.query(`select id, content, created_at, updated_at from space_reflections where id = $1`, [rid])
+      await pool.query(`select id, content, created_at, updated_at from space_reflections where id = $1 and user_id = $2`, [rid, userId])
     ).rows[0];
   },
 
   /** 编辑；updated_at=now()（列表据此刻画"已编辑"） */
-  update(rid: string, content: string) {
+  update(rid: string, userId: string, content: string) {
     return pool.query(
-      `update space_reflections set content = $1, updated_at = now() where id = $2 returning id, content, created_at, updated_at`,
-      [content, rid],
+      `update space_reflections set content = $1, updated_at = now() where id = $2 and user_id = $3 returning id, content, created_at, updated_at`,
+      [content, rid, userId],
     );
   },
 
-  remove(rid: string) {
-    return pool.query(`delete from space_reflections where id = $1`, [rid]);
+  remove(rid: string, userId: string) {
+    return pool.query(`delete from space_reflections where id = $1 and user_id = $2`, [rid, userId]);
   },
 };

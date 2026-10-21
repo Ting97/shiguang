@@ -92,6 +92,8 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
       onChanged?.();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      // 逐 id PUT 中途失败不回滚：重拉一次让勾选态与进度回到服务端实际口径（否则 UI 显示与库不一致）
+      await load();
     } finally {
       setBusy(false);
     }

@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { combineHM, combineHmEndCrossDay, isoToBjInput, zhTime } from "../src/date.js";
+import { addDays, combineHM, combineHmEndCrossDay, isoToBjInput, parseYmd, startOfWeek, zhTime } from "../src/date.js";
 
 const ISO = "2026-10-08T04:30:00.000Z"; // 北京 12:30
 
@@ -50,4 +50,27 @@ test("combineHmEndCrossDay：结束等于开始也 +1 天（满 24h 块）", () 
 test("combineHmEndCrossDay：非法 hm 回退原结束", () => {
   assert.equal(combineHmEndCrossDay(ISO, "", ISO), ISO);
   assert.equal(combineHmEndCrossDay(ISO, "25:00", ISO), ISO);
+});
+
+/* ---- 十轮检视：宿主时区日期工具 NaN 守卫（垃圾/假日历入参不再产 "NaN-NaN-NaN"） ---- */
+
+test("addDays/startOfWeek：垃圾与假日历入参原值返回（不再产 NaN-NaN-NaN）", () => {
+  assert.equal(addDays("垃圾", 1), "垃圾");
+  assert.equal(startOfWeek("垃圾"), "垃圾");
+  // 2026-02-30 非 Invalid Date：JS 静默进位成 3 月 2 日，旧版 startOfWeek 会产出滚月后的错误日期
+  assert.equal(addDays("2026-02-30", 1), "2026-02-30");
+  assert.equal(startOfWeek("2026-02-30"), "2026-02-30");
+  // 合法输入回归
+  assert.equal(addDays("2026-10-08", 1), "2026-10-09");
+  assert.equal(addDays("2026-10-08", -8), "2026-09-30");
+  assert.equal(startOfWeek("2026-10-08"), "2026-10-05"); // 周三 → 本周一
+});
+
+test("parseYmd：假日历日/垃圾串返回 Invalid Date（不再静默进位成下月）", () => {
+  assert.equal(Number.isNaN(parseYmd("2026-02-30").getTime()), true);
+  assert.equal(Number.isNaN(parseYmd("2023-02-29").getTime()), true); // 平年无 2/29
+  assert.equal(Number.isNaN(parseYmd("垃圾").getTime()), true);
+  // 真实日历日回归（含闰年）
+  assert.equal(parseYmd("2024-02-29").getTime(), new Date(2024, 1, 29).getTime());
+  assert.equal(parseYmd("2026-10-08").getTime(), new Date(2026, 9, 8).getTime());
 });

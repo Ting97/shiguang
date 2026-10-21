@@ -7,6 +7,7 @@ import { pool } from "@/server/platform/db";
 import { ApiError } from "../platform/http/errors";
 import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
 import { isUuid } from "../platform/http/validate";
+import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import type { TodoItem, TodoRow } from "@shiguangri/shared/types";
 import { todoRepo, spaceRepo, reflectionRepo, milestoneRepo } from "./repo";
 
@@ -221,9 +222,16 @@ async function undoDoneTodo(userId: string, id: string) {
       await client.query("rollback");
       throw ApiError.notFound("todo 不存在或未完成");
     }
-    if (todo.done_block_id) await todoRepo.deleteDoneBlock(client, todo.done_block_id);
-    const restored = (await todoRepo.restore(client, id)).rows[0];
+    // 撤销完成会让复盘水位（max(done_at)/max(start_at)）回退、当期缓存被判「仍新鲜」——
+    // 提交后按各自时间列显式失效复盘缓存（与 finance 删交易同口径；函数内部吞错降级，不阻塞撤销）
+    const doneAt = todo.done_at as string | Date | null;
+    const blockStart = todo.done_block_id
+      ? (((await todoRepo.deleteDoneBlock(client, todo.done_block_id, userId)).rows[0]?.start_at as string | Date | null) ?? null)
+      : null;
+    const restored = (await todoRepo.restore(client, id, userId)).rows[0];
     await client.query("commit");
+    if (doneAt) void invalidateReviewCachesForOccurrence(userId, new Date(doneAt));
+    if (blockStart) void invalidateReviewCachesForOccurrence(userId, new Date(blockStart));
     return { todo: restored };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -261,13 +269,13 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
   }
   // 空间归属校验（REQ-002 N1）：
   // ① 有父行动不可单独关联空间（409，随父 todo）；② 新关联/切换只允许 active 空间（400，归档空间可移除不可新挂）
-  // ③ spaceId:null 移除关联恒允许
+  // ③ spaceId:null 移除关联恒允许；空串不是合法 uuid——旧版因 falsy 短路静默清空归属且跳过校验，现同口径 400
   let spaceId: string | null = null;
-  if (body.spaceId) {
+  if (body.spaceId != null) {
+    // 引用字段 uuid 预检前置（非 uuid 落 SQL 会 22P02 → 500）
+    if (!isUuid(body.spaceId)) throw ApiError.badRequest("spaceId 参数不合法");
     const own = await todoRepo.parentOf(id, userId);
     if (own?.parent_todo_id) throw ApiError.conflict("行动随父 todo 关联空间，不可单独设置");
-    // 引用字段 uuid 预检（非 uuid 落 SQL 会 22P02 → 500）
-    if (!isUuid(body.spaceId)) throw ApiError.badRequest("spaceId 参数不合法");
     const hit = await todoRepo.spaceWithStatus(body.spaceId, userId);
     if (!hit) throw ApiError.badRequest("空间不存在");
     if (hit.status !== "active") throw ApiError.badRequest("空间已归档，不可新关联");
@@ -315,6 +323,9 @@ async function updateTodo(userId: string, id: string, body: TodoPatchInput) {
 async function removeTodo(userId: string, id: string) {
   const deleted = (await todoRepo.remove(id, userId)).rows[0];
   if (!deleted) throw ApiError.notFound("todo 不存在");
+  // 删除已完成 todo 会让复盘水位（max(done_at)）回退、当期缓存被判「仍新鲜」——按完成日显式失效；
+  // pending todo 不进复盘取数（只统计 status='done'），无需失效
+  if (deleted.done_at) void invalidateReviewCachesForOccurrence(userId, new Date(deleted.done_at));
   return { ok: true, title: deleted.title };
 }
 
@@ -458,7 +469,7 @@ async function createReflection(userId: string, spaceId: string, body: Reflectio
 /** GET /api/spaces/:id/reflections/:rid —— 全文（编辑/展开时拉取） */
 async function getReflection(userId: string, rid: string, spaceId?: string) {
   if (!(await reflectionRepo.ownOf(rid, userId, spaceId))) throw ApiError.notFound("感悟不存在");
-  return { reflection: await reflectionRepo.byId(rid) };
+  return { reflection: await reflectionRepo.byId(rid, userId) };
 }
 
 /** PATCH /api/spaces/:id/reflections/:rid —— 编辑 { content } */
@@ -469,14 +480,14 @@ async function updateReflection(userId: string, rid: string, body: ReflectionCre
   if (!content) throw ApiError.badRequest("感悟不能为空");
   if (content.length > MAX_CHARS) throw ApiError.badRequest("超出 50000 字上限");
 
-  const { rows } = await reflectionRepo.update(rid, content);
+  const { rows } = await reflectionRepo.update(rid, userId, content);
   return { reflection: rows[0] };
 }
 
 /** DELETE /api/spaces/:id/reflections/:rid —— 硬删 */
 async function removeReflection(userId: string, rid: string, spaceId?: string) {
   if (!(await reflectionRepo.ownOf(rid, userId, spaceId))) throw ApiError.notFound("感悟不存在");
-  await reflectionRepo.remove(rid);
+  await reflectionRepo.remove(rid, userId);
   return { ok: true as const };
 }
 
@@ -534,7 +545,7 @@ async function updateMilestone(userId: string, mid: string, body: MilestonePatch
   if (body.status !== undefined && !["active", "done", "abandoned"].includes(body.status)) {
     throw ApiError.badRequest("status 需为 active/done/abandoned");
   }
-  const { rows } = await milestoneRepo.update(mid, {
+  const { rows } = await milestoneRepo.update(mid, userId, {
     title: typeof body.title === "string" ? body.title.trim() : undefined,
     targetDate: body.targetDate ?? null,
     hasTargetDate: body.targetDate !== undefined,

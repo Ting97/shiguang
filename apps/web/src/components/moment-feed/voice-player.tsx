@@ -17,6 +17,8 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
+  // 拖拽态用 state（ref 不触发渲染，把手放大样式会停在拖拽前）
+  const [dragging, setDragging] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(0);
   const [err, setErr] = useState(false);
@@ -60,6 +62,7 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
     };
     const down = (e: PointerEvent) => {
       draggingRef.current = true;
+      setDragging(true);
       try {
         track.setPointerCapture(e.pointerId);
       } catch {
@@ -72,6 +75,7 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
     };
     const up = () => {
       draggingRef.current = false;
+      setDragging(false);
     };
     track.addEventListener("pointerdown", down);
     track.addEventListener("pointermove", move);
@@ -92,7 +96,18 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
       a.pause();
       setPlaying(false);
     } else {
-      void a.play().then(() => setPlaying(true)).catch(() => setErr(true));
+      // 播放真正开始前 pause() 会让 play() 以 AbortError 拒绝：这是快速「播放→暂停」的正常路径，
+      // 不是加载失败（误标 err 会让播放器永久锁死在错误文案，无恢复入口）
+      void a
+        .play()
+        .then(() => setPlaying(true))
+        .catch((e: unknown) => {
+          if ((e as Error)?.name === "AbortError") {
+            setPlaying(false);
+            return;
+          }
+          setErr(true);
+        });
     }
   }
 
@@ -141,7 +156,7 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
             </div>
             <span
               className={`pointer-events-none -ml-[5px] h-2.5 w-2.5 rounded-full bg-white shadow-md shadow-scrim/50 transition-transform ${
-                playing || draggingRef.current ? "scale-100" : "scale-0 group-hover:scale-100"
+                playing || dragging ? "scale-100" : "scale-0 group-hover:scale-100"
               }`}
             />
           </div>

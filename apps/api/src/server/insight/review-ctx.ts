@@ -29,6 +29,10 @@ const bjDateOf = (s: string) => new Date(`${s}T00:00:00+08:00`);
 const bjDow = (s: string) => new Date(`${s}T00:00:00Z`).getUTCDay();
 const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? `${m % 60}分` : ""}` : `${m}分`);
 
+/** year 原始明细硬上限：全量抽样虽需要取回明细全集，仍要给极端账号兜底（几十万条会拖垮装配内存与 prompt 体量）；
+ *  远大于常规 entryCap，截断在明细块注记（真实总数取聚合口径） */
+const YEAR_ENTRY_HARD_CAP = 5000;
+
 /** 行上限截断（含真实总数的截断注记；cap=0 全量保留。修正原 withCap 的「条条/条个」叠字） */
 function capLines(lines: string[], cap: number, label: string, total: number): string[] {
   const effective = cap > 0 ? Math.min(cap, lines.length) : lines.length;
@@ -94,6 +98,8 @@ export async function buildReviewCtx(
   const blockCap = cfg.caps.blockCap ?? 0;
   const todoCap = cfg.caps.todoCap ?? 0;
   const entryLimitInSql = kind !== "year" && entryCap > 0;
+  // 明细 SQL LIMIT：其余档按 entryCap；year 用硬上限（0 = 不设限，仅 day-周-月的 cap=0 语义）
+  const rawEntryLimit = entryLimitInSql ? entryCap : kind === "year" ? YEAR_ENTRY_HARD_CAP : 0;
 
   // ---- 聚合 + 明细并行取数（注入关闭的明细不取数；cap>0 下沉 SQL LIMIT）----
   const [timeRows, todoRows, txRows, interactRows, kcalRows, entryRows, subRows, rawEntryRows, blockRows, todoListRows, entryCountRows, blockCountRows, todoCountRows] =
@@ -146,14 +152,14 @@ export async function buildReviewCtx(
         baseParams,
       ),
       buildSubRows(userId, kind, from, to),
-      // 原始明细：year 全量取回（抽样与总数需要）；其余按 cap LIMIT；注入关闭则不查
-      //   占位符与参数必须同条件收放：year 不带 limit $5，参数也须停在 4 个（否则 bind 数失配 500）
+      // 原始明细：year 全量取回（抽样与总数需要，硬上限兜底极端账号）；其余按 cap LIMIT；注入关闭则不查
+      //   占位符与参数必须同条件收放：不带 limit $5 时参数也须停在 4 个（否则 bind 数失配 500）
       cfg.inject.entryDetail
         ? pool.query(
             `select raw_text, mood, mood_score, created_at from entries
              where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
-             order by created_at${entryLimitInSql ? ` limit $5::int` : ""}`,
-            entryLimitInSql ? [...baseParams, entryCap] : baseParams,
+             order by created_at${rawEntryLimit > 0 ? ` limit $5::int` : ""}`,
+            rawEntryLimit > 0 ? [...baseParams, rawEntryLimit] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       cfg.inject.blockDetail
@@ -219,7 +225,15 @@ export async function buildReviewCtx(
 
   // ---- 明细块（按注入开关与上限裁剪）----
   const entryDetail = cfg.inject.entryDetail
-    ? buildEntryBlock(kind, rawEntryRows.rows as EntryRowT[], entryCap, (entryCountRows.rows[0] as { n: number }).n)
+    ? buildEntryBlock(
+        kind,
+        rawEntryRows.rows as EntryRowT[],
+        entryCap,
+        // year 明细受硬上限约束，截断注记所需真实总数取聚合口径（entryCountRows 该档不查，恒为 0）
+        kind === "year"
+          ? (entryRows.rows[0] as { n: number }).n
+          : (entryCountRows.rows[0] as { n: number }).n,
+      )
     : "";
   const blockDetail = cfg.inject.blockDetail
     ? ["日程块：", ...capLines(blockLines(blockRows.rows as BlockRowT[]), blockCap, "个日程", (blockCountRows.rows[0] as { n: number }).n)].join("\n")
@@ -256,15 +270,22 @@ type EntryRowT = { created_at: string | Date; raw_text: string; mood?: string | 
 type BlockRowT = { start_at: string | Date; end_at: string | Date; title: string; icon: string; name: string };
 type TodoRowT = { done_at: string | Date | null; title: string };
 
-/** year 动态块：心情强度优先抽样（entryCap=条数，0=全量）；其余档：直接逐条（cap 已在 SQL 层生效，total 为真实总数用于截断注记） */
+/** year 动态块：心情强度优先抽样（entryCap=条数，0=全量）；其余档：直接逐条（cap 已在 SQL 层生效，total 为真实总数用于截断注记）。
+ *  year 明细受硬上限截断时 rows 为截后全集，entryTotal（聚合口径真实总数）大于 rows.length 即发生了截断，须注记 */
 function buildEntryBlock(kind: ReviewContentKind, rows: EntryRowT[], entryCap: number, entryTotal = rows.length): string {
   if (kind === "year") {
     const sampled = entryCap > 0 ? sampleEntryRows(rows, entryCap) : rows;
-    const total = rows.length;
+    const total = Math.max(rows.length, entryTotal);
     const used = sampled.length;
+    const note =
+      entryTotal > rows.length
+        ? `（全年共 ${total} 条动态，超出明细装配上限仅保留最早 ${rows.length} 条，以上为其代表性抽样 ${used} 条）`
+        : total > used
+          ? `（全年共 ${total} 条动态，以上为代表性抽样 ${used} 条）`
+          : null;
     return [
       "代表性原始动态（时间 原文 心情）：",
-      [...entryLines(sampled), ...(total > used ? [`（全年共 ${total} 条动态，以上为代表性抽样 ${used} 条）`] : [])].join("\n"),
+      [...entryLines(sampled), ...(note ? [note] : [])].join("\n"),
     ].join("\n");
   }
   return ["原始动态（时间 原文 心情）：", ...capLines(entryLines(rows), entryCap, "条动态", Math.max(rows.length, entryTotal))].join("\n");
@@ -469,7 +490,7 @@ function buildSubLines(
   ];
 }
 
-/** 子周期聚合三查询（day 无；week 按日 / month 按自然周 / year 按月；跨期块分摊口径与原实现一致） */
+/** 子周期聚合三查询（day 无；week 按日 / month 按自然周 / year 按月；month/year 跨期块按覆盖周期拆分累加） */
 async function buildSubRows(
   userId: string,
   kind: ReviewContentKind,
@@ -509,21 +530,39 @@ async function buildSubRows(
     ]);
     return { rows: [...a.rows, ...b.rows, ...c.rows] };
   }
-  // month：date_trunc('week')，跨月周只计入本月内的时长；year：extract(month)，跨月块按起止月分摊
+  // month：date_trunc('week')；year：extract(month)。
+  // 跨周期块（如横跨两周/两月的块）旧实现只把整段计入起始所在的首周期，越过周期边界的时长被静默丢弃——
+  // 改用 lateral generate_series 按覆盖的每个周期起点拆行累加（与 statsRepo.dailyMinsByActivity
+  // 的按天拆分同范式）：序列上下界先与 [from, to+1) 求交集再落到周期起点，保证任意合法块非空；
+  // 行键取周期起点（周键=周一 / 月键=月份数），与 buildSubLines 的键位一一对应
+  const unit = kind === "month" ? "week" : "month";
+  const step = kind === "month" ? "7 days" : "1 month";
+  // 行键：时间块行取拆分后的周期起点 d.pstart（entries/tx 是时点数据，仍取自身时间戳的周期键）
+  const splitKeyExpr =
+    kind === "month"
+      ? `to_char(date_trunc('week', d.pstart), 'YYYY-MM-DD') as wk`
+      : `extract(month from d.pstart)::int as mm`;
   const keyExpr = (col: string) =>
     kind === "month"
       ? `to_char(date_trunc('week', (${col} at time zone $2)), 'YYYY-MM-DD') as wk`
       : `extract(month from (${col} at time zone $2))::int as mm`;
   const [a, b, c] = await Promise.all([
     pool.query(
-      `select ${keyExpr("b.start_at")}, a.name, a.icon,
+      `select ${splitKeyExpr}, a.name, a.icon,
               sum(floor(extract(epoch from
-                least(least((b.end_at at time zone $2), ($4::date + 1)), date_trunc('${kind === "month" ? "week" : "month"}', (b.start_at at time zone $2)) + interval '${kind === "month" ? "7 days" : "1 month"}')
-                - greatest(greatest((b.start_at at time zone $2), $3::date), date_trunc('${kind === "month" ? "week" : "month"}', (b.start_at at time zone $2)))
+                least(least((b.end_at at time zone $2), ($4::date + 1)::timestamp), d.pstart + interval '${step}')
+                - greatest(greatest((b.start_at at time zone $2), $3::date::timestamp), d.pstart)
               ) / 60))::int as mins
-       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       from time_blocks b
+       join activities a on a.id = b.activity_id and a.user_id = b.user_id
+       join lateral generate_series(
+              date_trunc('${unit}', greatest((b.start_at at time zone $2), $3::date::timestamp)),
+              date_trunc('${unit}', least((b.end_at at time zone $2), ($4::date + 1)::timestamp)),
+              interval '${step}') d(pstart) on true
        where b.user_id = $1
          and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
+         and least(least((b.end_at at time zone $2), ($4::date + 1)::timestamp), d.pstart + interval '${step}')
+           > greatest(greatest((b.start_at at time zone $2), $3::date::timestamp), d.pstart)
        group by 1, 2, 3`,
       base,
     ),

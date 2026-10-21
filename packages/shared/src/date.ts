@@ -25,21 +25,28 @@ export function localDateKey(iso: string): string {
   return ymd(new Date(iso));
 }
 
-/** YYYY-MM-DD → Date（当天 0 点，避开 ISO 解析的时区坑） */
+/** YYYY-MM-DD → Date（当天 0 点，避开 ISO 解析的时区坑）；
+ * 垃圾入参（缺段/非数字）与假日历日（2026-02-30——JS 会静默进位成 3 月 2 日而非 Invalid Date）
+ * 一律返回 Invalid Date，addDays/startOfWeek 等消费方按原值返回，不再产 "NaN-NaN-NaN"（十轮检视） */
 export function parseYmd(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  const dt = new Date(y, m - 1, d);
+  // 回读比对年月日：静默进位（2026-02-30 → 3 月 2 日）与 NaN 段（比较恒 false）都落 Invalid Date
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return new Date(NaN);
+  return dt;
 }
 
 export function addDays(s: string, n: number): string {
   const d = parseYmd(s);
+  if (Number.isNaN(d.getTime())) return s; // 非法入参原值返回（对齐 bjAddDays 守卫口径）
   d.setDate(d.getDate() + n);
   return ymd(d);
 }
 
-/** 本周一（周一为一周开始） */
+/** 本周一（周一为一周开始）；非法入参原值返回（同 addDays 守卫口径） */
 export function startOfWeek(s: string): string {
   const d = parseYmd(s);
+  if (Number.isNaN(d.getTime())) return s;
   const dow = (d.getDay() + 6) % 7; // 周一=0
   d.setDate(d.getDate() - dow);
   return ymd(d);

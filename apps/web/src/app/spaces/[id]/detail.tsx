@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import FitnessPanel from "@/app/fitness/panel";
@@ -32,10 +32,13 @@ import { useTodoActions } from "./detail/use-todo-actions";
 export default function Detail() {
   const { id, space, setSpace, setAllSpaces, notFound, todos, doneTodos, moments, momentsTotal, momentsLoadingMore, loadMoreMoments, activities, allSpaces, loadErr, load } = useSpaceData();
   const [msg, setMsg] = useState<Msg>(null);
-  // N2：分区 tab；?tab=fitness 深链定位训练栏（/fitness 旧地址跳转、导航入口用）
-  const [tab, setTab] = useState<SpaceTab>(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "fitness" ? "fitness" : "todo",
-  );
+  // N2：分区 tab；?tab=fitness 深链定位训练栏（/fitness 旧地址跳转、导航入口用）。
+  // 初值固定 "todo"，query 在 effect 里解析（schedule/page.tsx 同款）——
+  // 惰性初始化读 window.location.search 会让直链首屏与 SSR 输出水合不匹配
+  const [tab, setTab] = useState<SpaceTab>("todo");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "fitness") setTab("fitness");
+  }, []);
   // 空间操作菜单（⋯ 收纳归档/删除）
   const [spaceMenu, setSpaceMenu] = useState(false);
   const [spaceMenuPos, setSpaceMenuPos] = useState<{ top: number; left: number } | null>(null);

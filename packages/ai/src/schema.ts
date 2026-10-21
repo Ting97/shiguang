@@ -59,15 +59,32 @@ export const TimeBlock = z.object({
   confidence: llmConfidence,
 });
 
+/** YYYY-MM-DD 真实日历校验：形状 regex 只查格式不查日历——且 JS 对 2026-02-30 并非 Invalid Date，
+ * 会静默进位成 3 月 2 日——按北京时区解析后回读比对年月日，假日期拒绝（与九轮 bjDate 修复同口径） */
+export function isRealYmd(s: string): boolean {
+  const t = Date.parse(`${s}T00:00:00+08:00`);
+  if (Number.isNaN(t)) return false;
+  return new Date(t + 8 * 3600_000).toISOString().slice(0, 10) === s;
+}
+
+/** 话术日期（北京 YYYY-MM-DD）：格式 + 真实日历双校验；畸形/假日期静默置 null（可选字段不打回重问，按当天记） */
+const BjYmd = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(isRealYmd, { message: "日期须为真实日历日" })
+  .nullish()
+  .catch(null);
+
 /** 财务域联动草稿（amountCents 恒为正数，方向由 direction 表达） */
 export const FinanceDraft = z.object({
   hasAmount: z.boolean(),
   direction: z.enum(["out", "in"]).default("out"), // out=支出(花了/买了) in=收入(收到/到账)
-  amountCents: z.number().int().nullish(),
+  // >0 契约：「花了0元」曾产出 0 分流水——0/负数一律拒收（ruleExtract/rulesPipeline 双保险置 hasAmount=false）
+  amountCents: z.number().int().nullish().refine((v) => v == null || v > 0),
   category: z.string().nullish(),
   counterparty: z.string().nullish(),
   /** 话术带日期的花销 → 发生日（北京 YYYY-MM-DD）；null=按当天记（REQ-009 FR-E6） */
-  occurredDate: z.string().nullish(),
+  occurredDate: BjYmd,
 });
 
 /** 人际域联动草稿 */
@@ -86,7 +103,7 @@ export const DietDraft = z.object({
   applicable: z.boolean().default(false),
   meal: z.enum(["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"]).default("未知"),
   items: z.array(DietItem).default([]),
-  totalKcal: z.coerce.number().int().nullish(),
+  totalKcal: z.coerce.number().int().min(0).nullish(),
   confidence: z.coerce.number().min(0).max(1).default(0.8),
 });
 
@@ -236,8 +253,8 @@ export const FinanceDraftV2 = z
     // 用 transform 而非 max——max 会打回重问，整次抽取失败的代价远大于静默截断（title 同款取舍）
     category: z.string().nullish().transform((v) => capCodepoints(v, 30)),
     counterparty: z.string().nullish().transform((v) => capCodepoints(v, 30)),
-    /** 话术带日期的花销 → 发生日 YYYY-MM-DD；畸形值静默置 null（可选字段不打回重问） */
-    occurredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().catch(null),
+    /** 话术带日期的花销 → 发生日 YYYY-MM-DD；畸形/假日期（2026-02-30）静默置 null（可选字段不打回重问） */
+    occurredDate: BjYmd,
     confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
@@ -287,7 +304,7 @@ export const DietDraftV2 = z
     applicable: llmBoolean,
     meal: z.enum(["早餐", "午餐", "晚餐", "加餐", "夜宵", "未知"]).nullish().transform((m) => m ?? "未知"),
     items: z.array(DietItemV2).max(20).default([]),
-    totalKcal: z.coerce.number().int().max(20000).nullish(),
+    totalKcal: z.coerce.number().int().min(0).max(20000).nullish(),
     confidence: llmConfidence,
   })
   .superRefine((v, ctx) => {
@@ -390,7 +407,7 @@ export const LlmExtraction = z.object({
       amountCents: z.coerce.number().int().nullish(),
       category: z.string().nullish(),
       counterparty: z.string().nullish(),
-      occurredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().catch(null),
+      occurredDate: BjYmd,
       confidence: conf(0.9),
     })
     .nullish()

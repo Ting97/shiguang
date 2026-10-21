@@ -66,6 +66,8 @@ export function ImageLightbox({
   const [zoom, setZoom] = useState(0); // 0=适应 1=放大 2.2x（origin 记在 zoomOrigin）
   const [zoomOrigin, setZoomOrigin] = useState("50% 50%");
   const swipeX = useRef<number | null>(null);
+  // 滑动切图标记：pointerup 后浏览器仍会派发 click（落点在遮罩上），不消费会立刻误关预览
+  const swipedRef = useRef(false);
   const lastTap = useRef(0);
   // body 滚动锁：预览挂载即全屏打开，关闭即卸载还原
   useBodyScrollLock(true);
@@ -106,12 +108,25 @@ export function ImageLightbox({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/95"
-      onClick={onClose}
-      onPointerDown={(e) => (swipeX.current = e.clientX)}
+      onClick={() => {
+        // 刚完成滑动切图：本次 click 是滑动的合成事件，消费掉不关闭
+        if (swipedRef.current) {
+          swipedRef.current = false;
+          return;
+        }
+        onClose();
+      }}
+      onPointerDown={(e) => {
+        swipeX.current = e.clientX;
+        swipedRef.current = false;
+      }}
       onPointerUp={(e) => {
         if (swipeX.current === null || zoom > 0) return;
         const dx = e.clientX - swipeX.current;
-        if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1); // 左滑下一张，右滑上一张
+        if (Math.abs(dx) > 60) {
+          go(dx < 0 ? 1 : -1); // 左滑下一张，右滑上一张
+          swipedRef.current = true;
+        }
         swipeX.current = null;
       }}
     >

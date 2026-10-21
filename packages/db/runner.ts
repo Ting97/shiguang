@@ -33,9 +33,10 @@ function readSql(path: string): string {
 
 /** 迁移文件自带事务语句会让 runner 的「单条迁移整体事务」契约失效：
  *  文件内 commit; 会把外层事务提前提交，之后的记录表 insert 变成 autocommit——
- *  中间失败即「已执行但未记录」，下次重跑非幂等迁移直接踩坏数据。统一由 runner 管理事务 */
+ *  中间失败即「已执行但未记录」，下次重跑非幂等迁移直接踩坏数据。统一由 runner 管理事务
+ *  （PG 语法变体 commit work;/rollback work; 与裸 commit;/rollback; 等价，一并拦截） */
 function assertNoInlineTx(sql: string, f: string) {
-  if (/^\s*(begin|start\s+transaction|commit|rollback)\s*;/im.test(sql)) {
+  if (/^\s*(begin|start\s+transaction|commit|rollback)(\s+work)?\s*;/im.test(sql)) {
     console.error(`[migrate] ✗ ${f} 自带 begin/commit 语句——事务由 runner 统一管理，请移除文件内事务语句`);
     process.exit(1);
   }
@@ -107,8 +108,9 @@ async function main() {
     for (const f of files) {
       const sql = readSql(join(MIGRATIONS_DIR, f));
       // legacy 迁移（003）自带 begin/commit：仅 fresh 全量执行时剥离、由 runner 事务托管
-      //（文件内容不动，checksum 不受影响）；新迁移走 pending 路径的硬校验
-      const execSql = sql.replace(/^\s*(begin|start\s+transaction|commit|rollback)\s*;.*$/gim, "");
+      //（文件内容不动，checksum 不受影响）；新迁移走 pending 路径的硬校验。
+      // 剥离正则与 assertNoInlineTx 同口径（含 commit work;/rollback work; 变体），剥离面只增不减
+      const execSql = sql.replace(/^\s*(begin|start\s+transaction|commit|rollback)(\s+work)?\s*;.*$/gim, "");
       const t0 = Date.now();
       try {
         await client.query("begin");

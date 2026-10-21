@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { fitnessService } from "@/server/fitness";
 
 /** GET /api/fitness/plans?from=&to= —— 区间日计划（北京日期 YYYY-MM-DD） */
@@ -10,8 +10,8 @@ export const GET = withModule("fitness", async (req, { user }) => {
   return NextResponse.json(await fitnessService.listPlans(user.id, from, to));
 });
 
-/** POST /api/fitness/plans —— create-or-replace 草稿（联动今日行动） */
+/** POST /api/fitness/plans —— 新增草稿（联动今日行动）；readJsonCapped 替代裸 req.json() */
 export const POST = withModule("fitness", async (req, { user }) => {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonCapped(req);
   return NextResponse.json(await fitnessService.savePlanDraft(user.id, body));
 });

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { fitnessService } from "@/server/fitness";
 
-/** PATCH /api/fitness/plans/[id] —— 确认/编辑草稿/skipped/打卡（done|partial + actual） */
+/** PATCH /api/fitness/plans/[id] —— 确认/编辑草稿/skipped/打卡（done|partial + actual）；readJsonCapped 替代裸 req.json() */
 export const PATCH = withModuleParams("fitness", async (req, ctx) => {
   const { id } = await ctx.params;
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonCapped(req);
   return NextResponse.json(await fitnessService.updatePlan(ctx.user.id, String(id), body));
 });
 

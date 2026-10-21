@@ -117,8 +117,9 @@ export const contactsRepo = {
   remove(id: string, userId: string) {
     return pool.query(`delete from contacts where id = $1 and user_id = $2 returning id`, [id, userId]);
   },
-  /** 一起经历过的事：往来事件（含来源动态原文与关联流水金额） */
-  timelineOf(contactId: string) {
+  /** 一起经历过的事：往来事件（含来源动态原文与关联流水金额）。
+   * user_id 谓词是纵深防御：contact_id 已由调用方做属主校验，双条件防 contact_id 传错时跨用户读时间线 */
+  timelineOf(contactId: string, userId: string) {
     return pool.query(
       `select i.id, i.type, i.summary, i.occurred_at, i.created_at,
               e.raw_text as entry_text,
@@ -126,10 +127,10 @@ export const contactsRepo = {
          from interactions i
          left join entries e on e.id = i.entry_id
          left join transactions t on t.id = i.tx_id
-        where i.contact_id = $1
+        where i.contact_id = $1 and i.user_id = $2
         order by coalesce(i.occurred_at, i.created_at) desc
         limit 100`,
-      [contactId],
+      [contactId, userId],
     );
   },
   /** 关联人情账：流水的「对方」字段命中联系人名（含语音/手动/导入，草稿除外） */
@@ -210,7 +211,7 @@ export const peopleMoneyRepo = {
     return pool.query(
       `select direction, amount_cents, category, note, occurred_at from transactions
        where user_id = $2 and is_draft = false and counterparty = $1 and category = '人情往来'
-       order by occurred_at desc limit 30`,
+       order by occurred_at desc nulls last limit 30`,
       [name, userId],
     );
   },

@@ -125,9 +125,11 @@ export const fitnessRepo = {
       [userId, d.planDate, d.moduleCode, d.source, JSON.stringify(d.content), d.rationale, d.originConversationId],
     );
   },
-  updatePlan(id: string, userId: string, sets: string[], vals: unknown[], exec: Pick<typeof pool, "query"> = pool) {
+  /** extraWhere：附加 WHERE 条件（如 ` and status in ('draft','confirmed')`），供绕过行锁重读的
+   * 写入点自限状态——锁外快照读后回写时防并发打卡后内容被覆盖 */
+  updatePlan(id: string, userId: string, sets: string[], vals: unknown[], exec: Pick<typeof pool, "query"> = pool, extraWhere = "") {
     return exec.query(
-      `update fitness_daily_plans set ${sets.join(", ")}, updated_at = now() where id = $${vals.length - 1} and user_id = $${vals.length}
+      `update fitness_daily_plans set ${sets.join(", ")}, updated_at = now() where id = $${vals.length - 1} and user_id = $${vals.length}${extraWhere}
        returning id, user_id, plan_date::text as plan_date, module_code, source, status, content, rationale, origin_conversation_id`,
       vals,
     );
@@ -216,13 +218,16 @@ export const fitnessRepo = {
       [moduleCode],
     );
   },
-  /** 按名称匹配动作库（解析结果挂 exerciseId）：精确 → 蛋壳包含（去掉常见前后缀） */
+  /** 按名称匹配动作库（解析结果挂 exerciseId）：精确 → 蛋壳包含（去掉常见前后缀）。
+   * like 通配符（% _ \）转义：动作名含 % 时裸拼会把「包含匹配」放大成「全表匹配」；
+   * 精确分支与 like 分支分参——精确匹配仍用原名 */
   matchExercises(names: string[]) {
+    const esc = (n: string) => n.replace(/[\\%_]/g, (c) => `\\${c}`);
     return pool.query(
       `select id, name from fitness_exercises
        where name = any($1::text[])
-          or exists (select 1 from unnest($1::text[]) n where fitness_exercises.name like '%' || n || '%')`,
-      [names],
+          or exists (select 1 from unnest($2::text[]) n where fitness_exercises.name like '%' || n || '%' escape '\\')`,
+      [names, names.map(esc)],
     );
   },
 

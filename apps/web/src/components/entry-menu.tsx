@@ -69,6 +69,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   const [mood, setMood] = useState("");
   const [meal, setMeal] = useState("午餐");
   const [pType, setPType] = useState("见面");
+  // 点外/Esc 关闭（Hook 留在组件体顶部：JSX 内调用因顺序稳定能跑，但违反 Hooks 惯例且重构易踩坑）
+  const dismissRef = useDismiss<HTMLDivElement>(onClose);
 
   function openManual(key: SixKey) {
     if (key === manualDomain) {
@@ -237,7 +239,7 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   return (
     /* 移动端：底部弹层（拇指可达、不溢出视口）；桌面（sm:）：锚定卡片的浮层 */
     <div
-      ref={useDismiss<HTMLDivElement>(onClose)}
+      ref={dismissRef}
       className="fade-up fixed inset-x-0 bottom-0 z-[60] max-h-[85dvh] overflow-y-auto rounded-t-2xl border border-line-soft bg-elevated p-4 safe-bottom shadow-2xl shadow-scrim/70 sm:inset-x-auto sm:bottom-auto sm:max-h-none sm:w-[300px] sm:rounded-xl sm:p-3"
       style={desktopPos ? { top: desktopPos.top, left: desktopPos.left } : undefined}
       onClick={(e) => e.stopPropagation()}

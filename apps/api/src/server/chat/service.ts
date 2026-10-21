@@ -208,66 +208,78 @@ export async function sendMessage(
     throw ApiError.quota(`今日 AI 助手次数已用完（免费版每天 ${FREE_CHAT_CALLS_PER_DAY} 次），明天再来或升级 Pro`);
   }
 
-  // 会话定位：传入 id 则校验属主；否则以首句前 20 字为标题新建
+  // 会话定位 → prompt 装配这段发生在占位之后、外层 try（LLM 调用）之前，失败不会走外层 catch
+  // 回退占位——免费用户额度会被从未触达 LLM 的请求烧掉。内层包一层：失败回退占位后原样重抛
+  // （404/400 等错误语义与状态码不变；不写 chat 审计——计量口径以触达 LLM 为准）
   let conversationId: string;
   let conversationTitle: string;
   let scope: ChatScope;
-  if (input.conversationId) {
-    const { rows } = await pool.query(
-      `select id, title, scope from chat_conversations where id = $1 and user_id = $2 and deleted_at is null`,
-      [input.conversationId, userId],
-    );
-    if (!rows.length) throw ApiError.notFound("会话不存在");
-    conversationId = rows[0].id;
-    conversationTitle = rows[0].title;
-    scope = (CHAT_SCOPES as readonly string[]).includes(rows[0].scope) ? (rows[0].scope as ChatScope) : "global";
-    if (input.scope != null && scope !== requestedScope) {
-      throw ApiError.badRequest("会话域不匹配：请在该域助手中开新会话");
+  let userMessage: ChatMessageDTO;
+  let turns: AgentTurn[];
+  let system: string;
+  try {
+    // 会话定位：传入 id 则校验属主；否则以首句前 20 字为标题新建
+    if (input.conversationId) {
+      const { rows } = await pool.query(
+        `select id, title, scope from chat_conversations where id = $1 and user_id = $2 and deleted_at is null`,
+        [input.conversationId, userId],
+      );
+      if (!rows.length) throw ApiError.notFound("会话不存在");
+      conversationId = rows[0].id;
+      conversationTitle = rows[0].title;
+      scope = (CHAT_SCOPES as readonly string[]).includes(rows[0].scope) ? (rows[0].scope as ChatScope) : "global";
+      if (input.scope != null && scope !== requestedScope) {
+        throw ApiError.badRequest("会话域不匹配：请在该域助手中开新会话");
+      }
+    } else {
+      const title = text.replace(/\s+/g, " ").slice(0, 20) || "新对话";
+      const { rows } = await pool.query(
+        `insert into chat_conversations (user_id, title, scope) values ($1, $2, $3) returning id, title`,
+        [userId, title, requestedScope],
+      );
+      conversationId = rows[0].id;
+      conversationTitle = rows[0].title;
+      scope = requestedScope;
     }
-  } else {
-    const title = text.replace(/\s+/g, " ").slice(0, 20) || "新对话";
-    const { rows } = await pool.query(
-      `insert into chat_conversations (user_id, title, scope) values ($1, $2, $3) returning id, title`,
-      [userId, title, requestedScope],
+
+    const { rows: insertedUser } = await pool.query(
+      `insert into chat_messages (conversation_id, user_id, role, content)
+       values ($1, $2, 'user', $3)
+       returning id, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj`,
+      [conversationId, userId, text],
     );
-    conversationId = rows[0].id;
-    conversationTitle = rows[0].title;
-    scope = requestedScope;
+    userMessage = {
+      id: insertedUser[0].id,
+      role: "user",
+      content: text,
+      createdAt: insertedUser[0].created_bj,
+    };
+
+    // 对话历史（含刚落的这条）：最近 HISTORY_LIMIT 条 user/assistant 文本
+    const { rows: historyRows } = await pool.query(
+      `select role, content from chat_messages
+       where conversation_id = $1 and user_id = $2 and role in ('user','assistant') and content <> ''
+       order by created_at desc limit $3`,
+      [conversationId, userId, HISTORY_LIMIT],
+    );
+    turns = historyRows
+      .slice()
+      .reverse()
+      .map((r: { role: string; content: string }) => ({
+        role: r.role === "assistant" ? "assistant" : "user",
+        content: r.content,
+      }));
+
+    // system = 按会话域选人设（REQ-019 FR-C3，纳管热更）+ 上下文块（当前北京时间；画像注入沿用各 key 配置）
+    const promptKey = SCOPE_PROMPT_KEY[scope];
+    const bundle = await getPromptBundle(promptKey);
+    const ctxBlock = await assembleUserPrompt(promptKey, bundle, { nowCst: toCstWallClock(new Date()) }, { userId });
+    system = ctxBlock ? `${bundle.system}\n\n${ctxBlock}` : bundle.system;
+  } catch (e) {
+    // 失败回退占位（口径：配额只扣成功调用）后原样重抛
+    await releaseChatQuota(userId, quota.dayKey).catch(() => {});
+    throw e;
   }
-
-  const { rows: insertedUser } = await pool.query(
-    `insert into chat_messages (conversation_id, user_id, role, content)
-     values ($1, $2, 'user', $3)
-     returning id, to_char(created_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as created_bj`,
-    [conversationId, userId, text],
-  );
-  const userMessage: ChatMessageDTO = {
-    id: insertedUser[0].id,
-    role: "user",
-    content: text,
-    createdAt: insertedUser[0].created_bj,
-  };
-
-  // 对话历史（含刚落的这条）：最近 HISTORY_LIMIT 条 user/assistant 文本
-  const { rows: historyRows } = await pool.query(
-    `select role, content from chat_messages
-     where conversation_id = $1 and user_id = $2 and role in ('user','assistant') and content <> ''
-     order by created_at desc limit $3`,
-    [conversationId, userId, HISTORY_LIMIT],
-  );
-  const turns: AgentTurn[] = historyRows
-    .slice()
-    .reverse()
-    .map((r: { role: string; content: string }) => ({
-      role: r.role === "assistant" ? "assistant" : "user",
-      content: r.content,
-    }));
-
-  // system = 按会话域选人设（REQ-019 FR-C3，纳管热更）+ 上下文块（当前北京时间；画像注入沿用各 key 配置）
-  const promptKey = SCOPE_PROMPT_KEY[scope];
-  const bundle = await getPromptBundle(promptKey);
-  const ctxBlock = await assembleUserPrompt(promptKey, bundle, { nowCst: toCstWallClock(new Date()) }, { userId });
-  const system = ctxBlock ? `${bundle.system}\n\n${ctxBlock}` : bundle.system;
 
   const startedAt = Date.now();
   let usage = { prompt_tokens: 0, completion_tokens: 0 };

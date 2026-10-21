@@ -71,7 +71,8 @@ export const PATCH = withModuleParams("finance", async (req, { user, params }) =
       )
     ).rows[0];
     if (!updated) throw ApiError.notFound("账户不存在");
-    return NextResponse.json({ account: updated });
+    // opening_balance_cents（bigint）node-pg 返回 string：与 GET/POST 同口径 Number()，web 端按数值比较
+    return NextResponse.json({ account: { ...updated, opening_balance_cents: Number(updated.opening_balance_cents) } });
   } catch (e) {
     // 050 起唯一约束是部分索引（仅未归档行），违例报索引名；兼容旧约束名
     if (String(e).includes("accounts_user_id_name_key") || String(e).includes("accounts_user_id_name_active_uidx")) {

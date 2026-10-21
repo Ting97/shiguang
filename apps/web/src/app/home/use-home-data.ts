@@ -32,6 +32,9 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
   const aliveRef = useRef(true);
   // 加载失败态（网络抖动/接口异常）：给出重试入口，避免失败后整页静默空态
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  // 首载未就绪：动态列表在第一次取数落地前渲染骨架而非「还没有动态」空态文案
+  // （空态文案在数据未到时闪现，用户会误以为记录丢了）
+  const [feedReady, setFeedReady] = useState(false);
   // 空间切换条（REQ-001 R3）：all=全部 / none=未归属 / <id>=某空间
   const [spaceFilter, setSpaceFilter] = useState("all");
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -75,11 +78,13 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
       setMoments(f.moments ?? []);
       setFeedTotal(f.total ?? 0);
       setReminderItems(rj ? pickReminders((rj.contacts ?? []) as ReminderContact[], (rj.todos ?? []) as ReminderTodo[]) : []);
+      setFeedReady(true);
       return "ok";
     } catch (e) {
       if (!aliveRef.current || seq !== seqRef.current) return "stale";
       // 失败不停在静默空态：置 loadErr（页面展示错误 + 重试按钮）；不向上抛，调用方多为 fire-and-forget
       setLoadErr(e instanceof Error ? e.message : String(e));
+      setFeedReady(true);
       return "error";
     } finally {
       // 本次取数周期落幕即复位「加载更多」；若已被更新的请求取代，则由那个周期的 finally 负责复位
@@ -163,6 +168,7 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
   return {
     moments,
     feedTotal,
+    feedReady,
     loadingMore,
     loadErr,
     query,

@@ -77,12 +77,14 @@ export async function getOrGenerateReview(
   });
 
   try {
+    // 水位取生成开始时刻（startedAt）：updated_at=now() 会把生成期间（LLM 可达 45s+）新写入的数据
+    // 遮蔽在缓存之下——下次读取 cachedAt >= latestDataAt 误判「仍新鲜」，漏掉生成期间的新记录
     await pool.query(
-      `insert into review_caches (user_id, kind, period_key, review)
-       values ($1,$2,$3,$4)
+      `insert into review_caches (user_id, kind, period_key, review, updated_at)
+       values ($1,$2,$3,$4,$5)
        on conflict (user_id, kind, period_key)
-       do update set review = excluded.review, updated_at = now()`,
-      [userId, kind, periodKey, JSON.stringify(review)],
+       do update set review = excluded.review, updated_at = excluded.updated_at`,
+      [userId, kind, periodKey, JSON.stringify(review), new Date(startedAt)],
     );
   } catch (e) {
     console.error("[review-cache] 写入失败:", e);

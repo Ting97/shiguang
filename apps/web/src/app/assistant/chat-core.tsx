@@ -317,7 +317,10 @@ export default function AssistantChat({
       const j = await api<{ messages: MsgItem[]; hasMore: boolean }>(
         `/api/chat?id=${activeId}&before=${messages[0]?.id ?? ""}`,
       );
-      if (seq !== convSeq.current) return;
+      if (seq !== convSeq.current) {
+        prependHeightRef.current = null; // 失配丢弃回包前清掉，残留会让下一条消息被误判为翻页而不滚底
+        return;
+      }
       setMessages((ms) => [...(j.messages ?? []), ...ms]);
       setHasMore(j.hasMore ?? false);
     } catch (e) {
@@ -343,6 +346,9 @@ export default function AssistantChat({
   async function send(text?: string) {
     const body = (text ?? input).trim();
     if (!body || sending) return;
+    // 发送在途期间用户可能点「新对话」/删除当前会话/打开别的会话（都会推进 convSeq）：
+    // 快照序号，回包落地前失配则丢弃，避免 setActiveId+setMessages 把视图劫持回旧会话
+    const seq = convSeq.current;
     setSending(true);
     setInput("");
     const optimisticId = `local-${Date.now()}`;
@@ -362,6 +368,7 @@ export default function AssistantChat({
         undefined,
         { timeoutMs: 90_000 },
       );
+      if (seq !== convSeq.current) return; // 在途被切走：消息已落库旧会话，重开可见，这里不回写状态
       setActiveId(j.conversationId);
       setMessages((ms) => [
         ...ms.map((m) => (m.id === optimisticId ? j.userMessage : m)),
@@ -371,7 +378,8 @@ export default function AssistantChat({
       if (j.quota) setQuota(j.quota);
       loadList(); // 新会话入列 / 既有会话置顶
     } catch (e) {
-      // 失败保留用户消息（服务端已落库），错误以 toast 呈现，可重发
+      if (seq !== convSeq.current) return; // 失败回包同样不跨会话回写（避免回填输入框覆盖新会话的输入）
+      // 失败：移除乐观消息并把文本回填输入框（服务端可能已落库，重开该会话可见），错误以 toast 呈现，可重发
       toast(e instanceof Error ? e.message : String(e), "err");
       setMessages((ms) => ms.filter((m) => m.id !== optimisticId));
       setInput(body);

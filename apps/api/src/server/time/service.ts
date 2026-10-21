@@ -7,6 +7,7 @@
 import { findOverlap, overlapError, pool } from "@/server/platform/db";
 import { isParsableMoment, isValidCalendarDate } from "@/server/platform/http/datetime";
 import { ApiError } from "../platform/http/errors";
+import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import { activitiesRepo, blocksRepo, statsRepo, hasReviewablesInRange } from "./repo";
 import { seedPresetActivities } from "./seed";
 
@@ -139,7 +140,10 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
     if (!cur) throw ApiError.notFound("日程不存在");
     const newStart = startIso ?? cur.start_at;
     const newEnd = endIso ?? cur.end_at;
-    if (Date.parse(newEnd) <= Date.parse(newStart)) {
+    // pg 返回的 timestamptz 是 Date 对象：Date.parse(Date) 依赖 toString 隐式转换（非标准、宿主相关），
+    // instanceof 分支统一取 epoch 毫秒比较
+    const epochMs = (d: string | Date) => (d instanceof Date ? d.getTime() : Date.parse(d));
+    if (epochMs(newEnd) <= epochMs(newStart)) {
       throw ApiError.badRequest("结束时间必须晚于开始时间");
     }
     const conflict = await findOverlap(userId, newStart, newEnd, id, undefined, client);
@@ -165,6 +169,9 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
 export async function deleteBlock(userId: string, id: string) {
   const deleted = (await blocksRepo.remove(id, userId)).rows[0];
   if (!deleted) throw ApiError.notFound("日程不存在");
+  // 删除会让复盘水位（max(start_at)）回退、当期缓存被判「仍新鲜」回旧数据——
+  // 与 finance 删交易同口径，按块起始日显式失效四档复盘缓存（函数内部吞错降级，不阻塞删除）
+  void invalidateReviewCachesForOccurrence(userId, new Date(deleted.start_at));
   return { ok: true as const };
 }
 
