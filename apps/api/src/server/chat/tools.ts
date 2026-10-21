@@ -46,6 +46,10 @@ export const CHAT_READABLE_TABLES = [
   "fitness_goals",
   "fitness_profiles",
   "fitness_exercises",
+  // 补登实际被读但此前漏登记的表（modules 为计划/日志联表的模块字典、sleep_logs 为每日睡眠序列）——
+  // 本登记簿是跨域读的文档/审计口径：新增跨域读表必须同步登记，防注册表与真实读面漂移
+  "fitness_sleep_logs",
+  "fitness_modules",
 ] as const;
 
 /** 工具执行上下文：会话属主（所有查询的强制过滤条件）；提案工具另带会话归属 */
@@ -90,6 +94,10 @@ const bjTs = (col: string) => `to_char(${col} at time zone 'Asia/Shanghai', 'MM-
 
 /** timestamptz 列 → 北京钟面展示（null 透传 null）；todo 到期/完成时间用 */
 const dueExpr = (col: string) => `case when ${col} is null then null else ${bjTs(col)} end`;
+
+/** ilike 模糊匹配前转义通配符：用户输入里的 % _ \ 会被当模式元字符
+ * （"%" 直拼等于全表模糊扫，"\" 会吞掉后续字符造成误匹配），统一 \% \_ \\ 后再拼 %...% */
+const escapeLike = (v: string) => v.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** 模块门禁（REQ-028）：与路由 getModuleUser 同口径——admin 直通，普通用户走三层有效态 */
 async function moduleAllowed(ctx: ChatToolCtx, module: "debt" | "trading"): Promise<boolean> {
@@ -276,7 +284,7 @@ const getTodoDetail: ChatTool = {
        left join todos p on p.id = t.parent_todo_id
        where t.user_id = $1 and t.title ilike $2
        order by t.created_at desc limit 1`,
-      [ctx.userId, `%${title}%`],
+      [ctx.userId, `%${escapeLike(title)}%`],
     );
     if (!rows.length) return { found: false, title };
     const todo = rows[0];
@@ -337,7 +345,7 @@ const queryInteractions: ChatTool = {
        from contacts c
        where c.user_id = $1 and c.name ilike $2
        order by last_interaction desc nulls last limit 5`,
-      [ctx.userId, `%${contactName}%`],
+      [ctx.userId, `%${escapeLike(contactName)}%`],
     );
     if (!matched.length) return { contact: contactName, found: false, items: [] };
     const contact = matched[0];
@@ -355,7 +363,11 @@ const queryInteractions: ChatTool = {
     return {
       contact: { name: contact.name, importance: contact.importance, intimacy: contact.intimacy },
       otherMatches: matched.slice(1).map((m: { name: string }) => m.name),
-      items,
+      // 与 query_transactions 同口径：::bigint 经 pg 返回字符串统一转回数字（左关联合流水可为 null，透传）
+      items: items.map((r: Record<string, unknown> & { cents: unknown }) => ({
+        ...r,
+        cents: r.cents == null ? null : Number(r.cents),
+      })),
       centsUnit: "分（1元=100分）",
     };
   },
@@ -423,7 +435,7 @@ const queryEntries: ChatTool = {
     const conditions = ["user_id = $1"];
     const args: unknown[] = [ctx.userId];
     if (q) {
-      args.push(`%${q}%`);
+      args.push(`%${escapeLike(q)}%`);
       conditions.push(`raw_text ilike $${args.length}`);
     }
     const todayBj = bjToday();
@@ -620,7 +632,7 @@ const queryDebts: ChatTool = {
     const { rows: paid } = await pool.query(
       `select coalesce(sum(amount_cents), 0)::bigint as cents, count(*)::int as n
        from liability_payments
-       where user_id = $1 and paid_at >= (now() at time zone 'Asia/Shanghai')::date - 30`,
+       where user_id = $1 and paid_at >= (((now() at time zone 'Asia/Shanghai')::date - 30)::timestamp) at time zone 'Asia/Shanghai'`,
       [ctx.userId],
     );
     return {
@@ -845,7 +857,7 @@ const getFitnessExercises: ChatTool = {
        where ($1::text is null or module_code = $1)
          and ($2::text is null or name ilike '%' || $2 || '%' or muscle_primary::text ilike '%' || $2 || '%' or muscle_secondary::text ilike '%' || $2 || '%')
        order by sort limit 40`,
-      [mod ?? null, keyword ?? null],
+      [mod ?? null, keyword ? escapeLike(keyword) : null],
     );
     return { count: rows.length, items: rows };
   },
@@ -999,6 +1011,25 @@ const proposeFitnessPlan: ChatTool = {
     }
     if (module_code !== "run" && module_code !== "strength") {
       throw new Error("module_code 只能是 run 或 strength");
+    }
+    // 幂等守卫：packages/ai 的 chatAgent 对 rate/server/network 失败会整轮重试、重跑全部工具调用，
+    // 而本工具是直接 INSERT chat_proposals 的非幂等写（迁移 054 无唯一约束）——重复执行会产生
+    // 多张同日确认卡。同会话同 kind 同 plan_date 已有 pending 卡时直接复用已有卡，不再新插。
+    const { rows: existingCards } = await pool.query(
+      `select id from chat_proposals
+       where user_id = $1 and kind = 'fitness_plan' and status = 'pending'
+         and ($2::uuid is null or conversation_id = $2::uuid)
+         and payload->>'planDate' = $3
+       order by created_at desc limit 1`,
+      [ctx.userId, ctx.conversationId ?? null, plan_date],
+    );
+    if (existingCards.length) {
+      return {
+        proposalId: existingCards[0].id,
+        saved: false,
+        duplicated: true,
+        hint: "该日期已有一张待确认的计划卡（本工具不重复生成），请向用户展示既有卡片要点并说明不要声称已保存",
+      };
     }
     // 条件必填在 execute 内拦（不能放 params 校验：AI SDK 参数校验失败抛
     // InvalidToolArgumentsError 会打穿整个循环变 500；此处 throw 经 chatAgent 包装成

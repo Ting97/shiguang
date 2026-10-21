@@ -55,7 +55,7 @@ export function DebtForm({
         ...(balance ? { balanceCents } : {}),
         ratePct: Number.isFinite(parseFloat(rate)) ? parseFloat(rate) : 0,
         monthlyCents: monthly ? monthlyCents : null,
-        payDay: payDay ? Number(payDay) : null,
+        payDay: payDay ? Math.min(31, Math.max(1, Number(payDay))) : null, // 还款日钳 1~31（输入框 min/max 不拦手输越界值）
         dueDate: dueDate || null,
         priority: Number.isFinite(Number(priority)) ? Number(priority) : 0,
         note: note || null,

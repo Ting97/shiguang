@@ -15,7 +15,8 @@ const registerSchema = z.object({
 
 /**
  * POST /api/devices —— 移动端推送 token 注册/更新（REQ-009 9-D）
- * 幂等 upsert：同一 token 重复注册刷新 last_seen_at；换号登录改属主（token 全局唯一）
+ * 幂等 upsert：同一 token 重复注册刷新 last_seen_at（token 全局唯一）；
+ * 属主守卫：token 已属他人一律 409，绝不改属主
  */
 export const POST = withAuthSchema(registerSchema, async (_req, { user, valid }) => {
   // 属主守卫下推进 upsert 本体（check-then-upsert 两步在并发下可被顶掉）：

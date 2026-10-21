@@ -8,7 +8,7 @@ import { chat, extractJson, hasApiKey, activeModel } from "@shiguangri/ai";
 import { ApiError } from "../platform/http/errors";
 import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
 import { pool } from "../platform/db";
-import { checkAiQuota, writeAuditRecord, type AuditRecord } from "../ai";
+import { checkAiQuota, writeAuditRecord } from "../ai";
 import { contactsRepo, interactionsRepo, peopleMoneyRepo } from "./repo";
 
 interface ContactUpsertBody {
@@ -25,6 +25,14 @@ interface ContactUpsertBody {
   notes?: string | null;
   intimacy?: number;
 }
+
+/** 生日历法白名单：拼写错/大小写漂移的值（"Lunar"/"lunisolar"）不能静默当 solar——
+ * 建档会错存历法，更新更会按 solar 分支清空原有农历数据；非法值显式 400 */
+const parseBirthdayCal = (v: unknown): "solar" | "lunar" | undefined => {
+  if (v === undefined) return undefined;
+  if (v === "solar" || v === "lunar") return v;
+  throw ApiError.badRequest("生日历法需为 solar（阳历）或 lunar（农历）");
+};
 
 /** 生日/纪念日校验：只验形状会放行 2024-13-01 穿透 date 列 → PG 500。
  * 显式传入非法日期按 400 拒绝（与同域「农历生日需选择月和日」等 400 语义一致）；
@@ -75,7 +83,7 @@ export async function createContact(userId: string, body: ContactUpsertBody) {
   const importance = [1, 2, 3, 4, 5].includes(body.importance as number) ? (body.importance as number) : 3;
 
   // 生日历法：农历存 lunar_*（birthday 置空），阳历存 birthday
-  const isLunar = body.birthdayCal === "lunar";
+  const isLunar = parseBirthdayCal(body.birthdayCal) === "lunar";
   const lunarMonth = lunarMonthOf(body.lunarMonth);
   const lunarDay = lunarDayOf(body.lunarDay);
   if (isLunar && (!lunarMonth || !lunarDay)) {
@@ -114,7 +122,7 @@ export async function contactDetail(userId: string, id: string) {
   const contact = await contactsRepo.detailById(id, userId);
   if (!contact) throw ApiError.notFound("联系人不存在");
 
-  const timeline = (await contactsRepo.timelineOf(id)).rows;
+  const timeline = (await contactsRepo.timelineOf(id, userId)).rows;
   const money = (await contactsRepo.moneyOf(userId, contact.name)).rows;
 
   return { contact, timeline, money };
@@ -137,7 +145,7 @@ export async function updateContact(userId: string, id: string, body: ContactUps
   }
   // 生日历法整体切换：农历存 lunar_*（birthday 置空）、阳历存 birthday（lunar_* 清空）
   if (body.birthdayCal !== undefined) {
-    const isLunar = body.birthdayCal === "lunar";
+    const isLunar = parseBirthdayCal(body.birthdayCal) === "lunar";
     if (isLunar) {
       const lm = lunarMonthOf(body.lunarMonth);
       const ld = lunarDayOf(body.lunarDay);
@@ -372,9 +380,8 @@ export async function generateAiProfile(userId: string, id: string) {
     writeAuditRecord({
       userId,
       entryId: id,
-      // audit_logs.stage 为自由文本列；AuditRecord 联合类型归 ai 域维护、暂未收录 ai_profile，
-      // 这里经 string 断言写入新 stage（getQuota 只按 parse/review/asr 计费，ai_profile 不占免费额度）
-      stage: "ai_profile" as string as AuditRecord["stage"],
+      // getQuota 只按 parse/review/asr 计费，ai_profile 不占免费额度
+      stage: "ai_profile",
       model: activeModel(),
       engine: "ai_profile",
       latencyMs: Date.now() - t0,

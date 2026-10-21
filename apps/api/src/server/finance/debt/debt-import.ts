@@ -61,6 +61,12 @@ function validateRows(data: ImportPayload) {
     if (r.payDay != null && (!Number.isInteger(r.payDay) || (r.payDay as number) < 1 || (r.payDay as number) > 31)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）还款日需为 1~31 或空`);
     // 形状合法但非真实日历日（2024-13-01）曾穿透到 PG date 列抛 500
     if (r.dueDate != null && !isValidCalendarDate(r.dueDate)) throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）到期日需为真实存在的日期（YYYY-MM-DD）`);
+    // priority 为 int4（列无 CHECK）：1.5/1e12 直插 → 22003 → 整单 500（口径对齐 validateDebtBody debts.ts:96 限 0~99）
+    if (r.priority != null && (typeof r.priority !== "number" || !Number.isInteger(r.priority) || r.priority < 0 || r.priority > 99))
+      throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）优先级需为 0~99 的整数`);
+    // note 为 text（列无定长）：超长串直落列表渲染，口径对齐 validateDebtBody 的 ≤200
+    if (r.note != null && (typeof r.note !== "string" || r.note.length > 200))
+      throw ApiError.badRequest(`第 ${i + 1} 行（${r.name}）备注需为 ≤200 字的文本`);
   });
   if (data.accounts && !Array.isArray(data.accounts)) throw ApiError.badRequest("data.accounts 需为数组");
   if ((data.accounts ?? []).length > 500) throw ApiError.badRequest("单次最多导入 500 个账户");
@@ -68,6 +74,9 @@ function validateRows(data: ImportPayload) {
     if (!a?.name?.trim()) throw ApiError.badRequest(`账户第 ${i + 1} 行名称必填`);
     if (!Number.isInteger(a.openingBalanceCents)) throw ApiError.badRequest(`账户第 ${i + 1} 行（${a.name}）期初余额需为整数（分）`);
     assertImportCents(a.openingBalanceCents, "期初余额", `账户第 ${i + 1} 行（${a.name}）`);
+    // icon 需为 ≤16 字的字符串（accounts.icon text 列无定长；与 accounts 路由「图标需为字符串」同口径再补定长）
+    if (a.icon != null && (typeof a.icon !== "string" || a.icon.length > 16))
+      throw ApiError.badRequest(`账户第 ${i + 1} 行（${a.name}）图标需为 ≤16 字的字符串`);
   });
 }
 
@@ -102,11 +111,14 @@ async function planRows(userId: string, data: ImportPayload, exec: Pick<typeof p
 
   const existingAccounts = await exec.query(`select name from accounts where user_id = $1`, [userId]);
   const accountNames = new Set(existingAccounts.rows.map((r) => r.name));
-  const accountRows = (data.accounts ?? []).map((a) => ({
-    ...a,
-    name: a.name.trim(),
-    action: accountNames.has(a.name.trim()) ? ("skip" as const) : ("create" as const),
-  }));
+  const accountRows = (data.accounts ?? []).map((a) => {
+    const name = a.name.trim();
+    // 批内判重回填（对齐负债侧 existingMap 范式）：同一 payload 两行同名时第二行标 skip——
+    // Set 只查不回填时两行均 create，第二笔直撞 accounts unique (user_id,name) 23505 → 整单 500 回滚
+    const dup = accountNames.has(name);
+    if (!dup) accountNames.add(name);
+    return { ...a, name, action: dup ? ("skip" as const) : ("create" as const) };
+  });
 
   const beforeTotalCents = existing.rows.reduce((s, r) => s + Number(r.balance_cents ?? 0), 0);
   const newTotalCents = rows
@@ -158,7 +170,8 @@ export async function importDebtsCommit(userId: string, data: ImportPayload) {
           r.monthlyCents ?? null,
           r.payDay ?? null,
           r.dueDate ?? null,
-          r.priority ?? null,
+          // priority 列 not null default 0：缺省落 0（显式 NULL 会 23502 整单回滚）
+          r.priority ?? 0,
           r.note ?? null,
         ],
       );

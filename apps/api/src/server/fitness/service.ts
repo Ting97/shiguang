@@ -22,7 +22,7 @@ import {
   type ChatImage,
   type FitnessPlanDraft,
 } from "@shiguangri/ai";
-import { assembleUserPrompt, getPromptBundle, writeAuditRecord } from "@/server/ai";
+import { assembleUserPrompt, checkAiQuota, getPromptBundle, writeAuditRecord } from "@/server/ai";
 import { loadConfig } from "../platform/config";
 import { fitnessRepo } from "./repo";
 import {
@@ -291,19 +291,34 @@ const GoalCreateInput = z.object({
   strategy: z.record(z.any()).optional(),
 });
 
+/** 活跃目标唯一偏索引 23505 收口：并发双建/双激活时「先查后写」窗口双双通过守卫，
+ * 第二笔写直撞 idx_fitness_goals_active（user_id, module_code) where status='active' → 裸 500，转 409 */
+async function catchActiveGoalConflict<T>(fn: () => Promise<T>, message: string): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if ((e as { code?: string })?.code === "23505") throw ApiError.conflict(message);
+    throw e;
+  }
+}
+
 async function createGoal(userId: string, body: unknown) {
   const v = parseBody(GoalCreateInput, body);
   await assertModule(v.moduleCode);
   const { rows } = await fitnessRepo.activeGoalOf(userId, v.moduleCode);
   if (rows.length) throw ApiError.conflict("该模块已有活跃目标，请先归档或达成");
-  const inserted = await fitnessRepo.insertGoal(userId, {
-    moduleCode: v.moduleCode,
-    title: v.title.trim(),
-    targetDate: v.targetDate ?? null,
-    targets: v.targets ?? {},
-    baseline: v.baseline ?? {},
-    strategy: v.strategy ?? {},
-  });
+  const inserted = await catchActiveGoalConflict(
+    () =>
+      fitnessRepo.insertGoal(userId, {
+        moduleCode: v.moduleCode,
+        title: v.title.trim(),
+        targetDate: v.targetDate ?? null,
+        targets: v.targets ?? {},
+        baseline: v.baseline ?? {},
+        strategy: v.strategy ?? {},
+      }),
+    "该模块已有活跃目标，请先归档或达成",
+  );
   return { goal: inserted.rows[0] };
 }
 
@@ -339,7 +354,10 @@ async function updateGoal(userId: string, id: string, body: unknown) {
   if (v.strategy !== undefined) push("strategy", v.strategy, true);
   if (!sets.length) throw ApiError.badRequest("没有可更新的字段");
   vals.push(id, userId);
-  const { rows } = await fitnessRepo.updateGoal(id, userId, sets, vals);
+  const { rows } = await catchActiveGoalConflict(
+    () => fitnessRepo.updateGoal(id, userId, sets, vals),
+    "该模块已有活跃目标",
+  );
   return { goal: rows[0] };
 }
 
@@ -452,8 +470,12 @@ async function updatePlan(userId: string, id: string, body: unknown) {
   const plan = rows[0];
   const doneLike = v.status === "done" || v.status === "partial";
 
-  // 打卡类字段必须伴随 status=done/partial（单独发 actual 没有语义）
-  if (!doneLike && (v.actual !== undefined || v.fatigue !== undefined || v.sleepHours !== undefined)) {
+  // 打卡类字段必须伴随 status=done/partial（单独发 actual 没有语义；soreness/note 同属打卡入参，
+  // 缺守卫时会被下方静默丢弃——调用方以为记上了）
+  if (
+    !doneLike &&
+    (v.actual !== undefined || v.fatigue !== undefined || v.sleepHours !== undefined || v.soreness !== undefined || v.note !== undefined)
+  ) {
     throw ApiError.badRequest("打卡实际数据需携带 status=done/partial");
   }
   if (v.content !== undefined && plan.status !== "draft") {
@@ -727,6 +749,14 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
   for (const [k, v] of matched) mapping.set(k, v);
   if (!pending.length) return mapping;
 
+  // AI 额度门禁（402 面与 trades-review 一致）：门禁只拦真正的 GLM 调用——规则/别名已全量命中
+  // （pending 空）不消耗额度；测试注入 aiMatch 不走真实模型，同样不拦。调用方（attachExerciseIds）
+  // 对本编排整体降级容错，额度用尽时按「未匹配保留原名」继续，不阻塞计划保存
+  if (!opts.aiMatch) {
+    const q = await checkAiQuota(userId);
+    if (!q.allowed) throw new ApiError(402, "quota", `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限匹配`);
+  }
+
   // 候选目录：不大全量传；超上限按字符重叠为每个待匹配名预筛后合并去重
   let candidates = snapshot.movements;
   if (snapshot.movements.length > XUNJI_MATCH_FULL_CATALOG_MAX) {
@@ -834,12 +864,15 @@ async function syncPlanToXunji(
     const names = [...new Set(content.exercises.map((e) => e.name).filter((n) => n && !skipSet.has(n)))];
     const { resolved: split, unmatched } = splitOfficialNames(names, snapshot.names, userAliases);
 
-    // 确认调用：校验并持久化映射（官方名必须 ∈ 目录快照，防拼错写进训记）
+    // 确认调用：校验并持久化映射（官方名必须 ∈ 目录快照，防拼错写进训记）。
+    // 目录不可得时此前 `!snapshot.names.size ||` 短路放行——映射不校验直落别名表（脏映射此后自动生效），
+    // 改为直接拒绝：确认弹窗本就依赖目录候选，目录缺失无确认语义
     if (confirm?.mappings) {
+      if (!snapshot.names.size) throw ApiError.badRequest("训记动作目录不可得，无法校验确认映射，请稍后重试");
       const entries: { localName: string; officialName: string }[] = [];
       for (const [localName, officialName] of Object.entries(confirm.mappings)) {
         if (skipSet.has(localName)) continue;
-        if (!snapshot.names.size || snapshot.names.has(officialName)) {
+        if (snapshot.names.has(officialName)) {
           entries.push({ localName, officialName });
           split.set(localName, officialName);
         }
@@ -873,12 +906,14 @@ async function syncPlanToXunji(
     resolved = split;
     skips = skipSet;
 
-    // 确认后回写计划内容：映射名替换 + 佳易名备注（与保存路径同管线，保持两端一致）
+    // 确认后回写计划内容：映射名替换 + 佳易名备注（与保存路径同管线，保持两端一致）。
+    // 条件更新自限状态：此处 plan.status 是锁外快照，并发打卡把计划置 done/partial 后
+    // 裸 updatePlan 会覆盖已打卡计划的 content——限定 draft/confirmed，竞争失败即静默放弃回写
     const renameMap = new Map([...resolved.entries()].filter(([local, official]) => local !== official));
     if (confirm && renameMap.size) {
       const renamed = renameExercisesToOfficial(content, renameMap);
       if (renamed !== content) {
-        await fitnessRepo.updatePlan(planId, userId, ["content = $1::jsonb"], [JSON.stringify(renamed), planId, userId]);
+        await fitnessRepo.updatePlan(planId, userId, ["content = $1::jsonb"], [JSON.stringify(renamed), planId, userId], pool, " and status in ('draft','confirmed')");
       }
     }
   } else if (plan.module_code === "run") {
@@ -1087,6 +1122,11 @@ async function parsePlanDraft(userId: string, text: string, image?: ChatImage, o
   // 休息日短文本短路只对纯文本输入生效——附图时文字可能只是补充说明
   if (!image && t && t.length <= 30 && REST_TEXT_RE.test(t)) throw ApiError.badRequest(restDayMessage());
   if (image) validateParseImage(image);
+
+  // AI 额度门禁（402 面与 trades-review 一致）：这是全站此前唯一不计费的 GLM 入口，
+  // 放在入参校验/休息日短路之后——参数错与休息日不占额度，真正要调模型前拦
+  const q = await checkAiQuota(userId);
+  if (!q.allowed) throw new ApiError(402, "quota", `AI 免费额度已用完（30 天内 ${q.used}/${q.limit} 次）·升级 Pro 解锁无限解析`);
 
   const bundle = await getPromptBundle("fitness_plan_parse");
   const base = await assembleUserPrompt(

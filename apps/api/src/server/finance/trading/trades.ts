@@ -38,12 +38,18 @@ export interface ImportBody {
 const TRADE_FIELD_LIMITS: Record<string, number> = {
   openPrice: 9_999_999, closePrice: 9_999_999, lots: 99_999_999, profit: 9_999_999_999, commission: 9_999_999_999, swap: 9_999_999_999,
 };
-/** 带时区后缀的串按原样解析；无后缀的 ISO 形状串钉 +08:00（MT5/Bitget 报表时间为北京时间），不依赖宿主时区 */
+/** 带时区后缀的串按原样解析；纯日期（YYYY-MM-DD）按 ES 规范解释为 UTC（与宿主无关）；
+ * 无后缀的日期时间归一成 ISO 形状后钉 +08:00（MT5/Bitget 报表时间为北京时间），不依赖宿主时区。
+ * 非 ISO 分隔符（2024/01/05 10:00、2024.1.5 9:30）此前直接 new Date() 按宿主时区解释——
+ * UTC 宿主上北京时刻偏 8 小时；归一后仍不匹配的形状（英文月名等）拒绝导入而非静默偏移 */
 function toUtcIso(s: string | number | Date): string {
   const str = (s instanceof Date ? s.toISOString() : String(s)).trim();
   if (/([+-]\d{2}:?\d{2}|Z)$/i.test(str)) return new Date(str).toISOString();
-  const isoish = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(str);
-  return new Date(isoish ? str.replace(" ", "T") + "+08:00" : str).toISOString();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return new Date(str).toISOString();
+  const m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(\.\d{1,6})?)?$/.exec(str);
+  if (!m) throw ApiError.badRequest(`开/平仓时间格式不支持（需 YYYY-MM-DD hh:mm 或带时区后缀）：${str.slice(0, 40)}`);
+  const pad = (v: string) => v.padStart(2, "0");
+  return new Date(`${m[1]}-${pad(m[2])}-${pad(m[3])}T${pad(m[4])}:${m[5]}:${m[6] ?? "00"}${m[7] ?? ""}+08:00`).toISOString();
 }
 function validateRows(rows: TradeRowInput[]) {
   if (!Array.isArray(rows) || rows.length === 0) throw ApiError.badRequest("rows 为空");
@@ -52,6 +58,9 @@ function validateRows(rows: TradeRowInput[]) {
     // ticket 落 text 列（041 前为 bigint）：MT5 纯数字、Bitget orderId 长数字串，统一 [A-Za-z0-9_-] ≤64
     if (r.ticket == null || !/^[A-Za-z0-9_-]{1,64}$/.test(String(r.ticket))) throw ApiError.badRequest(`第 ${i + 1} 行 ticket 非法`);
     if (r.direction !== "buy" && r.direction !== "sell") throw ApiError.badRequest(`第 ${i + 1} 行方向需为 buy/sell`);
+    // symbol 直落 text 列并进持仓/聚合展示：非字符串与超长串（列无定长）统一拦成 400（MT5/Bitget 实际 ≤12 字符）
+    if (r.symbol != null && (typeof r.symbol !== "string" || !r.symbol.trim() || r.symbol.length > 32))
+      throw ApiError.badRequest(`第 ${i + 1} 行 symbol 需为 1~32 字符的字符串`);
     if (!r.openTime || !r.closeTime || Number.isNaN(Date.parse(r.openTime)) || Number.isNaN(Date.parse(r.closeTime)))
       throw ApiError.badRequest(`第 ${i + 1} 行开/平仓时间非法`);
     if (Date.parse(r.openTime) > Date.parse(r.closeTime))

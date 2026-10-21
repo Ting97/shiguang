@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Sprout, X } from "lucide-react";
 import MomentFeed from "@/components/moment-feed";
@@ -11,6 +12,8 @@ interface Props {
   moments: FeedMoment[];
   activities: Activity[];
   feedTotal: number;
+  /** 首载未就绪：动态列表空时渲染骨架而非空态文案 */
+  feedReady: boolean;
   query: string;
   searchInput: string;
   setSearchInput: Dispatch<SetStateAction<string>>;
@@ -31,6 +34,7 @@ export default function FeedSection({
   moments,
   activities,
   feedTotal,
+  feedReady,
   query,
   searchInput,
   setSearchInput,
@@ -43,6 +47,10 @@ export default function FeedSection({
   anchorDate,
   onJumpDate,
 }: Props) {
+  // max 钳到今天：SSG 预渲染会把构建日的 bjToday() 烤进静态 HTML 且水合不回填属性，
+  // 部署隔天后日期选择器上限停在构建日、选不到今天——mount 后再给值
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   return (
     <section className="mb-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -55,7 +63,7 @@ export default function FeedSection({
           <input
             type="date"
             value={anchorDate ?? ""}
-            max={bjToday()}
+            max={mounted ? bjToday() : undefined}
             onChange={(e) => onJumpDate(e.target.value || null)}
             title="跳到某一天：从那天的动态往前回看（清除 = 回到最新）"
             aria-label="选择日期跳转动态"
@@ -125,6 +133,7 @@ export default function FeedSection({
         moreCount={Math.max(0, feedTotal - moments.length)}
         loadingMore={loadingMore}
         onLoadMore={onLoadMore}
+        loading={!feedReady}
         searching={!!query}
         searchKeyword={query}
       />

@@ -45,6 +45,7 @@ export default function Home() {
   const {
     moments,
     feedTotal,
+    feedReady,
     loadingMore,
     loadErr,
     query,
@@ -319,6 +320,7 @@ export default function Home() {
           moments={moments}
           activities={activities}
           feedTotal={feedTotal}
+          feedReady={feedReady}
           query={query}
           searchInput={searchInput}
           setSearchInput={setSearchInput}

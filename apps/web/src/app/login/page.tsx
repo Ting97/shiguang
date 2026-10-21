@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Check, Eye, EyeOff, X } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
@@ -78,6 +78,11 @@ export default function LoginPage() {
 
   async function submit() {
     if (busy) return;
+    if (!account.trim()) {
+      // 账号必填：空账号直接登录会被服务端 422 拒绝，这里先行拦截给出可读提示
+      toast("请先填写手机号 / 邮箱", "err");
+      return;
+    }
     if (isRegister && password !== password2) {
       // 密码一致性属表单校验：字段旁已有 ✓/✗ 即时指示，这里 toast 收口提交反馈
       toast("两次输入的密码不一致", "err");
@@ -110,6 +115,12 @@ export default function LoginPage() {
 
   const inputCls =
     "input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-4 py-2.5 text-sm outline-none placeholder:text-ink-faint";
+
+  // 表单无 form 包裹的裸输入行：Enter 直接提交（与底部按钮同口径，走 submit 的校验与 busy 门）；
+  // 中文输入法组词中的 Enter（isComposing）不触发
+  const onEnterSubmit = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
+  };
 
   return (
     <main className="flex min-h-screen items-center justify-center px-5 text-ink">
@@ -172,6 +183,7 @@ export default function LoginPage() {
             <input
               value={account}
               onChange={(e) => setAccount(e.target.value.trim())}
+              onKeyDown={onEnterSubmit}
               placeholder="手机号 / 邮箱"
               className={inputCls}
             />
@@ -181,6 +193,7 @@ export default function LoginPage() {
                 <input
                   value={smsCode}
                   onChange={(e) => setSmsCode(e.target.value)}
+                  onKeyDown={onEnterSubmit}
                   maxLength={6}
                   inputMode="numeric"
                   placeholder={isRegister ? "邮箱/短信验证码（未开通可留空）" : "6 位验证码"}
@@ -199,6 +212,7 @@ export default function LoginPage() {
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={onEnterSubmit}
                   type={showPwd ? "text" : "password"}
                   placeholder="密码"
                   className={`${inputCls} pr-11`}
@@ -219,6 +233,7 @@ export default function LoginPage() {
                 <input
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
+                  onKeyDown={onEnterSubmit}
                   maxLength={20}
                   placeholder="昵称（必填）"
                   className={inputCls}
@@ -227,6 +242,7 @@ export default function LoginPage() {
                   <input
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={onEnterSubmit}
                     type={showPwd ? "text" : "password"}
                     placeholder="设置密码（至少 8 位）"
                     className={`${inputCls} pr-11`}
@@ -244,6 +260,7 @@ export default function LoginPage() {
                   <input
                     value={password2}
                     onChange={(e) => setPassword2(e.target.value)}
+                    onKeyDown={onEnterSubmit}
                     type={showPwd ? "text" : "password"}
                     placeholder="确认密码"
                     className={`${inputCls} pr-11`}
@@ -265,6 +282,7 @@ export default function LoginPage() {
                 <input
                   value={invite}
                   onChange={(e) => setInvite(e.target.value.toUpperCase())}
+                  onKeyDown={onEnterSubmit}
                   placeholder="邀请码"
                   className={`${inputCls} uppercase`}
                 />

@@ -55,7 +55,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     await pool.query(`delete from sessions where token_hash = $1`, [hashToken(token)]);
     return null;
   }
-  // 滑动续期：剩余不足一半时延长到完整 TTL
+  // 滑动续期仅 Bearer 通道受益，cookie 通道固定 30 天：此处只延长 DB expires_at，
+  // 不重写已下发 cookie 的 maxAge——浏览器 cookie 到期即失效（重写需改 Set-Cookie 响应头，
+  // 在 GET 上有行为回归风险，故仅注释对齐现实）；Bearer（原生端）无此限制，续期即生效。
   if (expiresAt.getTime() - Date.now() < SLIDE_THRESHOLD_MS) {
     await pool.query(`update sessions set expires_at = $1 where token_hash = $2`, [
       new Date(Date.now() + SESSION_TTL_MS),

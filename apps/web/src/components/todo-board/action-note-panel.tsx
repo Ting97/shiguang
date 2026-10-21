@@ -21,7 +21,8 @@ export function ActionNotePanel({ c, note }: { c: TodoRow; note: ActionNote }) {
         onChange={(e) => note.setNoteTitle(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) note.saveNote();
-          if (e.key === "Escape") note.setNoteOpenId(null);
+          // Esc 与点空白同口径：走 closeNote 的脏检查（直接置 null 会绕过「有改动轻提示」）
+          if (e.key === "Escape") note.closeNote(c);
         }}
         className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-body outline-none focus:border-sky-500"
         placeholder="标题"

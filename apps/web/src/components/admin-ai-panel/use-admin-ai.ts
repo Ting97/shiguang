@@ -182,8 +182,9 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
       const list = await load();
       const fresh = list?.find((x) => x.key === sel.key);
       if (fresh) pick(fresh);
-    } catch {
-      notify("操作失败", false);
+    } catch (e) {
+      // 服务端错误信息透传（与 rollback 同口径），不再笼统「操作失败」
+      notify(e instanceof Error ? e.message : "操作失败", false);
     }
   }
 

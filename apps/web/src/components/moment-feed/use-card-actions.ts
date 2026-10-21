@@ -65,15 +65,24 @@ export function useCardActions(m: FeedMoment, onRefresh: () => Promise<void>) {
       }
     });
 
-  /** 菜单里手动添加某域产物 */
+  /** 菜单里手动添加某域产物（与 run 同款重入锁 + 联动事件：手动补 todo 后「今日行动」同步） */
   const manualAdd = async (domain: string, payload: Record<string, unknown>) => {
+    if (runningRef.current) {
+      toast("上一步操作还在进行中，请稍候", "info");
+      throw new Error("busy"); // 调用方 catch 后保持表单打开，提示已在上方 toast
+    }
+    runningRef.current = true;
     try {
       const j = await api(`/api/entries/${m.id}/manual`, "POST", { domain, payload });
       toast(j.message ?? "已添加");
       await onRefresh();
+      // 与 run() 同款联动：手动补充的 todo 也要实时出现在「今日行动」（它只监听该事件）
+      window.dispatchEvent(new CustomEvent("shiguang:entry-analyzed"));
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "err");
+      if ((e as Error).message !== "busy") toast(e instanceof Error ? e.message : String(e), "err");
       throw e;
+    } finally {
+      runningRef.current = false;
     }
   };
 

@@ -230,6 +230,16 @@ function SleepCard({
 
   async function save() {
     if (busy || !hours) return;
+    // Number.isFinite 守卫（同 MetricCard）："6a" 之类非法输入 Number() 得 NaN，
+    // JSON.stringify 会静默序列化成 null，请求 200 后 toast 成功实则 no-op
+    if (!Number.isFinite(Number(hours))) {
+      toast("睡眠小时数格式不正确", "err");
+      return;
+    }
+    if (score && !Number.isFinite(Number(score))) {
+      toast("App 睡眠得分格式不正确", "err");
+      return;
+    }
     setBusy(true);
     try {
       await api("/api/fitness/sleep", "POST", {
@@ -779,6 +789,14 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
 
   async function submit(partial: boolean) {
     if (busy) return;
+    // Number.isFinite 守卫（同 MetricCard）：疲劳/心率非法输入 Number() 得 NaN，
+    // JSON.stringify 会静默序列化成 null，打卡 200 后数据实则缺失
+    for (const [v, label] of [[fatigue, "疲劳度"], [avgHr, "均心率"]] as const) {
+      if (v && !Number.isFinite(Number(v))) {
+        toast(`${label}格式不正确`, "err");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const actual: Record<string, unknown> = {};

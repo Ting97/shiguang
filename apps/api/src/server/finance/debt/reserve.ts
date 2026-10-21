@@ -238,7 +238,10 @@ export async function setReserveCheck(
       client.release();
     }
   }
-  if (body.all === true) { // 严格 true：误传 all:false 不得触发一键全勾
+  // 一键全勾仅限严格 true（误传 all:false 不得触发一键全勾）；一键清空不受此限——
+  // checked=false + 显式传 all（true/false 均可）即清空全部，否则 R3 回归用例
+  // {all:false, checked:false} 会在下方 liabilityId 必填处 400
+  if (body.all === true || (body.all !== undefined && body.checked === false)) {
     const { rows } = await pool.query(
       `select id from liabilities where user_id = $1 and status = 'active'`,
       [userId],

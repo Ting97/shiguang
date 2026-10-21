@@ -41,8 +41,9 @@ export const blocksRepo = {
       vals,
     );
   },
+  /** returning 带 start_at：删除会让复盘水位（max(start_at)）回退，调用方按块起始日显式失效复盘缓存 */
   remove(id: string, userId: string) {
-    return pool.query(`delete from time_blocks where id = $1 and user_id = $2 returning id`, [id, userId]);
+    return pool.query(`delete from time_blocks where id = $1 and user_id = $2 returning id, start_at`, [id, userId]);
   },
   /** 区间内原始时间块（跨天块在其覆盖的每一天都返回）；TZ 为北京时区显式切分 */
   listRange(userId: string, tz: string, from: string, to: string) {

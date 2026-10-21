@@ -5,6 +5,7 @@ import type { FeedMoment } from "@/lib/types";
 import { FEED_PAGE_SIZE_HINT, zhRecordTime } from "./moment-feed/kit";
 import MomentCard from "./moment-feed/moment-card";
 import type { MomentFeedProps } from "./moment-feed/types";
+import Skeleton from "./skeleton";
 
 // 拆分后保留原有具名导出（entry-menu 等处仍从本路径引用）
 export { COMMON_MOODS, DOMAIN_LABELS, zhRecordTime } from "./moment-feed/kit";
@@ -21,6 +22,8 @@ export default function MomentFeed(props: MomentFeedProps) {
   }, [props.moments]);
 
   if (props.moments.length === 0) {
+    // 首载未就绪渲染骨架：空态文案在数据未到时闪现，用户会误以为记录丢了（搜索态有独立文案不受此影响）
+    if (props.loading) return <Skeleton rows={4} className="py-2" />;
     return (
       <p className="empty-state">
         {props.searching

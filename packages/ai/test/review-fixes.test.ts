@@ -5,12 +5,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mock } from "node:test";
 import { parseDuration, parseAmountCents } from "../src/duration.js";
 import { deterministicOccurredDate, parseInput } from "../src/parse.js";
 import { classifyGlmFailure } from "../src/glm.js";
 import { anchorRangeToToday, inferTimeBlock } from "../src/time-infer.js";
 import { ruleMood } from "../src/mood-rules.js";
-import { ScheduleDraftV2 } from "../src/schema.js";
+import { FinanceDraft, FinanceDraftV2, ScheduleDraftV2 } from "../src/schema.js";
+import { jevAsk, qNoul } from "../src/jev.js";
 
 const NOW = new Date("2026-10-08T15:00:00+08:00"); // 北京 2026-10-08（周四）15:00
 const CST = (s: string) => new Date(s).getTime(); // 参照：带偏移的 ISO 串的绝对时刻
@@ -167,4 +169,105 @@ test("occurredDate：月限定/裸N号 分支在 detectDayRef 同源后照常工
   assert.equal(deterministicOccurredDate("10月1号转了1000", NOW), "2026-10-01");
   assert.equal(deterministicOccurredDate("5号交了水电费", NOW), "2026-10-05");
   assert.equal(deterministicOccurredDate("买件3号球衣花了200", NOW), null); // 编号非日期
+});
+
+/* ==================== 十轮检视修复回归（2026-10-21 批次） ==================== */
+
+/* ---- P1：「下周三交房租」未来星期话术不再被 detectDayRef 当过去语境偏移 -7 天覆盖模型输出 ----
+ * 旧版：detectDayRef 的周X 词表只认 (上)? 前缀，「下周三」的 周三 段按本周已过周三算出 -1 天，
+ * 且 deterministicOccurredDate 在 mapAiResult 无条件覆盖模型输出 → 未来花销记成昨天 */
+
+test("occurredDate：「下周三/下礼拜五」未来话术 → null（旧版错偏成过去日）", () => {
+  // NOW=2026-10-08（周四）：旧版把「下周三」算成 2026-10-07（昨天）
+  assert.equal(deterministicOccurredDate("下周三交房租500块", NOW), null);
+  assert.equal(deterministicOccurredDate("下礼拜五随礼600", NOW), null);
+  assert.equal(deterministicOccurredDate("明天交房租", NOW), null); // 未来话术守卫同口径
+});
+
+test("occurredDate：过去星期话术不受未来守卫影响（回归）", () => {
+  assert.equal(deterministicOccurredDate("上周三交房租500", NOW), "2026-09-30"); // 上周三
+  assert.equal(deterministicOccurredDate("周三交了水电费", NOW), "2026-10-07"); // 本周已过的周三
+  assert.equal(deterministicOccurredDate("今天交了房租", NOW), "2026-10-08"); // 当日词先行命中，不被守卫吞掉
+});
+
+test("规则兜底：「下周三交房租500块」occurredDate=null（不再产出错误过去日）", async () => {
+  const r = await parseInput("下周三交房租500块", { now: NOW, forceRules: true });
+  assert.equal(r.intent, "todo"); // 未来话术归待办
+  assert.equal(r.finance.hasAmount, true);
+  assert.equal(r.finance.amountCents, 50000);
+  assert.equal(r.finance.occurredDate, null); // 交回模型/按当天记，不再是 2026-10-07
+});
+
+/* ---- P2：occurredDate 形状 regex 不查真实日历（2026-02-30 可过形状且 JS 静默进位成 3 月 2 日）---- */
+
+test("occurredDate：假日历日静默置 null，真实日历日回归", () => {
+  // JS 对 2026-02-30 并非 Invalid Date：静默进位成 3 月 2 日 → 必须回读比对年月日
+  assert.equal(FinanceDraftV2.parse({ hasAmount: false, occurredDate: "2026-02-30", confidence: 0.9 }).occurredDate, null);
+  assert.equal(FinanceDraftV2.parse({ hasAmount: false, occurredDate: "2026-13-01", confidence: 0.9 }).occurredDate, null);
+  assert.equal(FinanceDraftV2.parse({ hasAmount: false, occurredDate: "not-a-date", confidence: 0.9 }).occurredDate, null);
+  assert.equal(FinanceDraftV2.parse({ hasAmount: false, occurredDate: "2024-02-29", confidence: 0.9 }).occurredDate, "2024-02-29"); // 闰年真实日回归
+  assert.equal(FinanceDraftV2.parse({ hasAmount: false, occurredDate: null, confidence: 0.9 }).occurredDate, null); // nullish 回归
+  // ParseResult 输出层（FinanceDraft）同口径
+  assert.equal(FinanceDraft.parse({ hasAmount: false, occurredDate: "2026-02-30" }).occurredDate, null);
+  assert.equal(FinanceDraft.parse({ hasAmount: false, occurredDate: "2026-10-08" }).occurredDate, "2026-10-08");
+});
+
+/* ---- P2：「花了0元」不再产出 0 分流水（FinanceDraft>0 refine + ruleExtract/rulesPipeline 双保险）---- */
+
+test("FinanceDraft：0/负分金额拒收（ParseResult 契约恒为正数或空）", () => {
+  assert.equal(FinanceDraft.safeParse({ hasAmount: true, amountCents: 0 }).success, false);
+  assert.equal(FinanceDraft.safeParse({ hasAmount: true, amountCents: -5 }).success, false);
+  assert.equal(FinanceDraft.safeParse({ hasAmount: false, amountCents: null }).success, true);
+  assert.equal(FinanceDraft.safeParse({ hasAmount: true, amountCents: 3000 }).success, true); // 正金额回归
+});
+
+test("规则兜底：「花了0元」hasAmount=false（不再产出 0 分流水）", async () => {
+  assert.equal(parseAmountCents("花了0元"), 0); // 底层解析仍返回 0——守卫在 ruleExtract/schema 两层
+  const r = await parseInput("今天花了0元", { now: NOW, forceRules: true });
+  assert.equal(r.finance.hasAmount, false);
+  assert.equal(r.finance.amountCents, null);
+  const pos = await parseInput("今天花了30元", { now: NOW, forceRules: true }); // 正金额回归
+  assert.equal(pos.finance.hasAmount, true);
+  assert.equal(pos.finance.amountCents, 3000);
+});
+
+/* ---- P2：规则路径 durationMin ≥1 钳制 + 规则分支纳入兜底（ZodError 不再逃逸 parseInput）---- */
+
+test("规则兜底：defaults 配 0 时 durationMin 钳到 ≥1（与 mapAiResult 同口径，不再撞 zod 契约）", async () => {
+  const r = await parseInput("随便待了会儿", { now: NOW, forceRules: true, defaults: { other: 0 } });
+  assert.ok(r.time.durationMin >= 1, `durationMin=${r.time.durationMin} 必须 ≥1`);
+});
+
+test("parseInput：规则路径垃圾/边界输入不抛出（空 ParseResult 兜底，打卡入口不可失败的底线）", async () => {
+  for (const t of ["", " ", "%$#@！", "。。。"]) {
+    const r = await parseInput(t, { now: NOW, forceRules: true });
+    assert.equal(r.engine, "rules");
+    assert.equal(r.intent, "status");
+    assert.ok(r.time.durationMin >= 1);
+  }
+});
+
+/* ---- P3：Jev noul 概率越界（0~100）不再整包 badResponse ---- */
+
+test("jevAsk：noul=99 归一为 0.99；归一后仍越界按缺失（null）处理，整包不失败", async () => {
+  process.env.TYPESAFE_API_KEY ??= "test-key";
+  const impl = async () =>
+    new Response(
+      JSON.stringify({
+        model: "jev-latest",
+        answers: { a: { noul: 99 }, b: { noul: 0.4 }, c: { noul: 250 } },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  mock.method(globalThis, "fetch", impl);
+  try {
+    const r = await jevAsk("state", { a: qNoul("a"), b: qNoul("b"), c: qNoul("c") });
+    assert.equal(r.answers.a.value, true);
+    assert.equal(r.answers.a.probabilities?.true, 0.99); // 0~100 口径按 /100 归一
+    assert.equal(r.answers.b.value, false); // 0~1 原值回归
+    assert.equal(r.answers.b.probabilities?.true, 0.4);
+    assert.equal(r.answers.c.value, null); // 250→2.5 仍越界 → null 按缺失处理
+  } finally {
+    mock.restoreAll();
+  }
 });

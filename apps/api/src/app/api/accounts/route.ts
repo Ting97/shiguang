@@ -19,7 +19,14 @@ export const GET = withModule("finance", async (_req, { user }) => {
     [user.id],
   );
   // ::bigint 防 int4 溢出，但 node-pg 对 bigint 返回 string：序列化统一 Number()，响应类型不变
-  const accounts = rows.map((r) => ({ ...r, balance_cents: Number(r.balance_cents), balanceCents: Number(r.balanceCents) }));
+  // opening 两键一并 Number()：web 端 `v !== a.openingBalanceCents` 按数值比较，string 恒 !== 导致未改也发 PATCH
+  const accounts = rows.map((r) => ({
+    ...r,
+    balance_cents: Number(r.balance_cents),
+    balanceCents: Number(r.balanceCents),
+    opening_balance_cents: Number(r.opening_balance_cents),
+    openingBalanceCents: Number(r.openingBalanceCents),
+  }));
   return NextResponse.json({ accounts });
 });
 
@@ -31,6 +38,7 @@ export const POST = withModule("finance", async (req, { user }) => {
     openingBalanceCents?: number;
   };
   if (body.name != null && typeof body.name !== "string") throw ApiError.badRequest("账户名称需为字符串");
+  if (body.icon != null && typeof body.icon !== "string") throw ApiError.badRequest("图标需为字符串");
   const name = body.name?.trim();
   if (!name) throw ApiError.badRequest("账户名称必填");
   if (name.length > 20) throw ApiError.badRequest("账户名称过长");
@@ -47,7 +55,8 @@ export const POST = withModule("finance", async (req, { user }) => {
         [user.id, name, body.icon?.trim() || "💳", opening],
       )
     ).rows[0];
-    return NextResponse.json({ account: created });
+    // opening_balance_cents（bigint）node-pg 返回 string：与 GET 同口径 Number()，web 端按数值比较/展示
+    return NextResponse.json({ account: { ...created, opening_balance_cents: Number(created.opening_balance_cents) } });
   } catch (e) {
     // 050 起唯一约束是部分索引（仅未归档行），违例报索引名；兼容旧约束名
     if (String(e).includes("accounts_user_id_name_key") || String(e).includes("accounts_user_id_name_active_uidx")) {

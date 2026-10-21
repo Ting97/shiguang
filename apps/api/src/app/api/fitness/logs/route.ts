@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { fitnessService } from "@/server/fitness";
 
 export const GET = withModule("fitness", async (req, { user }) => {
@@ -10,6 +10,6 @@ export const GET = withModule("fitness", async (req, { user }) => {
 });
 
 export const POST = withModule("fitness", async (req, { user }) => {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonCapped(req);
   return NextResponse.json(await fitnessService.addLog(user.id, body));
 });

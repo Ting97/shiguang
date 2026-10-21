@@ -1,6 +1,7 @@
 /**
  * AI 配额（M3 商业化）：免费用户按 30 天滚动窗口限 AI 识别次数，Pro 不限。
- * - AI 消耗口径与 /api/tokens/usage 一致：audit_logs 里的 parse/review/asr 全阶段
+ * - AI 消耗口径与 /api/tokens/usage 一致：audit_logs 里计费 stage（parse/review/asr/
+ *   fitness_parse/xunji_name_match）全阶段
  * - 管理员（profiles.role = 'admin'）不受限
  * - plan_expires_at 到期自动回落 free（读取时判断，无需定时任务）
  */
@@ -35,15 +36,16 @@ export async function getQuota(userId: string): Promise<QuotaInfo> {
   const pro = isProValid(plan, expiresAt);
   const unlimited = pro || rows[0]?.role === "admin";
 
-  // 口径 = 注释所述「parse/review/asr 全阶段的成功调用」：
-  // - stage 过滤：space_classify/jev_shadow/chat 等旁路阶段不计（否则一条动态 parse+space_classify 双扣）
+  // 口径 = 注释所述「计费 stage 全阶段的成功调用」：
+  // - stage 过滤：space_classify/jev_shadow/chat 等旁路阶段不计（否则一条动态 parse+space_classify 双扣）；
+  //   fitness_parse（AI 课表解析）与 xunji_name_match（训记名匹配）为真实 GLM 消耗，纳入计费
   // - ok 过滤：LLM 调用失败（降级规则/整体失败）不扣
   // - 纯规则兜底（model=''，ok=true）也是一次成功的 parse 尝试，保留计数
   // - jev% 模型行继续排除（jev-shadow/接管模式的影子与旁路行）
   const { rows: usedRows } = await pool.query(
     `select count(*)::int as n from audit_logs
      where user_id = $1 and created_at > now() - interval '30 days'
-       and stage in ('parse', 'review', 'asr')
+       and stage in ('parse', 'review', 'asr', 'fitness_parse', 'xunji_name_match')
        and ok
        and coalesce(model, '') not like 'jev%'`,
     [userId],

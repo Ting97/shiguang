@@ -201,10 +201,26 @@ test("timeline-fix：appendManual 以北京日历日为基准（宿主时区无�
     /HH:MM/,
     "非 HH:MM 格式应 400 而非 Invalid Date 500",
   );
+  // 跨日程语义（round-9 起）：结束早于开始按 +1 天拼跨天块（如 23:00–06:00 睡眠）；
+  // 起止相等才是输入失误 400（旧 +1 天会生成 24h 全天块并触发全天冲突）
+  const cross = await appendManual(U1, entryId, {
+    domain: "schedule",
+    payload: { title: "跨天补录", startTime: "10:00", endTime: "09:00" },
+  });
+  assert.ok(cross.ok, "结束早于开始应按跨天 +1 天落库");
+  const crossRows = await pool.query(
+    `select start_at, end_at from time_blocks where entry_id = $1 and user_id = $2 order by start_at`,
+    [entryId, U1],
+  );
+  assert.equal(crossRows.rows.length, 2);
+  // 北京 2026-09-24 10:00 → 次日 09:00 = UTC 2026-09-24T02:00Z → 2026-09-25T01:00Z
+  assert.equal(new Date(crossRows.rows[1].start_at).toISOString(), "2026-09-24T02:00:00.000Z");
+  assert.equal(new Date(crossRows.rows[1].end_at).toISOString(), "2026-09-25T01:00:00.000Z", "结束早于开始应 +1 天成跨天块");
+
   await assert.rejects(
-    () => appendManual(U1, entryId, { domain: "schedule", payload: { title: "x", startTime: "10:00", endTime: "09:00" } }),
+    () => appendManual(U1, entryId, { domain: "schedule", payload: { title: "x", startTime: "10:00", endTime: "10:00" } }),
     /晚于/,
-    "结束早于开始应 400",
+    "起止相等应 400",
   );
 
   await pool.query(`delete from entries where id = $1`, [entryId]);

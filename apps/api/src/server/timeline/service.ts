@@ -21,6 +21,7 @@ import { deleteImageFile, sniffImageMime, sniffWavMime, IMAGE_MIME_EXT, newStora
 import { ApiError } from "../platform/http/errors";
 import { isUuid } from "../platform/http/validate";
 import { enforceUgcText } from "../platform/wechat";
+import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import { analyzeAndPersist, listContactNames, resolveFinanceOccurredAt } from "./analyze";
 import { entriesRepo } from "./repo";
 
@@ -341,6 +342,11 @@ export interface FeedPatch {
 
 /** PATCH /api/feed/:id：手动归属空间 / 编辑原文重识别 / 修正心情（三选一语义互斥） */
 export async function patchFeed(userId: string, entryId: string, body: FeedPatch) {
+  // 三字段皆未传时旧版会径直落到末尾的 mood 分支：按 label=null 清空心情并打 analyzed_at——
+  // 空更新被当成「清除心情」，这里 400 拦下（与 updateTodo/builds 的「没有可更新的字段」同口径）
+  if (body.mood === undefined && body.raw_text === undefined && body.spaceId === undefined) {
+    throw ApiError.badRequest("没有可更新的字段");
+  }
   // 手动归属空间：校验空间属主（null=移除归属）
   if (body.spaceId !== undefined) {
     let sid: string | null = null;
@@ -671,15 +677,19 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     contactsOn && contactNames && contactNames.length
       ? `\n已有联系人（人物识别时称呼对齐到名单原文）：${contactNames.join("、")}`
       : "";
-  // 单域注入（与全量同源）：schedule→分类对照（用户活动分类），finance→常用分类词表
+  // 单域注入（与全量同源）：schedule→分类对照（用户活动分类），finance→常用分类词表。
+  // todo 域同取 userActs（仅供下方归一，不注入 todo prompt）——todo 分支同样把 r.activity
+  // 直插 todos.activity_id 复合外键，归一无词表会把用户自定义分类一律回落 other
   let userActs: { id: string; name: string; isPreset: boolean }[] = [];
   let catList = "";
   let financeCats = "";
-  if (domain === "schedule" && bundle.config.inject.catList) {
+  if ((domain === "schedule" || domain === "todo") && bundle.config.inject.catList) {
     userActs = await listUserActivities(userId);
-    catList = userActs.length
-      ? catListFromActivities(userActs.slice(0, bundle.config.caps.catCount ?? 50))
-      : "";
+    if (domain === "schedule") {
+      catList = userActs.length
+        ? catListFromActivities(userActs.slice(0, bundle.config.caps.catCount ?? 50))
+        : "";
+    }
   }
   if (domain === "finance" && bundle.config.inject.financeCats) {
     const cats = await listUserFinanceCats(userId, bundle.config.caps.financeCatCount ?? 15);
@@ -704,10 +714,11 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
       completionTokens += u.completion_tokens;
     },
   });
-  // schedule 域自定义分类归一：与全量 analyzeAndPersist 同语义、无条件执行——
-  // 门禁 userActs.length 时（早期账号分类播种前/userActs 拉取失败），模型自由串会直插
-  // time_blocks.activity_id 复合外键 → 23503 整事务回滚、单域重识别恒失败
-  if (domain === "schedule") {
+  // schedule/todo 域自定义分类归一：与全量 analyzeAndPersist 同语义、无条件执行——
+  // 两域都把模型原始 r.activity 直插复合外键（time_blocks / todos.activity_id），模型自由串
+  // 任一漏网都 23503 整事务回滚 500；此前 todo 分支漏归一，单域重识别 todo 恒失败。
+  // 门禁 userActs.length 时（早期账号分类播种前/userActs 拉取失败）归一兜底回落 "other"（预设分类，FK 安全）
+  if (domain === "schedule" || domain === "todo") {
     r.activity = resolveActivityValue(r.activity, userActs);
   }
   // 整次重识别一行审计：tokens 为历次 LLM 调用合计（含修复重问）；降级但已耗 token 时如实归属模型。
@@ -1070,8 +1081,10 @@ export async function setEntryAudio(userId: string, entryId: string, data: Buffe
   const mime = sniffWavMime(data);
   if (!mime) throw ApiError.badRequest("仅支持 wav 格式语音");
   if (data.length > 5 * 1024 * 1024) throw ApiError.badRequest("音频超过 5MB 上限");
-  // 旧音频先取后删（替换录音场景）：行更新成功后清盘上旧文件
-  const prev = (await pool.query(`select audio_url from entries where id = $1`, [entryId])).rows[0]?.audio_url ?? null;
+  // 旧音频先取后删（替换录音场景）：行更新成功后清盘上旧文件；
+  // user_id 谓词纵深防御：属主校验与取旧值之间 entry 理论上可被并发删除/属主校验依赖前置查询，
+  // 无谓词时会读到（并随后删掉）他人/他条音频文件
+  const prev = (await pool.query(`select audio_url from entries where id = $1 and user_id = $2`, [entryId, userId])).rows[0]?.audio_url ?? null;
   const key = newStorageKey(mime);
   await saveImageFile(key, data);
   await pool.query(`update entries set audio_url = $1 where id = $2 and user_id = $3`, [key, entryId, userId]);
@@ -1103,6 +1116,9 @@ export async function deleteFeed(userId: string, entryId: string) {
       throw ApiError.notFound("动态不存在");
     }
     await client.query("commit");
+    // 删除会让复盘水位（max(created_at)）回退、当期缓存被判「仍新鲜」回旧数据——
+    // 与 finance 删交易同口径，按动态创建日显式失效四档复盘缓存（函数内部吞错降级，不阻塞删除）
+    void invalidateReviewCachesForOccurrence(userId, new Date(gone.created_at));
     for (const k of imageKeys) void deleteImageFile(k);
     if (audioKey) void deleteImageFile(audioKey);
     return { ok: true as const };

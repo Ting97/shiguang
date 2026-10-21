@@ -26,13 +26,13 @@ export function PendingConfirms({ m, run }: PendingConfirmsProps) {
           <span>🤔 识别到{DOMAIN_LABELS[d.domain] ?? d.domain}（置信度 {Math.round((d.confidence ?? 0) * 100)}%），确认吗？</span>
           <button
             onClick={() => run(async () => { await api(`/api/entries/${m.id}/confirm`, "POST", { domain: d.domain }); return "✅ 已确认入账"; })}
-            className="rounded bg-sky-600 px-2 py-0.5 text-badge font-medium text-white hover:bg-sky-500"
+            className="tap-lg press rounded bg-sky-600 px-2.5 py-1 text-badge font-medium text-white hover:bg-sky-500"
           >
             确认
           </button>
           <button
             onClick={() => run(async () => { await api(`/api/entries/${m.id}/confirm`, "POST", { domain: d.domain, ignore: true }); return "已忽略"; })}
-            className="rounded px-2 py-0.5 text-badge text-ink-mute hover:text-ink"
+            className="tap-lg press rounded px-2.5 py-1 text-badge text-ink-mute hover:text-ink"
           >
             忽略
           </button>

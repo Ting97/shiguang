@@ -157,8 +157,9 @@ export function withModuleSchema<S extends z.ZodTypeAny>(
 
 /** JSON body 读取（1MB 体量上限）：withSchema/withAuthSchema 是 login/register/setup/验证码发送等
  *  认证前端点的共享基座，无上限时未登录者可流式投喂超大 body 打内存（req.json() 全量缓冲）。
- *  content-length 超限直接 413；缺头（chunked）按流累计字节拒绝。 */
-async function readJsonCapped(req: NextRequest, capBytes = 1024 * 1024): Promise<unknown> {
+ *  content-length 超限直接 413；缺头（chunked）按流累计字节拒绝。
+ *  亦供模块路由显式调用（trading/import、fitness plans/logs/sleep/metrics 等）——替代裸 req.json() */
+export async function readJsonCapped(req: NextRequest, capBytes = 1024 * 1024): Promise<unknown> {
   // 缺头（chunked）必须走按流计数分支：Number(null ?? "")=0 会让缺头请求绕过上限走 req.json() 全量缓冲
   const raw = req.headers.get("content-length");
   if (raw != null) {

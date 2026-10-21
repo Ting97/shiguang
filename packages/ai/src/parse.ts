@@ -98,15 +98,24 @@ function makeTitle(text: string): string {
  * 旧版自维护词表缺「礼拜」「昨夜/昨儿」，「上礼拜五随了600」按今天记账，与同句日程锚（上周五）分裂。
  * 注意：「M月N号/YYYY年M月N号」带月/年限定的日期不在此解析（历史上裸匹配只取到 N号，
  * 把模型算对的跨月日期错误覆盖成本月 N 日）——带限定时返回 null 交回模型输出。
+ * 未来话术（下周X/明天/月底…）同样返回 null：周X 词表只认 (上)? 前缀，「下周三」会被当过去语境错偏 7 天。
  */
 export function deterministicOccurredDate(text: string, now: Date): string | null {
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
   const bj = new Date(now.getTime() + 8 * 3600_000);
   const shift = (n: number) => ymd(new Date(bj.getTime() + n * 86_400_000));
   if (/今天|今晚|今早|今晨|刚才|刚刚/.test(text)) return shift(0);
+  // 未来话术守卫（十轮检视）：「下周三交房租」的 周X 段会被 detectDayRef 当过去语境偏移 -7 天
+  //（其词表只认 (上)? 前缀，"下"不入），且此处结果在 mapAiResult 无条件覆盖模型输出——错 7 天还压不住模型的正确值。
+  // 花销发生日必为过去/当日：检出未来词一律返回 null 交回模型/按当天记（今天等当日词已在上方先行命中，不受影响）
+  if (detectFuture(text) !== null) return null;
   // 相对日（过去/当日）：与 detectDayRef 同词表同偏移（周一为一周之始，北京口径）
   const dayRef = detectDayRef(text, now);
-  if (dayRef !== null) return shift(dayRef);
+  if (dayRef !== null) {
+    // 双保险：detectFuture 漏网的「下周X/明周X」（周X 前缀为 下/明）同样不得当过去语境消费
+    if (/(?:下|明)\s*(?:周|礼拜|星期)[一二三四五六日天]/.test(text)) return null;
+    return shift(dayRef);
+  }
   // M月N号/M月N日（可带 YYYY 年）：确定性换算（花销发生日必为过去——未带年份且落在中国今天之后 → 按去年）
   const md = /(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[号日]/.exec(text);
   if (md) {
@@ -153,6 +162,8 @@ function ruleExtract(text: string, contactNames?: string[], now: Date = new Date
     .map((name) => ({ name, event: undefined }));
   const mood = ruleMood(text);
   const isFuture = detectFuture(text) !== null;
+  // 「花了0元」非真实流水：0 分金额置无金额（schema FinanceDraft.amountCents>0 契约 + rulesPipeline 双保险，十轮检视）
+  const hasAmount = amount !== null && amount > 0;
   // 日程适用启发式：命中活动词/有显式时长/有饮食（吃饭喝水都占时间）→ 已发生的"事"；纯感想不适用
   const dietHit = DIET_RE.test(text) && !DIET_EXCLUDE_RE.test(text);
   const scheduleApplicable = !isFuture && (activity !== "other" || parseDuration(text) !== null || dietHit);
@@ -167,7 +178,7 @@ function ruleExtract(text: string, contactNames?: string[], now: Date = new Date
       confidence: scheduleApplicable ? 0.7 : 0.5,
     },
     todo: { applicable: isFuture, confidence: isFuture ? 0.8 : 0.6 },
-    finance: amount !== null
+    finance: hasAmount
       ? {
           hasAmount: true,
           // 「发红包/发了红包/包红包」是支出：先行判出，避免「红包」关键词把它顶成收入；
@@ -577,8 +588,9 @@ function rulesPipeline(
 ): ParseResultT {
   const ext = ruleExtract(text, opts.contactNames, now);
   const defaults = { ...DEFAULT_ACTIVITY_MIN, ...opts.defaults };
-  // ruleExtract 的 durationMin 已是 parseDuration(text)，无需重复计算
-  const durationMin = ext.schedule.durationMin ?? defaults[ext.schedule.activity as keyof typeof defaults] ?? 30;
+  // ruleExtract 的 durationMin 已是 parseDuration(text)，无需重复计算；
+  // ≥1 下限钳制与 mapAiResult（Math.max(1,…)）同口径——defaults 表被调用方配 0 时不再撞 durationMin>0 契约抛 ZodError
+  const durationMin = Math.max(1, ext.schedule.durationMin ?? defaults[ext.schedule.activity as keyof typeof defaults] ?? 30);
   const people = ext.people.filter((p) => p.name && !/^(省略|无|没有|null|none)$/i.test(p.name.trim()));
   const future = ext.todo.applicable || detectFuture(text) !== null;
   const tb = inferTimeBlock(text, now, durationMin, ext.schedule.periodHint ?? undefined, future);
@@ -623,7 +635,8 @@ function rulesPipeline(
       confidence: ext.diet.confidence,
     },
     finance: {
-      hasAmount: ext.finance.hasAmount,
+      // 0 分双保险（schema FinanceDraft.amountCents>0 refine 同口径）：金额 ≤0/缺失即按无金额，不再产 0 分流水
+      hasAmount: ext.finance.hasAmount && (ext.finance.amountCents ?? 0) > 0,
       direction: ext.finance.direction ?? "out",
       amountCents: ext.finance.amountCents != null ? Math.abs(ext.finance.amountCents) : null,
       category: ext.finance.category ?? null,
@@ -639,6 +652,42 @@ function rulesPipeline(
 
 // ---------- 主入口 ----------
 
+/** 兜底之兜底：规则路径也抛错时（ParseResult 校验失败等）给出中性空结果——打卡入口永不向调用方抛异常 */
+function emptyParseResult(text: string, now: Date, fallbackReason: string): ParseResultT {
+  return ParseResult.parse({
+    activity: "other",
+    title: Array.from(text).slice(0, 30).join(""),
+    time: {
+      mode: "default",
+      start: new Date(now.getTime() - 30 * 60_000).toISOString(),
+      end: now.toISOString(),
+      durationMin: 30,
+      confidence: 0.4,
+    },
+    intent: "status",
+    scheduleApplicable: false,
+    scheduleConfidence: 0.4,
+    todoConfidence: 0.4,
+    financeConfidence: 0.4,
+    mood: { label: null, score: null, confidence: 0.4 },
+    diet: { applicable: false, meal: "未知", items: [], totalKcal: null, confidence: 0.4 },
+    finance: { hasAmount: false },
+    people: [],
+    engine: "rules",
+    fallbackReason,
+  });
+}
+
+/** 规则兜底统一入口：rulesPipeline 自身失败（如 ParseResult 校验抛 ZodError）也不逃逸 parseInput */
+function runRulesSafely(text: string, now: Date, opts: ParseOptions, reason: string): ParseResultT {
+  try {
+    return rulesPipeline(text, now, opts, reason);
+  } catch (e) {
+    console.warn(`[ai] 规则兜底也失败（${String(e).slice(0, 120)}），返回空结果：`, String(e).slice(0, 200));
+    return emptyParseResult(text, now, reason);
+  }
+}
+
 export async function parseInput(text: string, opts: ParseOptions = {}): Promise<ParseResultT> {
   // 拷贝后再清秒：原地 setSeconds 会突变调用方传入的 opts.now（埋雷）
   const now = new Date((opts.now ?? new Date()).getTime());
@@ -652,7 +701,8 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
       : isQuotaTripped()
         ? "quota-breaker（额度熔断中）"
         : "no-api-key";
-    return rulesPipeline(text, now, opts, reason);
+    // 规则分支同样纳入兜底：ParseResult.parse 抛 ZodError 曾直接逃逸 parseInput（打卡入口不可失败的底线）
+    return runRulesSafely(text, now, opts, reason);
   }
 
   try {
@@ -662,6 +712,6 @@ export async function parseInput(text: string, opts: ParseOptions = {}): Promise
     // 灾难降级：GLM 不可用（网络/超时/额度/鉴权）或重问后输出仍不合格 → 规则引擎接管，打卡入口永不失败
     const reason = e instanceof GlmError ? e.kind : String(e).slice(0, 120);
     console.warn(`[ai] LLM 失败（${reason}），规则兜底：`, String(e).slice(0, 200));
-    return rulesPipeline(text, now, opts, reason);
+    return runRulesSafely(text, now, opts, reason);
   }
 }

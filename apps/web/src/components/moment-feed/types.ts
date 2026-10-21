@@ -15,6 +15,8 @@ export interface MomentFeedProps {
   moreCount?: number;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  /** 首载未就绪：空列表时渲染骨架而非空态文案（避免加载期闪现「还没有动态」误导） */
+  loading?: boolean;
   /** 搜索模式：空态文案与常规不同 */
   searching?: boolean;
   searchKeyword?: string;

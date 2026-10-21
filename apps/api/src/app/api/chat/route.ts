@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withModule, withModuleSchema } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam, isUuid } from "@/server/platform/http/validate";
 import { chatService, parseScope } from "@/server/chat";
 
 export const runtime = "nodejs";
@@ -15,9 +16,10 @@ export const GET = withModule("ai", async (req, { user }) => {
   const sp = new URL(req.url).searchParams;
   const id = sp.get("id");
   if (id) {
+    assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
     const before = sp.get("before") ?? undefined;
     const limit = sp.get("limit") ? Number(sp.get("limit")) : undefined;
-    if (before && !/^[0-9a-f-]{36}$/i.test(before)) throw ApiError.badRequest("翻页游标无效");
+    if (before !== undefined && !isUuid(before)) throw ApiError.badRequest("翻页游标无效"); // 同上：旧宽松正则放行畸形串
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 2 || limit > 50)) {
       throw ApiError.badRequest("limit 需为 2~50 整数");
     }

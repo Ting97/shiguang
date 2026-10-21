@@ -46,7 +46,16 @@ const answerSchema = z
   .object({
     choice: z.string().nullish(),
     score: z.number().nullish(),
-    noul: z.number().min(0).max(1).nullish(),
+    // noul 容错（十轮检视）：部分实现回传 0~100 概率（如 99）——min/max 直接拒收会让 answerSchema 失败、
+    // 整包按 badResponse 抛错。超 1 按 /100 归一（99→0.99），归一后仍越界（<0 或 >100）→ 置 null 按缺失处理
+    noul: z
+      .number()
+      .nullish()
+      .transform((v) => {
+        if (v == null) return null;
+        const p = v > 1 ? v / 100 : v;
+        return p >= 0 && p <= 1 ? p : null;
+      }),
     confidence: z.number().nullish(),
     probabilities: z.record(z.string(), z.number()).nullish(),
     answer: z.unknown().nullish(), // 容错：部分实现把答案放 answer 字段

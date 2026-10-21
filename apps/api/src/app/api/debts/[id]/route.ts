@@ -21,12 +21,8 @@ export const PATCH = withModuleParams("debt", async (req, { user, params }) => {
       throw ApiError.badRequest("status 需为 active/cleared/archived");
     }
   }
-  let v: Record<string, unknown>;
-  try {
-    v = validateDebtBody(body, true);
-  } catch (e) {
-    throw ApiError.badRequest((e as { message: string }).message);
-  }
+  // validateDebtBody 统一抛 ApiError，无需 try/catch 兜底
+  const v = validateDebtBody(body, true);
   if (body.status !== undefined) v.status = body.status;
   const cols = Object.keys(v);
   if (cols.length === 0) throw ApiError.badRequest("没有可更新的字段");

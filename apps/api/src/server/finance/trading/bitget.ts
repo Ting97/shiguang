@@ -4,13 +4,16 @@
  * - sync：CFD 资金流水（/api/v3/cfd/account/financial-records，XAUUSD 等差价合约）——
  *   每行一笔平仓成交（openPrice/closePrice/cashFlow 直接齐全），symbol 空的行是出入金事件
  * ⚠ 响应为 {list, cursor} 嵌套结构（生产实测）；游标请求参数为 cursor（idLessThan 不生效）。
- * 盈亏口径：profit=cashFlow-fee-swap、commission=-fee、swap=-swap → 生成列 net_profit=cashFlow。
+ * 盈亏口径（与下方 groupCfdRecords、trades 生成列 net_profit = profit+commission+swap 一致）：
+ * profit = cashFlow - fee平 - swap平、commission = fee开 + fee平、swap = swap平
+ * → net_profit = cashFlow + fee开（该笔交易的总资金影响，含开仓手续费）。
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { pool } from "@/server/platform/db";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { loadConfig } from "@/server/platform/config";
 import { ApiError } from "@/server/platform/http/errors";
+import { optionalTrimmed } from "@/server/platform/http/validate";
 import { importTrades, type TradeRowInput } from "./trades";
 import { bitgetGet, fetchCfdRecords, type BitgetCred, type FetchLike } from "./bitget-client";
 
@@ -47,10 +50,11 @@ export async function saveBitgetKeys(
   input: { apiKey?: string; apiSecret?: string; passphrase?: string; label?: string },
   fetcher?: FetchLike,
 ) {
-  const apiKey = input.apiKey?.trim();
-  const apiSecret = input.apiSecret?.trim();
-  const passphrase = input.passphrase?.trim();
-  const label = (input.label ?? "").trim() || DEFAULT_KEY_LABEL;
+  // optionalTrimmed 统一类型守卫：数字/对象型 JSON 直落 .trim() 会 TypeError → 500，先拦成 400
+  const apiKey = optionalTrimmed(input.apiKey, "apiKey");
+  const apiSecret = optionalTrimmed(input.apiSecret, "apiSecret");
+  const passphrase = optionalTrimmed(input.passphrase, "passphrase");
+  const label = optionalTrimmed(input.label, "label") || DEFAULT_KEY_LABEL;
   if (!apiKey || !apiSecret || !passphrase) throw ApiError.badRequest("apiKey/apiSecret/passphrase 均必填");
   if (label.length > 32) throw ApiError.badRequest("密钥备注名过长（≤32 字）");
   if (apiKey.length > 128 || apiSecret.length > 256 || passphrase.length > 128) {
@@ -107,11 +111,16 @@ async function loadCred(userId: string, label: string): Promise<BitgetCred> {
   );
   const row = rows[0];
   if (!row) throw ApiError.badRequest(`尚未绑定 Bitget API 凭据（${label}），请先在交易复盘页绑定`);
-  return {
-    apiKey: String(row.api_key),
-    apiSecret: decryptSecret(String(row.api_secret_enc)),
-    passphrase: decryptSecret(String(row.passphrase_enc)),
-  };
+  // GCM 解密失败（EXCHANGE_ENC_KEY 轮换/密文损坏）此前裸 Error → 500：转 503 明确引导重新绑定
+  try {
+    return {
+      apiKey: String(row.api_key),
+      apiSecret: decryptSecret(String(row.api_secret_enc)),
+      passphrase: decryptSecret(String(row.passphrase_enc)),
+    };
+  } catch {
+    throw new ApiError(503, "upstream", "凭据解密失败，请重新绑定 Bitget API 密钥");
+  }
 }
 
 /* ---------- CFD 资金流水（生产实测形态） ---------- */
@@ -238,8 +247,10 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   const to = String(body.to ?? "") || bjYmd(new Date());
   // 形状之外补真实日历日校验：2025-02-30 形状合法但 Date.parse=NaN → inWindow 恒 false，静默「同步 0 笔」
   if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || !isValidCalendarDate(to)) throw ApiError.badRequest("to 需为真实存在的日期（YYYY-MM-DD）");
-  const keyLabel = (body.keyLabel ?? "").trim() || DEFAULT_KEY_LABEL;
-  const login = (body.login ?? "").trim() || keyLabel;
+  // optionalTrimmed 类型守卫：数字/对象型 keyLabel/login/nickname 直落 .trim()/SQL 参数会 TypeError/500，先拦成 400
+  const keyLabel = optionalTrimmed(body.keyLabel, "keyLabel") || DEFAULT_KEY_LABEL;
+  const login = optionalTrimmed(body.login, "login") || keyLabel;
+  const nickname = optionalTrimmed(body.nickname, "nickname");
 
   let from = String(body.from ?? "");
   if (!from) {
@@ -269,7 +280,7 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   const result = grouped.rows.length
     ? await importTrades(userId, {
         login,
-        nickname: body.nickname,
+        nickname,
         source: "bitget_api",
         fileName: `bitget-cfd ${from}~${to}`,
         rows: grouped.rows,

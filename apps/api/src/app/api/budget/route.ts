@@ -12,8 +12,11 @@ export const GET = withModule("finance", async (_req, { user }) => {
     `select monthly_limit_cents, alert_threshold from budgets where user_id = $1`,
     [user.id],
   );
+  // monthly_limit_cents 是 bigint（node-pg 返回 string）：有行时也要 Number()，与 finance/overview 同口径
   return NextResponse.json({
-    budget: rows[0] ?? { monthly_limit_cents: 0, alert_threshold: 80 },
+    budget: rows[0]
+      ? { monthly_limit_cents: Number(rows[0].monthly_limit_cents), alert_threshold: rows[0].alert_threshold }
+      : { monthly_limit_cents: 0, alert_threshold: 80 },
   });
 });
 
@@ -40,5 +43,8 @@ export const PUT = withModule("finance", async (req, { user }) => {
      returning monthly_limit_cents, alert_threshold`,
     [user.id, body.monthlyLimitCents, threshold],
   );
-  return NextResponse.json({ budget: rows[0] });
+  // monthly_limit_cents 是 bigint（node-pg 返回 string）：Number() 收口，与 GET/overview 同口径
+  return NextResponse.json({
+    budget: { monthly_limit_cents: Number(rows[0].monthly_limit_cents), alert_threshold: rows[0].alert_threshold },
+  });
 });

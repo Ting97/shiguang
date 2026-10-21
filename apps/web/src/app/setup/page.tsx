@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
 
@@ -23,6 +23,11 @@ export default function SetupPage() {
 
   async function submit() {
     if (busy) return;
+    if (!nickname.trim() || !phone.trim()) {
+      // 账号信息必填：空值直接提交会被服务端 422 拒绝，这里先行拦截给出可读提示
+      toast("请先填写昵称与手机号", "err");
+      return;
+    }
     if (password !== confirm) {
       toast("两次输入的密码不一致", "err");
       return;
@@ -53,6 +58,12 @@ export default function SetupPage() {
   const inputCls =
     "input-glow w-full rounded-xl border border-line-soft bg-surface/60 px-4 py-2.5 text-sm outline-none placeholder:text-ink-faint";
 
+  // 表单无 form 包裹的裸输入行：Enter 直接提交（与登录页同口径，走 submit 的校验与 busy 门）；
+  // 中文输入法组词中的 Enter（isComposing）不触发
+  const onEnterSubmit = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
+  };
+
   return (
     <main className="flex min-h-screen items-center justify-center px-5 text-ink">
       <div className="w-full max-w-sm">
@@ -66,12 +77,14 @@ export default function SetupPage() {
             <input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              onKeyDown={onEnterSubmit}
               placeholder="昵称"
               className={inputCls}
             />
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={onEnterSubmit}
               maxLength={11}
               inputMode="numeric"
               placeholder="手机号"
@@ -80,6 +93,7 @@ export default function SetupPage() {
             <input
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={onEnterSubmit}
               type="password"
               placeholder="设置密码（至少 8 位）"
               className={inputCls}
@@ -87,6 +101,7 @@ export default function SetupPage() {
             <input
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
+              onKeyDown={onEnterSubmit}
               type="password"
               placeholder="确认密码"
               className={inputCls}
@@ -94,6 +109,7 @@ export default function SetupPage() {
             <input
               value={setupToken}
               onChange={(e) => setSetupToken(e.target.value)}
+              onKeyDown={onEnterSubmit}
               placeholder="初始化令牌（部署配置了 SETUP_TOKEN 时必填）"
               className={inputCls}
             />
