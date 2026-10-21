@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasApiKey } from "@shiguangri/ai";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { acquireGeneration, releaseGeneration, getOrGenerateReview, ReviewGateError } from "@/server/insight";
 import { checkAiQuota, getPromptBundle } from "@/server/ai";
@@ -25,7 +25,7 @@ interface YearReview {
  * 输入装配走 review-ctx 共享路径（3-A：注入开关/明细上限可配，与 /admin 预览同源）。
  */
 export const POST = withModule("insight", async (req, { user }) => {
-  const { year, refresh } = (await req.json().catch(() => ({}))) as { year?: string; refresh?: boolean };
+  const { year, refresh } = (await readJsonCapped(req) as any) as { year?: string; refresh?: boolean };
   if (!year || !YEAR_RE.test(year)) {
     throw ApiError.badRequest("year 需为 YYYY");
   }

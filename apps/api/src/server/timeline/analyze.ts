@@ -537,16 +537,24 @@ async function persistPeople(
   entryId: string,
   r: import("@shiguangri/ai").ParseResult,
 ) {
+  if (r.people.length === 0) return;
+  // 命中查询批量预取（unnest + lateral 单次取回全部门）：旧逐人 select+insert 各一条是 N+1，
+  // 且发生在已持锁事务内，一条动态提多人时会拉长锁持有时间
+  const names = r.people.map((p) => p.name);
+  const hits = await client.query(
+    `select p.name as asked, c.id from unnest($2::text[]) as p(name)
+     left join lateral (
+       select id from contacts where user_id = $1 and (name = p.name or alias = p.name) limit 1
+     ) c on true`,
+    [userId, names],
+  );
+  const hitByName = new Map<string, string>();
+  for (const row of hits.rows) {
+    if (row.id && !hitByName.has(row.asked)) hitByName.set(row.asked, String(row.id));
+  }
   for (const p of r.people) {
-    // 先精确名/别名匹配（如识别出"王建军"而已有联系人"王叔"的别名为它）
-    const hit = await client.query(
-      `select id, name from contacts where user_id = $1 and (name = $2 or alias = $2) limit 1`,
-      [userId, p.name],
-    );
-    let contactId: string;
-    if (hit.rows[0]) {
-      contactId = hit.rows[0].id;
-    } else {
+    let contactId = hitByName.get(p.name);
+    if (!contactId) {
       contactId = (
         await client.query(
           `insert into contacts (user_id, name) values ($1, $2)

@@ -172,7 +172,7 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
         h.onText(String(j.text));
       }
     } catch (e) {
-      live?.getTracks().forEach((t) => t.stop());
+      // 轨道已在 finish 开头统一停止（live 引用此处再停是无效重复），只走复位
       backToIdle();
       if (!dead) h.onError(e instanceof Error ? e.message : String(e));
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Puzzle } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "./tag-chip";
@@ -40,7 +40,12 @@ export default function AdminModulesPanel({ notify }: { notify: (text: string, o
 
   useEffect(load, [load]);
 
+  // 写入进行中锁（admin-marketing-panel 同款 ref 口径）：快速连点开关会并发两个语义
+  // 相反的 PATCH，最终态取决于到达顺序，UI 靠 reload 兜底出现短暂不一致
+  const mutatingRef = useRef(false);
   async function patch(m: AdminModule, field: "enabled" | "userToggleable", next: boolean) {
+    if (mutatingRef.current) return;
+    mutatingRef.current = true;
     // 乐观更新：失败回滚重载
     setModules((prev) => prev?.map((x) => (x.key === m.key ? { ...x, [field]: next } : x)) ?? prev);
     try {
@@ -50,6 +55,8 @@ export default function AdminModulesPanel({ notify }: { notify: (text: string, o
     } catch (e) {
       notify(`保存失败：${e instanceof Error ? e.message : String(e)}`, false);
       load();
+    } finally {
+      mutatingRef.current = false;
     }
   }
 

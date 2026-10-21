@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withAdminParams } from "@/server/platform/http/route";
+import { withAdminParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { invalidatePrompts, PROMPT_KEYS, type PromptKey } from "@/server/ai";
 
@@ -23,7 +23,7 @@ export const POST = withAdminParams(async (req, { user, params }) => {
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
     throw ApiError.notFound("未知的 prompt key");
   }
-  const { versionId } = (await req.json().catch(() => ({}))) as { versionId?: number };
+  const { versionId } = (await readJsonCapped(req) as any) as { versionId?: number };
   // 非整数 versionId（字符串/小数）落 where id = $1 会 cast 失败 → 500，先拦成 400
   if (versionId !== undefined && !Number.isInteger(versionId)) {
     throw ApiError.badRequest("versionId 需为整数");

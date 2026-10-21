@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bjToday } from "@/lib/date";
+import { bjNowMin } from "@/lib/bj-time"; // 实现单源 @shiguangri/shared（UTC+8 推算，禁本地 getter）
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import type { Activity, Block } from "@/lib/types";
 
@@ -13,8 +14,6 @@ interface Props {
   activities: Activity[];
   onCreate: (payload: { title: string; startAt: string; endAt: string; activityId: string }) => Promise<boolean>;
   onEditBlock: (b: Block) => void;
-  /** 数据是否仍在加载：加载结束后才做一次定位，避免定位到空数据 */
-  loading?: boolean;
 }
 
 const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
@@ -22,13 +21,7 @@ function hmOf(minutes: number): string {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
-/** 当前北京时刻的分钟数（UTC+8 推算，禁本地 getter：海外设备的本地时刻会偏 8 小时） */
-function bjNowMin(): number {
-  const d = new Date(Date.now() + 8 * 3600_000);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
-}
-
-export default function DayTimeline({ date, blocks, activities, onCreate, onEditBlock, loading = false }: Props) {
+export default function DayTimeline({ date, blocks, activities, onCreate, onEditBlock }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastAutoDate = useRef<string | null>(null);
   const isToday = date === bjToday(); // 锚定日对比北京今天（本地 todayStr 在海外设备会差一天）
@@ -57,9 +50,10 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
   }, [isToday]);
 
   // 每个日期只在数据到位后自动定位一次：今天→当前时刻；其他日期→第一块日程（无块回顶部）
+  // （父级在 loading 期间卸载本组件，挂载时数据已就绪，无需 loading 守卫）
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || loading || lastAutoDate.current === date) return;
+    if (!el || lastAutoDate.current === date) return;
     lastAutoDate.current = date;
     if (isToday) {
       // 直接取实时北京时刻而非 nowMin state：state 初值 null，本 effect 先于定时器校准执行会定位到顶部
@@ -69,7 +63,7 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
     const starts = blocks.map((b) => minOfDay(b.start_at));
     el.scrollTop = starts.length ? Math.max(0, Math.min(...starts) * PX_PER_MIN - 160) : 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, loading, isToday, blocks]);
+  }, [date, isToday, blocks]);
 
   /** ISO → 当天分钟数（基点北京零点；跨午夜块可为负，钳到 0~1440） */
   const minOfDay = (iso: string) => {

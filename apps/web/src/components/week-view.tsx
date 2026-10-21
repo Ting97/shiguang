@@ -69,10 +69,12 @@ export default function WeekView({ days, blocks, activities, onPickDay }: Props)
                   // 起止都钳到当天 0~1440（跨天块只显示落在当天的部分）
                   const s = Math.max(Math.min((new Date(b.start_at).getTime() - (dayStarts.get(d) ?? 0)) / 60_000, 1440), 0);
                   const e = Math.max(Math.min((new Date(b.end_at).getTime() - (dayStarts.get(d) ?? 0)) / 60_000, 1440), 0);
+                  // tooltip 用当天钳制后的分钟数：整块 duration_min 与列内显示的交集段口径不一致
+                  //（跨周块提示 8h、列里只有 1h，像算错了）
                   return (
                     <div
                       key={b.id}
-                      title={`${b.icon} ${b.title} · ${zhDuration(b.duration_min)}`}
+                      title={`${b.icon} ${b.title} · ${zhDuration(Math.round(e - s))}${s === 0 && e === 1440 && b.duration_min > 1440 ? `（整块 ${zhDuration(b.duration_min)}）` : ""}`}
                       className="absolute inset-x-0.5 overflow-hidden rounded"
                       style={{
                         top: `${s * PX_PER_MIN}px`,

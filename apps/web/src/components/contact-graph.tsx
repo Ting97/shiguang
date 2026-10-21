@@ -98,11 +98,26 @@ export default function ContactGraph({
   /** 节点最终坐标 = 自动布局 + 拖动覆盖 */
   const posOf = (n: GraphNode) => overrides.get(n.id) ?? { x: n.x, y: n.y };
 
+  /** 双指进入捏合：中止拖动/平移（节点按下与背景按下两条入口共用） */
+  function beginPinch() {
+    const [a, b] = [...pointers.current.values()];
+    pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) };
+    drag.current = null;
+    pan.current = null;
+    setDraggingId(null);
+  }
+
   function onNodePointerDown(e: React.PointerEvent, n: GraphNode) {
     // 登记必须在早退守卫之前：第二指落在节点上时若不登记，pointers.size 停在 1，
     // pinch 分支（size>=2）永不触发——「两指都在节点上」捏合失效、第一指继续拖节点
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     e.stopPropagation(); // 节点事件不触发背景平移
+    // 第二指落下（无论落点在节点还是空白）一律进捏合：不拦会把 pan/第一指拖动
+    // 转成节点拖动，且 pan 位移用第二指坐标减第一指起点 → 视图瞬间跳位
+    if (pointers.current.size >= 2) {
+      beginPinch();
+      return;
+    }
     if (drag.current || pinch.current) return;
     const p = posOf(n);
     drag.current = { id: n.id, startClient: { x: e.clientX, y: e.clientY }, origin: p, moved: false };
@@ -117,11 +132,7 @@ export default function ContactGraph({
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
       // 双指进入：中止拖动/平移，进入捏合
-      const [a, b] = [...pointers.current.values()];
-      pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) };
-      drag.current = null;
-      pan.current = null;
-      setDraggingId(null);
+      beginPinch();
       return;
     }
     if (drag.current) return;
@@ -142,9 +153,12 @@ export default function ContactGraph({
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const p = toSvg(mid.x, mid.y);
+      // updater 延迟到渲染期执行（React 批处理），期间 endPointer 可能已把 pinch.current
+      // 置 null——闭包读可变 ref 会得到 null.dist 崩溃；必须捕获当次快照
+      const pd = pinch.current;
       setView((v) => {
-        if (pinch.current!.dist <= 0) return v;
-        const next = clampScale(v.scale * (dist / pinch.current!.dist));
+        if (pd.dist <= 0) return v;
+        const next = clampScale(v.scale * (dist / pd.dist));
         const f = next / v.scale;
         return { scale: next, tx: p.x - (p.x - v.tx) * f, ty: p.y - (p.y - v.ty) * f };
       });

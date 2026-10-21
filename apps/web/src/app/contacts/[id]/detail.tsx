@@ -13,6 +13,7 @@ import { GROUP_EMOJI, TYPE_EMOJI, birthdayInfoOf, displaySummary, importanceLabe
 import { yuan } from "@/lib/finance"; // 金额展示统一走共享 yuan()（整数运算），替换原本地浮点除法版本（¥ 前缀在各调用点拼接）
 import { GROUP_TONE } from "@/lib/group-tone";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
+import { bjDayIdx } from "@/lib/bj-time"; // 实现单源 @shiguangri/shared（UTC+8 推算，禁本地 getter）
 import { InteractionFormModal } from "../../../components/contacts/interaction-form-modal";
 
 interface Contact {
@@ -54,8 +55,6 @@ interface MoneyItem {
 }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-/** 北京日历日序号（UTC+8 推算，禁本地 getter） */
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 const zhDay = (iso: string) => {
   const t = Date.parse(iso);
   const diff = bjDayIdx(Date.now()) - bjDayIdx(t);
@@ -470,4 +469,3 @@ export function ContactDetailPage() {
   );
 }
 
-/** 快速补一笔往来（不涉及金额；金额请用财务页记一笔并填「对方」） */

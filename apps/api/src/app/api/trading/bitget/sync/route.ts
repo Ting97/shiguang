@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * 每行流水一笔平仓成交，全量翻页后在窗口（北京日历日）内过滤入库，不同密钥落各自交易账号。
  * readJsonCapped：替代裸 req.json()，超大 body 413（keyLabel/login 类型由 service 层 optionalTrimmed 拦成 400） */
 export const POST = withModule("trading", async (req: NextRequest, { user }) => {
-  const body = (await readJsonCapped(req)) as {
+  const body = (await readJsonCapped(req) as any) as {
     keyLabel?: string;
     login?: string;
     nickname?: string;

@@ -12,6 +12,6 @@ export const GET = withModule("fitness", async (req, { user }) => {
 
 /** POST /api/fitness/plans —— 新增草稿（联动今日行动）；readJsonCapped 替代裸 req.json() */
 export const POST = withModule("fitness", async (req, { user }) => {
-  const body = await readJsonCapped(req);
+  const body = await readJsonCapped(req) as any;
   return NextResponse.json(await fitnessService.savePlanDraft(user.id, body));
 });

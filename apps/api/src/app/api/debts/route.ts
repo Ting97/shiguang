@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { validateDebtBody, serializeDebt } from "@/server/finance";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export const GET = withModule("debt", async (_req, { user }) => {
 
 /** POST /api/debts —— 新建负债档案 {name,type,principalCents,balanceCents?,ratePct?,monthlyCents?,payDay?,dueDate?,priority?,note?} */
 export const POST = withModule("debt", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonCapped(req) as any) as Record<string, unknown>;
   // validateDebtBody 统一抛 ApiError，无需 try/catch 兜底
   const v = validateDebtBody(body, false);
   if (v.balance_cents === undefined) v.balance_cents = v.principal_cents; // 初始余额 = 本金

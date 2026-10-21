@@ -25,9 +25,6 @@ import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import { analyzeAndPersist, listContactNames, resolveFinanceOccurredAt } from "./analyze";
 import { entriesRepo } from "./repo";
 
-/** 标准 uuid 形状（宽松的 36 位会放行无连字符串，PG ::uuid cast 直接 500） */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** 手动/确认路径金额上限（分）：与 AI 契约 FinanceDraftV2 max(100_000_000) 对齐，int4 列安全 */
 const MAX_AMOUNT_CENTS = 100_000_000;
 
@@ -254,7 +251,7 @@ export async function listFeed(userId: string, query: FeedQuery) {
   // 是否带空间过滤必须与实参数组用同一谓词，否则绑定参数数量与占位符不一致 → bind message 500；
   // uuid 形状用严格 8-4-4-4-12（宽松 36 位会放行无连字符串 → PG ::uuid cast 500）
   // 非法值此前静默按「全部」处理（过滤意图被吞），与 patchFeed 的 isUuid 预检口径对齐改 400
-  if (spaceId !== "none" && spaceId !== "all" && !UUID_RE.test(spaceId)) {
+  if (spaceId !== "none" && spaceId !== "all" && !isUuid(spaceId)) {
     throw ApiError.badRequest("spaceId 参数不合法");
   }
   const spaceFiltered = spaceId !== "none" && spaceId !== "all";
@@ -328,7 +325,7 @@ export async function listFeed(userId: string, query: FeedQuery) {
        ), '{}'::jsonb) as recognitions
      from entries e
      where e.user_id = $1 ${searchSql} ${spaceSql} ${beforeSql}
-     order by e.created_at desc
+     order by e.created_at desc, e.id desc
      limit $2 offset $3`,
     ((): unknown[] => {
       // 实参顺序与占位号一一对应：q → space → before（均按存在性追加）
@@ -624,7 +621,9 @@ export async function appendManual(
         await client.query(
           `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
            values ($1,$2,$3,$4,$5,$6)`,
-          [userId, c.id, entryId, type, entry.raw_text, new Date().toISOString()],
+          // 发生日取动态创建日北京钟点（同函数 finance 分支口径）：恒 now() 会把十天前动态上
+          // 补录的往来记到今天，contactDetail 时间线排序失真
+          [userId, c.id, entryId, type, entry.raw_text, new Date(entry.created_at).toISOString()],
         );
         result = { name, type };
         message = `👥 已记录与「${name}」的往来`;
@@ -912,27 +911,38 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
         // 关系域：删旧往来，按解析结果重建（精确名/别名命中已有联系人则复用，避免称呼变体重建档）
         await client.query(`delete from interactions where entry_id = $1 and user_id = $2`, [entryId, userId]);
         let added = 0;
-        for (const p of r.people) {
-          const hit = await client.query(
-            `select id from contacts where user_id = $1 and (name = $2 or alias = $2) limit 1`,
-            [userId, p.name],
+        // 命中查询批量预取（与 analyze.persistPeople 同款 unnest + lateral）：逐人 select 是 N+1
+        if (r.people.length > 0) {
+          const names = r.people.map((p) => p.name);
+          const hits = await client.query(
+            `select p.name as asked, c.id from unnest($2::text[]) as p(name)
+             left join lateral (
+               select id from contacts where user_id = $1 and (name = p.name or alias = p.name) limit 1
+             ) c on true`,
+            [userId, names],
           );
-          const contactId = hit.rows[0]
-            ? hit.rows[0].id
-            : (
+          const hitByName = new Map<string, string>();
+          for (const row of hits.rows) {
+            if (row.id && !hitByName.has(row.asked)) hitByName.set(row.asked, String(row.id));
+          }
+          for (const p of r.people) {
+            const contactId =
+              hitByName.get(p.name) ??
+              (
                 await client.query(
                   `insert into contacts (user_id, name) values ($1, $2)
                    on conflict (user_id, name) do update set name = excluded.name returning id`,
                   [userId, p.name],
                 )
               ).rows[0].id;
-          const summary = p.event ? (p.event === r.title ? p.event : `${p.event}：${r.title}`) : r.title;
-          await client.query(
-            `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
-             values ($1,$2,$3,$4,$5,$6)`,
-            [userId, contactId, entryId, inferInteractionType(p.event), summary, r.time.end],
-          );
-          added++;
+            const summary = p.event ? (p.event === r.title ? p.event : `${p.event}：${r.title}`) : r.title;
+            await client.query(
+              `insert into interactions (user_id, contact_id, entry_id, type, summary, occurred_at)
+               values ($1,$2,$3,$4,$5,$6)`,
+              [userId, contactId, entryId, inferInteractionType(p.event), summary, r.time.end],
+            );
+            added++;
+          }
         }
         applied = added > 0;
         result = { people: r.people };
@@ -1123,7 +1133,12 @@ export async function setEntryAudio(userId: string, entryId: string, data: Buffe
   const prev = (await pool.query(`select audio_url from entries where id = $1 and user_id = $2`, [entryId, userId])).rows[0]?.audio_url ?? null;
   const key = newStorageKey(mime);
   await saveImageFile(key, data);
-  await pool.query(`update entries set audio_url = $1 where id = $2 and user_id = $3`, [key, entryId, userId]);
+  const upd = await pool.query(`update entries set audio_url = $1 where id = $2 and user_id = $3`, [key, entryId, userId]);
+  // 属主校验后 entry 被并发删除时 rowCount=0：回删刚写的文件，不留孤儿音频
+  if (upd.rowCount === 0) {
+    void deleteImageFile(key);
+    throw ApiError.notFound("动态不存在");
+  }
   if (prev) void deleteImageFile(prev);
   return { ok: true, audioUrl: key };
 }

@@ -66,7 +66,7 @@ export default function TodoBoard() {
     }
   }, [activities, draft.activityId]);
 
-  const { adding, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask, pendingCount } = useTodoActions({
+  const { adding, addingSub, decomposingId, addTodo, patchTodo, toggleDone, decompose, removeTodo, addSubtask, pendingCount } = useTodoActions({
     view,
     todos,
     load,
@@ -110,6 +110,7 @@ export default function TodoBoard() {
     open: setSubParentId,
     close: () => setSubParentId(null),
     add: addSubtask,
+    adding: addingSub,
   };
 
   return (

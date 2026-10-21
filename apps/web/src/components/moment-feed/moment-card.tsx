@@ -16,7 +16,8 @@ import { RawTextSection } from "./raw-text-section";
 import { MoodBlock } from "./mood-block";
 import { RecognitionSection } from "./recognition-section";
 import { PendingConfirms } from "./pending-confirms";
-import type { IntentTag, MenuPos, MomentFeedProps } from "./types";
+import type { Activity } from "@/lib/types";
+import type { IntentTag, MenuPos } from "./types";
 
 /** ISO 时刻 → 北京日历日 YYYY-MM-DD（跨时区设备也按北京日界，与全站 bj* 口径一致） */
 function bjYmd(iso: string): string {
@@ -24,8 +25,9 @@ function bjYmd(iso: string): string {
 }
 
 /** 单条动态卡片：原文 + 心情 + AI 识别产物（日程/待办/金额/人物，均可修改/删除） */
-// memo：首页搜索框每键入会页级重渲染，卡片 50+ 时每键全量 reconcile（props 均为稳定回调，memo 直接生效）
-function MomentCard({ m, activities, onRefresh }: MomentFeedProps & { m: FeedMoment }) {
+// memo：首页搜索框每键入会页级重渲染，卡片 50+ 时每键全量 reconcile——
+// 入口只传 m/activities/onRefresh 三项（渲染无关字段不下发），memo 直接生效
+function MomentCard({ m, activities, onRefresh }: { m: FeedMoment; activities: Activity[]; onRefresh: () => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // 原文行内编辑：null=非编辑态；字符串=textarea 当前内容

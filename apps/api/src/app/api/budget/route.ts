@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export const GET = withModule("finance", async (_req, { user }) => {
 
 /** PUT /api/budget —— 保存月度上限 {monthlyLimitCents, alertThreshold?} */
 export const PUT = withModule("finance", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req) as any) as {
     monthlyLimitCents?: number;
     alertThreshold?: number;
   };

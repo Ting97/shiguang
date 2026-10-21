@@ -145,9 +145,14 @@ export const statsRepo = {
               least(date_trunc('day', b.end_at at time zone $2), $4::date::timestamp),
               interval '1 day') d(day) on true
        where b.user_id = $1
+         and b.start_at < (($5::date + interval '1 day') at time zone $2)
+         and b.end_at >= ($6::date at time zone $2)
          and least((b.end_at at time zone $2), (d.day + interval '1 day')) > greatest((b.start_at at time zone $2), d.day)
        group by 1, 2`,
-      [userId, tz, from, to],
+      // 区间条件显式下推到 where（块级：与 lateral 参与条件等价：trunc(start_at) ≤ to 且 trunc(end_at) ≥ from），
+      // 让 (user_id, start_at) 索引能按区间剪枝——旧写法区间条件只在 lateral 里，
+      // 月/年热力图每次请求都扫用户全量时间块
+      [userId, tz, from, to, to, from],
     );
   },
 };

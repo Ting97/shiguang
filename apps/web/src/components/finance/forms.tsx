@@ -42,7 +42,13 @@ export function TxForm({
     if (busy || !amount) return;
     const cents = yuanToCents(amount);
     if (cents == null || cents <= 0) {
-      setErr("金额需大于 0"); // 0/负数/非法输入静默早退会让人以为已保存
+      // 区分非法/超限：yuanToCents 对 >¥100 万返回 null，笼统「需大于 0」会误导
+      setErr(cents == null && amount.replace(/[¥￥,\s]/g, "").match(/^\d+(\.\d+)?$/) ? "单笔金额不能超过 ¥100 万" : "金额需大于 0");
+      return;
+    }
+    // 时间被清空禁止提交：补记历史流水时误清空会按「现在」入账（记错发生时间且无提示）
+    if (!date) {
+      setErr("请填写发生时间");
       return;
     }
     setBusy(true);

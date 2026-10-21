@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { spaceService, type SpaceCreateInput } from "@/server/goal";
 
 export const runtime = "nodejs";
@@ -12,6 +12,6 @@ export const GET = withModule("goal", async (_req, { user }) =>
 
 /** POST /api/spaces —— 创建空间；active 超过 20 个时 400 */
 export const POST = withModule("goal", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as SpaceCreateInput;
+  const body = (await readJsonCapped(req) as any) as SpaceCreateInput;
   return NextResponse.json(await spaceService.create(user.id, body));
 });

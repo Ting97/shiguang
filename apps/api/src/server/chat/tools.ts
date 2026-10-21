@@ -128,7 +128,7 @@ const queryTimeBlocks: ChatTool = {
     const { rows: byActivity } = await pool.query(
       `select a.name as activity, count(*)::int as blocks,
               sum(floor(extract(epoch from least(b.end_at, $3::timestamptz) - greatest(b.start_at, $2::timestamptz)) / 60))::int as minutes
-       from time_blocks b join activities a on a.id = b.activity_id
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
        where b.user_id = $1 and b.start_at < $3::timestamptz and b.end_at > $2::timestamptz
        group by a.name order by minutes desc nulls last`,
       [ctx.userId, start, end],
@@ -136,7 +136,7 @@ const queryTimeBlocks: ChatTool = {
     const { rows: detail } = await pool.query(
       `select b.title, a.name as activity, ${bjTs("b.start_at")} as start_bj,
               floor(extract(epoch from least(b.end_at, $3::timestamptz) - greatest(b.start_at, $2::timestamptz)) / 60)::int as minutes
-       from time_blocks b join activities a on a.id = b.activity_id
+       from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
        where b.user_id = $1 and b.start_at < $3::timestamptz and b.end_at > $2::timestamptz
        order by b.start_at desc limit 10`,
       [ctx.userId, start, end],
@@ -1012,25 +1012,6 @@ const proposeFitnessPlan: ChatTool = {
     if (module_code !== "run" && module_code !== "strength") {
       throw new Error("module_code 只能是 run 或 strength");
     }
-    // 幂等守卫：packages/ai 的 chatAgent 对 rate/server/network 失败会整轮重试、重跑全部工具调用，
-    // 而本工具是直接 INSERT chat_proposals 的非幂等写（迁移 054 无唯一约束）——重复执行会产生
-    // 多张同日确认卡。同会话同 kind 同 plan_date 已有 pending 卡时直接复用已有卡，不再新插。
-    const { rows: existingCards } = await pool.query(
-      `select id from chat_proposals
-       where user_id = $1 and kind = 'fitness_plan' and status = 'pending'
-         and ($2::uuid is null or conversation_id = $2::uuid)
-         and payload->>'planDate' = $3
-       order by created_at desc limit 1`,
-      [ctx.userId, ctx.conversationId ?? null, plan_date],
-    );
-    if (existingCards.length) {
-      return {
-        proposalId: existingCards[0].id,
-        saved: false,
-        duplicated: true,
-        hint: "该日期已有一张待确认的计划卡（本工具不重复生成），请向用户展示既有卡片要点并说明不要声称已保存",
-      };
-    }
     // 条件必填在 execute 内拦（不能放 params 校验：AI SDK 参数校验失败抛
     // InvalidToolArgumentsError 会打穿整个循环变 500；此处 throw 经 chatAgent 包装成
     // {error} 回传模型，模型可带上完整明细重调——实测 glm-4-flash 会漏传明细/写简写字段）
@@ -1078,20 +1059,53 @@ const proposeFitnessPlan: ChatTool = {
     }
     // 模型友好单位 → 整数口径（复用 fitness 域映射；越界抛错回传模型）
     const canonical = draftToCanonicalPlan(parsed.data);
-    const { rows } = await pool.query(
-      `insert into chat_proposals (user_id, conversation_id, kind, payload)
-       values ($1, $2, 'fitness_plan', $3::jsonb) returning id`,
-      [
-        ctx.userId,
-        ctx.conversationId ?? null,
-        JSON.stringify({ planDate: plan_date, moduleCode: module_code, content: canonical.content, rationale: rationale || "" }),
-      ],
-    );
-    return {
-      proposalId: rows[0].id,
-      saved: false,
-      hint: "已生成计划确认卡，等用户点「保存」才会入库（卡片可勾选同时写入训记 App，训练时在训记里打勾记录实练）；请向用户展示计划要点并说明依据，不要声称已保存",
-    };
+    // 幂等守卫：packages/ai 的 chatAgent 对 rate/server/network 失败会整轮重试、重跑全部工具调用，
+    // 而本工具是直接 INSERT chat_proposals 的非幂等写（迁移 054 无唯一约束）——重复执行会产生
+    // 多张同日确认卡。同会话同 kind 同 plan_date 已有 pending 卡时直接复用已有卡，不再新插。
+    // 复查+落库包在 per-user advisory lock 事务内：check-then-insert 无锁时重试与并发消息
+    // 两个请求可同时通过预检各插一张（PG13 无 nulls not distinct，唯一索引口径会误伤跨会话合法共存）
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`chat-proposal:${ctx.userId}`]);
+      const { rows: existingCards } = await client.query(
+        `select id from chat_proposals
+         where user_id = $1 and kind = 'fitness_plan' and status = 'pending'
+           and ($2::uuid is null or conversation_id = $2::uuid)
+           and payload->>'planDate' = $3
+         order by created_at desc limit 1`,
+        [ctx.userId, ctx.conversationId ?? null, plan_date],
+      );
+      if (existingCards.length) {
+        await client.query("commit");
+        return {
+          proposalId: existingCards[0].id,
+          saved: false,
+          duplicated: true,
+          hint: "该日期已有一张待确认的计划卡（本工具不重复生成），请向用户展示既有卡片要点并说明不要声称已保存",
+        };
+      }
+      const { rows } = await client.query(
+        `insert into chat_proposals (user_id, conversation_id, kind, payload)
+         values ($1, $2, 'fitness_plan', $3::jsonb) returning id`,
+        [
+          ctx.userId,
+          ctx.conversationId ?? null,
+          JSON.stringify({ planDate: plan_date, moduleCode: module_code, content: canonical.content, rationale: rationale || "" }),
+        ],
+      );
+      await client.query("commit");
+      return {
+        proposalId: rows[0].id,
+        saved: false,
+        hint: "已生成计划确认卡，等用户点「保存」才会入库（卡片可勾选同时写入训记 App，训练时在训记里打勾记录实练）；请向用户展示计划要点并说明依据，不要声称已保存",
+      };
+    } catch (e) {
+      await client.query("rollback").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
   },
 };
 

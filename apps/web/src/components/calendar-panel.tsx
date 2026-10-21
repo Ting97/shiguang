@@ -18,7 +18,7 @@ import {
 import type { Activity, Block, DayStat } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
 import { useSession } from "@/shared/session";
-import { combineHM, zhTime } from "@/lib/bj-time";
+import { bjDateKey, combineHM, combineHmEndCrossDay, zhTime } from "@/lib/bj-time";
 
 /** 日程页 · 日历子页：原 /calendar 页的四视图（日/周/月/年）+ AI 复盘，逻辑不变整体平移 */
 export default function CalendarPanel({ initialAnchor }: { initialAnchor?: string }) {
@@ -128,19 +128,24 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
   }
   async function saveEdit() {
     if (!editing || editSaving) return; // 保存进行中忽略再次提交，防双击重复保存
-    if (editing.end <= editing.start) {
+    const b = blocks.find((x) => x.id === editing.id);
+    if (!b) return;
+    // 跨天块（23:00→次日 07:00 的睡眠）end 钟点 ≤ start 是合法次日语义，不走同日校验；
+    // 结束写回用「开始日 + end 钟点，≤ 开始自动 +1 天」的跨日组合——旧逻辑对跨天块恒报
+    // 「结束必须晚于开始时间」（无法编辑），绕过校验又会把结束钉在原次日日期、块膨胀约 24 小时
+    const crossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
+    if (!crossDay && editing.end <= editing.start) {
       setErr("结束时间必须晚于开始时间");
       return;
     }
-    const b = blocks.find((x) => x.id === editing.id);
-    if (!b) return;
     setEditSaving(true);
     try {
+      const startAt = combineHM(b.start_at, editing.start);
       await api<any>(`/api/blocks/${editing.id}`, "PATCH", {
         title: editing.title.trim() || b.title,
         // 存储口径与首页统一（北京时间 combineHM）：本地 setHours 在海外设备会存出错 8 小时的时刻
-        startAt: combineHM(b.start_at, editing.start),
-        endAt: combineHM(b.end_at, editing.end),
+        startAt,
+        endAt: crossDay ? combineHmEndCrossDay(startAt, editing.end, b.end_at) : combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
       });
     } catch (e) {
@@ -270,7 +275,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
                 <BlockEditor draft={editing} activities={activities} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} onDelete={removeEdit} saving={editSaving} deleting={editDeleting} />
               </div>
             )}
-            <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} loading={loading} />
+            <DayTimeline date={anchor} blocks={dayBlocks} activities={activities} onCreate={createBlock} onEditBlock={startEdit} />
           </div>
         </div>
       )}

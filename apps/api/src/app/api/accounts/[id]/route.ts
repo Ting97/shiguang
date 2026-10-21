@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const PATCH = withModuleParams("finance", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req) as any) as {
     name?: string;
     icon?: string;
     openingBalanceCents?: number;

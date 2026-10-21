@@ -30,4 +30,7 @@ export interface SubtaskCtl {
   open: (id: string) => void;
   close: () => void;
   add: (parentId: string) => void;
+  /** 提交在途：blur 不再走「取消」口（Enter 提交未返回时点击别处，
+   * 旧版会弹「已取消，未保存」并关行，而请求实际会成功 → 用户重录造成重复行动） */
+  adding: boolean;
 }

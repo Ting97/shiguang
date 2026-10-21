@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { ACTIVITY_NAMES, toCstWallClock } from "@shiguangri/ai";
-import { withAdminParams } from "@/server/platform/http/route";
+import { withAdminParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { isValidYearMonth } from "@/server/platform/http/validate";
@@ -27,7 +27,7 @@ export const POST = withAdminParams(async (req, { user, params }) => {
   if (!PROMPT_KEYS.includes(key as PromptKey)) {
     throw ApiError.notFound("未知的 prompt key");
   }
-  const { sample, period } = (await req.json().catch(() => ({}))) as { sample?: string; period?: string };
+  const { sample, period } = (await readJsonCapped(req) as any) as { sample?: string; period?: string };
   const bundle = await getPromptBundle(key as PromptKey);
   const cfg = bundle.config;
   const sampleText = sample?.trim() || null;

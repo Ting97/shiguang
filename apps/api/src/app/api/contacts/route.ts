@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { createContact, listContacts } from "@/server/people";
 
 export const runtime = "nodejs";
@@ -10,5 +10,5 @@ export const GET = withModule("people", async (_req, { user }) => NextResponse.j
 
 /** POST /api/contacts —— 手动建档 */
 export const POST = withModule("people", async (req, { user }) =>
-  NextResponse.json(await createContact(user.id, await req.json().catch(() => ({})))),
+  NextResponse.json(await createContact(user.id, await readJsonCapped(req) as any)),
 );

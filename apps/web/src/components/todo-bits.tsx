@@ -2,20 +2,14 @@
 
 import type { TodoRow } from "@/lib/types";
 import { Check } from "lucide-react";
-import { isoToBjInput, bjInputToIso } from "@/lib/bj-time";
+import { bjDayIdx, isoToBjInput, bjInputToIso, zhTime as sharedZhTime } from "@/lib/bj-time";
 
 /** 待办共用小件：勾选圆圈 + 时间标签 + 日期工具（todo-board / actions-today 共用） */
 
 export const pad = (n: number) => String(n).padStart(2, "0");
 
-/** 北京日历日序号（UTC+8 推算，禁本地 getter：海外设备的日界会错 8 小时） */
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
-
-export const zhTime = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
-  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-};
+/** 北京墙上时间（null 容错转发 shared 版；实现单源 @shiguangri/shared，UTC+8 推算禁本地 getter） */
+export const zhTime = (iso: string | null) => (iso ? sharedZhTime(iso) : "");
 
 /** due 标签：已过期红 / 今天 / 明天 / N 天后 / 无时间 */
 export const dueTag = (iso: string | null) => {

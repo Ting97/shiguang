@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { reflectionService } from "@/server/goal";
 
@@ -19,7 +19,7 @@ export const PATCH = withModuleParams("goal", async (req, { user, params }) => {
   const { id, rid } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
   assertUuidParam(rid, "rid"); // 同上：rid 非法 uuid 先拦成 400
-  const body = (await req.json().catch(() => ({}))) as { content?: string };
+  const body = (await readJsonCapped(req) as any) as { content?: string };
   return NextResponse.json(await reflectionService.update(user.id, rid, body, id));
 });
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
 import { hasApiKey } from "@shiguangri/ai";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidCalendarDate } from "@/server/platform/http/datetime";
 import { getOrGenerateReview, acquireGeneration, releaseGeneration, ReviewGateError } from "@/server/insight";
@@ -49,7 +49,7 @@ export const GET = withModule("trade_review", async (req, { user }) => {
 /** POST /api/finance/review/week {date?, refresh?} —— AI 交易周报（FR-C2.7 ②）
  * 复用复盘管线：review_caches(kind='trade_week') 缓存 + review_gen_quotas 周池 + /admin 可调 prompt。 */
 export const POST = withModule("trade_review", async (req, { user }) => {
-  const { date, refresh } = (await req.json().catch(() => ({}))) as { date?: string; refresh?: boolean };
+  const { date, refresh } = (await readJsonCapped(req) as any) as { date?: string; refresh?: boolean };
   if (date && !isValidCalendarDate(date)) {
     return NextResponse.json({ error: "date 需为真实存在的 YYYY-MM-DD 日期" }, { status: 400 });
   }

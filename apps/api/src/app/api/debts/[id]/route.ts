@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { validateDebtBody, serializeDebt } from "@/server/finance";
@@ -15,7 +15,7 @@ export const PATCH = withModuleParams("debt", async (req, { user, params }) => {
   const owned = await pool.query(`select id from liabilities where id = $1 and user_id = $2`, [id, user.id]);
   if (!owned.rows[0]) throw ApiError.notFound("负债不存在");
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await readJsonCapped(req) as any) as Record<string, unknown>;
   if (body.status !== undefined) {
     if (!["active", "cleared", "archived"].includes(body.status as string)) {
       throw ApiError.badRequest("status 需为 active/cleared/archived");

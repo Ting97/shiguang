@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { dedupeKey, parseBill, type ImportRow } from "@shiguangri/shared/csv-import";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * dryRun=true 只解析与去重做预览，不落库；false 时直接入账（is_draft=false, source=csv_import）
  */
 export const POST = withModule("finance", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req, 9 * 1024 * 1024) as any) as {
     text?: string;
     base64?: string;
     platform?: "alipay" | "wechat";
@@ -99,7 +99,7 @@ export const POST = withModule("finance", async (req, { user }) => {
   if (noNoRows.length > 0) {
     const times = noNoRows.map((r) => r.occurredAt).sort();
     const { rows: exist } = await pool.query(
-      `select (occurred_at at time zone 'Asia/Shanghai')::text as t, amount_cents, counterparty, direction, source
+      `select to_char(occurred_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI:SS') as t, amount_cents, counterparty, direction, source
        from transactions
        -- 指纹判重不限 source：先随手记（parse）后导账单的同笔流水也要拦双计
        where user_id = $1
@@ -116,7 +116,9 @@ export const POST = withModule("finance", async (req, { user }) => {
     if (row.externalNo) {
       if (existNos.has(row.externalNo)) { dbDup++; continue; }
     } else {
-      // 库中指纹用北京时间文本（at time zone 'Asia/Shanghai'），本地同样换算后比对
+      // 库中指纹用北京时间文本（to_char 秒级截断），本地同样秒级截断后比对——
+      // 旧 DB 侧 ::text 保留小数秒（parse 路径 now() 含毫秒），与本地 slice(0,19) 永不匹配，
+      // 「先随手记后导账单」的双计拦截实际失效
       const bj = new Date(new Date(row.occurredAt).getTime() + 8 * 3600_000)
         .toISOString()
         .slice(0, 19)

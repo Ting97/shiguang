@@ -137,8 +137,8 @@ export async function updateContact(userId: string, id: string, body: ContactUps
     fields.push(["name", body.name.trim()]);
   }
   if (body.alias !== undefined) {
-    if (body.alias !== null && typeof body.alias !== "string") throw ApiError.badRequest("备注名需为字符串");
-    fields.push(["alias", body.alias?.trim() || null]);
+    // 与 createContact 同口径（≤30）：超长别名直落库会进列表与画像 prompt
+    fields.push(["alias", body.alias === null ? null : trimmedCapped(body.alias, 30, "别名")]);
   }
   if (body.group && (CONTACT_GROUPS as readonly string[]).includes(body.group)) {
     fields.push(["group_tag", body.group]);

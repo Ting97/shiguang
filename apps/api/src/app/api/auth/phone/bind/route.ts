@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/server/platform/http/route";
+import { withAuth, readJsonCapped } from "@/server/platform/http/route";
 import { bindPhoneBySession } from "@/server/identity";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
  * body: { phone, smsCode }（验证码 purpose=bind，先发 /api/auth/sms/send）
  */
 export const POST = withAuth(async (req: NextRequest, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as { phone?: unknown; smsCode?: unknown };
+  const body = (await readJsonCapped(req) as any) as { phone?: unknown; smsCode?: unknown };
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
   const smsCode = typeof body.smsCode === "string" ? body.smsCode.trim() : "";
   if (!phone || !smsCode) {

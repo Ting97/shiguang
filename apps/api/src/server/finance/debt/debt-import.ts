@@ -153,14 +153,16 @@ export async function importDebtsCommit(userId: string, data: ImportPayload) {
     await client.query("begin");
     await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`debt-import:${userId}`]);
     const { rows, accountRows, summary } = await planRows(userId, data, client);
-    let created = 0;
-    for (const r of rows) {
-      if (r.action !== "create") continue;
-      await client.query(
-        `insert into liabilities
-           (user_id, name, type, principal_cents, balance_cents, rate_pct, monthly_cents, pay_day, due_date, priority, note)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-        [
+    // 多值元组分批插入（上限 5000 行，500 条/批 = 最多 10 条语句）：
+    // 旧逐行 INSERT 5000 条语句单事务执行，大导入慢且长占连接
+    const createRows = rows.filter((r) => r.action === "create");
+    const CHUNK = 500;
+    for (let i = 0; i < createRows.length; i += CHUNK) {
+      const slice = createRows.slice(i, i + CHUNK);
+      const values: unknown[] = [];
+      const tuples = slice.map((r) => {
+        const base = values.length;
+        values.push(
           userId,
           r.name,
           r.type,
@@ -173,20 +175,33 @@ export async function importDebtsCommit(userId: string, data: ImportPayload) {
           // priority 列 not null default 0：缺省落 0（显式 NULL 会 23502 整单回滚）
           r.priority ?? 0,
           r.note ?? null,
-        ],
+        );
+        return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11})`;
+      });
+      await client.query(
+        `insert into liabilities
+           (user_id, name, type, principal_cents, balance_cents, rate_pct, monthly_cents, pay_day, due_date, priority, note)
+         values ${tuples.join(",")}`,
+        values,
       );
-      created++;
     }
-    let accountsCreated = 0;
-    for (const a of accountRows) {
-      if (a.action !== "create") continue;
+    const created = createRows.length;
+    const createAccounts = accountRows.filter((a) => a.action === "create");
+    for (let i = 0; i < createAccounts.length; i += CHUNK) {
+      const slice = createAccounts.slice(i, i + CHUNK);
+      const values: unknown[] = [];
+      const tuples = slice.map((a) => {
+        const base = values.length;
+        values.push(userId, a.name, a.icon ?? null, a.openingBalanceCents);
+        return `($${base + 1},$${base + 2},coalesce($${base + 3},'💰'),$${base + 4})`;
+      });
       await client.query(
         `insert into accounts (user_id, name, icon, opening_balance_cents)
-         values ($1,$2,coalesce($3,'💰'),$4)`,
-        [userId, a.name, a.icon ?? null, a.openingBalanceCents],
+         values ${tuples.join(",")}`,
+        values,
       );
-      accountsCreated++;
     }
+    const accountsCreated = createAccounts.length;
     await client.query("commit");
     return { created, skipped: rows.length - created, accountsCreated, summary };
   } catch (e) {

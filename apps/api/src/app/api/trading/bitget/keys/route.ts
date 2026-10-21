@@ -12,7 +12,7 @@ export const GET = withModule("trading", async (_req, { user }) =>
 /** PUT /api/trading/bitget/keys —— 绑定/更新一把只读凭据 {label?, apiKey, apiSecret, passphrase}（加密落库）。
  * readJsonCapped：替代裸 req.json()；字段类型由 service 层 optionalTrimmed 拦成 400 */
 export const PUT = withModule("trading", async (req: NextRequest, { user }) => {
-  const body = (await readJsonCapped(req)) as {
+  const body = (await readJsonCapped(req) as any) as {
     label?: string;
     apiKey?: string;
     apiSecret?: string;

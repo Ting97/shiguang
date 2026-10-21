@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { fitnessService } from "@/server/fitness";
 
@@ -10,7 +10,7 @@ export const POST = withModuleParams("fitness", async (req, ctx) => {
   const { id } = await ctx.params;
   let confirm: { mappings?: Record<string, string>; skips?: string[] } | undefined;
   try {
-    const body = (await req.json()) as { mappings?: Record<string, string>; skips?: string[] } | null;
+    const body = (await readJsonCapped(req) as any) as { mappings?: Record<string, string>; skips?: string[] } | null;
     if (body && (body.mappings !== undefined || body.skips !== undefined)) {
       // 值类型收口：目录快照为空时映射值会直落 unnest($::text[])，非字符串 → PG 22P03 → 500
       const bad =

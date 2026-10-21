@@ -10,6 +10,6 @@ export const GET = withModule("fitness", async (req, { user }) => {
 });
 
 export const POST = withModule("fitness", async (req, { user }) => {
-  const body = await readJsonCapped(req);
+  const body = await readJsonCapped(req) as any;
   return NextResponse.json(await fitnessService.saveMetric(user.id, body));
 });

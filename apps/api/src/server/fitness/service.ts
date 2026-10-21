@@ -191,8 +191,9 @@ async function resolveExerciseIds(content: StrengthPlanContent): Promise<Strengt
   const names = [...new Set(content.exercises.map((e) => e.name).filter(Boolean))];
   if (!names.length) return content;
   const { rows } = await fitnessRepo.matchExercises(names);
+  // 名称→id 映射单份（旧 exact/loose 两份内容完全相同）
   const exact = new Map(rows.map((r: { id: string; name: string }) => [r.name, r.id]));
-  const loose = new Map(rows.map((r: { id: string; name: string }) => [r.name, r.id]));
+  const loose = exact;
   return {
     ...content,
     exercises: content.exercises.map((e) => ({
@@ -1060,25 +1061,38 @@ const MetricInput = z.object({
  *  （十一轮 GUI 深度体验发现修复） */
 async function saveMetric(userId: string, body: unknown) {
   const v = parseBody(MetricInput, body);
-  const prevR = await fitnessRepo.latestMetricAtOrBefore(userId, v.measuredOn);
-  const prev = (prevR.rows[0] ?? {}) as {
-    weight_g: number | null;
-    waist_mm: number | null;
-    body_fat_pct_x10: number | null;
-    height_mm: number | null;
-    resting_hr: number | null;
-  };
-  const keep = (now: number | null | undefined, old: number | null) => (now != null ? now : (old ?? null));
-  const { rows } = await fitnessRepo.upsertMetric(userId, {
-    measuredOn: v.measuredOn,
-    weightG: keep(v.weightKg != null ? Math.round(v.weightKg * 1000) : null, prev.weight_g),
-    waistMm: keep(v.waistCm != null ? Math.round(v.waistCm * 10) : null, prev.waist_mm),
-    bodyFatPctX10: keep(v.bodyFatPct != null ? Math.round(v.bodyFatPct * 10) : null, prev.body_fat_pct_x10),
-    heightMm: keep(v.heightCm != null ? Math.round(v.heightCm * 10) : null, prev.height_mm),
-    restingHr: keep(v.restingHr ?? null, prev.resting_hr),
-    note: v.note ?? null,
-  });
-  return { metric: rows[0] };
+  // 读旧值→继承→upsert 包在 per-user advisory lock 事务内：无锁时同日并发两次保存，
+  // 后者拿到过期 prev 会把前者刚写入、本次留空的字段覆盖回更旧的值（继承丢失）
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`fitness-metrics:${userId}`]);
+    const prevR = await fitnessRepo.latestMetricAtOrBefore(userId, v.measuredOn, client);
+    const prev = (prevR.rows[0] ?? {}) as {
+      weight_g: number | null;
+      waist_mm: number | null;
+      body_fat_pct_x10: number | null;
+      height_mm: number | null;
+      resting_hr: number | null;
+    };
+    const keep = (now: number | null | undefined, old: number | null) => (now != null ? now : (old ?? null));
+    const { rows } = await fitnessRepo.upsertMetric(userId, {
+      measuredOn: v.measuredOn,
+      weightG: keep(v.weightKg != null ? Math.round(v.weightKg * 1000) : null, prev.weight_g),
+      waistMm: keep(v.waistCm != null ? Math.round(v.waistCm * 10) : null, prev.waist_mm),
+      bodyFatPctX10: keep(v.bodyFatPct != null ? Math.round(v.bodyFatPct * 10) : null, prev.body_fat_pct_x10),
+      heightMm: keep(v.heightCm != null ? Math.round(v.heightCm * 10) : null, prev.height_mm),
+      restingHr: keep(v.restingHr ?? null, prev.resting_hr),
+      note: v.note ?? null,
+    }, client);
+    await client.query("commit");
+    return { metric: rows[0] };
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // ---- 睡眠（REQ-024 每日独立记录；打卡兼容入参也落到这里）----

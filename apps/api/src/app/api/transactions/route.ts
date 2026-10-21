@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/server/platform/db";
-import { withModule } from "@/server/platform/http/route";
+import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth, optionalTrimmed, assertUuidParam } from "@/server/platform/http/validate";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
@@ -55,7 +55,7 @@ export const GET = withModule("finance", async (req, { user }) => {
 
 /** POST /api/transactions —— 手动记账（直接为已确认流水） */
 export const POST = withModule("finance", async (req, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req) as any) as {
     direction?: "out" | "in";
     amountCents?: number;
     category?: string;
@@ -80,8 +80,14 @@ export const POST = withModule("finance", async (req, { user }) => {
   if (!TX_CATEGORIES.includes(category)) {
     throw ApiError.badRequest("无效分类");
   }
-  const counterparty = optionalTrimmed(body.counterparty, "counterparty") ?? null;
-  const note = optionalTrimmed(body.note, "note") ?? null;
+  // 长度上限（与 debts note ≤200 / people counterparty ≤30 同口径）：无上限值直落 text 列
+  // 会进流水列表、人情账匹配（counterparty）与复盘聚合事实行
+  const rawCounterparty = optionalTrimmed(body.counterparty, "counterparty");
+  if (rawCounterparty && rawCounterparty.length > 30) throw ApiError.badRequest("交易对象最长 30 字");
+  const counterparty = rawCounterparty ?? null;
+  const rawNote = optionalTrimmed(body.note, "note");
+  if (rawNote && rawNote.length > 200) throw ApiError.badRequest("备注最长 200 字");
+  const note = rawNote ?? null;
   const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
   if (isNaN(occurredAt.getTime())) {
     throw ApiError.badRequest("时间格式不正确");

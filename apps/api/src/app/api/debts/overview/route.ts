@@ -5,8 +5,6 @@ import { withModule } from "@/server/platform/http/route";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TZ = "Asia/Shanghai";
-
 /** GET /api/debts/overview —— 总览聚合（FR-C2.5）：
  * 总负债双口径/月供合计+到期提示/加权利率/净资产/到期墙（≤3月 danger、≤6月 warn）/现金流月视图 */
 export const GET = withModule("debt", async (_req, { user }) => {
@@ -75,8 +73,14 @@ export const GET = withModule("debt", async (_req, { user }) => {
       level: r.dm <= 3 ? "danger" : "warn",
     }));
 
-  // 现金流月视图：本月真实收支 vs 月供应还（已关联记账的还款不重复扣）
+  // 现金流月视图：本月真实收支 vs 月供应还（已关联记账的还款不重复扣）。
+  // sargable 化（与 finance/overview 同范式）：to_char(occurred_at…) = 'YYYY-MM' 对列套函数
+  // 不可走索引全量求值；to_char(paid_at,…) 还隐含会话时区（生产 UTC 会话下月初 0-8 点的还款
+  // 会被记到上月）——统一预计算北京月界半开区间 [start, end) 纯范围比较
   const monthKey = nowBj.toISOString().slice(0, 7);
+  const [my, mm] = monthKey.split("-").map(Number);
+  const monthStart = new Date(Date.UTC(my, mm - 1, 1, -8)).toISOString();
+  const monthEnd = new Date(Date.UTC(my, mm, 1, -8)).toISOString();
   const cf = (
     await pool.query(
       `select
@@ -84,16 +88,16 @@ export const GET = withModule("debt", async (_req, { user }) => {
          coalesce(sum(case when direction = 'out' then amount_cents else 0 end), 0)::bigint as out
        from transactions
        where user_id = $1 and is_draft = false
-         and to_char(occurred_at at time zone $2, 'YYYY-MM') = $3`,
-      [user.id, TZ, monthKey],
+         and occurred_at >= $2 and occurred_at < $3`,
+      [user.id, monthStart, monthEnd],
     )
   ).rows[0];
   const paidThisMonth = Number(
     (
       await pool.query(
         `select coalesce(sum(amount_cents), 0)::bigint as n from liability_payments
-         where user_id = $1 and to_char(paid_at, 'YYYY-MM') = $2`,
-        [user.id, monthKey],
+         where user_id = $1 and paid_at >= $2 and paid_at < $3`,
+        [user.id, monthStart, monthEnd],
       )
     ).rows[0].n,
   );

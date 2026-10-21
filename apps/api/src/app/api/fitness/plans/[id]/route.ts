@@ -5,7 +5,7 @@ import { fitnessService } from "@/server/fitness";
 /** PATCH /api/fitness/plans/[id] —— 确认/编辑草稿/skipped/打卡（done|partial + actual）；readJsonCapped 替代裸 req.json() */
 export const PATCH = withModuleParams("fitness", async (req, ctx) => {
   const { id } = await ctx.params;
-  const body = await readJsonCapped(req);
+  const body = await readJsonCapped(req) as any;
   return NextResponse.json(await fitnessService.updatePlan(ctx.user.id, String(id), body));
 });
 

@@ -62,6 +62,13 @@ async function isBusinessEmpty(
       + (select count(*) from public.fitness_xunji_aliases where user_id = $1)
       + (select count(*) from public.chat_conversations where user_id = $1)
       + (select count(*) from public.chat_messages where user_id = $1)
+      + (select count(*) from public.chat_proposals where user_id = $1)
+      + (select count(*) from public.space_milestones where user_id = $1)
+      + (select count(*) from public.user_exchange_keys where user_id = $1)
+      + (select count(*) from public.trade_imports where user_id = $1)
+      + (select count(*) from public.trade_reserve_banks where user_id = $1)
+      + (select count(*) from public.debt_reserve_checks where user_id = $1)
+      + (select count(*) from public.debt_reserve_sources where user_id = $1)
       )::int as n`,
       [userId],
     );

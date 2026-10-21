@@ -90,19 +90,38 @@ export async function verifyEmailCode(email: string, purpose: string, code: stri
 
 // ---------- SMTP（nodemailer 懒加载） ----------
 
+/** transporter 按配置缓存复用（官方建议）：每封新建连接会把 SMTP 握手/认证全程重来，
+ * 高峰期发码延迟被逐封放大。SMTP 配置进程内不变（loadConfig 为环境量），缓存安全 */
+type MailTransporter = Awaited<ReturnType<typeof import("nodemailer").createTransport>>;
+let transporterCache: Promise<MailTransporter> | null = null;
+
+function getTransporter(): Promise<MailTransporter> {
+  if (!transporterCache) {
+    transporterCache = (async () => {
+      const smtp = loadConfig().smtp!;
+      const nodemailer = await import("nodemailer");
+      return nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.port === 465,
+        auth: { user: smtp.user, pass: smtp.pass },
+        // 上游 SMTP 挂起时显式超时（不依赖默认无限等待）
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
+      });
+    })();
+    transporterCache.catch(() => {
+      // 初始化失败（如配置缺失）不缓存 rejection：下次调用重试
+      transporterCache = null;
+    });
+  }
+  return transporterCache;
+}
+
 async function smtpSend(email: string, code: string): Promise<void> {
   const smtp = loadConfig().smtp!;
-  const nodemailer = await import("nodemailer");
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.port === 465,
-    auth: { user: smtp.user, pass: smtp.pass },
-    // 上游 SMTP 挂起时显式超时（不依赖默认无限等待）
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-  });
+  const transporter = await getTransporter();
   await transporter.sendMail({
     from: smtp.from,
     to: email,

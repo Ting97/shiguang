@@ -29,6 +29,12 @@ export default function BlockEditor({ draft, activities, onChange, onSave, onCan
   const [armDelete, setArmDelete] = useState(false);
   const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (armTimer.current) clearTimeout(armTimer.current); }, []);
+  // 待确认态随目标块重置：同一实例被父级复用（draft 换 id 不重挂）时，对块 A 武装的
+  // 「确认删除？」3 秒内切到块 B 会单击误删 B
+  useEffect(() => {
+    setArmDelete(false);
+    if (armTimer.current) clearTimeout(armTimer.current);
+  }, [draft.id]);
 
   function onDeleteClick() {
     if (!onDelete) return;

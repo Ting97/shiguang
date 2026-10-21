@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { chatService } from "@/server/chat";
@@ -16,7 +16,7 @@ const renameSchema = z.object({
 export const PATCH = withModuleParams("ai", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id");
-  const parsed = renameSchema.safeParse(await req.json().catch(() => ({})));
+  const parsed = renameSchema.safeParse(await readJsonCapped(req) as any);
   if (!parsed.success) throw ApiError.badRequest("标题长度须为 1~30 字");
   await chatService.renameConversation(user.id, id, parsed.data.title);
   return NextResponse.json({ ok: true });

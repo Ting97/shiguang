@@ -11,6 +11,6 @@ export const GET = withModule("sleep", async (req, { user }) => {
 });
 
 export const POST = withModule("sleep", async (req, { user }) => {
-  const body = await readJsonCapped(req);
+  const body = await readJsonCapped(req) as any;
   return NextResponse.json(await fitnessService.saveSleep(user.id, body));
 });

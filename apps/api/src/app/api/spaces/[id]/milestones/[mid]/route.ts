@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { milestoneService } from "@/server/goal";
 
@@ -11,7 +11,7 @@ export const PATCH = withModuleParams("goal", async (req, { user, params }) => {
   const { id, mid } = await params;
   assertUuidParam(id, "id");
   assertUuidParam(mid, "mid");
-  const body = (await req.json().catch(() => ({}))) as {
+  const body = (await readJsonCapped(req) as any) as {
     title?: string;
     targetDate?: string | null;
     status?: "active" | "done" | "abandoned";

@@ -46,12 +46,6 @@ export async function getChatQuota(userId: string): Promise<ChatQuotaInfo> {
   };
 }
 
-/** 发消息前限流：不允许时调用方返回 402 */
-export async function checkChatQuota(userId: string): Promise<ChatQuotaInfo & { allowed: boolean }> {
-  const q = await getChatQuota(userId);
-  return { ...q, allowed: q.limit === null || q.usedToday < q.limit };
-}
-
 // ---------------------------------------------------------------------------
 // 原子占位（并发修正）：check-then-act 在并发 N 条消息时全部读到同一计数、全部放行，
 // 可无限超免费额度。与 insight/review-quota 同型：调用前占位 used+1（where used < lim），

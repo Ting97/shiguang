@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withModuleParams } from "@/server/platform/http/route";
+import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { assertUuidParam } from "@/server/platform/http/validate";
 import { deleteBlock, overlapPayload, updateBlock } from "@/server/time";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const PATCH = withModuleParams("time", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
-  const r = await updateBlock(user.id, id, await req.json().catch(() => ({})));
+  const r = await updateBlock(user.id, id, await readJsonCapped(req) as any);
   if ("conflict" in r) return NextResponse.json(overlapPayload(r.conflict), { status: 409 });
   return NextResponse.json({ block: r.block });
 });

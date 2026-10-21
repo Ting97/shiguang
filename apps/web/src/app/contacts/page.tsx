@@ -15,6 +15,7 @@ import { toast } from "@/shared/ui/toast";
 import { CONTACT_GROUPS, GROUP_EMOJI, birthdayLabel, displaySummary } from "@/lib/social";
 import { yuan } from "@/lib/finance";
 import { GROUP_TONE } from "@/lib/group-tone";
+import { bjDayIdx } from "@/lib/bj-time"; // 实现单源 @shiguangri/shared（UTC+8 推算，禁本地 getter）
 import AssistantDock from "@/components/assistant-dock";
 
 interface Contact {
@@ -38,8 +39,6 @@ interface Contact {
   gift_net_cents: number;
 }
 
-/** 北京日历日序号（UTC+8 推算，禁本地 getter） */
-const bjDayIdx = (t: number) => Math.floor((t + 8 * 3600_000) / 86_400_000);
 /** 相对时间：刚刚/N分钟前/N小时前/昨天/M月D日（北京时间口径） */
 function relTime(iso: string): string {
   const t = Date.parse(iso);

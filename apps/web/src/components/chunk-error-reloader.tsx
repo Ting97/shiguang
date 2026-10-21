@@ -17,9 +17,15 @@ const isRecoverable = (m: string) =>
   /Failed to fetch|dynamically imported module|Loading chunk \d+ failed|ChunkLoadError|load failed/i.test(m);
 
 function guardedReload(): boolean {
-  const last = Number(sessionStorage.getItem(FLAG) || 0);
-  if (Date.now() - last < WINDOW_MS) return false;
-  sessionStorage.setItem(FLAG, String(Date.now()));
+  // Safari 锁定模式/隐私模式 sessionStorage 读写直接 throw：不包裹会让自愈逻辑在这些环境
+  // 永久失效（且异常本身冒到全局 handler）；包 try-catch 降级为「无守卫直刷」（theme-toggle 同口径）
+  try {
+    const last = Number(sessionStorage.getItem(FLAG) || 0);
+    if (Date.now() - last < WINDOW_MS) return false;
+    sessionStorage.setItem(FLAG, String(Date.now()));
+  } catch {
+    /* 无存储可用：跳过守卫直接刷 */
+  }
   location.reload();
   return true;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/server/platform/http/route";
+import { withAuth, readJsonCapped } from "@/server/platform/http/route";
 import {
   bindSessionByWechat,
   bindSessionForceCurrent,
@@ -17,7 +17,7 @@ export const runtime = "nodejs";
  * - resolve=wechat：保留微信账号的数据——本次会话切换为微信绑定的账号（发对方新 token）
  */
 export const POST = withAuth(async (req: NextRequest, { user }) => {
-  const body = (await req.json().catch(() => ({}))) as { code?: unknown; resolve?: unknown };
+  const body = (await readJsonCapped(req) as any) as { code?: unknown; resolve?: unknown };
   const code = typeof body.code === "string" ? body.code.trim() : "";
   if (!code || code.length > 512) {
     return NextResponse.json({ error: "code 无效", code: "invalid_input" }, { status: 400 });

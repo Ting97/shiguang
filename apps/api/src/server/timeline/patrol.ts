@@ -83,7 +83,9 @@ export async function runRetentionSweep(): Promise<void> {
 
 /** 启动周期巡检（instrumentation 调用；返回停止函数便于测试） */
 export function startAnalysisPatrol(): void {
+  let tickCount = 0;
   const tick = async () => {
+    tickCount += 1;
     try {
       // 顺带清理过期会话（idx_sessions_expiry 支撑；此前过期行只在被携带访问时惰性删一条，
       // 不再复访用户的会话永久累积）
@@ -91,10 +93,14 @@ export function startAnalysisPatrol(): void {
     } catch {
       /* 清理失败不影响主巡检 */
     }
-    try {
-      await runRetentionSweep();
-    } catch (e) {
-      log.warn({ err: String(e).slice(0, 120) }, "retention-sweep-error");
+    // 留存清扫拆到低频（每 12 轮 ≈ 1 小时）：180 天窗口的 delete+upsert 是重查询，
+    // 每 5 分钟全量跑一轮会在数据量大后挤占巡检/推送节拍；归档语义按小时粒度足够
+    if (tickCount % 12 === 1) {
+      try {
+        await runRetentionSweep();
+      } catch (e) {
+        log.warn({ err: String(e).slice(0, 120) }, "retention-sweep-error");
+      }
     }
     try {
       const n = await retryPendingAnalysis();
@@ -109,5 +115,7 @@ export function startAnalysisPatrol(): void {
       log.warn({ err: String(e).slice(0, 120) }, "daily-push-error");
     }
   };
-  setInterval(tick, SCAN_INTERVAL_MS);
+  const timer = setInterval(tick, SCAN_INTERVAL_MS);
+  // 常驻巡检不阻止进程自然退出（测试环境 startAnalysisPatrol 后进程挂起不清场）
+  timer.unref();
 }
