@@ -185,7 +185,10 @@ export async function chat(opts: ChatOptions): Promise<string> {
         lastErr = new GlmError("badOutput", `GLM(${m}) 返回空内容`);
       } catch (e) {
         if (e instanceof GlmError) {
-          if (e.kind !== "rate" && e.kind !== "server") throw e; // 参数/鉴权/额度错误重试无意义
+          // network 须重试（与注释/文档口径一致）：SDK 传输下 Node 网络瞬断被 @ai-sdk 包成
+          // 无 statusCode 的 APICallError → classifySdkError 判 network——旧版直抛只剩 SDK 内部
+          // maxRetries=2 兜底，外层 5 次预算/退避策略对网络类失效（chatAgent 的工具重试集合则包含 network）
+          if (e.kind !== "rate" && e.kind !== "server" && e.kind !== "network") throw e; // 参数/鉴权/额度错误重试无意义
           lastErr = e;
         } else if (e instanceof Error && e.name === "AbortError") {
           // 总预算内的等待已耗尽（挂起的连接被掐断）——继续重试只会再超时
@@ -320,15 +323,19 @@ export interface TranscribeOptions {
 }
 
 /** 语音转文字：POST /paas/v4/audio/transcriptions（OpenAI 兼容），返回转写文本。
- * 4-E（FR-D2.4）：2 次重试 + 总预算控制；鉴权/参数类与超时（AbortError→转写超时）立即失败不重试——
+ * 4-E（FR-D2.4）：2 次重试 + 总预算控制（预算按 deadline 贯穿各次尝试，单次超时取剩余而非固定 30s）；
+ * 鉴权/参数类与超时（AbortError→转写超时）立即失败不重试——
  * 超时重试会把单次 30s 拖成 ~90s，与 chat()「预算耗尽即停」语义一致。 */
 export async function transcribeAudio(opts: TranscribeOptions): Promise<string> {
   // 熔断传输层不变量（与 chat() 同口径）：欠费冷却期内直接短路，不再白打上游 3 次
   if (isQuotaTripped()) throw new GlmError("quota", "额度熔断生效中（5 分钟后自动恢复）");
+  const deadline = Date.now() + (opts.timeoutMs ?? 30_000) * 3; // 总预算 = 单次默认时长的 3 倍（与最多 3 次尝试对齐）
   let lastErr: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
+    const remainMs = deadline - Date.now();
+    if (remainMs <= 0 && attempt > 1) break; // 预算耗尽即停（首次必须至少尝试，避免 0 预算永远转写失败）
     try {
-      return await transcribeOnce(opts);
+      return await transcribeOnce({ ...opts, timeoutMs: remainMs > 0 ? remainMs : opts.timeoutMs });
     } catch (e) {
       lastErr = e;
       if (e instanceof GlmError && e.kind === "auth") throw e; // 缺 Key：重试无意义（旧版文案不含 HTTP 4xx 会被白重试 3 次）

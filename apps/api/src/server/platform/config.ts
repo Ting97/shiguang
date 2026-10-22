@@ -105,6 +105,15 @@ export function loadConfig(): AppConfig {
   if (isProd && process.env.AUTH_DISABLED && process.env.AUTH_DISABLED !== "0") {
     issues.push("生产环境禁止 AUTH_DISABLED（万能后门）——请从环境移除后启动");
   }
+  // isProd 盲区告警：NODE_ENV=production 而 APP_ENV 漏设时，上面两条生产红线静默全关
+  // （secureCookie 走 env 口径不受影响，服务照常起）——.env.example 的 APP_ENV 默认注释掉，
+  // 新机按注释照抄即落此态。显著告警而非拒绝启动：确有本地跑生产构建的场景（004 §3.3）
+  if (!isProd && envRaw === "production" && process.env.APP_ENV == null) {
+    console.warn(
+      "[config] NODE_ENV=production 但未设置 APP_ENV：生产校验（弱口令拦截/AUTH_DISABLED 拒绝）未生效。" +
+        "若此实例面向公网，请在 .env 显式 APP_ENV=production",
+    );
+  }
 
   const hasGlmKey = Boolean(process.env.ZHIPUAI_API_KEY);
   if (!hasGlmKey && isProd) {
@@ -187,6 +196,8 @@ export function initConfig(): AppConfig {
       level: "info",
       msg: "config-ok",
       env: c.env,
+      // isProd 口径 = APP_ENV（非 NODE_ENV）：启动日志显式带上，盲区态（NODE_ENV=production 而非 isProd）一眼可见
+      isProd: c.isProd,
       glmModel: c.glmModel,
       aiKey: c.hasGlmKey,
       jevKey: c.hasJevKey,

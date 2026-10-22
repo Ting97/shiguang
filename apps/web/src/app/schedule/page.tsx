@@ -35,7 +35,11 @@ export default function SchedulePage() {
     const t = sp.get("tab");
     if (t === "todo" || t === "categories") setTab(t);
     const d = sp.get("date");
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setInitialDate(d);
+    // 形状 + 日历双重校验：旧版放行 2026-13-99，CalendarPanel 标题渲染成乱串且以非法区间发 /api/blocks
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const dt = new Date(`${d}T00:00:00Z`);
+      if (!Number.isNaN(dt.getTime()) && dt.toISOString().slice(0, 10) === d) setInitialDate(d);
+    }
   }, []);
 
   useEffect(() => {

@@ -50,6 +50,7 @@ async function cleanup() {
   await pool.query(`delete from chat_conversations where user_id = any($1::uuid[])`, [[US, UB]]);
   await pool.query(`delete from fitness_body_metrics where user_id = $1`, [UA]);
   await pool.query(`delete from fitness_daily_plans where user_id = $1`, [UA]);
+  await pool.query(`delete from audit_logs where user_id = $1 and stage = 'parse' and model = 'quota_fixture'`, [UA]);
 }
 
 // ---- B1 阶段目标 ----
@@ -183,6 +184,13 @@ test("fitness：休息日规则命中 + 身高/体脂指标 round-trip", async (
   await assert.rejects(() => fitnessService.parsePlanDraft(UA, "rest"), /休息日/);
   // 长文本含关键词不短路（交给 AI 判定）——「这周无安排，明天课表如下：…」超过 30 字
   // （不真实调 AI：仅验证不抛休息日 400，而是走后续流程抛配额/鉴权类错误）
+  // 配额预耗尽（确定性）：free 30 次/30 天——真实 GLM 可用时长文本会被判成 rest（十六轮前
+  // 依赖环境配额恰好耗尽才通过，随配额态漂移）；model='quota_fixture' 供 cleanup 定位
+  await pool.query(
+    `insert into audit_logs (user_id, stage, model, ok, created_at)
+     select $1, 'parse', 'quota_fixture', true, now() - (n || ' hours')::interval from generate_series(1, 30) as n`,
+    [UA],
+  );
   const longText = "这周无安排，明天课表如下：热身 1 公里，主课 6×400 米，放松 1 公里";
   await assert.rejects(() => fitnessService.parsePlanDraft(UA, longText), (e: any) => !/休息日/.test(String(e?.message)));
 

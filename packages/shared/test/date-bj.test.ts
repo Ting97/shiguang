@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, combineHM, combineHmEndCrossDay, isoToBjInput, parseYmd, startOfWeek, weekName, zhDate, zhTime } from "../src/date.js";
+import { addDays, bjDateKey, combineHM, combineHmEndCrossDay, isoToBjInput, parseYmd, startOfWeek, weekName, zhDate, zhTime } from "../src/date.js";
 
 const ISO = "2026-10-08T04:30:00.000Z"; // 北京 12:30
 
@@ -83,4 +83,13 @@ test("zhDate/weekName：假日历日/垃圾串原样返回，不再产 NaN 文�
   assert.equal(weekName("垃圾"), "垃圾");
   assert.equal(zhDate("2026-10-08"), "10月8日"); // 回归
   assert.equal(weekName("2026-10-08"), "周四"); // 回归
+});
+
+test("r16：bjDateKey/zhTime 非法 ISO 防御（不抛 RangeError）", () => {
+  assert.equal(bjDateKey("not-a-date"), "");
+  assert.equal(bjDateKey(""), "");
+  assert.equal(zhTime("bad-iso"), "—");
+  // 回归：合法串原样
+  assert.equal(bjDateKey("2026-10-22T07:00:00Z"), "2026-10-22"); // UTC 15 点 = 北京 22 日
+  assert.equal(zhTime("2026-10-22T07:05:00Z"), "15:05");
 });

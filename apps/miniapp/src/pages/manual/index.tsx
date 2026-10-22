@@ -3,7 +3,7 @@
  * 浓缩为结构化章节，覆盖小程序端入口差异（底部 6 tab / 微信一键登录 / 语音长按）。
  * 独立轻容器（= 协议页形态：app-bg + 返回，不挂底部栏）。
  */
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { View, Text, Image } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import LucideIcon from "@/components/lucide-icon";

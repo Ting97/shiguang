@@ -50,7 +50,7 @@ async function cleanup() {
   await pool.query(`delete from invite_codes where code like 'FIX2226%'`, []);
   await pool.query(`delete from sms_codes where phone like '1382226%'`, []);
   await pool.query(`delete from email_codes where email like '%fix2226%'`, []);
-  await pool.query(`delete from profiles where phone like '1382226%' or id = $1`, [UA]);
+  await pool.query(`delete from profiles where phone like '1382226%' or id = $1 or id::text like '22260000-2226-4226-8226-2226000011%'`, [UA]);
 }
 
 const isInviteApiError = (e: any) =>
@@ -193,6 +193,55 @@ test("identity-fix：verifyEmailCode 与短信链路同构（一次性 + purpose
   const { emailConfigured } = await import("../src/server/identity/email");
   assert.equal(smsConfigured(), false, "无 TENCENT_SMS_* 时短信通道应降级为未配置");
   assert.equal(emailConfigured(), false, "无 EMAIL_SMTP_* 时邮箱通道应降级为未配置");
+});
+
+/* ---------- 十六轮：setup 守卫加固 + 改密 401→400 语义 ---------- */
+
+test("identity-r16：setup 在已初始化的库上一律 403（带密码管理员硬守卫）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await cleanup();
+  await upsertUser(UA, "fix测试A");
+  const identity: any = await import("../src/server/identity");
+  // 带密码的管理员在场（hasAdminAccount 新守卫的目标形态；本测试库另有手机号账号，双守卫任一命中皆应拒）
+  await pool.query(
+    `insert into profiles (id, nickname, role, password_hash) values ($1,'fix管理员R16','admin',$2)
+     on conflict (id) do update set role='admin', password_hash=excluded.password_hash`,
+    ["22260000-2226-4226-8226-222600001166", identity.hashPassword("password-8")],
+  );
+  await assert.rejects(
+    () => identity.setup({ nickname: "r16偷渡者", phone: "13822260009", password: "password-8" }, null),
+    (e: any) => e?.name === "ApiError" && e?.status === 403 && /管理员已存在/.test(String(e?.message)),
+    "已存在带密码管理员时 setup 应 403 且不得认领/建号",
+  );
+  const leaked = await pool.query(`select id from profiles where phone = '13822260009'`);
+  assert.equal(leaked.rows.length, 0, "被拒 setup 不得留下半成品");
+  // hasAdminAccount 单元：上面插入的带密码 admin 应被识别（旧守卫只看手机号，全邮箱库会漏）
+  const { profilesRepo } = await import("../src/server/identity/repo");
+  assert.ok((await profilesRepo.hasAdminAccount()).rows.length > 0, "hasAdminAccount 应命中带密码的管理员");
+});
+
+test("identity-r16：updateProfile 当前密码错误 → 400（业务校验）而非 401（会话失效）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await cleanup();
+  await upsertUser(UA, "fix测试A");
+  const identity: any = await import("../src/server/identity");
+  const uid = "22260000-2226-4226-8226-222600001167";
+  await pool.query(
+    `insert into profiles (id, nickname, password_hash) values ($1,'fix改密A',$2)
+     on conflict (id) do update set password_hash=excluded.password_hash`,
+    [uid, identity.hashPassword("old-pass-8")],
+  );
+  // 错误当前密码：400 + 中文文案（401 会被 web 端全局会话失效处理清 token 并整页跳登录——十六轮 GUI 实测）
+  await assert.rejects(
+    () => identity.updateProfile(uid, { currentPassword: "wrong-pass", newPassword: "new-pass-8" }),
+    (e: any) => e?.name === "ApiError" && e?.status === 400 && /当前密码不正确/.test(String(e?.message)),
+    "当前密码错误应 400",
+  );
+  // 正确当前密码 → 200 语义（返回 ok）且新密码生效
+  const r = await identity.updateProfile(uid, { currentPassword: "old-pass-8", newPassword: "new-pass-8" });
+  assert.ok(r?.ok, "正确当前密码应改密成功");
 });
 
 /* ---------- teardown ---------- */

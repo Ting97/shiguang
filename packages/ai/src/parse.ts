@@ -160,7 +160,9 @@ export function deterministicOccurredDate(text: string, now: Date): string | nul
   // N号/N日（裸日，前面不带 月/年 限定）：N 大于今天（未来）→ 往回找最近一个存在 N 日的月份
   // （补记上月的常见话术；旧版近似回退 30 天再取 N，N 大于上月天数时 Date.UTC 静默进位出未来日期）
   // lookbehind 追加量词/编号类：「3号球衣/5号工牌」的 N号 是编号非日期——误判把花销记错月份（宁缺勿错）
-  const m = /(?<![月年\d个件条辆间套位张台页只支])(\d{1,2})[号日]/.exec(text);
+  // lookahead 追加线址类后缀：「2号线/3号楼/5号门」同理是编号（实测「坐2号线花了4块」被记到 2 号，
+  // 覆盖模型正确输出的优先级在 mapAiResult——通勤话术高频，宁可落默认今天也不回跳 N-20 天）
+  const m = /(?<![月年\d个件条辆间套位张台页只支])(\d{1,2})[号日](?![线楼层栋路室排座门])/.exec(text);
   if (m) {
     const n = Number(m[1]);
     if (n >= 1 && n <= 31) {

@@ -722,7 +722,7 @@ const queryFitnessPlans: ChatTool = {
       `select p.plan_date, p.module_code, m.name as module, p.source, p.status, p.content, p.rationale
        from fitness_daily_plans p join fitness_modules m on m.code = p.module_code
        where p.user_id = $1 and p.plan_date >= $2::date and p.plan_date < $3::date
-       order by p.plan_date desc, m.sort`,
+       order by p.plan_date desc, m.sort, p.created_at, p.id`,
       [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
     );
     const { rows: stats } = await pool.query(
@@ -1073,8 +1073,9 @@ const proposeFitnessPlan: ChatTool = {
          where user_id = $1 and kind = 'fitness_plan' and status = 'pending'
            and ($2::uuid is null or conversation_id = $2::uuid)
            and payload->>'planDate' = $3
+           and payload->>'moduleCode' = $4
          order by created_at desc limit 1`,
-        [ctx.userId, ctx.conversationId ?? null, plan_date],
+        [ctx.userId, ctx.conversationId ?? null, plan_date, module_code],
       );
       if (existingCards.length) {
         await client.query("commit");
@@ -1082,7 +1083,7 @@ const proposeFitnessPlan: ChatTool = {
           proposalId: existingCards[0].id,
           saved: false,
           duplicated: true,
-          hint: "该日期已有一张待确认的计划卡（本工具不重复生成），请向用户展示既有卡片要点并说明不要声称已保存",
+          hint: "该日期该模块已有一张待确认的计划卡（一天可并存多条不同模块计划，同模块不重复生成），请向用户展示既有卡片要点并说明不要声称已保存",
         };
       }
       const { rows } = await client.query(

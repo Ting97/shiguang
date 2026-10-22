@@ -32,7 +32,13 @@ export function useMomentLink(opts: { id: string; load: () => Promise<void>; set
       setMomentQueryApplied(q); // 记录本批列表对应的生效查询（「加载更多」翻页复用）
       const list = (j.moments as FeedMoment[]) ?? [];
       setMomentTotal(j.total ?? list.length);
-      setMomentItems((prev) => (append ? [...prev, ...list] : list));
+      // 追加按 id 去重（use-space-data.loadMoreMoments 的 seen 范式）：浮层开着时在别处发布
+      // 新动态会使服务端列表头插、offset 整体错位一格，翻页带回的重复行不再拼接
+      setMomentItems((prev) => {
+        if (!append) return list;
+        const seen = new Set(prev.map((m) => m.id));
+        return [...prev, ...list.filter((m) => !seen.has(m.id))];
+      });
     } catch (e) {
       if (seq !== seqRef.current) return;
       // 原 !r.ok 分支的固定提示；网络异常也收口为用户可见提示（裸 throw 会触发整页强刷丢状态）

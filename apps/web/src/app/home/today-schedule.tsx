@@ -49,6 +49,15 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
     if (!editing || saving) return; // 保存进行中忽略再次提交，防双击重复保存
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
+    // HH:MM 完整性守卫（与 submitListDraft 同款）：清空 time 输入后 split 出 NaN——
+    // 旧版清空「结束」误报「结束时间必须晚于开始时间」，清空「开始」反而通过且 combineHM
+    // 守卫回退原值（保存成功 toast 但开始时间原样未变，所见与所存不一致）
+    const [sh, sm] = editing.start.split(":").map(Number);
+    const [eh, em] = editing.end.split(":").map(Number);
+    if ([sh, sm, eh, em].some((n) => !Number.isFinite(n)) || sh > 23 || eh > 23 || sm > 59 || em > 59) {
+      toast("请填写完整的开始与结束时间", "err");
+      return;
+    }
     // 跨天块（23:00→次日 00:30）end 钟点 ≤ start 是合法次日语义，不走同日校验；
     // 结束写回用跨日组合（与 calendar-panel 同范式）——旧逻辑对跨天块恒报
     // 「结束时间必须晚于开始时间」，改任何字段都保存不了

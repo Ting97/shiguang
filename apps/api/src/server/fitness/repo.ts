@@ -290,13 +290,25 @@ export const fitnessRepo = {
     );
   },
 
-  /** 删除该计划所有未完成联动行动（已完成行动保留作历史；父行动删除级联子行动） */
-  deletePendingPlanTodos(planId: string, exec: Pick<typeof pool, "query"> = pool) {
-    // 先删未完成子行动（父行动若是 pending 会被下一步连带删除，这里防孤立 action 残留）
-    return exec.query(
-      `delete from todos where fitness_plan_id = $1 and status = 'pending'`,
+  /** 删除该计划所有未完成联动行动（已完成行动保留作历史）。
+   * pending 父任务被删时 parent_todo_id 的 on delete cascade 会连带删掉其下 done 子行动
+   * （完成记录物理丢失 + 重建时以同名 pending 复活）——先把挂在 pending 父上的 done 子行动
+   * 解挂（parent_todo_id 置 null），返回解挂行 id 供 syncPlanTodos 重建父任务后回挂。 */
+  async deletePendingPlanTodos(planId: string, exec: Pick<typeof pool, "query"> = pool) {
+    const { rows: unhooked } = await exec.query(
+      `update todos set parent_todo_id = null
+        where fitness_plan_id = $1 and status = 'done'
+          and parent_todo_id in (select id from todos where fitness_plan_id = $1 and status = 'pending')
+        returning id`,
       [planId],
     );
+    await exec.query(`delete from todos where fitness_plan_id = $1 and status = 'pending'`, [planId]);
+    return { unhookedIds: (unhooked as { id: string }[]).map((r) => r.id) };
+  },
+  /** 把解挂的 done 子行动回挂到新父任务（完成历史保持嵌套在计划父任务下） */
+  reparentTodos(parentId: string, childIds: string[], exec: Pick<typeof pool, "query"> = pool) {
+    if (childIds.length === 0) return Promise.resolve({ rowCount: 0 });
+    return exec.query(`update todos set parent_todo_id = $1 where id = any($2::uuid[])`, [parentId, childIds]);
   },
   /** 该计划已完成的联动行动（title→行）：syncPlanTodos 重建时同名跳过、父任务复用旧 id——
    * 否则「保存后勾掉 2 个动作再确认计划」会把已打卡动作以新 pending 行复制出来（同义重复） */

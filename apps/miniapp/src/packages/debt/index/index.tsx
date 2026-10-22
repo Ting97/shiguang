@@ -45,7 +45,7 @@ import {
   type SimResult,
 } from "./api";
 import "./index.scss";
-import { yuanToCents } from "@shiguangri/shared";
+import { yuanToCents, centsToYuanInput } from "@shiguangri/shared";
 
 /* ---------- 二级 pill 导航（= web finance-tabs.tsx；与 pages/finance 同款，分包各自持有副本避免跨包依赖） ---------- */
 
@@ -134,10 +134,10 @@ function DebtForm({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<DebtType>(initial?.type ?? "credit_card");
-  const [principal, setPrincipal] = useState(initial ? String(Number(initial.principal_cents) / 100) : "");
-  const [balance, setBalance] = useState(initial ? String(Number(initial.balance_cents) / 100) : "");
+  const [principal, setPrincipal] = useState(initial ? centsToYuanInput(Number(initial.principal_cents)) : "");
+  const [balance, setBalance] = useState(initial ? centsToYuanInput(Number(initial.balance_cents)) : "");
   const [rate, setRate] = useState(initial ? String(initial.rate_pct) : "");
-  const [monthly, setMonthly] = useState(initial?.monthly_cents != null ? String(Number(initial.monthly_cents) / 100) : "");
+  const [monthly, setMonthly] = useState(initial?.monthly_cents != null ? centsToYuanInput(Number(initial.monthly_cents)) : "");
   const [payDay, setPayDay] = useState(initial?.pay_day ? String(initial.pay_day) : "");
   const [dueDate, setDueDate] = useState(initial?.due_date?.slice(0, 10) ?? "");
   const [priority, setPriority] = useState(initial ? String(initial.priority) : "0");
@@ -253,7 +253,7 @@ function PaymentForm({
   onError: (text: string) => void;
 }) {
   // 建议还款额：有月供填月供，否则 min(余额, ¥1000)
-  const suggest = debt.monthly_cents != null ? Number(debt.monthly_cents) / 100 : Math.min(Number(debt.balance_cents) / 100, 1000);
+  const suggest = debt.monthly_cents != null ? Number(centsToYuanInput(Number(debt.monthly_cents))) : Math.min(Number(centsToYuanInput(Number(debt.balance_cents))), 1000);
   const [amount, setAmount] = useState(String(suggest));
   const [paidAt, setPaidAt] = useState(bjToday());
   const [accIdx, setAccIdx] = useState(0); // 0 = 不联动记账

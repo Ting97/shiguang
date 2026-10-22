@@ -127,20 +127,39 @@ export async function reserveOverview(userId: string, ym: string) {
   }
 
   // 合并行勾选 = 该名称下任一负债已勾选；liabilityIds 供一键/单项落库
-  let items = [...merged.values()].map((row) => {
+  type Item = ReserveRow & { liabilityIds: string[] };
+  let items: Item[] = [...merged.values()].map((row) => {
     const ids = liabilities.filter((l) => l.name === row.name).map((l) => l.id);
     return { ...row, liabilityIds: ids };
   });
 
   if (banks.length > 0) {
     // 镜像启用时：负债编码已被 trade 覆盖的（任意月份 members 并集，B3 等次月起还的编码也算覆盖）
-    // 从手写清单隐藏——避免与镜像行双重展示/重复计数；剩余「仅拾光记录」行只留真实未跟踪负债
+    // 从手写清单隐藏——避免与镜像行双重展示/重复计数；剩余「仅拾光记录」行只留真实未跟踪负债。
+    // 部分覆盖的合并行按未覆盖负债重算 need：整行 need 留存会同镜像 needTotal 把已覆盖部分
+    // 在 coveragePct 分母双计（覆盖率虚低），liabilityIds 同步收口为未覆盖子集
     const { rows: covRows } = await pool.query(
       `select distinct unnest(members) as lid from trade_reserve_banks where user_id = $1`,
       [userId],
     );
     const covered = new Set(covRows.map((r) => String(r.lid)));
-    items = items.filter((it) => !it.liabilityIds.every((id) => covered.has(id)) && it.need > 0);
+    const kept: Item[] = [];
+    for (const it of items) {
+      const unc = liabilities.filter((l) => l.name === it.name && !covered.has(String(l.id)));
+      if (unc.length === 0) continue; // 全覆盖：镜像行已计
+      if (unc.length === it.liabilityIds.length) {
+        kept.push(it); // 无覆盖部分：整行原样
+        continue;
+      }
+      const need = unc.reduce((s, l) => {
+        const pay = Number(l.monthly_cents ?? 0);
+        const due = isoDate(l.due_date);
+        const extra = due && due >= ymFirst && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
+        return s + pay + extra;
+      }, 0);
+      if (need > 0) kept.push({ ...it, need, liabilityIds: unc.map((l) => l.id) });
+    }
+    items = kept;
   }
 
   items.sort((a, b) => b.need - a.need);

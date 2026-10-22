@@ -31,7 +31,7 @@ export default function Schedule() {
   // 首次激活才挂载；挂过后 display 切换保状态（日历锚点/TODO 视图不被切换重置）
   const [mounted, setMounted] = useState<Record<Tab, boolean>>({ calendar: true, todo: false, categories: false });
   // ?date=YYYY-MM-DD 直达某天；非法值回落今天（由 CalendarPanel 一次性采纳）
-  const [initialDate, setInitialDate] = useState<string | undefined>(() =>
+  const [initialDate] = useState<string | undefined>(() =>
     router.params.date && /^\d{4}-\d{2}-\d{2}$/.test(router.params.date) ? router.params.date : undefined,
   );
   // 下拉刷新广播：三个面板常驻挂载，各自按 tick 重拉当前视图

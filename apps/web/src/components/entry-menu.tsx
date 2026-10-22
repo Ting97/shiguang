@@ -90,10 +90,12 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
     if (busy) return;
     setBusy(true);
     try {
+      // trim 后入库（use-todo-edit 等全站表单同口径）：日程标题/待办/饮食内容/联系人姓名不带走尾空白
+      const t = text.trim();
       let payload: Record<string, unknown> = {};
-      if (key === "schedule") payload = { title: text, startTime: start, endTime: end, activityId: activities.find((a) => a.id === "other")?.id ?? activities[0]?.id ?? "other" }; // 默认归「其他」而非任意首个分类
+      if (key === "schedule") payload = { title: t, startTime: start, endTime: end, activityId: activities.find((a) => a.id === "other")?.id ?? activities[0]?.id ?? "other" }; // 默认归「其他」而非任意首个分类
       // due 是 datetime-local 裸值：直发会被服务端按宿主时区解析（UTC 容器上统一错 8 小时），显式按北京口径转 ISO
-      else if (key === "todo") payload = { title: text, dueAt: bjInputToIso(due) };
+      else if (key === "todo") payload = { title: t, dueAt: bjInputToIso(due) };
       else if (key === "finance") {
         // 手动记收支不允许 0/负/非法金额（"1e" 这类输入 Number() 为 NaN：静默 return 只会 busy 闪一下）
         const v = Number(yuan);
@@ -104,8 +106,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
         payload = { direction, yuan: v, category };
       }
       else if (key === "mood") payload = { label: mood };
-      else if (key === "diet") payload = { meal, text, kcal: null };
-      else if (key === "people") payload = { name: text, type: pType };
+      else if (key === "diet") payload = { meal, text: t, kcal: null };
+      else if (key === "people") payload = { name: t, type: pType };
       try {
         await onManual(key, payload);
       } catch {

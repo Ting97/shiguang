@@ -58,6 +58,10 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
     const q = opts?.query !== undefined ? opts.query : query;
     const sp = opts?.spaceId ?? spaceFilter;
     const bf = opts?.before !== undefined ? opts.before : beforeRef.current;
+    // 锚点在「发起时」即写入（旧版落地后才写）：历史跳转请求在途期间，五轮延迟刷新的 load()（无 opts）
+    // 会读到旧 beforeRef=null 且 seq 更新——跳转回包按 seq 失配被整包丢弃（含锚点写回），列表停在最新
+    // 而页面 anchorDate 仍是所选日期；重选同一日期 input 不触发 onChange，用户无法自行恢复
+    beforeRef.current = bf ?? null;
     setLoadErr(null);
     try {
       const [j, f, rj] = await Promise.all([
@@ -68,7 +72,6 @@ export function useHomeData(opts?: { notify?: (text: string) => void }) {
       ]);
       // 已卸载或已有更新的请求发出：丢弃过期响应，避免旧数据覆盖新视图（连续快切空间场景）
       if (!aliveRef.current || seq !== seqRef.current) return "stale";
-      beforeRef.current = bf ?? null;
       setHistoryBefore(bf ?? null);
       setTodos(j.todos ?? []);
       setDoneToday(j.doneToday ?? []);

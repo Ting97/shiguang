@@ -559,7 +559,7 @@ async function syncPlanTodos(
   exec: Pick<typeof pool, "query"> = pool,
 ) {
   // 「删旧插新」由调用方事务包裹：中途失败可整体回滚，避免行动丢失（历史窗口：计划已存而联动行动为空）
-  await fitnessRepo.deletePendingPlanTodos(plan.id, exec);
+  const { unhookedIds } = await fitnessRepo.deletePendingPlanTodos(plan.id, exec);
   if (plan.status === "skipped") return { synced: 0 };
   // 已打卡行动（用户在今日行动里勾掉的 done 行保留作历史）：同名重建时跳过、父任务复用旧 id——
   // 否则确认/编辑计划会把已勾掉的动作以新 pending 行复制出来（今日行动重复出现 + done 历史并存）
@@ -581,19 +581,24 @@ async function syncPlanTodos(
     // 父任务已打卡 → 复用旧行 id 保持子行动挂载，不新建
     let parentId: string | null = doneTitleToId.get(parentTitle) ?? null;
     if (!parentId) {
-      parentId = (
-        await fitnessRepo.insertPlanTodo(userId, {
-          planId: plan.id,
-          title: parentTitle,
-          dueAtIso,
-          source,
-          kind: "todo",
-          parentId: null,
-          sort: 0,
-          activityId,
-          spaceId,
-        }, exec)
-      ).rows[0].id;
+      const newParentId = String(
+        (
+          await fitnessRepo.insertPlanTodo(userId, {
+            planId: plan.id,
+            title: parentTitle,
+            dueAtIso,
+            source,
+            kind: "todo",
+            parentId: null,
+            sort: 0,
+            activityId,
+            spaceId,
+          }, exec)
+        ).rows[0].id,
+      );
+      parentId = newParentId;
+      // 原 pending 父被删时其 done 子行动已解挂保命：回挂到新父，完成历史不散落顶层
+      if (unhookedIds.length > 0) await fitnessRepo.reparentTodos(newParentId, unhookedIds, exec);
       synced += 1;
     }
     for (let i = 0; i < exs.length; i++) {
@@ -1082,17 +1087,31 @@ async function addLog(userId: string, body: unknown) {
     const own = await fitnessRepo.planOwned(v.planId, userId);
     if (!own.rows.length) throw ApiError.badRequest("关联计划不存在");
   }
-  const { rows } = await fitnessRepo.insertLog(userId, {
-    logDate: v.logDate,
-    moduleCode: v.moduleCode,
-    planId: v.planId ?? null,
-    actual: v.actual ?? {},
-    fatigue: v.fatigue ?? null,
-    soreness: v.soreness ?? null,
-    note: v.note ?? null,
-  });
-  if (v.sleepHours != null) await fitnessRepo.upsertSleep(userId, v.logDate, Math.round(v.sleepHours * 10), "checkin");
-  return { log: rows[0] };
+  // 执行记录 + 睡眠兼容入参收进同一事务（与 updatePlan 打卡路径同款）：
+  // 独立自动提交在 sleep 写失败时会留下「记录已存、睡眠缺失」的半程态
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const { rows } = await fitnessRepo.insertLog(userId, {
+      logDate: v.logDate,
+      moduleCode: v.moduleCode,
+      planId: v.planId ?? null,
+      actual: v.actual ?? {},
+      fatigue: v.fatigue ?? null,
+      soreness: v.soreness ?? null,
+      note: v.note ?? null,
+    }, client);
+    if (v.sleepHours != null) {
+      await fitnessRepo.upsertSleep(userId, v.logDate, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client);
+    }
+    await client.query("commit");
+    return { log: rows[0] };
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 async function listMetrics(userId: string, from: string, to: string) {

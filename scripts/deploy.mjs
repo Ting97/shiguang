@@ -119,7 +119,7 @@ console.log("[deploy] 原子交换 + 重启 …");
 let active;
 try {
   active = sh(
-    "ssh tencent \"cp /opt/shiguangri/.env /opt/shiguangri_new/.env && systemctl stop shiguangri && rm -rf /opt/shiguangri_old && mv /opt/shiguangri /opt/shiguangri_old && mv /opt/shiguangri_new /opt/shiguangri && systemctl start shiguangri && sleep 3 && systemctl is-active shiguangri\"",
+    "ssh tencent \"cp /opt/shiguangri/.env /opt/shiguangri_new/.env && mkdir -p /opt/shiguangri_new/apps/api && cp /opt/shiguangri/.env /opt/shiguangri_new/apps/api/.env && systemctl stop shiguangri && rm -rf /opt/shiguangri_old && mv /opt/shiguangri /opt/shiguangri_old && mv /opt/shiguangri_new /opt/shiguangri && systemctl start shiguangri && sleep 3 && systemctl is-active shiguangri\"",
     { quiet: true },
   );
 } catch (e) {

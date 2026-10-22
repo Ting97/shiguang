@@ -118,3 +118,19 @@ test("displaySummary：兼容旧数据「X：X」重复拼接", () => {
   assert.equal(displaySummary(null), "");
   assert.equal(displaySummary(""), "");
 });
+
+test("r16：todo 窗口过滤——远期 dated 待办不产条目（与生日/纪念日同口径）", () => {
+  // due 在 8 个月后（2027-06-01）：窗口默认 7 天，不得漏出（旧版 sort=222 直达）
+  const far = pickReminders([], [todo({ title: "年度体检", due_at: "2027-06-01T09:00:00+08:00", remind_at: "2026-09-18T09:00:00+08:00" })], NOW);
+  assert.equal(far.length, 0);
+  // 无 due_at 的待办不受窗口门（提醒意图由调用方 remind_at 过滤表达）
+  const noDue = pickReminders([], [todo({ title: "给妈回电话", remind_at: "2026-09-18T09:00:00+08:00" })], NOW);
+  assert.equal(noDue.length, 1);
+  // 窗口内（6 天后）照常
+  const soon = pickReminders([], [todo({ due_at: "2026-09-24T09:00:00+08:00", remind_at: "2026-09-24T08:00:00+08:00" })], NOW);
+  assert.equal(soon.length, 1);
+  // 过期照常
+  const overdue = pickReminders([], [todo({ due_at: "2026-09-10T09:00:00+08:00", remind_at: "2026-09-10T08:00:00+08:00" })], NOW);
+  assert.equal(overdue.length, 1);
+  assert.equal(overdue[0].overdue, true);
+});

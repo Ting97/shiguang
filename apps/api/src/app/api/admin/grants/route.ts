@@ -97,10 +97,11 @@ export const DELETE = withAdmin(async (req, { user }) => {
   const userId = searchParams.get("userId");
   const module = searchParams.get("module");
   if (!userId || !module || !getModule(module)) {
-    return NextResponse.json({ error: `userId 与 module（${HINT}）必填` }, { status: 400 });
+    // ApiError 统一错误体（含 code，与 POST 同形状）：手写 NextResponse 缺 code，前端按 code 分支不一致
+    throw ApiError.badRequest(`userId 与 module（${HINT}）必填`);
   }
   if (!isUuid(userId)) {
-    return NextResponse.json({ error: "userId 参数不合法" }, { status: 400 });
+    throw ApiError.badRequest("userId 参数不合法");
   }
   await pool.query(`delete from user_module_controls where user_id = $1 and module = $2`, [
     userId,

@@ -75,6 +75,10 @@ export function pickReminders(
     // 未过期按北京日历日差排序（契约注释「N 天后 N」；旧版恒 0，紧迫度信息丢失、顺序随入参）
     const bjDayIdx = (ts: number) => Math.floor((ts + 8 * 3600_000) / 86_400_000);
     const daysLeft = due && !overdue ? Math.max(0, bjDayIdx(due.getTime()) - bjDayIdx(now.getTime())) : 0;
+    // 窗口过滤与生日/纪念日同口径（默认 7 天）：远期 dated 待办不产条目——当前被 API 侧
+    // remind_at<=now 过滤掩盖，miniapp/web 直呼此函数时「2027 年体检」会以 sort=222 漏出；
+    // 无 due_at 的待办不受此门（其提醒意图由调用方的 remind_at 过滤表达）
+    if (due !== null && !overdue && daysLeft > windowDays) continue;
     items.push({
       key: `td-${t.id}`,
       kind: "todo",

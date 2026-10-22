@@ -40,6 +40,8 @@ export const PATCH = withModuleParams("finance", async (req, { user, params }) =
     sets.push(`opening_balance_cents = $${vals.length}`);
   }
   if (body.archived != null) {
+    // 布尔列直落非布尔（如 123）→ PG 22P02 → 500；与 name/icon/openingBalanceCents 同批 400 语义
+    if (typeof body.archived !== "boolean") throw ApiError.badRequest("archived 需为布尔值");
     // 恢复守卫：归档期名字已释放，可能已被同名新账户占用——恢复前先查重，撞名 400 而非 23505 裸 500
     if (body.archived === false) {
       const self = await pool.query(`select name from accounts where id = $1 and user_id = $2`, [id, user.id]);
@@ -56,6 +58,7 @@ export const PATCH = withModuleParams("finance", async (req, { user, params }) =
     sets.push(`archived = $${vals.length}`);
   }
   if (body.reserveTracked != null) {
+    if (typeof body.reserveTracked !== "boolean") throw ApiError.badRequest("reserveTracked 需为布尔值");
     vals.push(body.reserveTracked);
     sets.push(`reserve_tracked = $${vals.length}`);
   }

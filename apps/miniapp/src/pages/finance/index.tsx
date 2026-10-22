@@ -42,7 +42,7 @@ import {
   type FinAccount,
 } from "./api";
 import "./index.scss";
-import { yuanToCents } from "@shiguangri/shared";
+import { yuanToCents, centsToYuanInput } from "@shiguangri/shared";
 
 /* ---------- 二级 pill 导航（= web finance-tabs.tsx + sub-nav.tsx） ---------- */
 
@@ -172,7 +172,7 @@ function TxForm({
   }) => Promise<void>;
 }) {
   const [direction, setDirection] = useState<"out" | "in">(initial?.direction ?? "out");
-  const [amount, setAmount] = useState(initial ? String(initial.amount_cents / 100) : "");
+  const [amount, setAmount] = useState(initial ? centsToYuanInput(Number(initial.amount_cents)) : "");
   const [category, setCategory] = useState(initial?.category ?? "餐饮");
   // web 用一个 datetime-local；小程序拆成 date+time 两个 Picker，值仍为北京墙上时间串
   const [date, setDate] = useState(isoToBjInput(new Date().toISOString()).slice(0, 10));

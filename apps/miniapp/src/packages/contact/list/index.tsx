@@ -76,16 +76,9 @@ export default function ContactListPage() {
     load().finally(() => Taro.stopPullDownRefresh());
   });
 
-  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
-  if (!getSessionToken()) {
-    return (
-      <PageShell active="contacts">
-        <GuestGate title="人际" desc="联系人档案、星型关系图谱与往来记录" />
-      </PageShell>
-    );
-  }
-
-  /** 分组 chips（全部 + 有联系人的分组，带计数） */
+  /** 分组 chips（全部 + 有联系人的分组，带计数）。必须位于游客早退之前（Rules of Hooks）：
+   *  token 过期 401 → toLogin 同步清 token 后 load() 的 catch setState 触发重渲染走早退，
+   *  本块在早退后会使本次渲染 hooks 数比上次少 2 → React 抛错整树卸载白屏（trading 页同型已修） */
   const groupChips = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of contacts ?? []) counts.set(c.group_tag ?? "其他", (counts.get(c.group_tag ?? "其他") ?? 0) + 1);
@@ -107,6 +100,15 @@ export default function ContactListPage() {
           String(c.notes ?? "").toLowerCase().includes(kw)),
     );
   }, [contacts, groups, q]);
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="contacts">
+        <GuestGate title="人际" desc="联系人档案、星型关系图谱与往来记录" />
+      </PageShell>
+    );
+  }
 
   function go(id: string) {
     Taro.navigateTo({ url: `/packages/contact/detail/index?id=${id}` });

@@ -403,8 +403,7 @@ export default function TodoSection(opts: {
               </View>
             )}
             {/* 行动详情面板（= web NotePanel 就地展开；可编辑标题/描述/截止/每日重复） */}
-            {noteOpen && t.children.some((c) => c.id === noteOpen) && (() => {
-              const c = t.children.find((x) => x.id === noteOpen)!;
+            {noteOpen && t.children.some((ch) => ch.id === noteOpen) && (() => {
               return (
                 <View className="ts-note">
                   <Input className="ts-note-title" value={noteTitle} focus onInput={(e) => setNoteTitle(e.detail.value)} />

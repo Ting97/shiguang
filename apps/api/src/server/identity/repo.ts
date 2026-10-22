@@ -32,11 +32,16 @@ export const profilesRepo = {
   hasPhoneAccount() {
     return pool.query(`select 1 from profiles where phone is not null limit 1`);
   },
+  /** 已存在带密码的管理员账号（setup 硬守卫）：旧守卫只看「任一账号有手机号」，
+   * 全邮箱注册且种子行未认领的库会放行 setup——未认证的管理员创建入口 */
+  hasAdminAccount(exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(`select 1 from profiles where role = 'admin' and password_hash is not null limit 1`);
+  },
   claimDevAdmin(nickname: string, phone: string, hash: string) {
     return pool.query(
       `update profiles set nickname = $1, phone = $2, phone_verified = true,
          password_hash = $3, last_login_at = now()
-       where id = $4 returning id, nickname, phone`,
+       where id = $4 and phone is null returning id, nickname, phone`,
       [nickname, phone, hash, "00000000-0000-0000-0000-000000000000"],
     );
   },

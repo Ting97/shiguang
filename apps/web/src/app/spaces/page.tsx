@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
+import { useImeSubmit } from "@/lib/use-ime-submit";
 import { createPortal } from "react-dom";
 import { Archive, Ellipsis, Flag, Hourglass, Pencil, Target, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -44,6 +45,8 @@ export default function SpacesPage() {
   const [saving, setSaving] = useState(false); // 新建/编辑保存中：防慢网络双击重复创建
   // 删除空间两步确认（全站规范，替代原生 confirm）
   const armDelete = useArmConfirm();
+  // 表单隐式提交 IME 守卫（Safari/iOS 组词确认 Enter 会隐式提交 <form>）：唯一漏网的第五个表单
+  const imeSave = useImeSubmit(() => save());
   const [showArchived, setShowArchived] = useState(false);
   // 加载失败态：给出重试入口，避免网络异常时永远停在"加载中"
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -54,15 +57,22 @@ export default function SpacesPage() {
   // Dismissable 关闭，随后的 click 会重新打开——菜单永远关不上（十一轮补齐三处同型入口）
   const cardMenuClosedRef = useRef<{ at: number; spaceId: string } | null>(null);
 
+  // 取数竞态守卫（全站 loadSeq 范式）：保存/归档/删除连发时两个在途 GET 可能乱序落地，
+  // 旧包覆盖新状态（刚归档的空间闪回）；页面层最后一处裸 load
+  const loadSeqRef = useRef(0);
+
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoadErr(null);
     try {
       // 原 401 分支（location.href = "/login"）已由 shared/api 统一处理；
       // 404/400 等业务性失败才置空列表；5xx/网关错误必须走加载失败态——
       // 旧版把一切非 2xx 当"空列表"，渲染成「还没有目标空间」引导用户重复建档
       const j = await api<any>("/api/spaces", "GET");
+      if (seq !== loadSeqRef.current) return; // 已有更新的取数：丢弃本包
       setSpaces((j.spaces as Space[]) ?? []);
     } catch (e) {
+      if (seq !== loadSeqRef.current) return;
       if (e instanceof ApiClientError && e.status >= 400 && e.status < 500) {
         setSpaces([]);
       } else {
@@ -374,12 +384,11 @@ export default function SpacesPage() {
               setEditing(null);
             }}
           >
-              {/* Enter 提交：表单统一走 save（按钮 submit 与键盘回车共用路径） */}
+              {/* Enter 提交：表单统一走 save（按钮 submit 与键盘回车共用路径）；IME 守卫见 useImeSubmit */}
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void save();
-                }}
+                onSubmit={imeSave.onSubmit}
+                onCompositionStart={imeSave.onCompositionStart}
+                onCompositionEnd={imeSave.onCompositionEnd}
               >
               <input
                 autoFocus

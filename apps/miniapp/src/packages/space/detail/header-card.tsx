@@ -4,7 +4,7 @@
  * 「‹ 返回」文字链（web ← 列表 同位置；小程序用 navigateBack）+ ⋯ 菜单入口 + 双进度概览。
  */
 import { useState } from "react";
-import { View, Text, Input, Button, Picker } from "@tarojs/components";
+import { View, Text, Input, Picker } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import Taro from "@tarojs/taro";
 import type { SpaceRow } from "../shared";

@@ -8,7 +8,7 @@
  * 3. 游客模式：免登录只读浏览，标记存 storage，登录成功时清除。
  * 输入框加高（REQ-登录页可用性）：min-height 96 单位 + 加大内边距，占位文字清晰。
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Input, Button } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { showToast, ToastHost } from "@/components/toast";

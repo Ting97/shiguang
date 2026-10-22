@@ -178,7 +178,9 @@ export async function updateProfile(userId: string, body: ProfileInput, opts?: {
     }
     const stored = await profilesRepo.passwordHashOf(userId);
     if (stored && (!body.currentPassword || !verifyPassword(body.currentPassword, stored))) {
-      throw ApiError.unauthorized("当前密码不正确");
+      // 400 而非 401：请求会话本身有效，这是入参校验失败——401 会被 web 端全局
+      // 会话失效处理清 token 并整页跳登录（实测把用户从「我的」页踢出去丢表单）
+      throw ApiError.badRequest("当前密码不正确");
     }
     newHash = hashPassword(body.newPassword!);
   }
@@ -263,9 +265,16 @@ export async function setup(input: { nickname?: string; phone?: string; password
   if (existing.rows.length > 0) {
     throw ApiError.forbidden("管理员已存在，请直接登录");
   }
+  // 硬守卫：已存在带密码的管理员（种子行已被认领 / 已被授予管理员）一律拒绝——
+  // 旧守卫以「任一账号有手机号」代理初始化状态，全邮箱注册的库会放行 setup，
+  // 成为未认证的管理员创建入口（十六轮 GUI 实测踩中）
+  if ((await profilesRepo.hasAdminAccount()).rows.length > 0) {
+    throw ApiError.forbidden("管理员已存在，请直接登录");
+  }
   await assertSetupToken(tokenHeader);
   // 先完成最后一个可能失败的写步骤，成功后才消费一次性令牌：
   // 旧序 consume 在 claimDevAdmin 之前，种子行缺失（update 0 行）报「初始化失败」时令牌已被烧掉
+  // （认领语句带 phone is null 条件：两个并发 setup 双双通过上方守卫时，只有一个能认领成功）
   const { rows } = await profilesRepo.claimDevAdmin(input.nickname.trim(), input.phone, hashPassword(input.password));
   if (!rows[0]) throw ApiError.upstream("初始化失败");
   await consumeSetupToken();

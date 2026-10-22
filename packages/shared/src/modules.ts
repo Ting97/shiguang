@@ -78,7 +78,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     defaultOn: true,
     userToggleableDefault: true,
     nav: { href: "/finance", label: "财务" },
-    apiPrefixes: ["/api/transactions", "/api/accounts", "/api/budget"],
+    apiPrefixes: ["/api/transactions", "/api/accounts", "/api/budget", "/api/finance"],
     assistantScopes: ["finance"],
   },
   {
