@@ -162,11 +162,16 @@ public class MainActivity extends Activity {
             // —— 麦克风授权：getUserMedia 触发 ——
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
+                // 来源校验（十五轮）：shouldOverrideUrlLoading 只拦主框架导航，iframe 子框架不经过它——
+                // 页面一旦被注入第三方 iframe，其 getUserMedia 不得静默拿到麦克风
+                String originHost = request.getOrigin() == null ? null : request.getOrigin().getHost();
+                boolean trusted = originHost != null
+                        && (HOST.equals(originHost) || originHost.endsWith(HOST_DOMAIN_SUFFIX));
                 boolean audio = false;
                 for (String r : request.getResources()) {
                     if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) audio = true;
                 }
-                if (!audio) { // 本站只用麦克风，其余一律拒绝
+                if (!trusted || !audio) { // 非本站来源或非麦克风资源一律拒绝
                     request.deny();
                     return;
                 }

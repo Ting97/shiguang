@@ -98,8 +98,15 @@ export function detectDayRef(text: string, now: Date): number | null {
   if (/前天/.test(text)) return -2;
   if (/昨天|昨晚|昨夜|昨儿/.test(text)) return -1;
   // 显式月日/年份日期在场：周X 词一律不作相对推算（返回 null 交回显式日期分支），
-  // 也不能落到 上周 -7 兜底（「9月30号周三」≠上周）
-  if (/\d{1,2}\s*月\s*\d{1,2}\s*[号日]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}/.test(text)) return null;
+  // 也不能落到 上周 -7 兜底（「9月30号周三」≠上周）。
+  // 裸「N号+周X」同守（十五轮 P2：旧守卫只认 M月N号/完整日期，「15号周三交了房租」
+  // 仍被周X分支劫持成上周X——显式日 15 号被丢、偏 22 天；lookbehind 与 EXPLICIT_DAY_RE /
+  // parse.ts 裸 N号 分支同款，防「3号球衣」类编号误伤）
+  if (
+    /\d{1,2}\s*月\s*\d{1,2}\s*[号日]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}/.test(text) ||
+    /(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日]/.test(text)
+  )
+    return null;
   const wd = text.match(/(上)?(?:周|礼拜|星期)([一二三四五六日天])/);
   if (wd) {
     const target = WEEKDAYS[wd[2]]; // 0=周日
@@ -114,10 +121,11 @@ export function detectDayRef(text: string, now: Date): number | null {
   return null;
 }
 
-/** 话术中的钟点："三点"/"15:30"/"7点半"/"6.30"(配合 period 换算 12/24h) */
+/** 话术中的钟点："三点"/"15:30"/"7点半"/"6.30"(配合 period 换算 12/24h)；点后分钟支持中文数字
+ * （"十一点五十"→11:50，十五轮收口：旧版只认 半/阿拉伯，中文分钟被静默丢成整点） */
 export function parseClock(text: string, period: PeriodHint | null): { hour: number; minute: number } | null {
   const m = text.match(
-    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时](?!点)\s*(半|\d{1,2})?\s*分?|[.:：](\d{2}))/,
+    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时](?!点)\s*(半|[一二两三四五六七八九十]{1,2}|\d{1,2})?\s*分?|[.:：](\d{2}))/,
   );
   if (!m) return null;
   // 叠字守卫：中文数字叠字（"一一"）非数字；单字（一/三）与阿拉伯数字（11/22）合法
@@ -125,8 +133,8 @@ export function parseClock(text: string, period: PeriodHint | null): { hour: num
   const n = cnToNumber(m[1]);
   if (n === null || n > 23) return null;
   let hour = n;
-  // "点半"→30；点后数字→分钟；点号两位（6.30）→30 分（须两位数，避免"5.5小时"误伤）
-  const minute = m[2] ? (m[2] === "半" ? 30 : parseInt(m[2], 10)) : m[3] ? parseInt(m[3], 10) : 0;
+  // "点半"→30；点后数字（阿拉伯/中文）→分钟；点号两位（6.30）→30 分（须两位数，避免"5.5小时"误伤）
+  const minute = m[2] ? (m[2] === "半" ? 30 : cnToNumber(m[2]) ?? 0) : m[3] ? parseInt(m[3], 10) : 0;
   if (minute > 59) return null;
   // "下午三点"→15、"晚上八点"→20（小时制+下午/晚上偏移）
   if (hour < 12 && (period === "afternoon" || period === "evening" || period === "night")) hour += 12;

@@ -22,8 +22,9 @@ export function ActionNotePanel({ c, note }: { c: TodoRow; note: ActionNote }) {
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) note.saveNote();
           // Esc 与点空白同口径：走 closeNote 的脏检查（直接置 null 会绕过「有改动轻提示」）；
-          // stopPropagation 拦住冒泡到 Dismissable 的 document keydown，否则脏检查双跑弹两条相同提示
-          if (e.key === "Escape") {
+          // stopPropagation 拦住冒泡到 Dismissable 的 document keydown，否则脏检查双跑弹两条相同提示；
+          // isComposing 守卫（十五轮）：组词中按 Esc 取候选词不得当作关闭
+          if (e.key === "Escape" && !e.nativeEvent.isComposing) {
             e.stopPropagation();
             note.closeNote(c);
           }

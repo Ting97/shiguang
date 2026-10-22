@@ -265,6 +265,10 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !isValidCalendarDate(from)) throw ApiError.badRequest("from 需为真实存在的日期（YYYY-MM-DD）");
   if (Date.parse(from) > Date.parse(to)) throw ApiError.badRequest("from 不能晚于 to");
+  // 窗口跨度上限（十五轮）：from 无下限约束时 "2000-01-01" 合法通过，翻页靠 maxPages 熔断
+  // （50/页 × ~1.2s/页 ≈ 12 分钟起步），单请求长时间挂起且重试会叠加并行爬取、耗尽限频额度——
+  // 首次全量导入按年份分段调用即可，单次窗口封顶 366 天
+  if (Date.parse(to) - Date.parse(from) > 366 * 86_400_000) throw ApiError.badRequest("同步窗口最长 366 天，请分段导入");
   // 半开区间 [from 00:00, to 次日 00:00)：上界 23:59:59 会丢当天最后一秒的流水（该笔落入下次增量窗口，表现为「消失一天后出现」）
   const fromTimeMs = Date.parse(`${from}T00:00:00+08:00`);
   const toTimeMs = Date.parse(`${to}T00:00:00+08:00`) + 86_400_000;

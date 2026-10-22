@@ -7,6 +7,7 @@ import { TX_CATEGORIES, yuanToCents, centsToYuanInput } from "@/lib/finance";
 import type { Account, Tx } from "./kit";
 import { api, toLocalInput, fromLocalInput } from "./kit";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
+import { useImeSubmit } from "@/lib/use-ime-submit";
 
 export function TxForm({
   initial,
@@ -72,13 +73,13 @@ export function TxForm({
     }
   }
 
+  const ime = useImeSubmit(save);
   return (
     <form
       className="space-y-2.5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
+      onSubmit={ime.onSubmit}
+      onCompositionStart={ime.onCompositionStart}
+      onCompositionEnd={ime.onCompositionEnd}
     >
       <div className="flex gap-1.5">
         {(["out", "in"] as const).map((d) => (

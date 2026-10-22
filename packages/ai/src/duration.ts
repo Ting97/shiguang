@@ -8,34 +8,45 @@ const CN_DIGITS: Record<string, number> = {
   五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
 };
 
-/** 中文数字（≤999）转阿拉伯数字：五十四→54，一百二→120（口语省「十」按整十补齐），十→10（供时长/钟点共用） */
+/** 中文数字（≤9999）转阿拉伯数字：五十四→54，三千五→3500（口语「X千Y」Y 按百位并入），一千零五十→1050
+ * （十五轮收口：补「千」，含「零」断链的金额此前整笔返回 null 被静默丢弃），一百二→120（口语省「十」
+ * 按整十补齐），十→10（供时长/钟点共用） */
 export function cnToNumber(s: string): number | null {
   if (/^\d+$/.test(s)) return parseInt(s, 10);
-  if (!/^[零一二两俩三四五六七八九十百]+$/.test(s)) return null;
+  if (!/^[零一二两俩三四五六七八九十百千]+$/.test(s)) return null;
   let total = 0;
   let current = 0;
-  // 口语省「十」（一百二=120 而非 102）：百后紧跟 1~9 且全句无「十」时按整十补齐；
-  // 「一百二十」（有十）与「一百零二」（零复位）走常规路径
-  let afterBai = false;
+  // 进位后裸数字的位权：口语省「十」（一百二=120、三千五=3500 而非 3050）——百后按十位、千后按百位；
+  // 「一千零五十」（零复位）与「三百二十」（有十）走常规位值
+  let carryMul = 0;
   const noShi = !s.includes("十");
-  for (const ch of s) {
+  const chars = [...s];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
     if (ch === "十") {
       total += (current || 1) * 10;
       current = 0;
-      afterBai = false;
+      carryMul = 0;
     } else if (ch === "百") {
       total += (current || 1) * 100;
       current = 0;
-      afterBai = true;
+      carryMul = 10;
+    } else if (ch === "千") {
+      total += (current || 1) * 1000;
+      current = 0;
+      carryMul = 100;
     } else {
       const v = CN_DIGITS[ch];
       if (v === undefined) return null;
-      if (afterBai && v > 0 && noShi) {
-        current = v * 10;
+      // 口语缩写位权只认末位裸数字（三百五=350、三千五=3500）：中间数字走常规位值，
+      // 否则「三千五百」的 五 被抬成 500 再被 百 乘 100 → 53000（十五轮实测踩中）
+      const isLast = i === chars.length - 1;
+      if (carryMul > 0 && v > 0 && noShi && isLast) {
+        current = v * carryMul;
       } else {
         current = current * 10 + v;
       }
-      afterBai = false;
+      carryMul = 0;
     }
   }
   return total + current;
@@ -101,8 +112,9 @@ export function parseDuration(text: string): number | null {
  *  「花了两万」→2000000、「随了三千五」→350000（十四轮收口：中文数字接入，原版静默丢金额） */
 export function parseAmountCents(text: string): number | null {
   const toCents = (s: string) => Math.round(parseFloat(s) * 100);
-  // 数字组：阿拉伯（可小数）或中文数字（cnToNumber 换算，≤999——量词 万/千 在组外）
-  const NUM = "(?:\\d+(?:\\.\\d{1,2})?|[零一二两俩三四五六七八九十百]+)";
+  // 数字组：阿拉伯（可小数）或中文数字（cnToNumber 换算，≤9999——量词 万 在组外；千 十五轮入组，
+  // 让「两千零五」类含零断链数字整体进 cnToNumber 换算，旧版「两千」被量词组消费、「两千零五」整笔 null）
+  const NUM = "(?:\\d+(?:\\.\\d{1,2})?|[零一二两俩三四五六七八九十百千]+)";
   // 数字换算：阿拉伯 parseFloat；中文 cnToNumber。约数并列（两三/三四/七八）取末位保守上界
   // （与 relativeOffsetDays 同口径——cnToNumber 按复合进位会误读成 23/34/78）
   const numOf = (s: string): number | null => {
@@ -125,12 +137,14 @@ export function parseAmountCents(text: string): number | null {
     const n = numOf(withUnit[1]);
     if (n === null) return null; // 中文数字换算失败：宁 null 勿错
     const mult = withUnit[2] === "万" ? 10_000 : withUnit[2] === "千" ? 1_000 : 1;
-    // 口语尾数守卫：「9块9」「35块5」= 9.9/35.5 元（旧版只取整块漏掉尾数，9块9 少算 90 分）。
-    // 尾数只认单位后紧跟的 1~2 位数字（「9块9角」同型并入=990 分，角/毛即 0.1 元）；
-    // 3 位以上是另一段数字（「12元5000」类量词/编号）不并，宁少勿错
+    // 口语尾数守卫：「9块9」「35块5」「三块五」（十五轮：中文尾字并入，旧版「一块五」少算 5 毛）
+    // = 9.9/35.5/1.5 元。尾数只认单位后紧跟的 1~2 位数字或单个中文数字（「9块9角」同型并入=990 分，
+    // 角/毛即 0.1 元）；3 位以上是另一段数字（「12元5000」类量词/编号）不并，宁少勿错
     const end = (withUnit.index ?? 0) + withUnit[0].length;
-    const tail = /^\d{1,2}(?!\d)/.exec(norm.slice(end));
-    const tailV = tail ? parseInt(tail[0], 10) / 10 ** tail[0].length : 0;
+    const tail = /^(\d{1,2}|[一两二三四五六七八九])(?!\d)/.exec(norm.slice(end));
+    const tailV = tail
+      ? (/^\d/.test(tail[1]) ? parseInt(tail[1], 10) : (CN_DIGITS[tail[1]] ?? 0)) / 10 ** tail[1].length
+      : 0;
     const cents = Math.round((n * mult + tailV) * 100);
     return cents > CAP ? CAP : cents;
   }
@@ -139,16 +153,19 @@ export function parseAmountCents(text: string): number | null {
     const cents = toCents(prefixed[1]);
     return cents > CAP ? CAP : cents;
   }
-  // 2) 动词暗示（无单位）："花了260""随了600""付了86""花了两万""随了三千五"；负向断言排除时长/日期词
-  //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类；
+  // 2) 动词暗示（无单位）："花了260""随了600""付了86""花了两万""随了三千五"；
+  //    收入侧（十五轮补）：到账/进账/报销/入账/收到/发——旧版动词表全是支出，规则兜底路径
+  //    「到账500」「报销了300」静默丢金额；方向判定在 ruleExtract（发红包→out、收到/工资→in）不在此层。
+  //    负向断言排除时长/日期词（"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类；
   //    "万千百"也必须入——它们由量词组消费，留在原文意味着量词组匹配失败，整体应放弃而非缩水成裸数字；
-  //    kK 同理："花了1.5k" 口语=1500 而非 1.5 元，不支持就整体放弃（宁 null 勿千倍错））
+  //    kK 同理（"花了1.5k"=1500）；wW 同理（十五轮 P1 收口："花了2w"=2 万，旧版缩水一万倍记成 2 元）；
+  //    条/枚/封/张/个/件/位/名 为非货币量词——"发了2条消息""收到3个包裹"不得记成 2/3 元）
   //    万/千量词："花了1万"=100万分（旧实现漏乘，静默缩小 100/10 倍）；
   //    口语尾数按位下降链："花了1万2"=1.2万、"1万2千"=12000、"1万2千5"=12500、"2千5"=2500、
   //    "1万2千5百"=12500、"两万五"=25000、"三千五百"=3500——两级尾数组缺一会让整场匹配失败返回 null，该笔花销静默消失（历史 bug）
   const noUnit = norm.match(
     new RegExp(
-      `(?:花费|消费|花|随|付|充值|打款)(?:了)?\\s*(${NUM})\\s*(万|千)?\\s*(?:(\\d{1,2}|[一两二三四五六七八九])(千|百)?)?\\s*(?:(\\d{1,2}|[一两二三四五六七八九])(百)?)?(?![\\d.天日个月年时分秒小周万千百kK零一二两俩三四五六七八九十])`,
+      `(?:花费|消费|花|随|付|充值|打款|到账|进账|报销|入账|收到|(?<!出)发)(?:了)?\\s*(${NUM})\\s*(万|千)?\\s*(?:(\\d{1,2}|[一两二三四五六七八九])(千|百)?)?\\s*(?:(\\d{1,2}|[一两二三四五六七八九])(百)?)?(?![\\d.天日个月年时分秒小周万千百kKwW零一二两俩三四五六七八九十条枚封张个件位名])`,
     ),
   );
   if (noUnit) {

@@ -86,8 +86,9 @@ export function ChildArea({
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) sub.add(t.id);
-              // Esc 与 onBlur 同口径：有未提交内容轻提示（旧版静默丢弃）
-              if (e.key === "Escape") {
+              // Esc 与 onBlur 同口径：有未提交内容轻提示（旧版静默丢弃）；
+              // isComposing 守卫（十五轮）：组词中按 Esc 取候选词不得当作关闭
+              if (e.key === "Escape" && !e.nativeEvent.isComposing) {
                 if (sub.title.trim()) toast("已取消，未保存", "info");
                 sub.close();
               }

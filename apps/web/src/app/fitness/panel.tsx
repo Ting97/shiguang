@@ -108,6 +108,8 @@ export default function FitnessPanel() {
         sleep: sleep.sleep ?? [],
       });
     } catch (e) {
+      // 失败路径同样守序（十五轮）：过期请求的超时/失败不得把已落地的新数据整屏打成错误态
+      if (seq !== loadSeqRef.current) return;
       setLoadErr(e instanceof Error ? e.message : String(e));
     }
   }, [today, sleepOn]);
@@ -241,8 +243,17 @@ function SleepCard({
       toast("睡眠小时数格式不正确", "err");
       return;
     }
+    // 范围前置守卫（十五轮体验）：直接打 API 会弹英文 zod 原文「入参不合法：hours Number must be…」
+    if (Number(hours) < 0 || Number(hours) > 16) {
+      toast("睡眠时长需在 0~16 小时之间", "err");
+      return;
+    }
     if (score && !Number.isFinite(Number(score))) {
       toast("App 睡眠得分格式不正确", "err");
+      return;
+    }
+    if (score && (Number(score) < 0 || Number(score) > 100)) {
+      toast("App 睡眠得分需在 0~100 之间", "err");
       return;
     }
     setBusy(true);

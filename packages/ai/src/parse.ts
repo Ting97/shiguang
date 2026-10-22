@@ -527,8 +527,10 @@ function mapAiResult(ext: LlmExtractionT, text: string, now: Date, engine: "llm"
   let due = dueRaw ? anchorMomentToToday(dueRaw, text, now) : null;
   // hybrid 合并层 todo 缺「future→due 必填」降级：Jev 判 future 而瘦身模型未抽出 due 时，
   // tb 落 default 块（start=now-30min 过去），analyze 拿它当 dueAt → 立即弹过期待办。
-  // 与规则路径 inferFuture soon 分支同语义：due 兜底 now+1h（记下别忘，不产生过期提醒）
-  if (future && !due) due = new Date(now.getTime() + 3600_000);
+  // 与规则路径 inferFuture soon 分支同语义：due 兜底 now+1h（记下别忘，不产生过期提醒）。
+  // 锚定平移进过去的 due 同样兜底（十五轮）：「买牛奶」无日期词被 anchorMomentToToday 拉回
+  // 今天、AI 又给了明天 9 点 → 平移成今天 9 点已过期，立即误报过期待办
+  if (future && (!due || due.getTime() <= now.getTime())) due = new Date(now.getTime() + 3600_000);
 
   // 日程时刻：AI 区间为准；applicable 但区间不合法（超幅等，schema 已保证可解析）→ 该域降级为不适用并留痕
   let scheduleApplicable = !future && ext.schedule.applicable;

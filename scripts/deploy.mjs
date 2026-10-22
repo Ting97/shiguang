@@ -47,9 +47,10 @@ for (const [label, p] of [
 console.log("[deploy] 服务器侧备份快照（pg_dump + 当前版本，保留 7 份）…");
 // 两段式（.part → mv，与 scripts/ops/backup.sh 同纪律）：pg_dump 直写终名时中途失败（磁盘满/
 // 连接断）会留下半截 dump 以最新 mtime 占位——回滚指引「用最新 dump」会指到坏档，且下次按
-// mtime 轮转会拿坏档挤掉好档。轮转挪到 dump 成功之后（tail -n +8：现留 7 份）
+// mtime 轮转会拿坏档挤掉好档。轮转挪到 dump 成功之后（tail -n +8：现留 7 份）；
+// 先清历史 .part 残档（十五轮）：轮转只匹配 db-*.dump，备份步失败留下的 .part 永不清理、逐次累积
 sh(
-  `ssh tencent "mkdir -p /opt/shiguangri_backups && f=/opt/shiguangri_backups/db-$(date +%Y%m%d-%H%M%S).dump && sudo -u postgres pg_dump -Fc shiguangri > \\"\\$f.part\\" && mv \\"\\$f.part\\" \\"\\$f\\" && ls -1t /opt/shiguangri_backups/db-*.dump | tail -n +8 | xargs -r rm --"`,
+  `ssh tencent "mkdir -p /opt/shiguangri_backups && rm -f /opt/shiguangri_backups/db-*.dump.part && f=/opt/shiguangri_backups/db-$(date +%Y%m%d-%H%M%S).dump && sudo -u postgres pg_dump -Fc shiguangri > \\"\\$f.part\\" && mv \\"\\$f.part\\" \\"\\$f\\" && ls -1t /opt/shiguangri_backups/db-*.dump | tail -n +8 | xargs -r rm --"`,
   { quiet: true },
 );
 
@@ -70,8 +71,10 @@ if (!skipMigrate) {
     // 连接串仅提取 DATABASE_URL 单变量 export（.env 其余行有未加引号值，整体 source 会语法报错）；
     // 值落在远端进程 environ（root 专属 /proc 可读），不进任何进程 argv（ps 对全体用户可见）。
     // 展开值用双引号包裹：防 .env 值含空格被 word-split 截断（$ 与反引号本就不会对替换结果二次展开）；
-    // tr -d '\r' 兜 .env 的 CRLF 行尾（尾部 \r 进连接串会让部署日迁移步才爆连库失败，难排查——十四轮 P3）
-    `ssh tencent "cd /opt/shiguangri_repo && export DATABASE_URL=\\"\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2- | tr -d '\\r')\\" && npx -y tsx@4.23.13 packages/db/runner.ts"`,
+    // tr -d '\r' 兜 .env 的 CRLF 行尾（尾部 \r 进连接串会让部署日迁移步才爆连库失败，难排查——十四轮 P3）；
+    // sed 剥首尾包裹引号（十五轮，与 run-routes-smoke/run-coverage 本地路径同口径——
+    // .env 值写作 "postgres://…" 时字面引号进连接串，迁移步爆难以直读的连接串解析错）
+    `ssh tencent "cd /opt/shiguangri_repo && export DATABASE_URL=\\"\\$(grep -m1 '^DATABASE_URL=' /opt/shiguangri/.env | cut -d= -f2- | tr -d '\\r' | sed 's/^\\"//;s/\\"\\$//')\\" && npx -y tsx@4.23.13 packages/db/runner.ts"`,
   );
 } else {
   console.log("[deploy] --skip-migrate：跳过数据库迁移");

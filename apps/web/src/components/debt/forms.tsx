@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DEBT_TYPES, DEBT_TYPE_META, yuanToCents, centsToYuanInput, type DebtType } from "@/lib/finance";
 import type { Debt, Account } from "./kit";
 import { fmt, bjToday, api } from "./kit";
+import { useImeSubmit } from "@/lib/use-ime-submit";
 
 // REQ-009 FR-B2：弹层壳统一，全站唯一实现在 ui/modal（同签名 title/onClose/children）
 export { Modal } from "@/components/ui/modal";
@@ -67,13 +68,13 @@ export function DebtForm({
     }
   }
 
+  const ime = useImeSubmit(save);
   return (
     <form
       className="space-y-2.5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
+      onSubmit={ime.onSubmit}
+      onCompositionStart={ime.onCompositionStart}
+      onCompositionEnd={ime.onCompositionEnd}
     >
       <div className="flex gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="名称（如：招行信用卡）" maxLength={40} className={inputCls} />
@@ -177,13 +178,13 @@ export function PaymentForm({
     }
   }
 
+  const ime = useImeSubmit(save);
   return (
     <form
       className="space-y-2.5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
+      onSubmit={ime.onSubmit}
+      onCompositionStart={ime.onCompositionStart}
+      onCompositionEnd={ime.onCompositionEnd}
     >
       <p className="rounded-lg bg-elevated/60 px-3 py-2 text-micro text-ink-mute tabular-nums">
         当前余额 {fmt(debt.balance_cents)} · 年化 {debt.rate_pct}%{debt.monthly_cents != null ? ` · 月供 ${fmt(debt.monthly_cents)}` : ""}

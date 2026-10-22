@@ -81,9 +81,10 @@ export default function Feed() {
 
   const load = useCallback(
     async (opts?: { limit?: number; query?: string; spaceId?: string; before?: string | null }): Promise<boolean> => {
-      // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）
+      // opts 用于「状态尚未生效就要请求」的场景（如发布后清空搜索再刷新）；
+      // limit 下限钳到一页（十五轮：loadMore 失败回退与下拉刷新竞态曾把 ref 打到 0，limit=0 拉空一屏）
       const seq = ++seqRef.current;
-      const lim = opts?.limit ?? feedLimitRef.current;
+      const lim = Math.max(PAGE_SIZE, opts?.limit ?? feedLimitRef.current);
       const q = opts?.query !== undefined ? opts.query : query;
       const sp = opts?.spaceId ?? spaceFilter;
       const bf = opts?.before !== undefined ? opts.before : beforeRef.current;
@@ -197,10 +198,13 @@ export default function Feed() {
     if (loadingMore) return;
     setLoadingMore(true);
     feedLimitRef.current += PAGE_SIZE;
+    // 本次 load 将持有的序号（load 内部 ++seqRef）：被下拉刷新等取代（seq 已越过）时
+    // 不回退不弹错——旧版无条件 -PAGE_SIZE 会把已被重置的 limit 减成 0（十五轮）
+    const mySeq = seqRef.current + 1;
     try {
       const ok = await load();
-      if (!ok) {
-        feedLimitRef.current -= PAGE_SIZE; // 失败回退：旧版保持大值，下一次加载会多拉一页
+      if (!ok && seqRef.current === mySeq) {
+        feedLimitRef.current -= PAGE_SIZE; // 真失败回退：旧版保持大值，下一次加载会多拉一页
         showToast({ type: "err", text: "加载更多失败，请稍后重试" });
       }
     } finally {

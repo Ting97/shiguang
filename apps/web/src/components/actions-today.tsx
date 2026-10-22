@@ -428,8 +428,9 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit();
                               // Esc 与 Dismissable onClose 同口径：有改动轻提示（旧版静默丢弃编辑）；
-                              // stopPropagation 拦住冒泡到 Dismissable 的 document keydown，否则同一提示弹两条
-                              if (e.key === "Escape") {
+                              // stopPropagation 拦住冒泡到 Dismissable 的 document keydown，否则同一提示弹两条；
+                              // isComposing 守卫（十五轮）：组词中按 Esc 取候选词不得当作关闭
+                              if (e.key === "Escape" && !e.nativeEvent.isComposing) {
                                 e.stopPropagation();
                                 const dirty = editTitle !== a.title || editDue !== isoToLocalInput(a.due_at);
                                 if (dirty) notify({ ok: true, text: "已取消，未保存" });

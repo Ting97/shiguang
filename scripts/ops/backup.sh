@@ -13,7 +13,9 @@ DB_NAME="${DB_NAME:-shiguangri}"
 mkdir -p "$BACKUP_DIR"
 
 # 1) 数据库（pg_dump -Fc 自定义格式，pg_restore 可并行恢复）
-# .part 两段式：中途失败不留半截 dump 占着最新 mtime 挤掉好档（轮转按 mtime）
+# .part 两段式：中途失败不留半截 dump 占着最新 mtime 挤掉好档（轮转按 mtime）；
+# 先清历史残档（十五轮）：轮转只匹配 db-*.dump，失败留下的 .part 永不清理、逐次累积
+rm -f "$BACKUP_DIR"/db-*.dump.part
 sudo -u postgres pg_dump -Fc "$DB_NAME" > "$BACKUP_DIR/db-$STAMP.dump.part"
 mv "$BACKUP_DIR/db-$STAMP.dump.part" "$BACKUP_DIR/db-$STAMP.dump"
 

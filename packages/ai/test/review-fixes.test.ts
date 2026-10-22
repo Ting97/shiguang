@@ -286,3 +286,40 @@ test("occurredDate：带显式年份的未来日期返回 null（「2027年1月1
   assert.equal(deterministicOccurredDate("2027年1月1号转了1000", NOW), null);
   assert.equal(deterministicOccurredDate("2026年1月1号转了1000", NOW), "2026-01-01"); // 历史年份不受影响
 });
+
+/* ---- 十五轮：锚定平移进过去的 due 兜底 now+1h（AI 判未来、话术无日期词、模型给的钟点早于当前） ---- */
+
+test("mapAiResult：due 被锚定拉回今天已过期 → 兜底 now+1h（不再立即弹过期待办）", async () => {
+  process.env.ZHIPUAI_API_KEY ??= "test-key";
+  const glm = () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                reasoning: {},
+                schedule: { applicable: false, activity: "other", title: "", durationMin: null, periodHint: null, confidence: 0.9 },
+                todo: { applicable: true, due: "2026-10-09T09:00:00+08:00", confidence: 0.9 },
+                finance: { hasAmount: false, direction: null, amountCents: null, category: null, counterparty: null, confidence: 0.9 },
+                mood: { label: null, score: null, confidence: 0.9 },
+                diet: { applicable: false, meal: "未知", items: [], totalKcal: null, confidence: 0.9 },
+                people: [],
+                ambiguity: null,
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  mock.method(globalThis, "fetch", glm);
+  try {
+    // 「买牛奶」无任何日期词：模型给的明天 9 点被 anchorMomentToToday 拉回今天 9 点（早于 NOW 15:00）
+    const r = await parseInput("买牛奶", { now: NOW });
+    assert.equal(r.intent, "todo");
+    assert.equal(new Date(r.time.start).getTime(), CST("2026-10-08T16:00:00+08:00")); // NOW+1h，非已过期的 9 点
+  } finally {
+    mock.restoreAll();
+  }
+});

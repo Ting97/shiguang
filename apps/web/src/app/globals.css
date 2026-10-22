@@ -628,6 +628,38 @@ input[type="number"] {
   display: block !important;
 }
 
+/* 键盘可达性（十五轮）：hover 才显的行内操作原为 display:none——移出 tab 序且聚焦不可见，
+   键盘用户在桌面端无法触达编辑/删除。改「占位透明 + 禁指针」：按钮保留在 tab 序，
+   直接父行 hover（与 group-hover 同粒度）或行内任意元素聚焦（含按钮自身）即显。
+   :hover>/  :focus-within> 按直接父行圈定，不沿祖先 group 扩散（嵌套组不误显） */
+@media (hover: hover) {
+  .row-actions {
+    display: flex !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  .row-actions-hidden {
+    display: block !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  :hover > .row-actions,
+  :focus-within > .row-actions,
+  .row-actions:focus-within,
+  :hover > .row-actions-hidden,
+  :focus-within > .row-actions-hidden,
+  .row-actions-hidden:focus-within {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+/* force-actions 常显行不受隐藏态影响（display 之外补 opacity/指针，优先级随源序覆盖上一块） */
+.force-actions .row-actions,
+.force-actions .row-actions-hidden {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
 /* ---------- 安全区（刘海屏 / 底部 home indicator） ---------- */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);

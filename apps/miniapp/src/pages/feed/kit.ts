@@ -4,7 +4,7 @@
  * 提醒横幅/交易类别/墙上时间换算）全部改从 @shiguangri/shared import 并在此 re-export，
  * 页面文件仍从 "./kit" 引入、不散改；仅保留 feed 卡片展示特有的拼装函数。
  */
-import { bjDayIdx, zhTime } from "@shiguangri/shared";
+import { bjDayIdx, yuan, zhTime } from "@shiguangri/shared";
 
 /* ---------- shared 单源（re-export；bjClock=shared zhTime 的页面旧名） ---------- */
 
@@ -66,11 +66,12 @@ export function todoTimeLabel(startAt?: string | null, dueAt?: string | null): s
   return `${dayPrefix(dueAt)}${zhTime(dueAt)}`;
 }
 
-/** 金额分 → chip 展示串（= web moment-feed/kit yuan：¥ 前缀；整百不带小数，其余两位） */
+/** 金额分 → chip 展示串（= web moment-feed/kit yuan：¥ 前缀；整百不带小数，其余两位）。
+ * 换算单源 shared yuan()（十五轮：本地浮点除法重写违反「金额走 shared 整数商余」约定） */
 export function yuanCents(cents: number | string): string {
   const n = Number(cents);
   if (!Number.isFinite(n)) return "¥0";
-  return `¥${(n / 100).toFixed(n % 100 === 0 ? 0 : 2)}`;
+  return `¥${yuan(n)}`;
 }
 
 /* ---------- 心情展示与页面常量（feed 局部；emoji 单源 shared/mood） ---------- */
