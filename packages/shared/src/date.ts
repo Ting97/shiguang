@@ -62,12 +62,17 @@ export function startOfYear(s: string): string {
 
 const WEEK_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 export function weekName(s: string): string {
-  return WEEK_NAMES[(parseYmd(s).getDay() + 6) % 7];
+  const d = parseYmd(s);
+  // 假日历日/垃圾串（parseYmd 返回 Invalid Date，十轮补的守卫只接到部分消费方）：原样返回不产 undefined
+  if (Number.isNaN(d.getTime())) return s;
+  return WEEK_NAMES[(d.getDay() + 6) % 7];
 }
 
 /** 2026-09-17 → "9月17日" */
 export function zhDate(s: string): string {
   const d = parseYmd(s);
+  // Invalid Date 的 getMonth/getDate 是 NaN——产出「NaN月NaN日」直达界面（十五轮）
+  if (Number.isNaN(d.getTime())) return s;
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 

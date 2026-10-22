@@ -549,7 +549,7 @@ async function updatePlan(userId: string, id: string, body: unknown) {
 // 今日行动联动（FR-D）
 // ---------------------------------------------------------------------------
 
-/** 单一规则：计划存在且未 skipped → 行动与计划同步。
+/** 单一规则：计划存在且未 skipped → 行动与计划同步（已打卡的同名行动跳过不重建、父任务复用旧 id）。
  * 力量课 = 父任务(kind='todo') + 每动作一条子行动(kind='action')；跑步课 = 单条独立行动。
  * due_at = 计划日 18:00（北京）——与首页「今日行动」due_at 当日口径一致；活动分类挂预设 'fitness'；
  * space_id 挂内置运动空间（REQ-018：训练行动出现在运动空间 TODO·行动栏），无则保持 null。 */
@@ -561,6 +561,10 @@ async function syncPlanTodos(
   // 「删旧插新」由调用方事务包裹：中途失败可整体回滚，避免行动丢失（历史窗口：计划已存而联动行动为空）
   await fitnessRepo.deletePendingPlanTodos(plan.id, exec);
   if (plan.status === "skipped") return { synced: 0 };
+  // 已打卡行动（用户在今日行动里勾掉的 done 行保留作历史）：同名重建时跳过、父任务复用旧 id——
+  // 否则确认/编辑计划会把已勾掉的动作以新 pending 行复制出来（今日行动重复出现 + done 历史并存）
+  const { rows: doneRows } = await fitnessRepo.donePlanTodos(plan.id, exec);
+  const doneTitleToId = new Map<string, string>(doneRows.map((r: { title: string; id: string }) => [r.title, r.id]));
   const dueAtIso = `${plan.plan_date}T18:00:00+08:00`;
   const source: "ai" | "manual" = plan.source === "manual" ? "manual" : "ai";
   // 活动分类挂「健身」预设行；用户没有该行（理论上仅测试直插用户）则置空，不让联动挂掉计划保存
@@ -574,29 +578,35 @@ async function syncPlanTodos(
   if (plan.module_code === "strength") {
     const exs = (content as StrengthPlanContent).exercises ?? [];
     const parentTitle = String((content as StrengthPlanContent).title ?? "力量训练");
-    const parent = (
-      await fitnessRepo.insertPlanTodo(userId, {
-        planId: plan.id,
-        title: parentTitle,
-        dueAtIso,
-        source,
-        kind: "todo",
-        parentId: null,
-        sort: 0,
-        activityId,
-        spaceId,
-      }, exec)
-    ).rows[0].id;
-    synced += 1;
+    // 父任务已打卡 → 复用旧行 id 保持子行动挂载，不新建
+    let parentId: string | null = doneTitleToId.get(parentTitle) ?? null;
+    if (!parentId) {
+      parentId = (
+        await fitnessRepo.insertPlanTodo(userId, {
+          planId: plan.id,
+          title: parentTitle,
+          dueAtIso,
+          source,
+          kind: "todo",
+          parentId: null,
+          sort: 0,
+          activityId,
+          spaceId,
+        }, exec)
+      ).rows[0].id;
+      synced += 1;
+    }
     for (let i = 0; i < exs.length; i++) {
       const e = exs[i];
+      const title = actionTitleOfExercise(e);
+      if (doneTitleToId.has(title)) continue; // 已打卡的同名行动不重复建 pending
       await fitnessRepo.insertPlanTodo(userId, {
         planId: plan.id,
-        title: actionTitleOfExercise(e),
+        title,
         dueAtIso,
         source,
         kind: "action",
-        parentId: parent,
+        parentId,
         sort: i + 1,
         activityId,
         spaceId,
@@ -606,18 +616,21 @@ async function syncPlanTodos(
   } else if ((content as RunPlanContent).title) {
     const c = content as RunPlanContent;
     const km = c.totalDistanceM ? ` · ${(c.totalDistanceM / 1000).toFixed(c.totalDistanceM % 1000 === 0 ? 0 : 1)}km` : "";
-    await fitnessRepo.insertPlanTodo(userId, {
-      planId: plan.id,
-      title: `${c.title}${km}`,
-      dueAtIso,
-      source,
-      kind: "action",
-      parentId: null,
-      sort: 0,
-      activityId,
-      spaceId,
-    }, exec);
-    synced += 1;
+    const title = `${c.title}${km}`;
+    if (!doneTitleToId.has(title)) {
+      await fitnessRepo.insertPlanTodo(userId, {
+        planId: plan.id,
+        title,
+        dueAtIso,
+        source,
+        kind: "action",
+        parentId: null,
+        sort: 0,
+        activityId,
+        spaceId,
+      }, exec);
+      synced += 1;
+    }
   }
   return { synced };
 }
@@ -947,10 +960,29 @@ async function syncPlanToXunji(
     }
     if (!locked) throw ApiError.conflict("同步进行中，请稍候");
 
-    const prev = ((plan.xunji_sync ?? null) as { localids?: string[] } | null);
-    if (prev?.localids?.length) train.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
+    // 锁内重读（十四轮注释声称的收口，十五轮补齐实现）：并发双击同步时 B 拿到锁后必须看到
+    // A 已写回的 localid，否则仍用自己的过期快照（prev=null）走新建——训记侧产生重复训练
+    // （其 API 无删除接口）且 updateXunjiSync 整体覆写会把 A 的 localid 抹掉成永久孤儿。
+    // 状态守卫同样复核：并发打卡把计划置 done/partial/skipped 后，持锁的 B 不得再写入训记
+    const freshRows = (await fitnessRepo.planOwned(planId, userId)).rows;
+    if (!freshRows.length) throw ApiError.notFound("计划不存在");
+    const fresh = freshRows[0];
+    if (fresh.status === "done" || fresh.status === "partial") throw ApiError.badRequest("已打卡计划不再同步训记");
+    if (fresh.status === "skipped") throw ApiError.badRequest("已跳过计划不同步训记");
 
-    const normalized = await upsertTrains(plan.plan_date, [train], plan.id, fetcher);
+    // 内容可能已被并发的确认映射改名：以锁内最新内容重建 train（officialName/runOfficialName 闭包仍有效）
+    const freshTrain = planToTrain(
+      { module_code: fresh.module_code, plan_date: fresh.plan_date, content: fresh.content },
+      officialName,
+      runOfficialName,
+    );
+    if (!freshTrain.movements.length) {
+      throw ApiError.badRequest("没有可写入训记的动作（全部被跳过或缺目标），请检查计划内容");
+    }
+    const prev = ((fresh.xunji_sync ?? null) as { localids?: string[] } | null);
+    if (prev?.localids?.length) freshTrain.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
+
+    const normalized = await upsertTrains(fresh.plan_date, [freshTrain], plan.id, fetcher);
     const localids = normalized.map((t) => t.localid).filter((x): x is string | number => x != null);
     try {
       await fitnessRepo.updateXunjiSync(planId, userId, { localids, syncedAt: new Date().toISOString() });
@@ -962,7 +994,7 @@ async function syncPlanToXunji(
     return {
       synced: true,
       updated: Boolean(prev?.localids?.length),
-      movements: train.movements.length,
+      movements: freshTrain.movements.length,
       localids,
       skipped: [...skips],
       warning: runWarning,

@@ -99,8 +99,12 @@ export function useSpaceData() {
   const loadMoreMoments = useCallback(async (): Promise<boolean> => {
     if (momentsLoadingMore) return false;
     setMomentsLoadingMore(true);
+    const reqOffset = momentsOffsetRef.current; // 请求时快照
     try {
-      const j = await api<any>(`/api/feed?limit=20&offset=${momentsOffsetRef.current}&spaceId=${id}`, "GET");
+      const j = await api<any>(`/api/feed?limit=20&offset=${reqOffset}&spaceId=${id}`, "GET");
+      // 在途期间 load() 已重置列表（offset 已变）：本次响应整体丢弃——旧翻页 append 会同批重复、
+      // offset 继续累加会跳段（21~40 条在本会话永久翻不到，十五轮）
+      if (momentsOffsetRef.current !== reqOffset) return true; // 允许基于新列表重试
       const batch = (j.moments as FeedMoment[]) ?? [];
       setMoments((prev) => {
         const seen = new Set(prev.map((m) => m.id));

@@ -97,11 +97,18 @@ export class ApiClientError extends Error {
 }
 
 async function parseResponse<T>(r: Response): Promise<T> {
-  const j = await r.json().catch(() => ({}));
+  // 解析失败与空对象成功要分开（十五轮）：200 + 非 JSON 体（会话被网关重定向到登录 HTML 时
+  // fetch 跟随且最终 200）旧版被 catch 吃成 {}——调用方读字段全 undefined 静默假成功
+  let parseFailed = false;
+  const j = await r.json().catch(() => {
+    parseFailed = true;
+    return {};
+  });
   if (!r.ok) {
     if (r.status === 401) await store.set(null); // 会话失效即清 token
     throw new ApiClientError((j as { error?: string }).error ?? "操作失败", r.status);
   }
+  if (parseFailed) throw new ApiClientError("响应格式错误（响应非 JSON），请刷新重试", r.status);
   // 登录/注册/setup 响应附带 token：自动入库，后续请求带 Bearer。
   // 仅限 auth 路径：任何接口若恰好返回名为 token 的字段，静默覆盖会话属于隐性踩踏
   const t = (j as { token?: unknown }).token;

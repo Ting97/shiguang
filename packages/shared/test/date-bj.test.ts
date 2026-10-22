@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, combineHM, combineHmEndCrossDay, isoToBjInput, parseYmd, startOfWeek, zhTime } from "../src/date.js";
+import { addDays, combineHM, combineHmEndCrossDay, isoToBjInput, parseYmd, startOfWeek, weekName, zhDate, zhTime } from "../src/date.js";
 
 const ISO = "2026-10-08T04:30:00.000Z"; // 北京 12:30
 
@@ -73,4 +73,14 @@ test("parseYmd：假日历日/垃圾串返回 Invalid Date（不再静默进位�
   // 真实日历日回归（含闰年）
   assert.equal(parseYmd("2024-02-29").getTime(), new Date(2024, 1, 29).getTime());
   assert.equal(parseYmd("2026-10-08").getTime(), new Date(2026, 9, 8).getTime());
+});
+
+// —— 十五轮：zhDate/weekName 接住 Invalid Date（旧版产「NaN月NaN日」/undefined 直达界面） ——
+test("zhDate/weekName：假日历日/垃圾串原样返回，不再产 NaN 文案", () => {
+  assert.equal(zhDate("2026-02-30"), "2026-02-30");
+  assert.equal(zhDate("垃圾"), "垃圾");
+  assert.equal(weekName("2026-02-30"), "2026-02-30");
+  assert.equal(weekName("垃圾"), "垃圾");
+  assert.equal(zhDate("2026-10-08"), "10月8日"); // 回归
+  assert.equal(weekName("2026-10-08"), "周四"); // 回归
 });

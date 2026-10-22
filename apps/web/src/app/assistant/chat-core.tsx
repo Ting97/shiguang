@@ -367,8 +367,10 @@ export default function AssistantChat({
     const body = (text ?? input).trim();
     if (!body || sending) return;
     // 发送在途期间用户可能点「新对话」/删除当前会话/打开别的会话（都会推进 convSeq）：
-    // 快照序号，回包落地前失配则丢弃，避免 setActiveId+setMessages 把视图劫持回旧会话
-    const seq = convSeq.current;
+    // 快照序号，回包落地前失配则丢弃，避免 setActiveId+setMessages 把视图劫持回旧会话。
+    // 推进序号（十五轮）：发送时若 openConversation 的 GET 还在途，其回包会把乐观气泡整体抹掉
+    // （「只答不问」看似发送失败诱发重发）——自增后该回包按既有范式失配丢弃
+    const seq = ++convSeq.current;
     setSending(true);
     setInput("");
     const optimisticId = `local-${Date.now()}`;

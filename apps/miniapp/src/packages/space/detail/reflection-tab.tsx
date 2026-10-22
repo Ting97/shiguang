@@ -3,7 +3,7 @@
  * 右上「✍️ 写感悟」入口 → 感悟列表卡（时间倒序 / 点条目拉全文展开 / ✏️ 编辑 🗑 两步删除 / 加载更多）
  * → 底部抽屉编辑器（字数 5 万码点上限，超限禁存；取消有改动轻提示）。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Textarea, Button } from "@tarojs/components";
 import LucideIcon from "../../../components/lucide-icon";
 import {
@@ -41,15 +41,21 @@ export default function ReflectionTab(opts: {
   const [editing, setEditing] = useState<{ id: string | null; initial: string } | null>(null);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+  // 列表竞态守卫（= miniapp contact/list、space/list 的 loadSeqRef 范式，十五轮补齐第三处）：
+  // load(0)（rev/onChanged 触发）与在飞的加载更多（load(offset)）并发时，慢的旧分页不得追加进新列表
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(
     async (offset: number) => {
+      const seq = ++loadSeqRef.current;
       try {
         const j = await loadReflections(spaceId, PAGE_SIZE, offset);
+        if (seq !== loadSeqRef.current) return; // 已有更新的取数：过期响应整体丢弃
         setLoadErr(null);
         setTotal(j.total ?? 0);
         setItems((prev) => (offset === 0 ? j.items ?? [] : [...(prev ?? []), ...(j.items ?? [])]));
       } catch (e: any) {
+        if (seq !== loadSeqRef.current) return;
         setLoadErr(`感悟加载失败：${e?.message ?? e}`);
       }
     },

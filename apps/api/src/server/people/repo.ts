@@ -34,7 +34,7 @@ export const contactsRepo = {
             group by t.counterparty
          ) g on g.counterparty = c.name
         where c.user_id = $1
-        order by last_at desc nulls last, c.created_at desc`,
+        order by last_at desc nulls last, c.created_at desc, c.id desc`,
       [userId],
     );
   },
@@ -205,7 +205,7 @@ export const interactionsRepo = {
   recentForProfile(contactId: string, userId: string) {
     return pool.query(
       `select type, summary, occurred_at from interactions
-       where contact_id = $1 and user_id = $2 order by occurred_at desc nulls last limit 50`,
+       where contact_id = $1 and user_id = $2 order by occurred_at desc nulls last, id desc limit 50`,
       [contactId, userId],
     );
   },

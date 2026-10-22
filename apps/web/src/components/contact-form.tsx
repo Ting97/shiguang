@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/shared/api"; // 统一走 401 收口层：会话失效跳 /login（裸 client-api 不跳）
 import { Modal } from "@/components/ui/modal";
+import { useImeSubmit } from "@/lib/use-ime-submit";
 import { CONTACT_GROUPS, GROUP_EMOJI, IMPORTANCE_TIERS, importanceLabel } from "@/lib/social";
 import { lunarDayLabel, lunarMonthLabel } from "@/lib/lunar";
 
@@ -90,14 +91,14 @@ export default function ContactFormModal({
     }
   }
 
+  const ime = useImeSubmit(save);
   return (
     <Modal title={initial ? "编辑联系人" : "新建联系人"} onClose={onClose}>
       <form
         className="space-y-2.5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
+        onSubmit={ime.onSubmit}
+        onCompositionStart={ime.onCompositionStart}
+        onCompositionEnd={ime.onCompositionEnd}
       >
           <div className="flex gap-2">
             <input

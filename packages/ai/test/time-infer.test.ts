@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays, relativeOffsetMinutes, detectDayRef } from "../src/time-infer.js";
-import { toCstWallClock } from "../src/parse.js";
+import { toCstWallClock, deterministicOccurredDate } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
 
@@ -196,6 +196,14 @@ test("parseClock：真实钟点不受影响（一点/十一点半/6.30）", () =
   assert.equal(parseClock("凌晨一点睡觉", null)?.hour, 1);
   assert.equal(parseClock("十一点半吃饭", null)?.hour, 11);
   assert.equal(parseClock("6.30", null)?.minute, 30);
+});
+
+// —— 十五轮回归：点后中文数字分钟（「十一点五十」旧版静默丢成 11:00 整点） ——
+test("parseClock：中文数字分钟（十一点五十/两点二十）+ 阿拉伯回归", () => {
+  assert.deepEqual(parseClock("中午十一点五十吃了饭", null), { hour: 11, minute: 50 });
+  assert.deepEqual(parseClock("下午两点二十开会", "afternoon"), { hour: 14, minute: 20 });
+  assert.deepEqual(parseClock("十一点50分", null), { hour: 11, minute: 50 }); // 阿拉伯回归
+  assert.deepEqual(parseClock("三点半", null), { hour: 3, minute: 30 }); // 半 回归
 });
 
 // —— 回归4：AI 区间日期锚定（线上事故：17:22 说"下午2点到6点"被模型写成 9/21） ——
@@ -397,4 +405,19 @@ test("「明晚八点」→ 次日 20:00；「昨夜11点」→ 昨晚 23:00（�
   assert.equal(detectPeriod("昨夜11点刷了手机"), "evening");
   const tb2 = inferTimeBlock("昨夜11点刷了手机", new Date("2026-10-08T23:30:00+08:00"), 30);
   assert.equal(tb2.start.getTime(), CST("2026-10-07T23:00:00+08:00"));
+});
+
+// —— 十五轮回归：裸「N号+周X」不得被周X分支劫持（「15号周三」曾按本周三偏 22 天） ——
+test("裸 N号+周X：显式日完全压过周X相对推算（日程块与 finance occurredDate 同口径）", () => {
+  const OCT8 = new Date("2026-10-08T16:00:00+08:00"); // 周四
+  // 周X 分支会推成本周三（10-07）——裸 15 号（上月已过）必须赢
+  assert.equal(detectDayRef("15号周三交了房租", OCT8), null);
+  assert.equal(detectDayRef("3号周三开了会", OCT8), null);
+  // 编号不误伤（量词前缀同 EXPLICIT_DAY_RE lookbehind——「件3号球衣」的 3号 是编号非日期）
+  assert.equal(detectDayRef("件3号球衣周三洗了", OCT8), -1); // 无显式日 → 周三照常推算
+  // deterministicOccurredDate：裸 15 号分支接手 → 上月 15 日（本月 15 号未到）
+  assert.equal(deterministicOccurredDate("15号周三交了房租", OCT8), "2026-09-15");
+  assert.equal(deterministicOccurredDate("20号周日随了600", OCT8), "2026-09-20");
+  // 本月已过的 N号 仍取本月
+  assert.equal(deterministicOccurredDate("3号周三开了会", OCT8), "2026-10-03");
 });

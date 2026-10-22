@@ -42,7 +42,7 @@ export const fitnessRepo = {
     return pool.query(
       `select id, module_code, title, target_date::text as target_date, status, targets, baseline, strategy,
               to_char(created_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI') as created_bj
-       from fitness_goals where user_id = $1 order by status = 'active' desc, created_at desc`,
+       from fitness_goals where user_id = $1 order by status = 'active' desc, created_at desc, id desc`,
       [userId],
     );
   },
@@ -147,7 +147,7 @@ export const fitnessRepo = {
     return pool.query(
       `select id, user_id, log_date::text as log_date, module_code, plan_id, actual, fatigue, sleep_h_x10, soreness, note
        from fitness_session_logs where user_id = $1 and log_date between $2 and $3
-       order by log_date desc, created_at desc`,
+       order by log_date desc, created_at desc, id desc`,
       [userId, from, to],
     );
   },
@@ -295,6 +295,14 @@ export const fitnessRepo = {
     // 先删未完成子行动（父行动若是 pending 会被下一步连带删除，这里防孤立 action 残留）
     return exec.query(
       `delete from todos where fitness_plan_id = $1 and status = 'pending'`,
+      [planId],
+    );
+  },
+  /** 该计划已完成的联动行动（title→行）：syncPlanTodos 重建时同名跳过、父任务复用旧 id——
+   * 否则「保存后勾掉 2 个动作再确认计划」会把已打卡动作以新 pending 行复制出来（同义重复） */
+  donePlanTodos(planId: string, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(
+      `select id, title from todos where fitness_plan_id = $1 and status = 'done'`,
       [planId],
     );
   },
