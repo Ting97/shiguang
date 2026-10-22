@@ -100,7 +100,7 @@ const dueExpr = (col: string) => `case when ${col} is null then null else ${bjTs
 const escapeLike = (v: string) => v.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** 模块门禁（REQ-028）：与路由 getModuleUser 同口径——admin 直通，普通用户走三层有效态 */
-async function moduleAllowed(ctx: ChatToolCtx, module: "debt" | "trading"): Promise<boolean> {
+async function moduleAllowed(ctx: ChatToolCtx, module: string): Promise<boolean> {
   const { resolveUserModules } = await import("@/server/platform/modules");
   const { rows } = await pool.query(`select role from profiles where id = $1`, [ctx.userId]);
   const role = String(rows[0]?.role ?? "user");
@@ -110,6 +110,18 @@ async function moduleAllowed(ctx: ChatToolCtx, module: "debt" | "trading"): Prom
 
 /** 授权模块未开通时的统一返回：模型据此如实告知而非报错 */
 const MODULE_OFF = (label: string) => ({ enabled: false, hint: `用户未开通${label}模块，请说明该查询不可用并指引去财务页开通` });
+
+/** 域级统一门禁用（toAgentTools 收口）：措辞与 MODULE_OFF 区分，不绑定财务页 */
+const DOMAIN_OFF = (label: string) => ({ enabled: false, hint: `用户未开通${label}模块，请说明该查询不可用并指引去【我的 → 功能管理】开通` });
+
+/** 工具域 → 注册表模块 key（TOOL_DOMAIN 的域值与模块 key 同名） */
+const DOMAIN_LABEL: Record<string, string> = {
+  time: "日程",
+  goal: "目标",
+  finance: "财务",
+  people: "人际",
+  fitness: "健身",
+};
 
 // ---- 8 个只读工具 ----
 
@@ -404,6 +416,11 @@ const getReview: ChatTool = {
   }),
   async execute(ctx, p) {
     const { kind, date } = p as { kind: "day" | "week" | "month" | "year" | "trade_week"; date: string };
+    // trade_week 读的是 trade_review 子模块（商业门禁，finance/review/week 路由同款 withModule）
+    // 生成的收支周报：模块关闭后助手同口径不可读（防旁路，与域级门禁同批）
+    if (kind === "trade_week" && !(await moduleAllowed(ctx, "trade_review"))) {
+      return { kind, periodKey: bjMondayOf(date), cached: false, hint: "用户未开通收支复盘模块，请说明该查询不可用并指引去财务页开通" };
+    }
     const periodKey =
       kind === "day" ? date
       : kind === "week" || kind === "trade_week" ? bjMondayOf(date)
@@ -1168,7 +1185,16 @@ export function toAgentTools(ctx: ChatToolCtx, scope: ChatScope = "global"): Age
     name: t.name,
     description: t.description,
     parameters: t.params as unknown as z.ZodType<Record<string, unknown>>,
-    execute: (args) => t.execute(ctx, args),
+    execute: async (args) => {
+      // 模块插件化（REQ-028）域级收口：模块关闭后助手工具与路由层 withModule 同口径失效，
+      // 防助手成为旁路。debt/trading 子模块在各自 execute 内有更细粒度的 moduleAllowed，
+      // 这里只拦域级（query_debts 等先撞域级再撞子模块，返回文案一致）
+      const domain = TOOL_DOMAIN[t.name];
+      if (domain && !(await moduleAllowed(ctx, domain))) {
+        return DOMAIN_OFF(DOMAIN_LABEL[domain] ?? domain);
+      }
+      return t.execute(ctx, args);
+    },
   }));
 }
 

@@ -217,6 +217,36 @@ function nextMonth(ymFirst: string): string {
   return `${ny}-${String(nm).padStart(2, "0")}-01`;
 }
 
+/** 勾选/清空一批负债的本月备付（单事务；ids 与 all 两分支各自取 id 后共用） */
+async function applyChecks(userId: string, ymFirst: string, ids: string[], checked: boolean) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    for (const id of ids) {
+      if (checked) {
+        await client.query(
+          `insert into debt_reserve_checks (user_id, ym, liability_id) values ($1,$2,$3)
+           on conflict (user_id, ym, liability_id) do nothing`,
+          [userId, ymFirst, id],
+        );
+      } else {
+        await client.query(`delete from debt_reserve_checks where user_id = $1 and ym = $2 and liability_id = $3`, [
+          userId,
+          ymFirst,
+          id,
+        ]);
+      }
+    }
+    await client.query("commit");
+    return { ok: true as const, count: ids.length };
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export async function setReserveCheck(
   userId: string,
   body: { ym: string; liabilityId?: string; ids?: string[]; all?: boolean; checked: boolean },
@@ -230,32 +260,7 @@ export async function setReserveCheck(
       [unique, userId],
     );
     if (rows.length !== unique.length) throw ApiError.notFound("存在不属于该账户的负债");
-    const client = await pool.connect();
-    try {
-      await client.query("begin");
-      for (const r of rows) {
-        if (body.checked) {
-          await client.query(
-            `insert into debt_reserve_checks (user_id, ym, liability_id) values ($1,$2,$3)
-             on conflict (user_id, ym, liability_id) do nothing`,
-            [userId, ymFirst, r.id],
-          );
-        } else {
-          await client.query(`delete from debt_reserve_checks where user_id = $1 and ym = $2 and liability_id = $3`, [
-            userId,
-            ymFirst,
-            r.id,
-          ]);
-        }
-      }
-      await client.query("commit");
-      return { ok: true, count: rows.length };
-    } catch (e) {
-      await client.query("rollback").catch(() => {});
-      throw e;
-    } finally {
-      client.release();
-    }
+    return applyChecks(userId, ymFirst, rows.map((r) => String(r.id)), body.checked);
   }
   // 一键全勾仅限严格 true（误传 all:false 不得触发一键全勾）；一键清空不受此限——
   // checked=false + 显式传 all（true/false 均可）即清空全部，否则 R3 回归用例
@@ -265,32 +270,7 @@ export async function setReserveCheck(
       `select id from liabilities where user_id = $1 and status = 'active'`,
       [userId],
     );
-    const client = await pool.connect();
-    try {
-      await client.query("begin");
-      for (const r of rows) {
-        if (body.checked) {
-          await client.query(
-            `insert into debt_reserve_checks (user_id, ym, liability_id) values ($1,$2,$3)
-             on conflict (user_id, ym, liability_id) do nothing`,
-            [userId, ymFirst, r.id],
-          );
-        } else {
-          await client.query(`delete from debt_reserve_checks where user_id = $1 and ym = $2 and liability_id = $3`, [
-            userId,
-            ymFirst,
-            r.id,
-          ]);
-        }
-      }
-      await client.query("commit");
-      return { ok: true, count: rows.length };
-    } catch (e) {
-      await client.query("rollback").catch(() => {});
-      throw e;
-    } finally {
-      client.release();
-    }
+    return applyChecks(userId, ymFirst, rows.map((r) => String(r.id)), body.checked);
   }
   if (!body.liabilityId) throw ApiError.badRequest("liabilityId 必填");
   const own = await pool.query(`select 1 from liabilities where id = $1 and user_id = $2`, [

@@ -86,7 +86,9 @@ test("setup: 测试库可用且用户就绪", async (t) => {
   await cleanup();
 });
 
-test("REQ-038① 保存 8h → 跨天同步块 10-14 23:00 → 10-15 07:00（北京）", async () => {
+test("REQ-038① 保存 8h → 跨天同步块 10-14 23:00 → 10-15 07:00（北京）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("SHIGUANGRI_TEST_DB 未配置或不可达");
   const r = await fitnessService.saveSleep(U, { date: D, hours: 8 });
   assert.equal(r.sync.ok, true);
   assert.ok(r.sync.blockId, "应返回同步块 id");
@@ -103,7 +105,9 @@ test("REQ-038① 保存 8h → 跨天同步块 10-14 23:00 → 10-15 07:00（北
   assert.deepEqual(bjParts(b.end_at), { month: 10, day: 15, hour: 7, min: 0 });
 });
 
-test("REQ-038② 同日改 6h 重存 → 仍 1 块且区间更新（01:00 → 07:00）", async () => {
+test("REQ-038② 同日改 6h 重存 → 仍 1 块且区间更新（01:00 → 07:00）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("SHIGUANGRI_TEST_DB 未配置或不可达");
   const r = await fitnessService.saveSleep(U, { date: D, hours: 6 });
   assert.equal(r.sync.ok, true);
   const blocks = await syncedBlocks();
@@ -114,7 +118,9 @@ test("REQ-038② 同日改 6h 重存 → 仍 1 块且区间更新（01:00 → 07
   assert.deepEqual(bjParts(blocks[0].end_at), { month: 10, day: 15, hour: 7, min: 0 });
 });
 
-test("REQ-038③ 改 0h 重存 → 同步块删除", async () => {
+test("REQ-038③ 改 0h 重存 → 同步块删除", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("SHIGUANGRI_TEST_DB 未配置或不可达");
   const r = await fitnessService.saveSleep(U, { date: D, hours: 0 });
   assert.equal(r.sync.ok, true);
   assert.equal(r.sync.blockId, null);
@@ -123,7 +129,9 @@ test("REQ-038③ 改 0h 重存 → 同步块删除", async () => {
   assert.equal(rows[0]?.sleep_h_x10, 0, "睡眠数据本身保留");
 });
 
-test("REQ-038④ 预置重叠手动块 → sync.ok=false 冲突文案、睡眠照常落库且旧同步段不丢", async () => {
+test("REQ-038④ 预置重叠手动块 → sync.ok=false 冲突文案、睡眠照常落库且旧同步段不丢", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("SHIGUANGRI_TEST_DB 未配置或不可达");
   // 先正常同步 8h（块：23:00→07:00），再直接落一个与「改 5h 后新区间（02:00→07:00）」重叠的
   // 手动块（走 SQL 而非 createBlock：应用层重叠预检会拦下与既有同步块重叠的创建，
   // 无法构造出「手动块已占、同步让位」的场景；AI 识别/历史导入等路径确实可能留下这类块）
@@ -143,7 +151,9 @@ test("REQ-038④ 预置重叠手动块 → sync.ok=false 冲突文案、睡眠�
   assert.deepEqual(bjParts(blocks[0].start_at), { month: 10, day: 14, hour: 23, min: 0 }, "保留的是旧 8h 区间");
 });
 
-test("REQ-038⑤ PATCH 同步块 → sleep_log_id 置空解绑；再存生成独立新块", async () => {
+test("REQ-038⑤ PATCH 同步块 → sleep_log_id 置空解绑；再存生成独立新块", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("SHIGUANGRI_TEST_DB 未配置或不可达");
   await cleanup(); // ④ 留下的夜班手动块会污染本例区间，先清场
   const saved = await fitnessService.saveSleep(U, { date: D, hours: 8 });
   const blockId = saved.sync.blockId as string;

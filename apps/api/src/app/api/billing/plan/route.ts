@@ -19,7 +19,7 @@ export const GET = withAuth(async (_req, { user }) => {
             count(*) filter (where created_at > now() - interval '30 days')::int as calls_30d,
             coalesce(sum(prompt_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as prompt_30d,
             coalesce(sum(completion_tokens) filter (where created_at > now() - interval '30 days'), 0)::bigint as completion_30d
-     from audit_logs where user_id = $1
+     from audit_logs where user_id = $1 and coalesce(model, '') not like 'jev%'
      group by model
      order by sum(prompt_tokens) + sum(completion_tokens) desc`,
     [user.id],
@@ -54,10 +54,15 @@ export const POST = withAdmin(async (req, { user }) => {
   // 非法 uuid 落 update where id = $3 会 22P02 → 500，先拦成 400（缺省/空串回退自己，不拦）
   if (userId && !isUuid(userId)) throw ApiError.badRequest("userId 参数不合法");
   const target = userId || user.id;
-  const expires =
-    plan === "pro"
-      ? new Date(Date.now() + (months ?? 12) * 30 * 86_400_000)
-      : null;
+  // Pro 再发放按「续期」语义：现到期日仍在未来时从 max(now, 现到期日) 起算——
+  // 直覆盖会把剩余有效期缩短（重复发放/支付回调重放会越续越少）
+  let expires: Date | null = null;
+  if (plan === "pro") {
+    const cur = await pool.query(`select plan_expires_at from profiles where id = $1`, [target]);
+    const curExp = cur.rows[0]?.plan_expires_at ? new Date(cur.rows[0].plan_expires_at).getTime() : 0;
+    const base = Number.isFinite(curExp) && curExp > Date.now() ? curExp : Date.now();
+    expires = new Date(base + (months ?? 12) * 30 * 86_400_000);
+  }
   const { rows } = await pool.query(
     `update profiles set plan = $1, plan_expires_at = $2 where id = $3
      returning id, plan, plan_expires_at`,

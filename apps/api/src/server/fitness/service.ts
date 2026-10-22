@@ -23,7 +23,8 @@ import {
   type FitnessPlanDraft,
 } from "@shiguangri/ai";
 import { assembleUserPrompt, checkAiQuota, getPromptBundle, writeAuditRecord } from "@/server/ai";
-import { syncSleepBlock } from "@/server/time";
+import { syncSleepBlock, syncSleepBlockInTx } from "@/server/time";
+import { invalidateReviewCachesForOccurrence } from "@/server/insight";
 import { loadConfig } from "../platform/config";
 import { fitnessRepo } from "./repo";
 import {
@@ -503,6 +504,7 @@ async function updatePlan(userId: string, id: string, body: unknown) {
   // 状态迁移与后续写（执行记录/睡眠/联动行动）收进同一事务，事务首语句锁计划行并锁内重读状态：
   // 并发双击/重发打卡时只有一个请求能通过「未打卡」守卫（历史 bug：锁外快照守卫 + 无条件 UPDATE 可重复落执行记录）；
   // 事务也消除「计划已置 done 而执行记录插入失败」的半程态
+  let sleepInvals: Date[] = [];
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -530,11 +532,11 @@ async function updatePlan(userId: string, id: string, body: unknown) {
         note: v.note ?? null,
       }, client);
       // 睡眠独立记录（REQ-024）：打卡兼容入参落到 sleep_logs（log_date=计划日），session_logs 不再存；
-      // 同事务内同步日程睡眠块（REQ-038）：先持计划行锁、syncSleepBlock 内取 timeblocks advisory
+      // 同事务内同步日程睡眠块（REQ-038）：先持计划行锁、syncSleepBlockInTx 内取 timeblocks advisory
       // lock，锁序恒为 plan → advisory；冲突静默跳过（ok:false），睡眠数据照常落库
       if (v.sleepHours != null) {
         const srow = (await fitnessRepo.upsertSleep(userId, planRow.plan_date, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client)).rows[0];
-        await syncSleepBlock(userId, { sleepLogId: srow.id, logDate: srow.log_date, sleepHX10: srow.sleep_h_x10 }, client);
+        sleepInvals = (await syncSleepBlockInTx(userId, { sleepLogId: srow.id, logDate: srow.log_date, sleepHX10: srow.sleep_h_x10 }, client)).invalidateAts;
       }
       await fitnessRepo.completePlanTodos(id, client);
     } else {
@@ -542,6 +544,8 @@ async function updatePlan(userId: string, id: string, body: unknown) {
       await syncPlanTodos(userId, planRow, client);
     }
     await client.query("commit");
+    // 睡眠同步块的复盘缓存失效在提交后触发（事务内先行失效会被并发生成以旧数据重建）
+    for (const at of sleepInvals) void invalidateReviewCachesForOccurrence(userId, at);
     return { plan: planRow };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -1095,6 +1099,7 @@ async function addLog(userId: string, body: unknown) {
   }
   // 执行记录 + 睡眠兼容入参收进同一事务（与 updatePlan 打卡路径同款）：
   // 独立自动提交在 sleep 写失败时会留下「记录已存、睡眠缺失」的半程态
+  let sleepInvals: Date[] = [];
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -1111,9 +1116,10 @@ async function addLog(userId: string, body: unknown) {
       // 同事务内同步日程睡眠块（REQ-038，与 updatePlan 打卡路径同款：锁序 plan/无 → advisory；
       // 冲突静默跳过，睡眠照常落库）
       const srow = (await fitnessRepo.upsertSleep(userId, v.logDate, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client)).rows[0];
-      await syncSleepBlock(userId, { sleepLogId: srow.id, logDate: srow.log_date, sleepHX10: srow.sleep_h_x10 }, client);
+      sleepInvals = (await syncSleepBlockInTx(userId, { sleepLogId: srow.id, logDate: srow.log_date, sleepHX10: srow.sleep_h_x10 }, client)).invalidateAts;
     }
     await client.query("commit");
+    for (const at of sleepInvals) void invalidateReviewCachesForOccurrence(userId, at);
     return { log: rows[0] };
   } catch (e) {
     await client.query("rollback").catch(() => {});

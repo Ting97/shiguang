@@ -785,6 +785,8 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     let applied = false;
     let result: unknown = null;
     let message = "";
+    // finance 分支实际落库的 occurred_at（话术带日期时是历史日）：提交后按它失效复盘缓存
+    let financeOccurredAt: string | null = null;
 
     // 快照防御：todo/finance/people 三个分支都用 r.time.* 推 remind_at 或落 ::timestamptz，
     // 形状合法但日历非法的值（如 2025-02-30）会 NaN/PG 报错 → 500；与 schedule 分支同口径统一拦 400
@@ -880,6 +882,7 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
       case "finance": {
         await client.query(`delete from transactions where entry_id = $1 and user_id = $2`, [entryId, userId]);
         if (r.finance.hasAmount && r.finance.amountCents != null) {
+          financeOccurredAt = resolveFinanceOccurredAt(r.finance.occurredDate, entry.created_at) ?? r.time.end;
           await client.query(
             `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at)
              values ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -890,7 +893,7 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
               r.finance.category ?? "其他",
               r.finance.counterparty ?? null,
               entry.raw_text,
-              resolveFinanceOccurredAt(r.finance.occurredDate, entry.created_at) ?? r.time.end,
+              financeOccurredAt,
             ],
           );
           applied = true;
@@ -983,6 +986,10 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
       domain === "schedule" ? new Date(r.time.start) : new Date(r.time.end),
     );
     for (const at of oldEventTimes) void invalidateReviewCachesForOccurrence(userId, at);
+    // 新流水按 occurredDate 落历史日时，目标历史日的既有缓存同样要失效（与 confirmPending/analyze 同口径）
+    if (domain === "finance" && financeOccurredAt) {
+      void invalidateReviewCachesForOccurrence(userId, new Date(financeOccurredAt));
+    }
     return { ok: true as const, applied, domain, message: `${domain === "people" ? "关系" : DOMAIN_LABELS[domain as Domain]}：${message}` };
   } catch (e) {
     await client.query("rollback").catch(() => {});

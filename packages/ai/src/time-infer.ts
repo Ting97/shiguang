@@ -125,7 +125,7 @@ export function detectDayRef(text: string, now: Date): number | null {
  * （"十一点五十"→11:50，十五轮收口：旧版只认 半/阿拉伯，中文分钟被静默丢成整点） */
 export function parseClock(text: string, period: PeriodHint | null): { hour: number; minute: number } | null {
   const m = text.match(
-    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时](?!点)\s*(半|[一二两三四五六七八九十]{1,2}|\d{1,2})?\s*分?|[.:：](\d{2}))/,
+    /(\d{1,2}|[一二两三四五六七八九十]+)\s*(?:[点时](?!点)\s*(半|[一二两三四五六七八九十]{1,3}|\d{1,2})?\s*分?|[.:：](\d{2}))/,
   );
   if (!m) return null;
   // 叠字守卫：中文数字叠字（"一一"）非数字；单字（一/三）与阿拉伯数字（11/22）合法
@@ -175,7 +175,10 @@ export function parseClockRange(
   // 终点"12点"在下午/晚上语境指午夜（24:00）非正午——"晚上10点半到12点"= 22:30–24:00；
   // 旧版漏判使 end<=start 被跨日 +24h 成次日正午，块长膨胀成 13.5 小时
   if (pmish && b.hour === 12) endHour = 24;
-  else if (pmish && b.hour < 12 && b.hour + 12 > a.hour) endHour = b.hour + 12;
+  // 终点抬 pm 用 >=（等钟点区间："下午1点到1点半"= 13:00–13:30）：
+  // 旧严格 > 把等钟点判成 end<start 跨日 +24h，膨胀成 24.5h 块；起点本身已过正午
+  //（"中午12点到1点"，noon 不在 pmish）同样适用
+  else if ((pmish || a.hour >= 12) && b.hour < 12 && b.hour + 12 >= a.hour) endHour = b.hour + 12;
   return { start: a, end: { hour: endHour, minute: b.minute } };
 }
 
