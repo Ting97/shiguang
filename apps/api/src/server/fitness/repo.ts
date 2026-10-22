@@ -220,7 +220,7 @@ export const fitnessRepo = {
          feeling = coalesce(excluded.feeling, fitness_sleep_logs.feeling),
          score = coalesce(excluded.score, fitness_sleep_logs.score),
          source = excluded.source, updated_at = now()
-       returning log_date::text as log_date, sleep_h_x10, feeling, score, source`,
+       returning id, log_date::text as log_date, sleep_h_x10, feeling, score, source`,
       [userId, logDate, sleepHX10, feeling ?? null, score ?? null, source],
     );
   },
