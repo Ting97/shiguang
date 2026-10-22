@@ -25,7 +25,7 @@ import {
   type Block,
   type DayStat,
 } from "./api";
-import { addDays, bjToday, combineHM, parseYmd, startOfMonth, startOfWeek, startOfYear, weekName, ymd, zhDate, zhDuration, zhTime } from "./date";
+import { addDays, bjDateKey, bjToday, combineHM, combineHmEndCrossDay, parseYmd, startOfMonth, startOfWeek, startOfYear, weekName, ymd, zhDate, zhDuration, zhTime } from "./date";
 import { ApiError } from "@/lib/request";
 
 type CalView = "day" | "week" | "month" | "year";
@@ -137,19 +137,23 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
 
   async function saveEdit() {
     if (!editing || editSaving) return;
-    if (editing.end <= editing.start) {
-      setErr("结束时间必须晚于开始时间");
-      return;
-    }
     const b = blocks.find((x) => x.id === editing.id);
     if (!b) return;
+    // 跨天块（23:00→次日 07:00 的睡眠）end 钟点 ≤ start 是合法次日语义，不走同日校验；
+    // 结束写回用「开始日 + end 钟点，≤ 开始自动 +1 天」的跨日组合——旧逻辑对跨天块恒报
+    // 「结束必须晚于开始时间」（无法编辑），绕过校验又把结束钉回开始日、块膨胀约 24 小时
+    // （web 版十二轮同型修复，此处补齐移植）。
+    // 十七轮：同日块编辑出 end ≤ start 同样按次日语义放行（与动态流行内编辑同口径）
+    const storedCrossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
+    const crossDay = storedCrossDay || editing.end <= editing.start;
     setEditSaving(true);
     try {
+      const startAt = combineHM(b.start_at, editing.start);
       await patchBlock(editing.id, {
         title: editing.title.trim() || b.title,
         // 存储口径统一（北京 combineHM）：本地 setHours 在海外设备会存出错 8 小时的时刻
-        startAt: combineHM(b.start_at, editing.start),
-        endAt: combineHM(b.end_at, editing.end),
+        startAt,
+        endAt: crossDay ? combineHmEndCrossDay(startAt, editing.end, b.end_at) : combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
       });
     } catch (e: any) {
@@ -179,19 +183,17 @@ export default function CalendarPanel({ initialAnchor, refreshTick = 0 }: { init
 
   async function submitCreate() {
     if (!creating || !creating.title.trim() || createBusy) return;
-    // 结束必须晚于开始（同编辑校验口径），不合法就地提示并中止
-    if (creating.end <= creating.start) {
-      setDraftErr("结束时间必须晚于开始时间");
-      return;
-    }
+    // 结束钟点 ≤ 开始钟点 = 跨天次日语义（23:00→01:00）：自动 +1 天放行（与动态流/编辑路径同口径），
+    // 旧版恒拦「结束时间必须晚于开始时间」，手动路径无法创建跨天块
     setDraftErr(null);
     setCreateBusy(true);
     const [sh, sm] = creating.start.split(":").map(Number);
     const [eh, em] = creating.end.split(":").map(Number);
+    const crossesDay = eh * 60 + em <= sh * 60 + sm;
     const ok = await createBlockPayload({
       title: creating.title.trim(),
       startAt: isoFromMinutes(sh * 60 + sm),
-      endAt: isoFromMinutes(eh * 60 + em),
+      endAt: isoFromMinutes(eh * 60 + em + (crossesDay ? 1440 : 0)),
       activityId: creating.activityId,
     });
     setCreateBusy(false);

@@ -118,8 +118,14 @@ export function birthdayInfoOf(c: ContactRow): BirthdayInfo | null {
   }
   const m = String(c.birthday ?? "").match(/(\d{4})?-?(\d{2})-(\d{2})/);
   if (!m) return null;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  // 脏数据守卫（= shared/social.ts）：("00-00"/"02-30") 不产展示行——
+  // countdown 为 null 但 date 会拼出「0月0日」「2月30日」
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (day > new Date(Date.UTC(2000, month, 0)).getUTCDate()) return null; // 真实日历日（2 月无 30 日）
   return {
-    date: `${Number(m[2])}月${Number(m[3])}日`,
+    date: `${month}月${day}日`,
     countdown: birthdayCountdown(c.birthday),
     lunar: false,
     nextSolar: null,

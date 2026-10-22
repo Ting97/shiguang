@@ -20,8 +20,8 @@ export function isChildId(id: string, todos: TodoItem[]): boolean {
 
 /** 各视图空态文案 */
 export const EMPTY_TEXT: Record<View, string> = {
-  today: "今天还没安排 ☀️ —— 在上面添加 todo（会自动标记今日），或把 ⭐重要 / 📋全部 里的todo 标为今日",
-  important: "还没有重要 todo ⭐ —— 添加时勾选「重要」，或把现有todo 标为重要",
+  today: "今天还没安排 ☀️ —— 在上面添加 todo（会自动标记今日），或把 ⭐重要 / 📋全部 里的 todo 标为今日",
+  important: "还没有重要 todo ⭐ —— 添加时勾选「重要」，或把现有 todo 标为重要",
   all: "暂无 todo —— 在上面添加一个，或在主页随口说一句（AI 会自动识别 todo）",
   done: "还没有已完成的 todo ✓",
 };

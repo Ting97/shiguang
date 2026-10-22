@@ -44,9 +44,9 @@ export default function Detail() {
   const [spaceMenu, setSpaceMenu] = useState(false);
   const [spaceMenuPos, setSpaceMenuPos] = useState<{ top: number; left: number } | null>(null);
   const spaceMenuClosedRef = useRef(0);
-  const openSpaceMenu = (pos: { top: number; left: number }) => {
+  const openSpaceMenu = (pos: { top: number; left: number } | null) => {
     if (Date.now() - spaceMenuClosedRef.current < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
-    setSpaceMenuPos(pos);
+    setSpaceMenuPos(pos); // null=移动端底部弹层形态（内联锚点与 sm: 弹层类四向约束冲突会错位）
     setSpaceMenu(true);
   };
 

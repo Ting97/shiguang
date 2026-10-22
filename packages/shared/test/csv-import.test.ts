@@ -120,6 +120,13 @@ test("分类：平台分类列优先、关键词兜底、默认其他", () => {
   assert.equal(classify("", "某某咨询公司", "服务费"), "其他");
 });
 
+// —— 十七轮回归：分类列值恰为 Object.prototype 属性名时沿原型链取到函数（不再混入下游映射） ——
+test("分类：原型属性名（toString/constructor）按未命中处理", () => {
+  assert.equal(classify("toString", "", ""), "其他");
+  assert.equal(classify("constructor", "", ""), "其他");
+  assert.equal(classify("valueOf", "肯德基", ""), "餐饮"); // 未命中映射 → 关键词兜底仍生效
+});
+
 test("去重键：单号优先，无单号用指纹", () => {
   const base = {
     direction: "out" as const,

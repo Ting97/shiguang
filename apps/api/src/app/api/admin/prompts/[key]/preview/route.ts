@@ -254,7 +254,7 @@ export const POST = withAdminParams(async (req, { user, params }) => {
     const text = (sampleText ?? (await latestEntry()) ?? "（示例）今天背了两百个单词").slice(0, 500);
     ctxOut = { candidates, text };
     userPrompt = await assembleUserPrompt("space_classify", bundle, ctxOut, { userId: user.id });
-  } else {
+  } else if (key === "prompt_optimizer") {
     // prompt_optimizer：current 为管理员粘贴的目标 prompt（缺省取当前生效的 system）
     const contract =
       "【必须保留的契约约束】\n保持原文中的输出 JSON 结构、字段名、枚举值与占位符完全不变。";
@@ -265,6 +265,11 @@ export const POST = withAdminParams(async (req, { user, params }) => {
       intent: "（无，按专家判断全面优化）",
     };
     userPrompt = await assembleUserPrompt("prompt_optimizer", bundle, ctxOut, { userId: user.id });
+  } else {
+    // 其余 key（trading_review/profile_merge/extract_open_vocab/chat_*/fitness_plan_parse/xunji_name_match）
+    // 无真实装配分支——原兜底按 prompt_optimizer 的占位符表替换本 key 模板，产物残留 {facts} 等字面
+    // 占位符且混入 optimizer 段落，与线上装配完全不符、误导调优 → 显式 400 而非返回错误预览
+    throw ApiError.badRequest(`该 key（${key}）暂不支持装配预览，请直接查看当前生效模板`);
   }
 
   void writeAuditRecord({

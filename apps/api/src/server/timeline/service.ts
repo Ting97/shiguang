@@ -150,7 +150,9 @@ export async function confirmPending(
              values ($1,$2,$3,$4,$5,$6,'default','keyboard')`,
             [userId, entryId, result.activityId, result.title, result.startAt, result.endAt],
           );
+          // start 与 end 都失效：跨天块结束日分摊时长，只按 start 失效漏掉结束日缓存（analyze 主路径同口径）
           invalidateAts.push(new Date(result.startAt));
+          invalidateAts.push(new Date(result.endAt));
         }
         break;
       }
@@ -382,11 +384,15 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
 
     const client = await pool.connect();
     let updated;
+    let eventTimes: Date[] = [];
     try {
       await client.query("begin");
       // editRawText 先更新 entry 行（取得行锁）再清子表——统一「先锁 entry 再动子表」顺序，
       // 防与后台补跑识别（select for update → 清旧插新）反序加锁死锁
       updated = (await entriesRepo.editRawText(client, entryId, userId, text)).rows[0];
+      // 事件时间须在 clearDerived 前采集（同 deleteFeed）：编辑清掉的历史块/流水按事件日失效，
+      // 只按 created_at 失效覆盖不到「昨天发生、今天发布」的行
+      if (updated) eventTimes = await entriesRepo.eventTimesOf(client, entryId, userId);
       await entriesRepo.clearDerived(client, entryId, userId);
       if (!updated) {
         await client.query("rollback");
@@ -403,8 +409,9 @@ export async function patchFeed(userId: string, entryId: string, body: FeedPatch
     // 后台全域重识别（同发动态：秒回 + fire-and-forget）；成功自打 analyzed_at，失败留巡检
     void analyzeAndPersist(userId, entryId, text)
       .catch((e) => console.error(`[analyze] entry ${entryId} 编辑重识别失败（巡检将补跑）:`, e));
-    // 编辑清派生（历史块/饮食/流水被删）会让对应周期水位盲区陈旧——按动态创建日失效（十一轮 P2）
+    // 编辑清派生（历史块/饮食/流水被删）会让对应周期水位盲区陈旧——按动态创建日 + 全部事件日失效（十一轮 P2 / 十七轮补全）
     void invalidateReviewCachesForOccurrence(userId, new Date(updated.created_at));
+    for (const at of eventTimes) void invalidateReviewCachesForOccurrence(userId, at);
     return { ok: true as const, entry: updated };
   }
 
@@ -504,7 +511,9 @@ export async function appendManual(
         );
         result = { title, start, end };
         message = `🕒 已手动添加日程「${title}」`;
+        // start 与 end 都失效：跨天块结束日分摊时长（confirmPending 同口径）
         invalidateAts.push(new Date(start));
+        invalidateAts.push(new Date(end));
         break;
       }
       case "todo": {
@@ -770,6 +779,9 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
       throw ApiError.conflict("原文已变更，请刷新后重新识别");
     }
     await entriesRepo.stampAnalyzedAt(client, entryId);
+    // 替换式重写前采集旧派生行事件时间（同 deleteFeed）：重识别把块/流水挪天时，
+    // 旧事件日的复盘缓存也须失效——只失效 created_at + 新事件时间漏掉旧发生日
+    const oldEventTimes = await entriesRepo.eventTimesOf(client, entryId, userId);
     let applied = false;
     let result: unknown = null;
     let message = "";
@@ -963,12 +975,14 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
 
     await client.query("commit");
     void writeAuditRecord({ ...auditBase, latencyMs: Date.now() - t0, ok: true });
-    // 重识别删旧插新后按事件发生日失效复盘缓存（旧块/旧流水被删会让对应历史周期水位盲区陈旧；十一轮 P2 同批）
+    // 重识别删旧插新后按事件发生日失效复盘缓存（旧块/旧流水被删会让对应历史周期水位盲区陈旧；十一轮 P2 同批，
+    // 十七轮补旧派生行事件日：挪天重识别不再让旧发生日缓存滞留已删数据）
     void invalidateReviewCachesForOccurrence(userId, new Date(entry.created_at));
     void invalidateReviewCachesForOccurrence(
       userId,
       domain === "schedule" ? new Date(r.time.start) : new Date(r.time.end),
     );
+    for (const at of oldEventTimes) void invalidateReviewCachesForOccurrence(userId, at);
     return { ok: true as const, applied, domain, message: `${domain === "people" ? "关系" : DOMAIN_LABELS[domain as Domain]}：${message}` };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -1164,6 +1178,9 @@ export async function deleteFeed(userId: string, entryId: string) {
     }
     // 语音附件（entries.audio_url）随行删除，盘上文件一并清
     const audioKey = (await client.query(`select audio_url from entries where id = $1 and user_id = $2`, [entryId, userId])).rows[0]?.audio_url ?? null;
+    // 事件时间须在 clearDerived 前采集：删行会让对应周期水位回退，仅按 created_at 失效
+    // 覆盖不到「昨天发生、今天发布」的历史行（发生日缓存被误判仍新鲜，已删数据滞留历史复盘）
+    const eventTimes = await entriesRepo.eventTimesOf(client, entryId, userId);
     await entriesRepo.clearDerived(client, entryId, userId);
     const { rowCount } = await entriesRepo.deleteEntry(client, entryId, userId);
     if (!rowCount) {
@@ -1172,8 +1189,9 @@ export async function deleteFeed(userId: string, entryId: string) {
     }
     await client.query("commit");
     // 删除会让复盘水位（max(created_at)）回退、当期缓存被判「仍新鲜」回旧数据——
-    // 与 finance 删交易同口径，按动态创建日显式失效四档复盘缓存（函数内部吞错降级，不阻塞删除）
+    // 与 finance 删交易同口径，按动态创建日 + 全部派生行事件日显式失效四档复盘缓存（函数内部吞错降级，不阻塞删除）
     void invalidateReviewCachesForOccurrence(userId, new Date(gone.created_at));
+    for (const at of eventTimes) void invalidateReviewCachesForOccurrence(userId, at);
     for (const k of imageKeys) void deleteImageFile(k);
     if (audioKey) void deleteImageFile(audioKey);
     return { ok: true as const };

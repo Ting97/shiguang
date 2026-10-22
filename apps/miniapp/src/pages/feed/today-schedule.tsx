@@ -103,25 +103,24 @@ export default function TodaySchedule({
   /** 提交补录/新增（POST /api/blocks；409=时间重叠，服务端文案就地展示） */
   async function submitDraft() {
     if (!draft || !draft.title.trim() || saving) return;
-    if (draft.end <= draft.start) {
-      setDraftErr("结束时间必须晚于开始时间");
-      return;
-    }
+    // 结束钟点 ≤ 开始钟点 = 跨天次日语义（23:00→01:00）：自动 +1 天放行（与 web 端同口径），
+    // 旧版恒拦「结束时间必须晚于开始时间」，手动路径无法创建跨天块
+    const [sh, sm] = draft.start.split(":").map(Number);
+    const [eh, em] = draft.end.split(":").map(Number);
+    const crossesDay = eh * 60 + em <= sh * 60 + sm;
     setSaving(true);
     try {
-      const [sh, sm] = draft.start.split(":").map(Number);
-      const [eh, em] = draft.end.split(":").map(Number);
       // 北京今天 0 点作基：必须显式 +08:00（T00:00:00Z 是 UTC 零点=北京 08:00，
       // 旧版所有补录块整体晚 8 小时；本地午夜基在海外设备又会错 8 小时）
       const dayMs = Date.parse(`${bjToday()}T00:00:00+08:00`);
       await apiCreateBlock({
         title: draft.title.trim(),
         startAt: new Date(dayMs + (sh * 60 + sm) * 60_000).toISOString(),
-        endAt: new Date(dayMs + (eh * 60 + em) * 60_000).toISOString(),
+        endAt: new Date(dayMs + (eh * 60 + em + (crossesDay ? 1440 : 0)) * 60_000).toISOString(),
         activityId: draft.activityId,
       });
       setDraft(null);
-      showToast({ type: "ok", text: `✍️ 已补录：${draft.title.trim()}` });
+      showToast({ type: "ok", text: crossesDay ? `✍️ 已按跨天块补录：${draft.start} → 次日 ${draft.end}` : `✍️ 已补录：${draft.title.trim()}` });
       await load();
     } catch (e: any) {
       showToast({ type: "err", text: e?.message ?? "补录失败" });

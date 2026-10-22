@@ -309,7 +309,7 @@ function BudgetEditor({
   onSaved: () => Promise<void>;
 }) {
   const limitCents = Number(ov.budget?.monthly_limit_cents ?? 0);
-  const [limit, setLimit] = useState(limitCents > 0 ? String(limitCents / 100) : "");
+  const [limit, setLimit] = useState(limitCents > 0 ? centsToYuanInput(limitCents) : "");
   const [threshold, setThreshold] = useState(Number(ov.budget?.alert_threshold ?? 80));
   // 阈值不在五档预设（如服务端存 85%）时并入档位列表：否则 picker 定位第 0 档，
   // 显示 85% 而点「确定」即被静默改写成 50%
@@ -467,7 +467,7 @@ function AccountManager({
             <Input
               className="acc-mgr-bal"
               type="digit"
-              value={balDrafts[a.id] ?? String(Number(a.openingBalanceCents) / 100)}
+              value={balDrafts[a.id] ?? centsToYuanInput(Number(a.openingBalanceCents))}
               onInput={(e) => setBalDrafts((d) => ({ ...d, [a.id]: e.detail.value }))}
               onBlur={() => void saveBalance(a)}
               placeholderClass="input-placeholder"

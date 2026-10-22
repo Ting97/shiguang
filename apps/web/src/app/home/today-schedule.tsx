@@ -60,12 +60,11 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
     }
     // 跨天块（23:00→次日 00:30）end 钟点 ≤ start 是合法次日语义，不走同日校验；
     // 结束写回用跨日组合（与 calendar-panel 同范式）——旧逻辑对跨天块恒报
-    // 「结束时间必须晚于开始时间」，改任何字段都保存不了
-    const crossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
-    if (!crossDay && editing.end <= editing.start) {
-      toast("结束时间必须晚于开始时间", "err");
-      return;
-    }
+    // 「结束时间必须晚于开始时间」，改任何字段都保存不了。
+    // 十七轮：同日块编辑出 end ≤ start 同样按次日语义放行（与动态流行内编辑同口径），
+    // toast 说明跨天防误解——旧逻辑手动路径无法把块改成跨天
+    const storedCrossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
+    const crossDay = storedCrossDay || editing.end <= editing.start;
     setSaving(true);
     try {
       const startAt = combineHM(b.start_at, editing.start);
@@ -75,6 +74,7 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
         endAt: crossDay ? combineHmEndCrossDay(startAt, editing.end, b.end_at) : combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
       });
+      if (!storedCrossDay && crossDay) toast(`已按跨天块保存：${editing.start} → 次日 ${editing.end}`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "保存失败", "err");
       return;
@@ -82,7 +82,7 @@ export default function TodaySchedule({ blocks, activities, todayKcal, load }: P
       setSaving(false);
     }
     setEditing(null);
-    toast("💾 日程已更新");
+    if (!(!storedCrossDay && crossDay)) toast("💾 日程已更新");
     await load();
   }
 

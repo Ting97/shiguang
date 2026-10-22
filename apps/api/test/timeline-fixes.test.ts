@@ -325,6 +325,56 @@ test("timeline-fix：patrol 参数化扫描可执行且能补跑超时动态", a
   await cleanupUserDerived(U1);
 });
 
+/* ---------- 修复 7（十七轮）：删改派生行按事件发生日失效复盘缓存 ---------- */
+
+test("timeline-fix：deleteFeed 按派生行事件日失效复盘缓存（历史发生日水位回退不再滞留已删数据）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await upsertUser(U1, "fix测试U1");
+  await seedActivities(U1);
+  const { deleteFeed } = await import("../src/server/timeline");
+
+  // 「昨天发生、今天发布」：动态 created_at=今天，识别产物块 start_at=昨天（复盘水位按事件列取 max，
+  // 删行后昨日水位回退，仅按 created_at 失效覆盖不到昨日缓存——修复前已删块滞留在昨日复盘里）
+  const entryId = await insertEntry(U1, "昨天下午开会三小时");
+  const yStart = new Date(Date.now() + 8 * 3600_000 - 24 * 3600_000);
+  yStart.setUTCHours(6, 0, 0, 0); // 北京昨日 14:00
+  const yEnd = new Date(yStart.getTime() + 3 * 3600_000);
+  await pool.query(
+    `insert into time_blocks (user_id, entry_id, activity_id, title, start_at, end_at, time_mode, source)
+     values ($1,$2,'work','昨日会议',$3,$4,'default','keyboard')`,
+    [U1, entryId, yStart.toISOString(), yEnd.toISOString()],
+  );
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const bjKey = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  const yKey = bjKey(new Date(yStart.getTime() + 8 * 3600_000));
+  const tKey = bjKey(new Date(Date.now() + 8 * 3600_000));
+  // 预置昨日/今日两条 day 复盘缓存：deleteFeed 后两条都必须被失效（昨日按块 start_at、今日按 created_at）
+  for (const k of [yKey, tKey]) {
+    await pool.query(
+      `insert into review_caches (user_id, kind, period_key, review) values ($1,'day',$2,'{"summary":"t","highlights":[],"suggestions":[]}')
+       on conflict (user_id, kind, period_key) do nothing`,
+      [U1, k],
+    );
+  }
+
+  await deleteFeed(U1, entryId);
+
+  // 失效为 void 异步派发（函数内部吞错降级）：轮询等待落库，不做同步断言
+  let left = { rowCount: 1 };
+  for (let i = 0; i < 20 && left.rowCount > 0; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    left = await pool.query(
+      `select period_key from review_caches where user_id = $1 and kind = 'day' and period_key in ($2,$3)`,
+      [U1, yKey, tKey],
+    );
+  }
+  assert.equal(left.rowCount, 0, `昨日(${yKey})与今日(${tKey})复盘缓存都必须随删除失效`);
+
+  await cleanupUserDerived(U1);
+  await pool.query(`delete from review_caches where user_id = $1`, [U1]);
+});
+
 /* ---------- teardown：清理本文件测试数据（并发共库只动自己的两个用户） ---------- */
 
 test("teardown: 清理 timeline-fixes 测试数据", async (t) => {

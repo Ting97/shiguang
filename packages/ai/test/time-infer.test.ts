@@ -206,6 +206,14 @@ test("parseClock：中文数字分钟（十一点五十/两点二十）+ 阿拉�
   assert.deepEqual(parseClock("三点半", null), { hour: 3, minute: 30 }); // 半 回归
 });
 
+// —— 十七轮回归：约数并列钟点（「两三点」旧版按复合进位直读 23 点） ——
+test("parseClock：约数并列取末位（两三点→3、七八点→8）+ 叠字仍非钟点", () => {
+  assert.equal(parseClock("下午两三点开了个会", "afternoon")?.hour, 15);
+  assert.equal(parseClock("晚上七八点到家", "evening")?.hour, 20);
+  assert.deepEqual(parseClock("两点半", null), { hour: 2, minute: 30 }); // 「两X」单字不受影响
+  assert.equal(parseClock("一点点香芋条", null), null); // 叠字守卫回归
+});
+
 // —— 回归4：AI 区间日期锚定（线上事故：17:22 说"下午2点到6点"被模型写成 9/21） ——
 
 const T920 = new Date(2026, 8, 20, 17, 22); // 2026-09-20 17:22 本地

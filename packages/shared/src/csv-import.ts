@@ -152,7 +152,12 @@ export function classify(platformType: string, counterparty: string, goods: stri
   const hayAll = `${platformType} ${counterparty} ${goods}`;
   // 还款类优先于平台分类映射（支付宝的信用卡还款挂在「充值缴费」下，微信靠交易类型关键词）
   if (/还款|花呗|白条/.test(hayAll)) return "还款";
-  if (platformType && ALIPAY_TYPE_MAP[platformType]) return ALIPAY_TYPE_MAP[platformType];
+  // hasOwnProperty 守卫：普通对象字面量沿原型链取值，CSV 分类列值恰好是
+  // "toString"/"constructor" 等原型属性名时会取到函数而非 undefined，混入下游映射
+  const mapped = Object.prototype.hasOwnProperty.call(ALIPAY_TYPE_MAP, platformType)
+    ? ALIPAY_TYPE_MAP[platformType]
+    : undefined;
+  if (platformType && mapped) return mapped;
   for (const [re, cat] of KEYWORD_RULES) {
     if (re.test(hayAll)) return cat;
   }
