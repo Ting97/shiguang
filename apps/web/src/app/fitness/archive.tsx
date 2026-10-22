@@ -151,12 +151,26 @@ function ProfileForm({ profile, onSaved }: { profile: FitnessProfile | null; onS
 
   async function save() {
     if (busy) return;
+    // 身高前置校验：NaN 会被 JSON.stringify 静默序列化成 null——请求 200 toast 成功实则没存；
+    // 范围/整数口径对齐服务端 zod（int 50~260），英文原文不得直达界面；器械每项 ≤30 字 ≤10 项同守
+    if (height) {
+      const h = Number(height);
+      if (!Number.isFinite(h) || !Number.isInteger(h) || h < 50 || h > 260) {
+        toast("身高需为 50~260 的整数（厘米）", "err");
+        return;
+      }
+    }
+    const equipList = equipment ? equipment.split(/[,，、\s]+/).filter(Boolean) : [];
+    if (equipList.some((e) => e.length > 30) || equipList.length > 10) {
+      toast("器械每项最长 30 字，最多 10 项", "err");
+      return;
+    }
     setBusy(true);
     try {
       await api("/api/fitness/profile", "PUT", {
         heightCm: height ? Number(height) : null,
         experience: experience || null,
-        equipment: equipment ? equipment.split(/[,，、\s]+/).filter(Boolean) : [],
+        equipment: equipList,
         weeklyDays: weeklyDays || null,
         constraints: constraints || null,
       });

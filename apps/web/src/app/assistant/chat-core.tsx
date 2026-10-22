@@ -217,6 +217,13 @@ export default function AssistantChat({
   const [messages, setMessages] = useState<MsgItem[]>([]);
   const [quota, setQuota] = useState<QuotaInfo | null>(null);
   const [input, setInput] = useState("");
+  // input 的 ref 镜像：send 失败回填前判断等待期内用户是否已重新输入（90s 超时窗口不短）——
+  // 旧版无条件 setInput(body) 会把新草稿整段覆盖
+  const inputRef = useRef("");
+  const applyInput = (v: string) => {
+    inputRef.current = v;
+    setInput(v);
+  };
   const [sending, setSending] = useState(false);
   const [thinkingStep, setThinkingStep] = useState(0);
   const [convLoading, setConvLoading] = useState(false);
@@ -372,7 +379,7 @@ export default function AssistantChat({
     // （「只答不问」看似发送失败诱发重发）——自增后该回包按既有范式失配丢弃
     const seq = ++convSeq.current;
     setSending(true);
-    setInput("");
+    applyInput("");
     const optimisticId = `local-${Date.now()}`;
     setMessages((ms) => [...ms, { id: optimisticId, role: "user", content: body, createdAt: "" }]);
     try {
@@ -401,10 +408,11 @@ export default function AssistantChat({
       loadList(); // 新会话入列 / 既有会话置顶
     } catch (e) {
       if (seq !== convSeq.current) return; // 失败回包同样不跨会话回写（避免回填输入框覆盖新会话的输入）
-      // 失败：移除乐观消息并把文本回填输入框（服务端可能已落库，重开该会话可见），错误以 toast 呈现，可重发
+      // 失败：移除乐观消息并把文本回填输入框（服务端可能已落库，重开该会话可见），错误以 toast 呈现，可重发。
+      // 等待期（最长 90s）用户已重新打字时不再回填——旧草稿整段覆盖新输入更不可挽回
       toast(e instanceof Error ? e.message : String(e), "err");
       setMessages((ms) => ms.filter((m) => m.id !== optimisticId));
-      setInput(body);
+      if (inputRef.current === "") applyInput(body);
     } finally {
       setSending(false);
     }
@@ -684,7 +692,7 @@ export default function AssistantChat({
           <div className="flex items-end gap-2">
             <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => applyInput(e.target.value)}
               onKeyDown={(e) => {
                 // Ctrl+Enter（Mac Cmd+Enter）发送；裸 Enter 换行
                 if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {

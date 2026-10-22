@@ -72,7 +72,12 @@ export function useSpaceData() {
           fresh(() => setNotFound(true));
           return;
         }
-        fresh(() => setSpace(s));
+        // 命中有效空间时清 notFound：App Router 同段复用组件不卸载，两个详情地址间前进/后退时
+        // （从失效空间返回有效空间）旧版无复位路径，页面永久「空间不存在或已删除」直到整页刷新
+        fresh(() => {
+          setNotFound(false);
+          setSpace(s);
+        });
       }
       // 该空间的待办（全视图取全部再前端过滤）；失败跳过（原 if (tr.ok) 静默语义保留）
       fresh(() => {

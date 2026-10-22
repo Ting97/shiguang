@@ -51,7 +51,10 @@ export const PATCH = withModuleParams("finance", async (req, { user, params }) =
     sets.push(`category = $${vals.length}`);
   }
   if (body.counterparty !== undefined) {
-    vals.push(optionalTrimmed(body.counterparty, "counterparty") ?? null);
+    // 长度上限与 POST 通道同口径（≤30）：PATCH 漏拦时超长串直落 text 列，随列表全量回传并污染人情账匹配
+    const cp = optionalTrimmed(body.counterparty, "counterparty") ?? null;
+    if (cp && cp.length > 30) throw ApiError.badRequest("交易对象最长 30 字");
+    vals.push(cp);
     sets.push(`counterparty = $${vals.length}`);
   }
   if (body.accountId !== undefined) {
@@ -72,7 +75,10 @@ export const PATCH = withModuleParams("finance", async (req, { user, params }) =
     }
   }
   if (body.note !== undefined) {
-    vals.push(optionalTrimmed(body.note, "note") ?? null);
+    // 长度上限与 POST 通道同口径（≤200），理由同 counterparty 分支
+    const nt = optionalTrimmed(body.note, "note") ?? null;
+    if (nt && nt.length > 200) throw ApiError.badRequest("备注最长 200 字");
+    vals.push(nt);
     sets.push(`note = $${vals.length}`);
   }
   if (body.occurredAt !== undefined) {

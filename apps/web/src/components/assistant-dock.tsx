@@ -61,7 +61,6 @@ export default function AssistantDock({ scope = "global" }: { scope?: ChatScope 
         !open && (
           <button
             onClick={toggle}
-            aria-expanded={open}
             aria-label={`打开${meta.dockLabel}`}
             className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-1.5 rounded-full border border-violet-500/40 bg-surface/90 px-3.5 py-2.5 text-xs font-medium text-ai shadow-lg shadow-scrim/40 backdrop-blur transition hover:border-violet-500/70"
           >

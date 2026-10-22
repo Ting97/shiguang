@@ -22,7 +22,6 @@ import TodoSection from "./todo-section";
 import ReflectionTab from "./reflection-tab";
 import MomentsTab from "./moments-tab";
 import {
-  deleteTodo,
   loadActivities,
   loadTodoView,
   patchTodo,

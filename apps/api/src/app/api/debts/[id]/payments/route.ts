@@ -86,11 +86,14 @@ export const POST = withModuleParams("debt", async (req, { user, params }) => {
       ).rows[0];
       txId = tx.id;
     }
+    // note 长度上限与负债本体同口径（≤200，validateDebtBody）：还款流水 note 随余额曲线接口全量回传
+    const payNote = optionalTrimmed(body.note, "note") ?? null;
+    if (payNote && payNote.length > 200) throw ApiError.badRequest("备注最长 200 字");
     const payment = (
       await client.query(
         `insert into liability_payments (user_id, liability_id, amount_cents, paid_at, account_id, tx_id, note)
          values ($1,$2,$3,$4,$5,$6,$7) returning *`,
-        [user.id, id, body.amountCents, paidAt, accountId, txId, optionalTrimmed(body.note, "note") ?? null],
+        [user.id, id, body.amountCents, paidAt, accountId, txId, payNote],
       )
     ).rows[0];
     const updated = (

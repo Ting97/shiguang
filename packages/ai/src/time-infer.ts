@@ -101,10 +101,10 @@ export function detectDayRef(text: string, now: Date): number | null {
   // 也不能落到 上周 -7 兜底（「9月30号周三」≠上周）。
   // 裸「N号+周X」同守（十五轮 P2：旧守卫只认 M月N号/完整日期，「15号周三交了房租」
   // 仍被周X分支劫持成上周X——显式日 15 号被丢、偏 22 天；lookbehind 与 EXPLICIT_DAY_RE /
-  // parse.ts 裸 N号 分支同款，防「3号球衣」类编号误伤）
+  // parse.ts 裸 N号 分支同款，防「3号球衣」类编号误伤；lookahead 同款防「2号线」类线址编号）
   if (
     /\d{1,2}\s*月\s*\d{1,2}\s*[号日]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}/.test(text) ||
-    /(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日]/.test(text)
+    /(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日](?![线楼层栋路室排座门])/.test(text)
   )
     return null;
   const wd = text.match(/(上)?(?:周|礼拜|星期)([一二三四五六日天])/);
@@ -182,9 +182,15 @@ const WEEKDAYS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 
  *  与 relativeOffsetDays 同族：detectFuture 用于「soon」桶判定（锚定豁免），
  *  inferFuture 用于规则兜底的确定性分钟锚（旧版「两小时后」落 now+1h）。 */
 export function relativeOffsetMinutes(text: string): number | null {
-  // lookbehind 防「1.5小时后」被尾部 5 抢匹配成 5 小时
-  const m = text.match(/(?<![\d.])([一两俩二三四五六七八九十\d]+)\s*个?半?\s*(?:小时|钟头)\s*(?:之|以)?后/);
+  // 数字组支持小数：「1.5小时后开会」旧版被 lookbehind(?<![\d.]) 整段拒绝 → detectFuture 漏判未来
+  // （lookbehind 保留，防「12.5小时后」被尾部 5 抢配）；小数只走 parseFloat，不经 cnToNumber
+  const m = text.match(/(?<![\d.])([一两俩二三四五六七八九十\d]+(?:\.\d+)?|\d+\.\d+)\s*个?半?\s*(?:小时|钟头)\s*(?:之|以)?后/);
   if (m) {
+    if (/^\d+(?:\.\d+)?$/.test(m[1])) {
+      const d = parseFloat(m[1]);
+      if (d > 0 && d <= 24) return /个?半/.test(m[0]) ? Math.round(d * 60) + 30 : Math.round(d * 60);
+      return null;
+    }
     const n = cnToNumber(m[1]);
     if (n === null || n <= 0 || n > 24) return null;
     return /个?半/.test(m[0]) ? n * 60 + 30 : n * 60;
@@ -257,7 +263,7 @@ function atHour(base: Date, hour: number, minute = 0): Date {
  * 只表「话术带了日期信息」，宁全勿缺——漏了就会被锚定拉回今天；十三轮补「3天之后/一个月以后」
  * 变体；数字类与 parseDuration 同口径含 俩/百，单位含 年，另收「半个月后」） */
 const EXPLICIT_DAY_RE =
-  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?:上|本|下)个?月\s*[一两俩二三四五六七八九十\d]{1,3}\s*[号日]|[零一两俩二三四五六七八九十百\d]+\s*(?:天|周|礼拜|星期|个?月|年)\s*(?:之|以)?后|半个月后|月初|月底|月末|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日])/;
+  /(今天|今日|昨天|昨晚|昨夜|昨儿|前天|大前天|明天|明早|明晚|明儿|后天|大后天|上周|上礼拜|上星期|下周|下礼拜|下星期|周[一二三四五六日天末]|礼拜[一二三四五六日天末]|星期[一二三四五六日天末]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|(?:上|本|下)个?月\s*[一两俩二三四五六七八九十\d]{1,3}\s*[号日]|[零一两俩二三四五六七八九十百\d]+\s*(?:天|周|礼拜|星期|个?月|年)\s*(?:之|以)?后|半个月后|月初|月底|月末|(?<![月年\d个件条辆间套位张台页只支])\d{1,2}\s*[号日](?![线楼层栋路室排座门]))/;
 
 export function hasExplicitDayRef(text: string): boolean {
   return EXPLICIT_DAY_RE.test(text);

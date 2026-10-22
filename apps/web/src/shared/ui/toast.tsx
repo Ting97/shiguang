@@ -6,7 +6,7 @@
  * 自动消失（ok 3.2s / info 4.2s / err 8s）、点击关闭、Esc 关最旧、同屏 ≤3 条。
  * 表单行内错误不走这里（就近展示原则），这里只做操作结果与全局提示。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 
 export type ToastKind = "ok" | "err" | "info";
@@ -41,6 +41,10 @@ const TONE: Record<ToastKind, string> = {
 
 export function ToastHost() {
   const [items, setItems] = useState<ToastItem[]>([]);
+  // items 的 ref 镜像：dismissOldest 需要读最新列表——在 setItems updater 内调 remove()
+  // 属于 updater 副作用（StrictMode 双调会重复执行，虽幂等但违反纯函数约定）
+  const itemsRef = useRef<ToastItem[]>([]);
+  itemsRef.current = items;
 
   const remove = useCallback((id: number) => {
     setItems((arr) => arr.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
@@ -57,10 +61,8 @@ export function ToastHost() {
       setTimeout(() => remove(t.id), DURATION_MS[t.kind]);
     };
     dismissOldest = () => {
-      setItems((arr) => {
-        if (arr.length > 0) remove(arr[0].id);
-        return arr;
-      });
+      const first = itemsRef.current[0];
+      if (first) remove(first.id);
     };
     return () => {
       push = null;

@@ -193,7 +193,7 @@ function DailySection({ accountId }: { accountId: string }) {
 
   const weeks: WeekDay[] = days ? groupByWeek(days) : [];
   const view: (DailyDay | WeekDay)[] = mode === "week" ? weeks : days ?? [];
-  const isWeek = (d: DailyDay | WeekDay): d is WeekDay => mode === "week";
+  const isWeek = (_day: DailyDay | WeekDay): _day is WeekDay => mode === "week";
   const maxAbs = Math.max(1, ...view.map((d) => Math.abs(d.net)));
   const [curFrom, curTo] = bjMonthRange(0);
   const [prevFrom, prevTo] = bjMonthRange(-1);
@@ -1003,16 +1003,10 @@ export default function TradingPage() {
       .finally(() => Taro.stopPullDownRefresh());
   });
 
-  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
-  if (!getSessionToken()) {
-    return (
-      <PageShell active="finance">
-        <GuestGate title="交易账户" desc="Bitget 合约交易同步、每日盈亏与手数统计" />
-      </PageShell>
-    );
-  }
-
-  /** 一键同步：对每把已绑定的 Bitget 密钥各做一次增量同步；未绑定密钥提示去 web 绑定（= web 打开绑定抽屉） */
+  /** 一键同步：对每把已绑定的 Bitget 密钥各做一次增量同步；未绑定密钥提示去 web 绑定（= web 打开绑定抽屉）。
+   *  必须位于全部早退分支之前（Rules of Hooks）：token 过期 401 → toLogin 同步清 token 后
+   *  load() 的 catch setState 触发重渲染走游客早退，旧版本块在早退之后——本次渲染 hooks
+   *  数比上次少 2，React 抛 "Rendered fewer hooks" 整树卸载白屏 */
   const quickSync = useCallback(async () => {
     if (quickSyncing) return;
     setQuickSyncing(true);
@@ -1041,6 +1035,15 @@ export default function TradingPage() {
 
   const active = useMemo(() => accounts?.find((a) => a.id === activeId) ?? null, [accounts, activeId]);
   const hasModule = modules?.includes("trading") ?? false;
+
+  // 游客无服务端只读通道（/api 全 401）：给出登录引导出口（全部 hooks 之后早退）
+  if (!getSessionToken()) {
+    return (
+      <PageShell active="finance">
+        <GuestGate title="交易账户" desc="Bitget 合约交易同步、每日盈亏与手数统计" />
+      </PageShell>
+    );
+  }
 
   if (locked || (modules !== null && !hasModule)) {
     return (

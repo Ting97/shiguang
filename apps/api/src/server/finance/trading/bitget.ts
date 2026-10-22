@@ -254,10 +254,12 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
 
   let from = String(body.from ?? "");
   if (!from) {
-    // 增量默认：该账号最后一笔平仓日 -1 天（重叠窗口幂等去重兜底）；无历史则近 30 天
+    // 增量默认：该账号最后一笔平仓日 -1 天（重叠窗口幂等去重兜底）；无历史则近 30 天。
+    // source 过滤：login 缺省即 keyLabel（如「默认」），MT5 账号 login 同名时另一来源的
+    // 平仓时间会把增量起点污染成异常窗口（多拉/漏拉由 ticket 幂等兜底，但窗口不可控放大）
     const { rows } = await pool.query(
       `select max(close_time) as last from trades t join trade_accounts a on a.id = t.account_id
-       where t.user_id = $1 and a.login = $2`,
+       where t.user_id = $1 and a.login = $2 and a.source = 'bitget'`,
       [userId, login],
     );
     const last = rows[0]?.last ? new Date(rows[0].last) : null;

@@ -484,7 +484,7 @@ test("REQ-023 真库：同步遇目录外动作名返回 needsConfirmation → �
         { name: "坐姿划船", sets: 3, repsText: "10-12", weightG: 40000 },
       ],
     },
-  }, { fetcher: stubFetcher({ catalog }).fetcher });
+  }, { fetcher: stubFetcher({ catalog }).fetcher, aiMatch: async () => [] });
   const planId = saved.plan.id;
 
   // 首次同步（无确认）→ needsConfirmation + 候选

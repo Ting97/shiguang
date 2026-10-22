@@ -22,7 +22,7 @@ export interface SubCtl {
 export default function TodoCard({
   t,
   activities,
-  spaces,
+  spaces: _spaces,
   open,
   sub,
   editSignal,

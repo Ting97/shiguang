@@ -112,9 +112,12 @@ export function bjDayIdx(t: number): number {
   return Math.floor((t + 8 * 3600_000) / 86_400_000);
 }
 
-/** ISO → 北京日历日键 YYYY-MM-DD（= web bjDateKey；localDateKey 是宿主时区口径，跨设备日界错位） */
+/** ISO → 北京日历日键 YYYY-MM-DD（= web bjDateKey；localDateKey 是宿主时区口径，跨设备日界错位）。
+ *  非法 ISO 返回空串（同 bjAddDays 防御口径：toISOString() 对 Invalid Date 会抛 RangeError） */
 export function bjDateKey(iso: string): string {
-  return new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  return new Date(t + 8 * 3600_000).toISOString().slice(0, 10);
 }
 
 /** 当前北京时刻的分钟数（时间轴红线等；禁本地 getter） */
@@ -125,9 +128,12 @@ export function bjNowMin(): number {
 
 // ===== 北京墙上时间（= web lib/bj-time 单源，REQ-009 9-C 起多份副本收敛于此） =====
 
-/** ISO → 北京时间 HH:MM（UTC getter + 8h；本地 getter 在非中国时区设备会错 8 小时） */
+/** ISO → 北京时间 HH:MM（UTC getter + 8h；本地 getter 在非中国时区设备会错 8 小时）。
+ *  非法 ISO 返回 "—"（zhDate 守卫同口径，不把 Invalid Date 抛到界面） */
 export function zhTime(iso: string): string {
-  const d = new Date(new Date(iso).getTime() + 8 * 3600_000);
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "—";
+  const d = new Date(t + 8 * 3600_000);
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 

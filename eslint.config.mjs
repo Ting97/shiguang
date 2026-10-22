@@ -10,7 +10,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/.next/**", "**/out/**", "**/dist/**", "apps/miniapp/**", "docs/**", ".zcode/**", ".local/**", "**/next-env.d.ts"] },
+  { ignores: ["**/node_modules/**", "**/.next/**", "**/out/**", "**/dist/**", "apps/miniapp/babel.config.js", "docs/**", ".zcode/**", ".local/**", "**/next-env.d.ts"] },
   {
     // Node 环境的 .mjs 脚本（tools/e2e 脚本）需要 node/browser 全局
     files: ["**/*.mjs", "**/*.cjs"],
@@ -67,6 +67,16 @@ export default tseslint.config(
     // packages/ai 与脚本文件需要 process.env（GLM/Jev 配置；纯包不能 import apps/api 的 config）
     files: ["packages/ai/src/**/*.ts", "packages/shared/src/**/*.ts", "packages/db/**/*.ts"],
     rules: {},
+  },
+  {
+    // 小程序端 hooks 顺序红线（其余 TS/Next 规则维持 ignore：Taro 工程化差异）——
+    // trading/contact 两页曾在游客早退 return 之后调用 useCallback/useMemo，token 过期重渲染时整树卸载白屏
+    files: ["apps/miniapp/**/*.tsx"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "off",
+    },
   },
   {
     // 领域依赖规则（FR-B1.3，lib 已清零）：

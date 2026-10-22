@@ -172,13 +172,21 @@ export default function PublishSheet({
     if (!lastEntryId.current || uploading) return;
     const retryFiles = images.filter((i) => i.status === "error").map((i) => i.file);
     if (!retryFiles.length) return;
+    const retrySet = new Set(retryFiles);
     setImages((prev) => prev.map((i) => (i.status === "error" ? { ...i, status: "uploading" as const } : i)));
     setUploading(true);
     try {
       const { failed } = await uploadImages(lastEntryId.current, retryFiles);
       if (failed.length) {
         const failedSet = new Set(failed);
-        setImages((prev) => prev.filter((i) => failedSet.has(i.file)).map((i) => ({ ...i, status: "error" as const })));
+        setImages((prev) =>
+          // 只处理本批重试项：重传期间新增的 ready/uploading 项原样保留（publish() 的
+          // `!fileSet.has(i.file) || failedSet.has(i.file)` 同口径——旧版只留失败项，
+          // 期间新选的图片连同 blob URL 一起被丢）
+          prev
+            .filter((i) => !retrySet.has(i.file) || failedSet.has(i.file))
+            .map((i) => (retrySet.has(i.file) ? { ...i, status: "error" as const } : i)),
+        );
         setSheetMsg(`仍有 ${failed.length} 张上传失败，请稍后再试`);
         return;
       }

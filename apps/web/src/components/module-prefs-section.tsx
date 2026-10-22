@@ -93,7 +93,8 @@ export default function ModulePrefsSection() {
                 checked={p.effective && parentOn}
                 disabled={busy || !parentOn}
                 onChange={(next) => toggle(p.key, p.name, next)}
-                title={p.effective ? "点击关闭" : "点击开启"}
+                // title 与 checked 同口径：父模块关闭时开关显示为关，tooltip 不得提示「点击关闭」
+                title={p.effective && parentOn ? "点击关闭" : "点击开启"}
               />
             </li>
           );

@@ -9,7 +9,6 @@ import type { Activity, Block } from "./api";
 import { bjDateKey, bjToday, weekName, zhDate, zhDuration } from "./date";
 
 const PPM = 0.6; // 一分钟的设计单位（web PX_PER_MIN 0.3px ×2），一天 864 高
-const DAY_H = 1440 * PPM;
 
 /** 块与 [fromMs, fromMs + spanMin 分钟) 区间的交集分钟数 */
 function clampMin(b: Block, fromMs: number, spanMin: number) {

@@ -2,5 +2,12 @@
 # 自动 HTTPS（Let's Encrypt）；web 静态由 API 进程托管（/ 单一上游），无第二上游
 shiguang.ting97.cn {
 	encode gzip
-	reverse_proxy 127.0.0.1:3001
+	# 基础安全响应头（十六轮补齐：模板与生产同步）
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+	reverse_proxy 127.0.0.1:3000
 }

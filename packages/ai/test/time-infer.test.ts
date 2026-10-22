@@ -387,7 +387,7 @@ test("「两小时后/半小时后/两个半小时后」→ soon 桶 + 确定性
   assert.equal(relativeOffsetMinutes("3小时之后"), 180);
   assert.equal(relativeOffsetMinutes("两个半小时后"), 150);
   assert.equal(relativeOffsetMinutes("半小时后"), 30);
-  assert.equal(relativeOffsetMinutes("1.5小时后"), null); // 小数小时不误读成「5小时」
+  assert.equal(relativeOffsetMinutes("1.5小时后"), 90); // 十六轮：小数小时整段捕获（旧版保守拒绝 null，防的只是被尾部 5 抢配成 5 小时）
   const tb = inferTimeBlock("两小时后取快递", LATE, 15);
   assert.equal(tb.start.getTime(), CST("2026-10-09T01:30:00+08:00"));
   // AI 路径锚定豁免：跨午夜 due 不被 anchorRangeToToday 平移回当天

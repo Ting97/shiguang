@@ -80,7 +80,8 @@ export default function FinanceReviewPage() {
         setLocked(true);
         return;
       }
-      setStats(null);
+      // 保留已渲染的旧统计（finance 主页口径）：翻周/切日失败仅置错误横幅，
+      // 旧版整屏打成「加载失败」把可用数据也撤走
       setStatsErr(e instanceof Error ? e.message : String(e));
     }
   }, [period, anchor]);
@@ -224,6 +225,15 @@ export default function FinanceReviewPage() {
           )
         ) : (
           <>
+            {/* 刷新失败横幅（保留旧统计口径）：数据可能滞后，给重试入口而不撤走可用数据 */}
+            {statsErr && (
+              <div className="mb-3 flex items-center justify-between rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs text-danger">
+                <span>刷新失败：{statsErr}（下方为最近成功的数据）</span>
+                <button onClick={() => void loadStats()} className="shrink-0 underline underline-offset-2">
+                  重试
+                </button>
+              </div>
+            )}
             {/* 统计卡 */}
             <section className="glass mb-4 rounded-2xl p-5">
               <div className="grid grid-cols-3 gap-3 text-center">

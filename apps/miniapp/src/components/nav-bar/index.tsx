@@ -22,10 +22,8 @@ const ITEMS = [
 
 export type NavKey = (typeof ITEMS)[number]["key"];
 
-/** 登录/绑定等无导航页路由（= web NAVLESS_PATHS） */
-// 登录页为唯一 NAVLESS 页（bind 死页已下线 REQ-011）；本常量历史上无外部消费方，仅作语义存档
-const NAVLESS_PATHS = ["/pages/login/index"];
-
+/** 登录/绑定等无导航页路由（= web NAVLESS_PATHS）。
+ * 登录页为唯一 NAVLESS 页（bind 死页已下线 REQ-011）；历史上无外部消费方，不再保留未用常量 */
 export default function NavBar({ active }: { active?: NavKey }) {
   const [leaving, setLeaving] = useState(false);
 

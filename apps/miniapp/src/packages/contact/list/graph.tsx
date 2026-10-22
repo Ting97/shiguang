@@ -44,8 +44,6 @@ function buildLayout(contacts: ContactRow[], size: number): Layout {
   const cx = size / 2;
   const cy = size / 2;
   const n = contacts.length;
-  const counts = contacts.map((c) => Number(c.interaction_count) || 0);
-  const maxCount = Math.max(1, ...counts);
   const nodeR = (c: ContactRow) => {
     const intimacy = Math.min(100, Math.max(0, Number(c.intimacy) || 0));
     const count = Math.min(10, Number(c.interaction_count) || 0);

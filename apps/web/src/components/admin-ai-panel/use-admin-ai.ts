@@ -184,7 +184,8 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
       notify(`「${sel.title}」已恢复代码默认`);
       const list = await load();
       const fresh = list?.find((x) => x.key === sel.key);
-      if (fresh) pick(fresh);
+      // selRef 守卫与 save() 同款：await 期间用户已点选其他 prompt 时 pick 会顶掉其正在编辑的草稿
+      if (fresh && selRef.current === sel.key) pick(fresh);
     } catch (e) {
       // 服务端错误信息透传（与 rollback 同口径），不再笼统「操作失败」
       notify(e instanceof Error ? e.message : "操作失败", false);
@@ -202,7 +203,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
       notify(`已回滚到 ${zhTime(v.created_at)} 的版本`);
       const list = await load();
       const fresh = list?.find((x) => x.key === sel.key);
-      if (fresh) pick(fresh);
+      if (fresh && selRef.current === sel.key) pick(fresh);
     } catch (e) {
       notify(e instanceof Error ? e.message : "回滚失败", false);
     }

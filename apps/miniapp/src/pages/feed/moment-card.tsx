@@ -41,7 +41,7 @@ import EntryMenu from "./entry-menu";
 import { bjClock, bjDateKey, bjInputToIso, combineHM, combineHmEndCrossDay, dayPrefix, DOMAIN_LABELS, COMMON_MOODS, isoToBjInput, moodEmoji, moodToneColor, todoTimeLabel, TX_CATEGORIES, yuanCents } from "./kit";
 import { rowMenu } from "../../lib/row-menu";
 import "./moment-card.scss";
-import { yuanToCents } from "@shiguangri/shared";
+import { yuanToCents, centsToYuanInput } from "@shiguangri/shared";
 
 
 export default function MomentCard({
@@ -611,7 +611,7 @@ export default function MomentCard({
                       setEditTx({
                         id: x.id,
                         direction: x.direction,
-                        amount: String(Number(x.amountCents) / 100),
+                        amount: centsToYuanInput(Number(x.amountCents)),
                         category: TX_CATEGORIES.includes(x.category) ? x.category : "其他",
                         counterparty: x.counterparty ?? "",
                       }), () => del(`tx:${x.id}`, () => deleteTransaction(x.id)))

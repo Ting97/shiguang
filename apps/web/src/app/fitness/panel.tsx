@@ -825,6 +825,15 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
         return;
       }
     }
+    // 范围/整数前置校验（十五轮 SleepCard 同型）：服务端 zod 兜底的英文原文
+    // （fatigue Expected integer/Number must be less than or equal to 10）不得直达中文界面
+    if (fatigue) {
+      const f = Number(fatigue);
+      if (!Number.isInteger(f) || f < 1 || f > 10) {
+        toast("疲劳度需为 1~10 的整数", "err");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const actual: Record<string, unknown> = {};
@@ -901,12 +910,12 @@ function CheckInModal({ plan, onClose, onDone }: { plan: FitnessPlan; onClose: (
           </label>
           <label className="text-xs text-ink-mute">
             酸痛部位
-            <input className={inputCls} value={soreness} onChange={(e) => setSoreness(e.target.value)} placeholder="大腿前侧" />
+            <input className={inputCls} maxLength={60} value={soreness} onChange={(e) => setSoreness(e.target.value)} placeholder="大腿前侧" />
           </label>
         </div>
         <label className="block text-xs text-ink-mute">
           一句话备注
-          <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="最后一组间歇顶住了" />
+          <input className={inputCls} maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} placeholder="最后一组间歇顶住了" />
         </label>
         <div className="flex justify-end gap-2">
           <button className="btn-ghost px-3 py-1.5 text-sm" onClick={onClose}>
@@ -1023,6 +1032,26 @@ function MetricCard({ today, last, reload }: { today: string; last: FitnessBodyM
       if (v && !Number.isFinite(Number(v))) {
         toast(`${label}格式不正确`, "err");
         return;
+      }
+    }
+    // 范围前置校验（十五轮 SleepCard 同型）：服务端 zod 兜底的英文原文不得直达中文界面
+    // 口径对齐 MetricInput：weightKg 20~300 / waistCm 30~200 / heightCm 50~250 / bodyFatPct 3~60
+    const ranges: Array<[string, number, number]> = [
+      ["weightKg", 20, 300],
+      ["waistCm", 30, 200],
+      ["heightCm", 50, 250],
+      ["bodyFatPct", 3, 60],
+    ];
+    const labels: Record<string, string> = { weightKg: "体重", waistCm: "腰围", heightCm: "身高", bodyFatPct: "体脂率" };
+    for (const [key, min, max] of ranges) {
+      const v = fields.find(([k]) => k === key)?.[1];
+      if (v) {
+        const n = Number(v);
+        const unit = key === "bodyFatPct" ? "%" : key === "weightKg" ? "kg" : "cm";
+        if (n < min || n > max) {
+          toast(`${labels[key]}需在 ${min}~${max}${unit} 之间`, "err");
+          return;
+        }
       }
     }
     setBusy(true);

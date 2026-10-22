@@ -273,14 +273,18 @@ export default function ActionsToday({ notify }: { notify: (e: { ok: boolean; te
     }
   }
 
-  // 整卡折叠（REQ-今日行动可收起）：默认展开，记住用户选择
-  const [collapsed, setCollapsed] = useState(() => {
+  // 整卡折叠（REQ-今日行动可收起）：默认展开，记住用户选择。
+  // initializer 固定 false、mount 后读 localStorage 纠正（reminders-banner 同款）：
+  // 旧版 initializer 直读 localStorage——SSR 首帧恒 false 而客户端收起过的用户首帧 true，
+  // hydration mismatch 丢服务端 HTML 整棵重渲（收起用户每次进首页闪烁）
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
     try {
-      return localStorage.getItem("shiguang_actions_collapsed") === "1";
+      setCollapsed(localStorage.getItem("shiguang_actions_collapsed") === "1");
     } catch {
-      return false;
+      /* 读失败按展开 */
     }
-  });
+  }, []);
 
   function toggleCollapsed() {
     setCollapsed((v) => {
