@@ -70,7 +70,7 @@ export default function DebtImportDrawer({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busyRef.current) onClose();
+      if (e.key === "Escape" && !e.isComposing && !busyRef.current) onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -129,7 +129,8 @@ export default function DebtImportDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={guardClose}>
+    // --z-modal token（全站唯一裸 z-50 浮层收口）：与 Modal 同层，防 token 层级调整后被遗漏
+    <div className="fixed inset-0 z-[var(--z-modal)] flex justify-end bg-black/40" onClick={guardClose}>
       <div
         className="h-full w-full max-w-xl overflow-y-auto rounded-l-2xl border-l border-line-soft bg-surface p-5"
         onClick={(e) => e.stopPropagation()}

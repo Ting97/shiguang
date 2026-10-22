@@ -135,10 +135,19 @@ function normalize(
   data: z.infer<typeof responseSchema>,
   questions: JevQuestions,
 ): JevAnswers {
+  // 概率钳制（十四轮 P3）：与 noul 同款归一——超 1 按 /100，仍越界钳回 [0,1]。
+  // 原值越界（如 probabilities.true=99 且无 noul）会让 noulOf 透传进 ParseResult 的
+  // max(1) 契约抛 ZodError，混合引擎对该响应整单作废（双倍成本重打 GLM）
+  const clampProb = (v: number): number => {
+    const p = v > 1 ? v / 100 : v;
+    return Math.min(1, Math.max(0, p));
+  };
+  const clampRecord = (r: Record<string, number>): Record<string, number> =>
+    Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "number" && isFinite(v) ? clampProb(v) : 0]));
   const answers: JevAnswers["answers"] = {};
   for (const [qKey, q] of Object.entries(questions)) {
     const a = data.answers[qKey] ?? {};
-    const probabilities = (a.probabilities ?? null) as Record<string, number> | null;
+    const probabilities = a.probabilities ? clampRecord(a.probabilities) : null;
     const confidence = a.confidence ?? null;
     if (q.type === "choice") {
       const value = (a.choice ?? (typeof a.answer === "string" ? a.answer : null)) ?? null;

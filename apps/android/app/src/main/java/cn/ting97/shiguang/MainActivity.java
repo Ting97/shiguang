@@ -172,7 +172,7 @@ public class MainActivity extends Activity {
                 }
                 if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
                         == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    runOnUiThread(() -> request.grant(request.getResources()));
+                    runOnUiThread(() -> request.grant(micOnly()));
                 } else {
                     pendingMicRequest = request;
                     requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQ_MIC);
@@ -293,13 +293,18 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_MIC && pendingMicRequest != null) {
             if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                pendingMicRequest.grant(pendingMicRequest.getResources());
+                pendingMicRequest.grant(micOnly());
             } else {
                 pendingMicRequest.deny();
                 Toast.makeText(this, "未授予麦克风权限，语音记账不可用", Toast.LENGTH_LONG).show();
             }
             pendingMicRequest = null;
         }
+    }
+
+    /** 只授予麦克风资源：网页可能在同一请求夹带摄像头等资源，全量 grant 会越权 */
+    private static String[] micOnly() {
+        return new String[]{ PermissionRequest.RESOURCE_AUDIO_CAPTURE };
     }
 
     @Override

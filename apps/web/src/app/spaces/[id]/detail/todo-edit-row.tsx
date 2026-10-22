@@ -35,7 +35,7 @@ export default function TodoEditRow(opts: {
           onChange={(e) => setEditTitle(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit();
-            if (e.key === "Escape") setEditingId(null);
+            if (e.key === "Escape" && !e.nativeEvent.isComposing) setEditingId(null);
           }}
           className="min-w-32 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm outline-none focus:border-sky-500"
         />

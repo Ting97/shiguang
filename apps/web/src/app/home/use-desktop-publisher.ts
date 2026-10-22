@@ -49,10 +49,9 @@ export function useDesktopPublisher({ setMsg, load }: { setMsg: Notify; load: ()
   }
 
   function removeDesktopImage(index: number) {
-    setDesktopImages((prev) => {
-      URL.revokeObjectURL(prev[index]?.url ?? "");
-      return prev.filter((_, i) => i !== index);
-    });
+    // revoke 在 updater 外（updater 必须纯函数——StrictMode 双调会重复执行副作用）
+    URL.revokeObjectURL(desktopImages[index]?.url ?? "");
+    setDesktopImages((prev) => prev.filter((_, i) => i !== index));
   }
 
   /** 上传失败重试：用暂存的 entryId 重新上传仍处于 error 态的图片 */
@@ -104,13 +103,11 @@ export function useDesktopPublisher({ setMsg, load }: { setMsg: Notify; load: ()
       );
       setMsg({ ok: false, text: "动态已发布；部分图片上传失败，点缩略图上的「↻ 重试」" });
     } else {
-      setDesktopImages((prev) => {
-        // 只回收本批项的 blob URL，旧 error 项仍在展示中不能 revoke
-        prev.forEach((i) => {
-          if (fileSet.has(i.file)) URL.revokeObjectURL(i.url);
-        });
-        return prev.filter((i) => !fileSet.has(i.file));
+      // 只回收本批项的 blob URL，旧 error 项仍在展示中不能 revoke——revoke 在 updater 外（updater 必须纯函数）
+      desktopImages.forEach((i) => {
+        if (fileSet.has(i.file)) URL.revokeObjectURL(i.url);
       });
+      setDesktopImages((prev) => prev.filter((i) => !fileSet.has(i.file)));
       setMsg({ ok: true, text: "✨ 动态与图片已发布，AI 正在识别…" });
     }
     void load();

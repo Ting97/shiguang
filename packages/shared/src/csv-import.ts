@@ -81,9 +81,11 @@ export function splitCsvLines(text: string): string[][] {
 export function parseAmount(raw: string): number | null {
   const cleaned = raw.replace(/[¥￥,\s]/g, "").trim();
   if (!cleaned) return null;
-  const n = Number.parseFloat(cleaned);
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n * 100);
+  if (!/^\d+(?:\.\d+)?$/.test(cleaned)) return null; // 非纯数字（含负号/科学计数）不认
+  // 字符串商余口径（对齐 yuanToCents）：parseFloat*100 对三位小数会舍错（1.115→111.49999→111）
+  const [int, frac = ""] = cleaned.split(".");
+  const cents = Number(int) * 100 + Number((frac + "00").slice(0, 2));
+  return cents;
 }
 
 /** "2026-09-17 12:30:45"（北京时间）→ UTC ISO；非法返回 null */

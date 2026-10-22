@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays, relativeOffsetMinutes, detectDayRef } from "../src/time-infer.js";
 import { toCstWallClock } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
@@ -333,4 +333,68 @@ test("「3天之后/一周之后/一个月以后」→ relativeOffsetDays 命中
   assert.equal(hasExplicitDayRef("3天之后交报告"), true);
   assert.equal(hasExplicitDayRef("一个月以后还"), true);
   assert.equal(hasExplicitDayRef("3天后交报告"), true); // 旧口径不回归
+});
+
+// —— 十四轮回归：周几不得压过显式日期（「9月30号周三」曾按记账日锚成上周三，错 7 天） ——
+
+test("周X+显式月日：显式日期完全压过周X相对推算（finance occurredDate 与日程块同口径）", () => {
+  const OCT8 = new Date("2026-10-08T16:00:00+08:00"); // 周四
+  // 「9月30号周三」：周X 分支会按本周三（10-07）推算——显式日期必须赢
+  const tb = inferTimeBlock("9月30号周三开了会", OCT8, 60);
+  assert.equal(tb.start.getTime(), CST("2026-09-30T20:00:00+08:00"));
+  const tb2 = inferTimeBlock("9月30号下午3点到5点开了会", OCT8, 60);
+  assert.equal(tb2.start.getTime(), CST("2026-09-30T15:00:00+08:00"));
+  assert.equal(tb2.end.getTime(), CST("2026-09-30T17:00:00+08:00"));
+  // detectDayRef 对显式月日一律让路（返回 null，交回显式日期分支）
+  assert.equal(detectDayRef("9月30号周三开会", OCT8), null);
+  assert.equal(detectDayRef("10月1号周四随了600", OCT8), null);
+  // 回归不破：纯周X/相对日语义不变
+  assert.equal(detectDayRef("周三开会", OCT8), -1); // 本周四说「周三」→ 上周三
+  assert.equal(detectDayRef("昨天开会", OCT8), -1);
+});
+
+test("「今天周X」→ 今天优先（旧版周X分支排前，今天非周X时被推算成上周X）", () => {
+  const OCT8 = new Date("2026-10-08T16:00:00+08:00"); // 周四
+  assert.equal(detectDayRef("今天周三开了会", OCT8), 0);
+  const tb = inferTimeBlock("今天下午2点到4点做了账", OCT8, 60);
+  assert.equal(tb.start.getTime(), CST("2026-10-08T14:00:00+08:00"));
+});
+
+test("「下个月15号交房租」→ 下月 15 日 20:00（旧版 -8h 后回读 UTC 日期恒失败，显式日分支成死代码）", () => {
+  const SEP28 = new Date("2026-09-28T16:00:00+08:00");
+  const tb = inferTimeBlock("下个月15号交房租", SEP28, 30);
+  assert.equal(tb.start.getTime(), CST("2026-10-15T20:00:00+08:00"));
+  // 2 月无 30 号：日历回读失败放弃显式日（宁缺勿错口径保持）
+  const tb2 = inferTimeBlock("下个月30号还房贷", new Date("2026-01-20T16:00:00+08:00"), 30);
+  assert.equal(tb2.start.getTime() !== new Date("2026-02-30T00:00:00Z").getTime(), true);
+});
+
+// —— 十四轮回归：「N小时后/半小时后」入未来词表（23:30 说「两小时后」曾被锚定拉回当天已过期） ——
+
+test("「两小时后/半小时后/两个半小时后」→ soon 桶 + 确定性分钟锚（跨午夜不再回退一天）", () => {
+  const LATE = new Date("2026-10-08T23:30:00+08:00");
+  assert.equal(detectFuture("两小时后取快递"), "soon");
+  assert.equal(detectFuture("半小时后开会"), "soon");
+  assert.equal(relativeOffsetMinutes("两小时后"), 120);
+  assert.equal(relativeOffsetMinutes("3小时之后"), 180);
+  assert.equal(relativeOffsetMinutes("两个半小时后"), 150);
+  assert.equal(relativeOffsetMinutes("半小时后"), 30);
+  assert.equal(relativeOffsetMinutes("1.5小时后"), null); // 小数小时不误读成「5小时」
+  const tb = inferTimeBlock("两小时后取快递", LATE, 15);
+  assert.equal(tb.start.getTime(), CST("2026-10-09T01:30:00+08:00"));
+  // AI 路径锚定豁免：跨午夜 due 不被 anchorRangeToToday 平移回当天
+  const due = new Date("2026-10-09T01:30:00+08:00");
+  assert.equal(anchorRangeToToday({ start: due, end: due }, "两小时后取快递", LATE).start.getTime(), due.getTime());
+});
+
+// —— 十四轮回归：「明晚八点」「昨夜11点」时段词缺口（曾落成明早 8 点/昨上午 11 点） ——
+
+test("「明晚八点」→ 次日 20:00；「昨夜11点」→ 昨晚 23:00（裸形态词表收口）", () => {
+  const NOW2 = new Date("2026-10-08T16:00:00+08:00");
+  assert.equal(detectPeriod("明晚八点开会"), "evening");
+  const tb = inferTimeBlock("明晚八点开会", NOW2, 60);
+  assert.equal(tb.start.getTime(), CST("2026-10-09T20:00:00+08:00"));
+  assert.equal(detectPeriod("昨夜11点刷了手机"), "evening");
+  const tb2 = inferTimeBlock("昨夜11点刷了手机", new Date("2026-10-08T23:30:00+08:00"), 30);
+  assert.equal(tb2.start.getTime(), CST("2026-10-07T23:00:00+08:00"));
 });

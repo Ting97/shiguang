@@ -136,7 +136,7 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
               <Mic size={10} className="text-ink-faint" />
             )}
           </span>
-          {/* 轨道：点击/拖拽 seek；h-4 热区内视觉条 h-1，播放头 hover/拖拽时放大 */}
+          {/* 轨道：点击/拖拽 seek；键盘 ←/→ ±5s、Home/End 到头尾（role=slider 的键盘可达性） */}
           <div
             ref={trackRef}
             role="slider"
@@ -145,6 +145,16 @@ export default function VoicePlayer({ storageKey }: { storageKey: string }) {
             aria-valuemax={Math.round(dur)}
             aria-valuenow={Math.round(cur)}
             tabIndex={0}
+            onKeyDown={(e) => {
+              const a = audioRef.current;
+              if (!a || !dur) return;
+              const step =
+                e.key === "ArrowLeft" ? -5 : e.key === "ArrowRight" ? 5 : e.key === "Home" ? -dur : e.key === "End" ? dur : 0;
+              if (!step) return;
+              e.preventDefault();
+              a.currentTime = Math.min(dur, Math.max(0, a.currentTime + step));
+              setCur(a.currentTime);
+            }}
             className="group flex h-4 min-w-0 flex-1 cursor-pointer touch-none select-none items-center"
             // pointer 事件用原生监听（useEffect 挂载）：点击/拖拽均可 seek
           >

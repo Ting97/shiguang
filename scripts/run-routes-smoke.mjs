@@ -28,6 +28,16 @@ if (!testDb) {
   process.exit(1);
 }
 
+// 端口已被残留进程占用时 next 会静默顺延端口，而健康检查/用例仍打 3123——
+// 整组用例会跑在陈旧服务上且全绿。起服务前 fail-fast。
+try {
+  const probe = await fetch(`${BASE}/api/health`);
+  console.error(`[smoke] 端口 ${PORT} 已被占用（health ${probe.status}）——请先清理残留进程再跑`);
+  process.exit(1);
+} catch {
+  /* 未监听，正常 */
+}
+
 const server = spawn("npx", ["next", "dev", "-p", String(PORT)], {
   cwd: join(root, "apps/api"),
   env: { ...process.env, DATABASE_URL: testDb, AUTH_DISABLED: "0" },
@@ -74,6 +84,7 @@ try {
   execSync("npx tsx --test test/routes-smoke.test.ts", {
     cwd: join(root, "apps/api"),
     stdio: "inherit",
+    timeout: 15 * 60_000, // 用例挂死时流水线无限等待的兜底
     env: { ...process.env, SHIGUANGRI_TEST_DB: testDb, SHIGUANGRI_SMOKE_BASE: BASE },
   });
   code = 0;

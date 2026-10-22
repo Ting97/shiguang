@@ -70,7 +70,7 @@ export function ToastHost() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") dismissOldest?.();
+      if (e.key === "Escape" && !e.isComposing) dismissOldest?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

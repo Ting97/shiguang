@@ -136,11 +136,12 @@ export default function TradesSection({ accountId }: { accountId: string }) {
         <p className="py-4 text-center text-xs text-ink-faint">该筛选条件下没有成交记录</p>
       ) : (
         <>
+          {/* 移动端隐藏时长列：390px 下固定列宽已把时间列挤到 ~14px（表头竖排、时间只见省略号） */}
           <div className="flex items-center gap-2 border-b border-line-soft px-1 pb-1 text-badge text-ink-faint">
             <span className="w-7">方向</span>
             <span className="w-20">品种 · 手数</span>
             <span className="min-w-0 flex-1">开仓 → 平仓（北京）</span>
-            <span className="w-14 text-right">时长</span>
+            <span className="hidden w-14 text-right sm:block">时长</span>
             <span className="w-20 text-right">净盈亏</span>
           </div>
           <ul>
@@ -164,7 +165,7 @@ export default function TradesSection({ accountId }: { accountId: string }) {
                 <span className="min-w-0 flex-1 truncate tabular-nums text-ink-dim">
                   {bjTime(t.openTime)} → {bjTime(t.closeTime)}
                 </span>
-                <span className="w-14 shrink-0 text-right tabular-nums text-ink-dim">{fmtHold(t.holdMinutes)}</span>
+                <span className="hidden w-14 shrink-0 text-right tabular-nums text-ink-dim sm:block">{fmtHold(t.holdMinutes)}</span>
                 <span className={`w-20 shrink-0 text-right font-semibold tabular-nums ${pnlColor(t.netProfit)}`}>
                   {fmtUsd(t.netProfit)}
                 </span>

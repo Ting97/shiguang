@@ -117,6 +117,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
 
   function pick(item: PromptItem) {
     aiSeq.current += 1; // 作废在途的 optimize/preview 回包（防串台到新选中的 prompt）
+    selRef.current = item.key;
     setSel(item);
     setDraft(item.dbContent ?? item.defaultContent);
     setEnabled(item.enabled);
@@ -147,13 +148,14 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
 
   async function save() {
     if (!sel || !draft.trim() || saving) return;
+    const key = sel.key; // 保存起点快照：await 期间用户可能已点选其他 prompt
     if (tplMissing.length || tplUnknown.length) {
       notify(`user 模板占位符未通过：${[...tplMissing.map((x) => `{${x}}缺失`), ...tplUnknown.map((x) => `{${x}}未知`)].join("、")}`, false);
       return;
     }
     setSaving(true);
     try {
-      await api(`/api/admin/prompts/${sel.key}`, "PUT", {
+      await api(`/api/admin/prompts/${key}`, "PUT", {
         content: draft,
         enabled,
         // 改回默认值 = 清除覆盖（null）；有改动才提交覆盖
@@ -162,8 +164,9 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
       });
       notify(`「${sel.title}」已保存并即时生效`);
       const list = await load();
-      const fresh = list?.find((x) => x.key === sel.key);
-      if (fresh) pick(fresh);
+      // 仅当用户仍停留在该 prompt 才重 pick：await 后用旧 sel 找回会顶掉正在编辑的其他项
+      const fresh = list?.find((x) => x.key === key);
+      if (fresh && selRef.current === key) pick(fresh); // await 期间用户已点选其他项则不拽回
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), false);
     } finally {
@@ -209,6 +212,7 @@ export function useAdminAi(notify: (text: string, ok?: boolean) => void) {
   // suggestion/previewText），慢回包无条件 setState 会把 A 的建议/预览挂到 B 的编辑上下文，
   // adoptSuggestion 一键写入 B 草稿 → 生产 prompt 被静默串台污染
   const aiSeq = useRef(0);
+  const selRef = useRef<string | null>(null); // sel.key 镜像：save 的 await 完成后判断用户是否仍停留原项
 
   async function optimize() {
     if (!sel || optimizing) return;

@@ -19,7 +19,10 @@ const statusOnly = process.argv.includes("--status");
 // 空库全量真实执行（测试库/新环境初始化）——与自举回填的区别是 SQL 真正落库
 const freshApply = process.argv.includes("--fresh");
 
-const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 });
+// 连接串口径与 run-coverage.mjs / run-routes-smoke.mjs 一致：DATABASE_URL 优先，测试库环境（CI 只注入
+// SHIGUANGRI_TEST_DB）回退——此前 CI「Prepare test database」步 112 连败的根因即只认 DATABASE_URL
+const connectionString = process.env.DATABASE_URL ?? process.env.SHIGUANGRI_TEST_DB;
+const client = new Client({ connectionString, connectionTimeoutMillis: 5000 });
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 

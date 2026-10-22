@@ -50,13 +50,18 @@ export default function SpaceListPage() {
   const armDelete = useArmConfirm();
   const [inited, setInited] = useState(false);
   const initedRef = useRef(false);
+  // load 竞态序号：useDidShow 重拉与下拉刷新并发时，慢的旧回包不得覆盖新回包（对齐 feed loadSeq 范式）
+  const loadSeqRef = useRef(0);
 
   async function load() {
+    const seq = ++loadSeqRef.current;
     setLoadErr(null);
     try {
       const j = await loadSpaces();
+      if (seq !== loadSeqRef.current) return;
       setSpaces((j.spaces as SpaceRow[]) ?? []);
     } catch (e: any) {
+      if (seq !== loadSeqRef.current) return;
       // 4xx 业务错置空列表（= web ApiClientError 分支）；网络异常给重试入口
       if (e?.status && e.status < 500) setSpaces([]);
       else setLoadErr(e?.message ?? "加载失败");

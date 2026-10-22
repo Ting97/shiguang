@@ -49,17 +49,28 @@ export const POST = withAdminParams(async (req, { user, params }) => {
     finalCfg = (cur?.context_config as Record<string, unknown> | null) ?? null;
   }
 
-  const { rows } = await pool.query(
-    `insert into ai_prompts (key, content, enabled, user_template, context_config, updated_by, updated_at)
-     values ($1,$2,true,$3,$4::jsonb,$5,now())
-     on conflict (key) do update set content = $2, enabled = true, user_template = $3, context_config = $4::jsonb, updated_by = $5, updated_at = now()
-     returning key, content, enabled, user_template, context_config, updated_at`,
-    [key, content, finalTpl, finalCfg ? JSON.stringify(finalCfg) : null, user.id],
-  );
-  await pool.query(
-    `insert into ai_prompt_versions (key, content, payload, restored_from, created_by) values ($1,$2,$3::jsonb,$4,$5)`,
-    [key, content, JSON.stringify({ system: content, userTemplate: finalTpl, contextConfig: finalCfg }), ver.id, user.id],
-  );
-  invalidatePrompts(key as PromptKey);
-  return NextResponse.json({ ok: true, prompt: rows[0] });
+  // 回滚生效 + restored_from 审计行两步写事务化（同 PUT：半完成会让回滚链路出空洞）
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const { rows } = await client.query(
+      `insert into ai_prompts (key, content, enabled, user_template, context_config, updated_by, updated_at)
+       values ($1,$2,true,$3,$4::jsonb,$5,now())
+       on conflict (key) do update set content = $2, enabled = true, user_template = $3, context_config = $4::jsonb, updated_by = $5, updated_at = now()
+       returning key, content, enabled, user_template, context_config, updated_at`,
+      [key, content, finalTpl, finalCfg ? JSON.stringify(finalCfg) : null, user.id],
+    );
+    await client.query(
+      `insert into ai_prompt_versions (key, content, payload, restored_from, created_by) values ($1,$2,$3::jsonb,$4,$5)`,
+      [key, content, JSON.stringify({ system: content, userTemplate: finalTpl, contextConfig: finalCfg }), ver.id, user.id],
+    );
+    await client.query("commit");
+    invalidatePrompts(key as PromptKey);
+    return NextResponse.json({ ok: true, prompt: rows[0] });
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 });

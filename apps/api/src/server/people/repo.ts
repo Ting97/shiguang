@@ -135,7 +135,7 @@ export const contactsRepo = {
          left join entries e on e.id = i.entry_id
          left join transactions t on t.id = i.tx_id
         where i.contact_id = $1 and i.user_id = $2
-        order by coalesce(i.occurred_at, i.created_at) desc
+        order by coalesce(i.occurred_at, i.created_at) desc, i.id desc
         limit 100`,
       [contactId, userId],
     );
@@ -146,7 +146,7 @@ export const contactsRepo = {
       `select id, direction, amount_cents, category, note, occurred_at
          from transactions
         where user_id = $1 and counterparty = $2 and category = '人情往来' and is_draft = false
-        order by occurred_at desc nulls last
+        order by occurred_at desc nulls last, id desc
         limit 50`,
       [userId, name],
     );
@@ -188,7 +188,7 @@ export const interactionsRepo = {
     return pool.query(
       `select id, type, summary, occurred_at, entry_id, created_at
        from interactions where user_id = $1 and contact_id = $2
-       order by occurred_at desc, created_at desc`,
+       order by occurred_at desc, created_at desc, id desc`,
       [userId, contactId],
     );
   },

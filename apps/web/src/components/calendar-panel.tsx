@@ -12,7 +12,7 @@ import WeekReviewCard from "@/app/calendar/week-review-card";
 import MonthReviewCard from "@/app/calendar/month-review-card";
 import YearReviewCard from "@/app/calendar/year-review-card";
 import {
-  addDays, bjToday, parseYmd, startOfMonth, startOfWeek, startOfYear,
+  addDays, bjToday, startOfMonth, startOfWeek, startOfYear,
   weekName, ymd, zhDate, zhDuration,
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
@@ -115,10 +115,10 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     if (view === "day") setAnchor(addDays(anchor, dir));
     else if (view === "week") setAnchor(addDays(anchor, dir * 7));
     else if (view === "month") {
-      const d = parseYmd(anchor);
-      d.setDate(1); // 锚定在 29~31 日时 setMonth 会滚到下下月（如 1/31 → 3/3），先钉回 1 号再翻月
-      d.setMonth(d.getMonth() + dir);
-      setAnchor(ymd(d));
+      // UTC 算术翻月（对齐 finance/kit.shiftMonth 口径）：本地 Date 游走在 DST 时区宿主会差一天
+      const [y, m] = anchor.split("-").map(Number);
+      const d = new Date(Date.UTC(y, m - 1 + dir, 1));
+      setAnchor(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`);
     } else setAnchor(`${Number(anchor.slice(0, 4)) + dir}-06-15`);
   }
 

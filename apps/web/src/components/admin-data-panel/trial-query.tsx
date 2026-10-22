@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "@/shared/api";
 import type { CatalogPayload, DatasetSpec, TrialResult } from "./types";
 
@@ -34,11 +34,14 @@ export default function TrialQuery({ catalog }: { catalog: CatalogPayload }) {
   const [result, setResult] = useState<TrialResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // seq 竞态守卫：请求在途切数据集，旧回包不得串台到新数据集名下（全站 seq 范式）
+  const seqRef = useRef(0);
 
   const ds: DatasetSpec | undefined = catalog.datasets.find((d) => d.key === dsKey && d.partition !== "category");
 
   async function run() {
     if (!ds || loading) return;
+    const seq = ++seqRef.current;
     setLoading(true);
     setErr(null);
     setResult(null);
@@ -50,11 +53,12 @@ export default function TrialQuery({ catalog }: { catalog: CatalogPayload }) {
       }
       if (ds.categoryCol && category.trim()) q.set("category", category.trim());
       q.set("limit", String(limit));
-      setResult(await api<TrialResult>(`/api/admin/data/${ds.key}?${q.toString()}`));
+      const r = await api<TrialResult>(`/api/admin/data/${ds.key}?${q.toString()}`);
+      if (seq === seqRef.current) setResult(r);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "查询失败");
+      if (seq === seqRef.current) setErr(e instanceof Error ? e.message : "查询失败");
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
   }
 

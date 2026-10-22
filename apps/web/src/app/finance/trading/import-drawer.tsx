@@ -29,7 +29,8 @@ export default function TradingImportDrawer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
-  const ref = useDismiss<HTMLDivElement>(onClose);
+  // busy（解析/查重/导入中）时 Esc/遮罩不关，防中途关闭丢反馈（modal busy 约定同款）
+  const ref = useDismiss<HTMLDivElement>(onClose, !busy);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function body() {
@@ -94,11 +95,12 @@ export default function TradingImportDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
+    // --z-modal token 与全站 Modal 同层（裸 z-50 撞 --z-toast，且高于 Modal 会遮确认弹窗）
+    <div className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
       <div ref={ref} className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-lg sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
           <TagChip icon={<Download size={13} />} label="导入 MT5 交易报表" tone="sky" className="text-sm" />
-          <button onClick={onClose} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
+          <button onClick={onClose} disabled={busy} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink disabled:opacity-40"><X size={14} /></button>
         </div>
 
         {result ? (

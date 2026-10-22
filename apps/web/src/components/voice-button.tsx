@@ -24,8 +24,10 @@ export default function VoiceButton({
   const [state, setState] = useState<VoiceRecorderState>("idle");
   const [seconds, setSeconds] = useState(0);
   const recRef = useRef<ReturnType<typeof createVoiceRecorder> | null>(null);
-  if (!recRef.current) {
-    recRef.current = createVoiceRecorder({
+  // 录音器生命周期放进 effect：StrictMode cleanup 销毁后 render 体不会重跑，
+  // 复用已销毁实例会让长按说话彻底失灵（与 capture-button 同源，十四轮 P2）
+  useEffect(() => {
+    const rec = createVoiceRecorder({
       onState: setState,
       onTick: setSeconds,
       onText,
@@ -33,9 +35,14 @@ export default function VoiceButton({
       onError,
       onHint: onHint ?? onError,
     });
-  }
-  const rec = recRef.current;
-  useEffect(() => () => rec.destroy(), [rec]);
+    recRef.current = rec;
+    return () => {
+      rec.destroy();
+      recRef.current = null;
+    };
+    // 回调沿首次渲染捕获（与旧 render 体创建同口径）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const mmss = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   const maxLabel = `${Math.floor(VOICE_MAX_SECONDS / 60)}:${String(VOICE_MAX_SECONDS % 60).padStart(2, "0")}`;
@@ -49,10 +56,10 @@ export default function VoiceButton({
         } catch {
           /* 合成/异常 pointerId 下捕获失败不影响录音 */
         }
-        void rec.begin();
+        void recRef.current?.begin();
       }}
-      onPointerUp={() => rec.release()}
-      onPointerCancel={() => rec.discard()}
+      onPointerUp={() => recRef.current?.release()}
+      onPointerCancel={() => recRef.current?.discard()}
       onContextMenu={(e) => e.preventDefault()}
       title="按住说话，松开结束（最长 30 秒）"
       aria-label="按住说话，松开结束"

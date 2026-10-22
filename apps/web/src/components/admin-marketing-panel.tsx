@@ -206,7 +206,7 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                                   ? "已强制开（点击强制关）"
                                   : "已强制关（点击恢复跟随）"
                             }
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition ${
+                            className={`tap-lg inline-flex h-6 w-6 items-center justify-center rounded-md transition ${
                               force === "on"
                                 ? "bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm"
                                 : force === "off"
@@ -231,7 +231,7 @@ export default function AdminMarketingPanel({ notify }: { notify: (text: string,
                                   ? "【我的】强制展示该开关（点击强制隐藏）"
                                   : "【我的】强制隐藏该开关（点击恢复跟随）"
                             }
-                            className={`ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition ${
+                            className={`tap-lg ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition ${
                               visible === true
                                 ? "bg-sky-500/15 text-accent"
                                 : visible === false

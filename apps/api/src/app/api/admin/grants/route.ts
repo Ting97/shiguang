@@ -92,7 +92,7 @@ export const POST = withAdminSchema(postSchema, async (req, { user, valid }) => 
 });
 
 /** DELETE /api/admin/grants?userId=&module= —— 清除该用户该模块的全部覆盖（幂等） */
-export const DELETE = withAdmin(async (req) => {
+export const DELETE = withAdmin(async (req, { user }) => {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
   const module = searchParams.get("module");
@@ -107,5 +107,13 @@ export const DELETE = withAdmin(async (req) => {
     module,
   ]);
   invalidateModuleCache(userId);
+  // 撤销覆盖与写入同口径审计（商业敏感权限操作不留痕与 POST 不对称——十四轮补齐）
+  void writeAuditRecord({
+    userId: user.id,
+    stage: "module_admin",
+    model: null,
+    ok: true,
+    error: `revoke user=${userId} module=${module}`,
+  });
   return NextResponse.json({ ok: true });
 });

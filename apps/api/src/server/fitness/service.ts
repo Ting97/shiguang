@@ -933,20 +933,44 @@ async function syncPlanToXunji(
   if (!train.movements.length) {
     throw ApiError.badRequest("没有可写入训记的动作（全部被跳过或缺目标），请检查计划内容");
   }
-  const prev = (plan.xunji_sync ?? null) as { localids?: string[] } | null;
-  if (prev?.localids?.length) train.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
+  // —— 临界区（per-plan 会话级 advisory lock）——
+  // 外部写（upsertTrains）成功而 localid 落库失败 → 下次同步 prev 为空走新建，训记侧出现重复训练
+  // （其 API 无删除接口）；并发双击同步双双读到 prev=null 也各自新建。锁内重读 xunji_sync 收口两条窗口。
+  const lockClient = await pool.connect();
+  try {
+    let locked = false;
+    for (let i = 0; i < 50 && !locked; i++) {
+      locked = (
+        await lockClient.query(`select pg_try_advisory_lock(hashtext($1)) as locked`, [`xunji-sync:${planId}`])
+      ).rows[0].locked;
+      if (!locked) await new Promise((r) => setTimeout(r, 100));
+    }
+    if (!locked) throw ApiError.conflict("同步进行中，请稍候");
 
-  const normalized = await upsertTrains(plan.plan_date, [train], plan.id, fetcher);
-  const localids = normalized.map((t) => t.localid).filter((x): x is string | number => x != null);
-  await fitnessRepo.updateXunjiSync(planId, userId, { localids, syncedAt: new Date().toISOString() });
-  return {
-    synced: true,
-    updated: Boolean(prev?.localids?.length),
-    movements: train.movements.length,
-    localids,
-    skipped: [...skips],
-    warning: runWarning,
-  };
+    const prev = ((plan.xunji_sync ?? null) as { localids?: string[] } | null);
+    if (prev?.localids?.length) train.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
+
+    const normalized = await upsertTrains(plan.plan_date, [train], plan.id, fetcher);
+    const localids = normalized.map((t) => t.localid).filter((x): x is string | number => x != null);
+    try {
+      await fitnessRepo.updateXunjiSync(planId, userId, { localids, syncedAt: new Date().toISOString() });
+    } catch (e) {
+      // 外部写已成功：localid 落库失败只能留线索人工去重（训记无删除接口，无法自动补偿）
+      console.error("[xunji] localid 落库失败（训记侧可能产生重复训练）", { planId, userId, localids, err: e instanceof Error ? e.message : String(e) });
+      throw e;
+    }
+    return {
+      synced: true,
+      updated: Boolean(prev?.localids?.length),
+      movements: train.movements.length,
+      localids,
+      skipped: [...skips],
+      warning: runWarning,
+    };
+  } finally {
+    await lockClient.query(`select pg_advisory_unlock(hashtext($1))`, [`xunji-sync:${planId}`]).catch(() => {});
+    lockClient.release();
+  }
 }
 
 /** 训记完成数据 → 拾光打卡。preview=true 只组装不落库（前端预览弹窗）；正式走 updatePlan 状态机 */

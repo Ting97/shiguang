@@ -42,7 +42,10 @@ const PERIOD_WORDS: Array<[RegExp, Exclude<PeriodHint, "now">]> = [
   [/早上|早晨|上午/, "morning"],
   [/中午|午饭|午休/, "noon"],
   [/下午|午后/, "afternoon"],
-  [/傍晚|晚上|今晚|夜里|深夜/, "evening"],
+  // 明晚（裸形态，区别于「明天晚上」）必须进 evening：旧版 detectPeriod=null，
+  // 规则兜底把「明晚八点开会」按早晨 8 点锚（十二/十四轮实测）；昨晚/昨夜同理——
+  // 单钟点路径「昨夜11点刷了手机」被落成上午 11 点
+  [/傍晚|晚上|今晚|夜里|深夜|明晚|昨晚|昨夜/, "evening"],
 ];
 
 export function detectPeriod(text: string): Exclude<PeriodHint, "now"> | null {
@@ -66,6 +69,10 @@ export function detectFuture(text: string): FutureHint | null {
   //  月初排除 上/本/这/每（月首说话时必已过去）；月底仅排除 上/每（「这个月底交房租」
   //  在月末前说仍是未来，本月底=当前月末由 monthDayBase 月历锚承接））
   if (/(?<![上本这每]个?)月初|(?<![上每]个?)月(?:底|末)|下个?月份?/.test(text)) return "soon";
+  // 「两小时后取快递」「半小时后开会」：旧版词表缺口——23:30 说「两小时后」AI 给的次日 01:30 due
+  // 被 anchorMomentToToday 按「无日期词」整平移回当天 01:30（已过期，立即误报）；落 soon 桶后
+  // 锚定豁免生效，规则兜底由 relativeOffsetMinutes 给确定性分钟锚
+  if (relativeOffsetMinutes(text) != null) return "soon";
   if (relativeOffsetDays(text) != null) return "soon";
   if (/待会|等会|等一下|晚点|稍后/.test(text)) return "soon";
   // "一会儿"仅在未来语境算（"过一会儿再去"）；"刚做了一会儿拉伸"是过去
@@ -80,11 +87,19 @@ export function detectFuture(text: string): FutureHint | null {
 /**
  * 相对日引用检测（过去/当日）：昨天/前天/大前天/上周X/上礼拜X/周X。
  * 返回相对今天的天数偏移（≤0），null=没有显式相对日。周制：周一为一周开始。
+ * 优先级：具体日词（今天/前天/昨天系）> 周X——旧版周X分支排在前，
+ * 「今天周三开了会」在今天非周三时被推算成上周三；显式月日（9月30号/2026-10-01）
+ * 必须完全压过周X相对推算：周X分支按本周/上周推算会无视显式日期
+ * （十四轮 P2 实测「9月30号周三交了房租」按记账日锚成上周三、错 7 天）。
  */
 export function detectDayRef(text: string, now: Date): number | null {
+  if (/今天|今日/.test(text)) return 0;
   if (/大前天/.test(text)) return -3;
   if (/前天/.test(text)) return -2;
   if (/昨天|昨晚|昨夜|昨儿/.test(text)) return -1;
+  // 显式月日/年份日期在场：周X 词一律不作相对推算（返回 null 交回显式日期分支），
+  // 也不能落到 上周 -7 兜底（「9月30号周三」≠上周）
+  if (/\d{1,2}\s*月\s*\d{1,2}\s*[号日]|\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}/.test(text)) return null;
   const wd = text.match(/(上)?(?:周|礼拜|星期)([一二三四五六日天])/);
   if (wd) {
     const target = WEEKDAYS[wd[2]]; // 0=周日
@@ -96,7 +111,6 @@ export function detectDayRef(text: string, now: Date): number | null {
     return offset;
   }
   if (/上周|上礼拜|上星期/.test(text)) return -7;
-  if (/今天|今日/.test(text)) return 0;
   return null;
 }
 
@@ -155,6 +169,21 @@ export function parseClockRange(
 }
 
 const WEEKDAYS: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
+
+/** N(个半)小时后 / 半小时后 / N钟头后 → 未来分钟偏移（null=非该形态）。
+ *  与 relativeOffsetDays 同族：detectFuture 用于「soon」桶判定（锚定豁免），
+ *  inferFuture 用于规则兜底的确定性分钟锚（旧版「两小时后」落 now+1h）。 */
+export function relativeOffsetMinutes(text: string): number | null {
+  // lookbehind 防「1.5小时后」被尾部 5 抢匹配成 5 小时
+  const m = text.match(/(?<![\d.])([一两俩二三四五六七八九十\d]+)\s*个?半?\s*(?:小时|钟头)\s*(?:之|以)?后/);
+  if (m) {
+    const n = cnToNumber(m[1]);
+    if (n === null || n <= 0 || n > 24) return null;
+    return /个?半/.test(m[0]) ? n * 60 + 30 : n * 60;
+  }
+  if (/半\s*(?:小时|钟头)\s*(?:之|以)?后/.test(text)) return 30;
+  return null;
+}
 
 /** N天后/N周(礼拜/星期)后/N个月后 → 未来偏移天数（月按 30 天近似）；解析不出 null。
  *  「3天后交报告」类相对偏移：AI 路径用于锚定豁免，规则兜底路径用于确定性未来锚。
@@ -235,6 +264,29 @@ function cstHour(d: Date): number {
 }
 
 /**
+ * 显式月日（M月N号，可带 YYYY 年）→ 过去某北京日 00:00 的锚；未来/非法日期 → null。
+ * detectDayRef 的显式日期守卫跳过周X推算后，话术真带的「9月30号」不该被丢掉：
+ * 补记日程块应落在显式日（路径 0.5/0.6 消费），而非被泛化锚到今天。
+ */
+function explicitDateBase(text: string, now: Date): Date | null {
+  const md = /(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[号日]/.exec(text);
+  if (!md) return null;
+  const mo = Number(md[2]);
+  const day = Number(md[3]);
+  if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+  const CST_MS = 8 * 3600_000;
+  const bj = new Date(now.getTime() + CST_MS);
+  const year = md[1] ? Number(md[1]) : bj.getUTCFullYear();
+  // 日历回读校验在 UTC 恒定时刻上做（先平 -8h 会读出前一天恒失败），再转北京 00:00 锚
+  const candUtc = new Date(Date.UTC(year, mo - 1, day));
+  if (candUtc.getUTCDate() !== day) return null;
+  let cand = new Date(candUtc.getTime() - CST_MS);
+  if (!md[1] && cand.getTime() > now.getTime()) cand = new Date(Date.UTC(year - 1, mo - 1, day) - CST_MS);
+  if (cand.getTime() > now.getTime()) return null;
+  return cand;
+}
+
+/**
  * 月历话术 → 确定性月历日锚（该北京日 00:00 的 Date，供 atHour 落钟点；无月历词 → null）。
  * 支持：月底/月末（末日）、下个月(份)（1 号）、月初（下一个 1 号，今天恰为 1 号则今天）、
  * 下(个)月 N 号（显式日，1~28）。旧版缺「下月15号」显式日与「月初」：
@@ -258,8 +310,10 @@ function monthDayBase(text: string, now: Date): Date | null {
   const dayNum = dayNumM ? cnToNumber(dayNumM[1]) : null;
   if (nextMonth && dayNum != null && dayNum >= 1 && dayNum <= 31) {
     const m0 = bj.getUTCFullYear() * 12 + bj.getUTCMonth() + 1; // 次月序
-    const cand = new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12, dayNum) - CST_MS);
-    if (cand.getUTCDate() === dayNum) return cand;
+    // 回读校验必须在 UTC 恒定时刻上做：先 -CST_MS 再 getUTCDate() 会读出前一天，
+    // 显式日分支恒 null（「下个月15号交房租」实际一直落 now+1h——十四轮修正的存量 bug）
+    const candUtc = new Date(Date.UTC(Math.floor(m0 / 12), m0 % 12, dayNum));
+    if (candUtc.getUTCDate() === dayNum) return new Date(candUtc.getTime() - CST_MS);
     return null;
   }  // 月初（无下个月词）= 下一个 1 号；今天恰为 1 号则今天
   if (monthStart && !nextMonth && dayNum == null) {
@@ -308,11 +362,15 @@ function inferFuture(
     const monthBase = monthDayBase(text, now);
     // N天后/N周后/N个月后：相对偏移确定性锚（旧版落 now+1h，「3天后交报告」提醒立即误报）
     const offsetDays = monthBase ? null : relativeOffsetDays(text);
+    // N(个半)小时后/半小时后：分钟级确定性锚（「两小时后取快递」= now+2h，而非 now+1h 泛化）
+    const offsetMin = monthBase || offsetDays != null ? null : relativeOffsetMinutes(text);
     if (monthBase) {
       start = atHour(monthBase, clock ? clock.hour : period ? PERIOD_ANCHORS[period] : 20, clock?.minute ?? 0);
     } else if (offsetDays != null) {
       const base = new Date(now.getTime() + offsetDays * 24 * 3600_000);
       start = atHour(base, clock ? clock.hour : period ? PERIOD_ANCHORS[period] : 9, clock?.minute ?? 0);
+    } else if (offsetMin != null) {
+      start = new Date(now.getTime() + offsetMin * 60_000);
     } else if (clock) {
       // 待会儿/计划：有钟点且在今天未来 → 用之；否则 now + 1h
       start = atHour(now, clock.hour, clock.minute);
@@ -373,9 +431,11 @@ export function inferTimeBlock(
   const range = parseClockRange(text, period ?? (/昨晚|昨夜/.test(text) ? "evening" : null));
   const dayRef = detectDayRef(text, now);
   if (range) {
+    // 显式月日在场（detectDayRef 已守卫跳过周X）→ 块锚定该日，凌晨补记回退不再参与
+    const explicitBase = dayRef === null ? explicitDateBase(text, now) : null;
     // 无相对日且在凌晨（<5点）补记白天的区间 → 归昨天
     const back = dayRef !== null ? -dayRef * 24 * 3600_000 : cstHour(now) < 5 ? 24 * 3600_000 : 0;
-    const base = new Date(now.getTime() - back);
+    const base = explicitBase ?? new Date(now.getTime() - back);
     const start = atHour(base, range.start.hour, range.start.minute);
     let end = atHour(base, range.end.hour, range.end.minute);
     if (end <= start) {
@@ -401,8 +461,10 @@ export function inferTimeBlock(
   }
 
   // 0.6) 显式相对日（昨天/前天/上周X/周X）：日期 = 今天偏移，时刻 = 钟点/时段锚点（无则按 20:00 回顾锚）
-  if (dayRef !== null) {
-    const base = new Date(now.getTime() + dayRef * 24 * 3600_000);
+  //      显式月日（9月30号周三，周X已被 detectDayRef 守卫跳过）同走此路径，锚定该日
+  const refBase = dayRef !== null ? new Date(now.getTime() + dayRef * 24 * 3600_000) : explicitDateBase(text, now);
+  if (refBase !== null) {
+    const base = refBase;
     const clock = parseClock(text, period);
     let anchor = clock
       ? atHour(base, clock.hour, clock.minute)

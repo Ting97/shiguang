@@ -43,6 +43,7 @@ try {
     stdio: "inherit",
     env,
     shell: "bash",
+    timeout: 15 * 60_000, // 用例挂死时流水线无限等待的兜底（与 routes-smoke 同口径）
   });
 } finally {
   // routes-smoke（E2E）在无服务环境下自动 skip，不参与覆盖；这里只对四核心模块出报告并卡门槛

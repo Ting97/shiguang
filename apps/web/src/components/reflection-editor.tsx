@@ -49,7 +49,8 @@ export default function ReflectionEditor({
     onCancel();
   }, [value, notify, onCancel]);
 
-  const panelRef = useDismiss<HTMLDivElement>(cancel, open);
+  // busy（保存进行中）禁用 Esc/点外关闭：慢网期间被关闭会让保存反馈丢失（与 Modal busy 同口径）
+  const panelRef = useDismiss<HTMLDivElement>(cancel, open && !busy);
   // body 滚动锁：抽屉打开期间锁背景滚动，关闭/卸载还原
   useBodyScrollLock(open);
   if (!open) return null;
@@ -87,7 +88,7 @@ export default function ReflectionEditor({
               </button>
             </div>
           </div>
-          <button onClick={cancel} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
+          <button onClick={cancel} disabled={busy} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink disabled:opacity-40"><X size={14} /></button>
         </div>
         {tab === "preview" ? (
           <div className="min-h-[40vh] w-full flex-1 overflow-y-auto rounded-xl border border-line-soft bg-surface/60 px-3 py-2.5">

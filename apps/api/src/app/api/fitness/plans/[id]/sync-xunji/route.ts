@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withModuleParams, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
+import { assertUuidParam } from "@/server/platform/http/validate";
 import { fitnessService } from "@/server/fitness";
 
 /** POST /api/fitness/plans/[id]/sync-xunji —— 计划双写训记 App（用户点按钮即确认；二次同步走更新防重复）。
@@ -8,6 +9,7 @@ import { fitnessService } from "@/server/fitness";
  * 带 {mappings:{拾光名:官方名}, skips:[跳过动作]} 的确认调用——映射入每用户别名表后执行同步 */
 export const POST = withModuleParams("fitness", async (req, ctx) => {
   const { id } = await ctx.params;
+  assertUuidParam(id, "id"); // 缺预检时畸形 id 直落 PG 22P02 → 500（同文件 PATCH/DELETE 已有，十四轮补齐）
   let confirm: { mappings?: Record<string, string>; skips?: string[] } | undefined;
   try {
     const body = (await readJsonCapped(req) as any) as { mappings?: Record<string, string>; skips?: string[] } | null;

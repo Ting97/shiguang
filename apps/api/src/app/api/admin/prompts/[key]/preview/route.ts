@@ -160,7 +160,7 @@ export const POST = withAdminParams(async (req, { user, params }) => {
            from transactions
            where user_id = $1 and is_draft = false
              and (occurred_at at time zone $2)::date between $3::date and $4::date
-           order by occurred_at
+           order by occurred_at, id
            limit $5`,
           [user.id, "Asia/Shanghai", from, to, cfg.caps.txCap],
         )
