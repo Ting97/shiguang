@@ -23,6 +23,7 @@ import {
   type FitnessPlanDraft,
 } from "@shiguangri/ai";
 import { assembleUserPrompt, checkAiQuota, getPromptBundle, writeAuditRecord } from "@/server/ai";
+import { syncSleepBlock } from "@/server/time";
 import { loadConfig } from "../platform/config";
 import { fitnessRepo } from "./repo";
 import {
@@ -528,8 +529,13 @@ async function updatePlan(userId: string, id: string, body: unknown) {
         soreness: v.soreness ?? null,
         note: v.note ?? null,
       }, client);
-      // 睡眠独立记录（REQ-024）：打卡兼容入参落到 sleep_logs（log_date=计划日），session_logs 不再存
-      if (v.sleepHours != null) await fitnessRepo.upsertSleep(userId, planRow.plan_date, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client);
+      // 睡眠独立记录（REQ-024）：打卡兼容入参落到 sleep_logs（log_date=计划日），session_logs 不再存；
+      // 同事务内同步日程睡眠块（REQ-038）：先持计划行锁、syncSleepBlock 内取 timeblocks advisory
+      // lock，锁序恒为 plan → advisory；冲突静默跳过（ok:false），睡眠数据照常落库
+      if (v.sleepHours != null) {
+        const srow = (await fitnessRepo.upsertSleep(userId, planRow.plan_date, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client)).rows[0];
+        await syncSleepBlock(userId, { sleepLogId: srow.id, logDate: srow.log_date, sleepHX10: srow.sleep_h_x10 }, client);
+      }
       await fitnessRepo.completePlanTodos(id, client);
     } else {
       // 内容/状态变化 → 行动与最新计划同步
@@ -1102,7 +1108,10 @@ async function addLog(userId: string, body: unknown) {
       note: v.note ?? null,
     }, client);
     if (v.sleepHours != null) {
-      await fitnessRepo.upsertSleep(userId, v.logDate, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client);
+      // 同事务内同步日程睡眠块（REQ-038，与 updatePlan 打卡路径同款：锁序 plan/无 → advisory；
+      // 冲突静默跳过，睡眠照常落库）
+      const srow = (await fitnessRepo.upsertSleep(userId, v.logDate, Math.round(v.sleepHours * 10), "checkin", undefined, undefined, client)).rows[0];
+      await syncSleepBlock(userId, { sleepLogId: srow.id, logDate: srow.log_date, sleepHX10: srow.sleep_h_x10 }, client);
     }
     await client.query("commit");
     return { log: rows[0] };
@@ -1185,12 +1194,15 @@ const SleepInput = z.object({
   score: z.number().int().min(0).max(100).nullable().optional(),
 });
 
-/** POST /api/fitness/sleep —— 按日 upsert（昨晚睡眠，小时 + 可选感受/App 得分；同日重录=更新） */
+/** POST /api/fitness/sleep —— 按日 upsert（昨晚睡眠，小时 + 可选感受/App 得分；同日重录=更新）。
+ *  落库后同步生成日程「😴 睡眠」跨天块（REQ-038）：冲突/0h 不抛错照常返回 sync 结果，
+ *  web 手动路径据此 toast；打卡兼容路径另有独立补录入口（addLog） */
 async function saveSleep(userId: string, body: unknown, source: "manual" | "checkin" = "manual") {
   const v = parseBody(SleepInput, body);
   const { rows } = await fitnessRepo.upsertSleep(userId, v.date, Math.round(v.hours * 10), source, v.feeling ?? null, v.score ?? null);
-  const row = rows[0] as { log_date: string; sleep_h_x10: number; feeling: string | null; score: number | null; source: string };
-  return { sleep: { ...row, hours: row.sleep_h_x10 / 10 } };
+  const row = rows[0] as { id: string; log_date: string; sleep_h_x10: number; feeling: string | null; score: number | null; source: string };
+  const sync = await syncSleepBlock(userId, { sleepLogId: row.id, logDate: row.log_date, sleepHX10: row.sleep_h_x10 });
+  return { sleep: { ...row, hours: row.sleep_h_x10 / 10 }, sync };
 }
 
 async function listExercises(moduleCode: string | null) {

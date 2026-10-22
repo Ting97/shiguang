@@ -156,6 +156,9 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
       await client.query("rollback");
       return { conflict };
     }
+    // 睡眠同步块任何编辑即解绑（REQ-038）：用户改过的块不再是纯同步产物——保留修改、
+    // 置空链接；该日再次保存睡眠时生成独立新块（删除同理：删了不复活）
+    if (cur.sleep_log_id != null) fields.push(["sleep_log_id", null]);
     updated = (await blocksRepo.updateFields(id, userId, fields, client)).rows[0];
     await client.query("commit");
     // 跨日改期会让旧日多计/新日漏计（水位只认 max(start_at) 且行还在不触发显式失效）——
@@ -187,6 +190,82 @@ export async function deleteBlock(userId: string, id: string) {
   void invalidateReviewCachesForOccurrence(userId, new Date(deleted.start_at));
   void invalidateReviewCachesForOccurrence(userId, new Date(deleted.end_at));
   return { ok: true as const };
+}
+
+// ---- 睡眠同步日程块（REQ-038）：fitness 保存/打卡睡眠后调用，替换式幂等 ----
+
+/** 睡眠同步入参：sleep log 主键 + 北京 log_date + 时长×10（0 = 撤销同步，仅删旧块） */
+export interface SleepSyncInput {
+  sleepLogId: string;
+  logDate: string; // YYYY-MM-DD，语义为「X 日醒来的昨晚睡眠」
+  sleepHX10: number;
+}
+
+/** ok=false 时睡眠数据已照常保存，仅日程段未写入（reason 为用户可读冲突文案） */
+export type SleepSyncResult = { ok: true; blockId: string | null } | { ok: false; reason: string };
+
+/** 起床锚点 07:00（北京）：块区间 = [log_date 07:00 − 时长, log_date 07:00]。
+ *  起床时刻恒定、入睡随时长浮动（8h → 前夜 23:00，跨天块两日视图各显示所属段）；
+ *  必须显式 +08:00（无偏移串会按宿主/会话时区双解释，差 8 小时） */
+function sleepRangeOf(logDate: string, sleepHX10: number) {
+  const endAt = new Date(`${logDate}T07:00:00+08:00`).toISOString();
+  const startAt = new Date(Date.parse(endAt) - (sleepHX10 / 10) * 3_600_000).toISOString();
+  return { startAt, endAt };
+}
+
+async function syncSleepBlockInner(
+  userId: string,
+  input: SleepSyncInput,
+  exec: Pick<typeof pool, "query">,
+): Promise<SleepSyncResult> {
+  // 与 createBlock/updateBlock 同一把 per-user advisory lock：重叠预检与落库串行化（TOCTOU 收口）
+  await exec.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
+  // 「睡眠」预设分类必须存在（time_blocks 复合 FK 要求同用户行）：注册即播种 + 预设不可删，
+  // 正常恒在；兜底缺失时跳过同步而非 23503 炸掉 fitness 打卡事务（与 067 回填守卫同口径）
+  const hasAct = await exec.query(`select 1 from activities where id = 'sleep' and user_id = $1`, [userId]);
+  if (!hasAct.rows.length) return { ok: false, reason: "缺少「睡眠」分类，无法生成日程段" };
+  const prev = (await blocksRepo.bySleepLog(userId, input.sleepLogId, exec)).rows[0] as
+    | { id: string; start_at: string | Date; end_at: string | Date }
+    | undefined;
+  if (input.sleepHX10 <= 0) {
+    const removed = (await blocksRepo.removeBySleepLog(userId, input.sleepLogId, exec)).rows;
+    for (const r of removed) {
+      void invalidateReviewCachesForOccurrence(userId, new Date(r.start_at));
+      void invalidateReviewCachesForOccurrence(userId, new Date(r.end_at));
+    }
+    return { ok: true, blockId: null };
+  }
+  const { startAt, endAt } = sleepRangeOf(input.logDate, input.sleepHX10);
+  // 先预检再删旧：冲突时保留旧同步段不丢，仅跳过并返回原因——下次改时长/清走冲突日程后可重试
+  const conflict = await findOverlap(userId, startAt, endAt, prev?.id, undefined, exec);
+  if (conflict) return { ok: false, reason: overlapError(conflict) };
+  await blocksRepo.removeBySleepLog(userId, input.sleepLogId, exec);
+  const block = (await blocksRepo.insert(userId, "sleep", "睡眠", startAt, endAt, exec, input.sleepLogId)).rows[0];
+  // 新旧区间各自的起止日都失效复盘缓存：替换可能跨日移动分摊时长（与 createBlock/deleteBlock 同口径）
+  for (const d of [prev?.start_at, prev?.end_at, startAt, endAt]) {
+    if (d) void invalidateReviewCachesForOccurrence(userId, new Date(d));
+  }
+  return { ok: true, blockId: block.id as string };
+}
+
+/** 保存/打卡睡眠后同步生成日程「😴 睡眠」跨天块。
+ *  传 exec 时在调用方事务内执行（fitness 打卡/补录路径：先持 plan 行锁再取 timeblocks
+ *  advisory lock，锁序恒为 plan 行锁 → advisory，与只持 advisory 的建块路径无死锁面）；
+ *  不传时自开事务。 */
+export async function syncSleepBlock(userId: string, input: SleepSyncInput, exec?: Pick<typeof pool, "query">): Promise<SleepSyncResult> {
+  if (exec) return syncSleepBlockInner(userId, input, exec);
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const r = await syncSleepBlockInner(userId, input, client);
+    await client.query("commit");
+    return r;
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 /** GET /api/blocks/range?from=YYYY-MM-DD&to=YYYY-MM-DD —— 区间内原始时间块 */

@@ -18,18 +18,33 @@ function toSetClauses(fields: readonly UpdateField[]) {
 }
 
 export const blocksRepo = {
-  /** 单块的现有起止（重叠校验的基准）；可传事务 client 在锁内读，避免基准与落库间被并发改写 */
+  /** 单块的现有起止（重叠校验的基准）；可传事务 client 在锁内读，避免基准与落库间被并发改写。
+   *  sleep_log_id 随行返回：updateBlock 据此对同步块置空链接（任何编辑即解绑） */
   async timesOf(id: string, userId: string, exec: Pick<typeof pool, "query"> = pool) {
     return (
-      await exec.query(`select start_at, end_at from time_blocks where id = $1 and user_id = $2`, [id, userId])
+      await exec.query(`select start_at, end_at, sleep_log_id from time_blocks where id = $1 and user_id = $2`, [id, userId])
     ).rows[0];
   },
-  insert(userId: string, activityId: string, title: string, startAt: string, endAt: string, exec: Pick<typeof pool, "query"> = pool) {
+  insert(userId: string, activityId: string, title: string, startAt: string, endAt: string, exec: Pick<typeof pool, "query"> = pool, sleepLogId?: string) {
     return exec.query(
-      `insert into time_blocks (user_id, activity_id, title, start_at, end_at, time_mode, source)
-       values ($1,$2,$3,$4,$5,'manual','manual') returning *`,
-      [userId, activityId, title, startAt, endAt],
+      `insert into time_blocks (user_id, activity_id, title, start_at, end_at, time_mode, source, sleep_log_id)
+       values ($1,$2,$3,$4,$5,'manual','manual',$6) returning *`,
+      [userId, activityId, title, startAt, endAt, sleepLogId ?? null],
     );
+  },
+  /** 睡眠日志当前的同步块（替换式同步的「被替换者」：重叠预检排除自身 + 先删后插） */
+  bySleepLog(userId: string, sleepLogId: string, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(`select id, start_at, end_at from time_blocks where user_id = $1 and sleep_log_id = $2`, [
+      userId,
+      sleepLogId,
+    ]);
+  },
+  /** 删除某睡眠日志的同步块；returning 起止供复盘缓存失效（跨天块双日），口径同 remove */
+  removeBySleepLog(userId: string, sleepLogId: string, exec: Pick<typeof pool, "query"> = pool) {
+    return exec.query(`delete from time_blocks where user_id = $1 and sleep_log_id = $2 returning id, start_at, end_at`, [
+      userId,
+      sleepLogId,
+    ]);
   },
   updateFields(id: string, userId: string, fields: readonly UpdateField[], exec: Pick<typeof pool, "query"> = pool) {
     const { sets, vals } = toSetClauses(fields);

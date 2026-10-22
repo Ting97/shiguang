@@ -258,13 +258,21 @@ function SleepCard({
     }
     setBusy(true);
     try {
-      await api("/api/fitness/sleep", "POST", {
+      // REQ-038：保存后服务端自动同步日程睡眠块（起床 07:00 锚点）；sync.ok=false = 与既有
+      // 日程重叠被跳过（睡眠已照常保存），reason 为服务端冲突文案（含「一个时刻只能做一件事」）
+      const resp = await api<{ sync?: { ok: boolean; blockId?: string | null; reason?: string } }>("/api/fitness/sleep", "POST", {
         date,
         hours: Number(hours),
         feeling: feeling || null,
         score: score ? Number(score) : null,
       });
-      toast("✅ 已记录睡眠");
+      if (resp.sync && resp.sync.ok === false) {
+        toast(`😴 睡眠已记录；日程同步跳过：${resp.sync.reason ?? "时间段被占用"}`, "err");
+      } else if (resp.sync?.blockId) {
+        toast("😴 已记录睡眠，并同步到日程");
+      } else {
+        toast("✅ 已记录睡眠");
+      }
       setOpen(false);
       reload();
     } catch (e) {
@@ -335,6 +343,7 @@ function SleepCard({
               App 睡眠得分（0-100，佳明/手环等，选填）
               <input className="input-glow w-full text-sm" inputMode="numeric" value={score} onChange={(e) => setScore(e.target.value.replace(/[^\d]/g, ""))} placeholder="82" />
             </label>
+            <p className="text-xs text-ink-mute/70">保存后自动按起床 07:00 生成日程睡眠段（如 8 小时 → 前夜 23:00–07:00），与已有日程重叠时跳过。</p>
             <div className="flex justify-end gap-2">
               <button className="btn-ghost px-3 py-1.5 text-sm" onClick={() => setOpen(false)}>
                 取消
