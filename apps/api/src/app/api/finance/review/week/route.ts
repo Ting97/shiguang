@@ -120,7 +120,7 @@ export const POST = withModule("trade_review", async (req, { user }) => {
          from transactions
          where user_id = $1 and is_draft = false
            and (occurred_at at time zone $2)::date between $3::date and $4::date
-         order by occurred_at
+         order by occurred_at, id
          ${txCap > 0 ? `limit $5` : ""}`,
         txCap > 0 ? [user.id, TZ, from, to, txCap] : [user.id, TZ, from, to],
       )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { confirmDialog } from "@/shared/ui/confirm";
 import { X, Zap } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
@@ -30,9 +30,24 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   const [from, setFrom] = useState(() => isoDaysAgo(30));
   const [to, setTo] = useState(() => isoDaysAgo(0));
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
 
   const keys = status?.keys ?? [];
+
+  // Esc/遮罩关闭守卫：同步中或解绑确认弹窗未决时忽略（防中途 Esc 丢反馈、误关抽屉丢已输入的密钥）
+  const quietRef = useRef(false);
+  quietRef.current = busy || confirming;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.isComposing && !(e.keyCode === 229) && !quietRef.current) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const guardClose = () => {
+    if (!quietRef.current) onClose();
+  };
 
   useEffect(() => {
     api<{ bound: boolean; keys?: KeyRow[] }>("/api/trading/bitget/keys")
@@ -74,14 +89,15 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   async function unbind(label?: string) {
     if (busy) return;
     // 两步确认（全站删除类规范）：解绑后需重新生成/粘贴 API 凭据才能恢复，单点误触代价高
-    const ok = await confirmDialog({
-      title: "解绑 API 密钥",
-      message: label ? `「${label}」解绑后需重新生成并粘贴凭据才能恢复同步。` : "解绑全部密钥后需逐一重新绑定才能恢复同步。",
-      confirmText: "解绑",
-    });
-    if (!ok) return;
-    setBusy(true);
+    setConfirming(true);
     try {
+      const ok = await confirmDialog({
+        title: "解绑 API 密钥",
+        message: label ? `「${label}」解绑后需重新生成并粘贴凭据才能恢复同步。` : "解绑全部密钥后需逐一重新绑定才能恢复同步。",
+        confirmText: "解绑",
+      });
+      if (!ok) return;
+      setBusy(true);
       await api(`/api/trading/bitget/keys${label ? `?label=${encodeURIComponent(label)}` : ""}`, "DELETE");
       const j = await refreshKeys();
       setSyncLabel((cur) => (label && cur === label ? j.keys?.[0]?.label ?? "" : cur));
@@ -90,6 +106,7 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
       toast(e instanceof Error ? e.message : "解绑失败", "err");
     } finally {
       setBusy(false);
+      setConfirming(false);
     }
   }
 
@@ -126,12 +143,20 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
 
   const input = "w-full rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm outline-none focus:border-sky-500";
 
+  // 层级走 --z-modal token：与全站 Modal 同层，ConfirmHost（确认弹窗）在 DOM 中靠后仍在其上——
+  // 裸 z-50 高于 Modal(40) 会把 confirmDialog 盖住（解绑确认不可见不可点）
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl">
+    <div
+      className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-scrim/70 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={guardClose}
+    >
+      <div
+        className="glass safe-bottom max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl p-5 sm:max-w-md sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Zap size={14} className="text-warn" aria-hidden /> Bitget 同步</h3>
-          <button onClick={onClose} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
+          <button onClick={guardClose} aria-label="关闭" className="rounded p-1 text-ink-dim hover:text-ink"><X size={14} /></button>
         </div>
 
         {/* 第一步：密钥（可绑多把——主账号/子账号各一把，备注名区分） */}

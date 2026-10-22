@@ -110,12 +110,22 @@ export function SavingsTrend({ trend }: { trend: Overview["trend"] }) {
   );
 }
 
-/** 金额紧凑展示（柱图轴标签口径）：≥1亿 以亿计，≥1万 以万计一位小数，否则取整元 */
+/** 金额紧凑展示（柱图轴标签口径）：≥1亿 以亿计，≥1万 以万计一位小数，否则取整元。
+ *  商余整数口径（仓约定禁浮点 /100）：整元 = ⌊cents/100⌋，一位小数用余数补 */
 const compactWan = (cents: number) => {
-  const y = cents / 100;
-  if (y >= 100_000_000) return `${(y / 100_000_000).toFixed(1)}亿`;
-  if (y >= 10_000) return `${(y / 10_000).toFixed(1)}万`;
-  return String(Math.round(y));
+  const neg = cents < 0;
+  const abs = Math.abs(cents);
+  const yuanWhole = Math.floor(abs / 100);
+  const fmtSigned = (s: string) => (neg ? `-${s}` : s);
+  if (yuanWhole >= 100_000_000) {
+    const yi = `${Math.floor(yuanWhole / 100_000_000)}.${Math.floor((yuanWhole % 100_000_000) / 10_000_000)}`;
+    return fmtSigned(`${yi}亿`);
+  }
+  if (yuanWhole >= 10_000) {
+    const wan = `${Math.floor(yuanWhole / 10_000)}.${Math.floor((yuanWhole % 10_000) / 1_000)}`;
+    return fmtSigned(`${wan}万`);
+  }
+  return fmtSigned(String(yuanWhole));
 };
 
 /** 收/支单列小柱图（各按自身区间最大值缩放）；0 显示「—」占位 */

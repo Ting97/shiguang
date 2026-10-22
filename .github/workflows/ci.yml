@@ -46,6 +46,15 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # runner（--fresh）需要已存在的库：service 容器只有默认 postgres 库（此前 112 连败的第二根因）
+      - name: Create test database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='shiguangri_test'" | grep -q 1 \
+            || psql -h localhost -U postgres -d postgres -c "CREATE DATABASE shiguangri_test"
+
+      # runner 连接串回退读 SHIGUANGRI_TEST_DB（与 run-coverage/run-routes-smoke 同口径）
       - name: Prepare test database
         run: npx tsx packages/db/runner.ts --fresh
 
@@ -54,6 +63,10 @@ jobs:
 
       - name: Unit tests (all workspaces: ai/shared/web)
         run: npm test --workspaces --if-present
+
+      # 70 路由 HTTP 全链路冒烟（真实鉴权链路；依赖上一步迁移完的测试库）
+      - name: Routes smoke (E2E)
+        run: npm run test:routes
 
       - name: Build
         run: npm run build

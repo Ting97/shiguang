@@ -559,7 +559,8 @@ export async function appendManual(
             new Date(entry.created_at).toISOString(),
           ],
         );
-        result = { direction, yuan: cents / 100 };
+        // 登记簿只存整数分（金额一律分）：浮点元入库是整数纪律破口，下游再算术必引浮点误差
+        result = { direction, cents };
         message = `💰 已手动添加${direction === "out" ? "支出" : "收入"} ¥${(cents / 100).toFixed(2)}（待确认）`;
         break;
       }

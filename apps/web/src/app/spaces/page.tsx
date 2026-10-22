@@ -139,8 +139,9 @@ export default function SpacesPage() {
     load();
   }
 
-  async function remove(s: Space) {
-    if (!armDelete.arm(s.id)) return;
+  // 「确认后执行」单独成函数：菜单入口与归档区入口各自 arm 一次后都走这里，
+  // 不能在 remove 里再 arm（上一次 arm 命中已清空 ref，再 arm 会重新武装返回 false → 永远删不掉）
+  async function doRemove(s: Space) {
     try {
       await api<any>(`/api/spaces/${s.id}`, "DELETE");
     } catch (e) {
@@ -150,6 +151,11 @@ export default function SpacesPage() {
     }
     toast(`「${s.name}」已删除`);
     load();
+  }
+
+  async function remove(s: Space) {
+    if (!armDelete.arm(s.id)) return;
+    await doRemove(s);
   }
 
   const active = (spaces ?? []).filter((s) => s.status === "active");
@@ -490,7 +496,7 @@ export default function SpacesPage() {
                       const s = cardMenu;
                       if (!armDelete.arm(s.id)) return;
                       setCardMenu(null);
-                      void remove(s);
+                      void doRemove(s);
                     }}
                     className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-danger transition hover:bg-rose-500/10 ${armDelete.armedId === cardMenu.id ? "bg-rose-500/10 font-medium" : ""}`}
                   >

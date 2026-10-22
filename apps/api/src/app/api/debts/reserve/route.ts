@@ -32,6 +32,8 @@ export const PUT = withModule("debt", async (req, { user }) => {
     if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== "string")) {
       throw new ApiError(400, "invalid_input", "ids 需为字符串数组");
     }
+    // 数组上限（1MB body 可装 3 万 uuid；实际勾选集合=名下负债数，200 兜底足够）
+    if (body.ids.length > 200) throw new ApiError(400, "invalid_input", "ids 过多（上限 200）");
     body.ids.forEach((id) => assertUuidParam(id, "ids"));
   }
   return NextResponse.json(

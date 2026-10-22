@@ -19,14 +19,18 @@ export function Modal({
   onClose,
   children,
   size = "md",
+  busy = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   /** md=常态表单弹层；lg=宽内容（导入向导/预览） */
   size?: "md" | "lg";
+  /** 提交进行中禁止 Esc/点遮罩/× 关闭：慢网期间弹层被卸载会让保存反馈丢失、易重复录入
+   *  （十四轮 P2，与 debt/import-drawer 的 guardClose 同口径） */
+  busy?: boolean;
 }) {
-  const dismissRef = useDismiss<HTMLDivElement>(onClose);
+  const dismissRef = useDismiss<HTMLDivElement>(onClose, !busy);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -92,8 +96,9 @@ export function Modal({
           <h3 className="text-sm font-semibold text-ink">{title}</h3>
           <button
             onClick={onClose}
+            disabled={busy}
             aria-label="关闭"
-            className="press rounded-md p-1.5 text-ink-dim hover:text-ink"
+            className="press rounded-md p-1.5 text-ink-dim hover:text-ink disabled:opacity-40"
           >
             <X size={15} aria-hidden />
           </button>

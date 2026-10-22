@@ -30,9 +30,14 @@ export default function LoginPage() {
       .catch(() => {});
   }, []);
 
+  // 卸载标记：sendCode 的响应在卸载后才到达时，不能再创建倒计时 interval——
+  // 卸载清理 effect 已跑过，晚建的 interval 每秒空转永不停止（十四轮 P3）
+  const aliveRef = useRef(true);
   useEffect(() => {
+    aliveRef.current = true;
     // 卸载时清理倒计时 interval，避免离开页面后空跑最长 60s
     return () => {
+      aliveRef.current = false;
       if (timer.current) clearInterval(timer.current);
     };
   }, []);
@@ -61,9 +66,11 @@ export default function LoginPage() {
     try {
       const body = isEmail ? { email: account, purpose: "login" } : { phone: account, purpose: "login" };
       await api(isEmail ? "/api/auth/email/send" : "/api/auth/sms/send", "POST", body);
+      if (!aliveRef.current) return; // 卸载后到达：不弹提示也不建倒计时
       toast("验证码已发送，5 分钟内有效");
       startCountdown();
     } catch (e) {
+      if (!aliveRef.current) return;
       const text = e instanceof Error ? e.message : String(e);
       // 通道未开通：注册场景下邀请码即凭证，可不填验证码
       if (isRegister && e instanceof ApiClientError && e.status === 503) {

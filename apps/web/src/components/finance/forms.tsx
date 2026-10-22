@@ -234,7 +234,7 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 type="number"
                 step="0.01"
                 key={`${a.id}:${a.openingBalanceCents}`}
-                defaultValue={a.openingBalanceCents / 100}
+                defaultValue={centsToYuanInput(a.openingBalanceCents)}
                 title="期初余额（元，改后账户余额=新期初+流水）"
                 onBlur={async (e) => {
                   const v = yuanToCents(e.target.value);

@@ -97,26 +97,41 @@ export function parseDuration(text: string): number | null {
   return null;
 }
 
-/** 解析金额（元）。返回分；无金额返回 null。例：260→26000、600块→60000、"花了260"→26000 */
+/** 解析金额（元）。返回分；无金额返回 null。例：260→26000、600块→60000、"花了260"→26000、
+ *  「花了两万」→2000000、「随了三千五」→350000（十四轮收口：中文数字接入，原版静默丢金额） */
 export function parseAmountCents(text: string): number | null {
   const toCents = (s: string) => Math.round(parseFloat(s) * 100);
+  // 数字组：阿拉伯（可小数）或中文数字（cnToNumber 换算，≤999——量词 万/千 在组外）
+  const NUM = "(?:\\d+(?:\\.\\d{1,2})?|[零一二两俩三四五六七八九十百]+)";
+  // 数字换算：阿拉伯 parseFloat；中文 cnToNumber。约数并列（两三/三四/七八）取末位保守上界
+  // （与 relativeOffsetDays 同口径——cnToNumber 按复合进位会误读成 23/34/78）
+  const numOf = (s: string): number | null => {
+    if (/^\d/.test(s)) return parseFloat(s);
+    const approx = s.match(/^([一两俩二三四五六七八九])([一两俩二三四五六七八九])$/);
+    return cnToNumber(approx ? approx[2] : s);
+  };
+  // 尾数位换算：「9块9」「三千五」的尾段——阿拉伯 parseInt，中文单字查表
+  const tailNum = (s: string): number | null =>
+    /^\d+$/.test(s) ? parseInt(s, 10) : /^[一两二三四五六七八九]$/.test(s) ? (CN_DIGITS[s] ?? null) : null;
   // 千分位先归一："花了1,000元" 旧版会匹配 "000元" → 0 分；无单位分支会只取到 "1" → 1 元。
   // NFKC 顺带把全角 ￥／２６０ 归一为半角
   const norm = text.normalize("NFKC").replace(/[,，]/g, "");
   const CAP = 100_000_000; // amount_cents 为 int4：与 AI 契约同上限（¥100 万），巨数直落会 22003
-  // 1) 带单位：260元 / 600块 / ¥99.9 / 1万元 / 2千块（¥ 前缀形态：金额跟在符号后，旧版只认后缀单位漏掉它）
+  // 1) 带单位：260元 / 600块 / ¥99.9 / 1万元 / 2千块 / 两万元（¥ 前缀形态：金额跟在符号后，旧版只认后缀单位漏掉它）
   //    万/千量词：旧版 lookahead 类不含万千，"1万元" 回溯成裸 "1元"（静默缩小 1 万倍）
   //    lookbehind 防抢跑："1万2千元" 不得从中间的 "2千元" 起配（前面是量词=大数未完，交给 noUnit 整体解析）
-  const withUnit = norm.match(/(?<![0-9.万千百])(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(块|元|¥)/);
+  const withUnit = norm.match(new RegExp(`(?<![0-9.万千百零一二两俩三四五六七八九十])(${NUM})\\s*(万|千)?\\s*(块|元|¥)`));
   if (withUnit) {
+    const n = numOf(withUnit[1]);
+    if (n === null) return null; // 中文数字换算失败：宁 null 勿错
     const mult = withUnit[2] === "万" ? 10_000 : withUnit[2] === "千" ? 1_000 : 1;
     // 口语尾数守卫：「9块9」「35块5」= 9.9/35.5 元（旧版只取整块漏掉尾数，9块9 少算 90 分）。
     // 尾数只认单位后紧跟的 1~2 位数字（「9块9角」同型并入=990 分，角/毛即 0.1 元）；
     // 3 位以上是另一段数字（「12元5000」类量词/编号）不并，宁少勿错
     const end = (withUnit.index ?? 0) + withUnit[0].length;
     const tail = /^\d{1,2}(?!\d)/.exec(norm.slice(end));
-    const value = parseFloat(withUnit[1]) * mult + (tail ? parseInt(tail[0], 10) / 10 ** tail[0].length : 0);
-    const cents = Math.round(value * 100);
+    const tailV = tail ? parseInt(tail[0], 10) / 10 ** tail[0].length : 0;
+    const cents = Math.round((n * mult + tailV) * 100);
     return cents > CAP ? CAP : cents;
   }
   const prefixed = norm.match(/¥\s*(\d+(?:\.\d{1,2})?)/);
@@ -124,25 +139,32 @@ export function parseAmountCents(text: string): number | null {
     const cents = toCents(prefixed[1]);
     return cents > CAP ? CAP : cents;
   }
-  // 2) 动词暗示（无单位）："花了260""随了600""付了86"；负向断言排除时长/日期词
+  // 2) 动词暗示（无单位）："花了260""随了600""付了86""花了两万""随了三千五"；负向断言排除时长/日期词
   //    （"花了50分钟""花了3小时""花了2周"都不是钱——"小""周"必须入排除类；
-  //    "万千百"也必须入——它们由量词组消费，留在原文意味着量词组匹配失败，整体应放弃而非缩水成裸数字）
+  //    "万千百"也必须入——它们由量词组消费，留在原文意味着量词组匹配失败，整体应放弃而非缩水成裸数字；
+  //    kK 同理："花了1.5k" 口语=1500 而非 1.5 元，不支持就整体放弃（宁 null 勿千倍错））
   //    万/千量词："花了1万"=100万分（旧实现漏乘，静默缩小 100/10 倍）；
   //    口语尾数按位下降链："花了1万2"=1.2万、"1万2千"=12000、"1万2千5"=12500、"2千5"=2500、
-  //    "1万2千5百"=12500——两级尾数组缺一会让整场匹配失败返回 null，该笔花销静默消失（历史 bug）
+  //    "1万2千5百"=12500、"两万五"=25000、"三千五百"=3500——两级尾数组缺一会让整场匹配失败返回 null，该笔花销静默消失（历史 bug）
   const noUnit = norm.match(
-    /(?:花费|消费|花|随|付|充值|打款)(?:了)?\s*(\d+(?:\.\d{1,2})?)\s*(万|千)?\s*(?:(\d{1,2})(千|百)?)?\s*(?:(\d{1,2})(百)?)?(?![\d.天日个月年时分秒小周万千百])/,
+    new RegExp(
+      `(?:花费|消费|花|随|付|充值|打款)(?:了)?\\s*(${NUM})\\s*(万|千)?\\s*(?:(\\d{1,2}|[一两二三四五六七八九])(千|百)?)?\\s*(?:(\\d{1,2}|[一两二三四五六七八九])(百)?)?(?![\\d.天日个月年时分秒小周万千百kK零一二两俩三四五六七八九十])`,
+    ),
   );
   if (noUnit) {
+    const head = numOf(noUnit[1]);
+    if (head === null) return null;
     const mult = noUnit[2] === "万" ? 10_000 : noUnit[2] === "千" ? 1_000 : 1;
-    let value = parseFloat(noUnit[1]) * (noUnit[2] ? mult : 1);
+    let value = head * (noUnit[2] ? mult : 1);
     let place = noUnit[2] ? mult / 10 : 0; // 下一段裸尾数的默认位值（万→千、千→百、百→十）
     for (const g of [3, 5] as const) {
       const digits = noUnit[g];
       if (!digits) break; // 位值链断裂（lookahead 已保证不会发生，防御性终止）
       const unit = noUnit[g + 1];
       const p = unit === "千" ? 1_000 : unit === "百" ? 100 : place;
-      value += parseInt(digits, 10) * p;
+      const d = tailNum(digits);
+      if (d === null) return null; // 尾段换算失败：宁 null 勿错
+      value += d * p;
       place = p / 10;
     }
     const cents = Math.round(value * 100);

@@ -18,6 +18,7 @@ export function ImageGrid({ images, onOpen }: { images: FeedImage[]; onOpen?: (i
     <button
       key={img.id}
       onClick={() => !failed.has(img.id) && onOpen?.(i)}
+      aria-label={`查看第 ${i + 1} 张图片`}
       className={`group relative overflow-hidden rounded-xl bg-elevated ${cls}`}
     >
       {failed.has(img.id) ? (
@@ -85,7 +86,7 @@ export function ImageLightbox({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !e.isComposing) onClose();
       if (e.key === "ArrowLeft") go(-1);
       if (e.key === "ArrowRight") go(1);
     };

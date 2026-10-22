@@ -20,7 +20,9 @@ export function useDismiss<T extends HTMLElement>(onClose: () => void, active = 
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // IME 组合中按 Esc 是取消候选词，不是关闭浮层——不判 isComposing 会把正在打字的草稿整个关掉
+      //（十四轮 P2：Enter 路径全站已守，Esc 路径系统性漏守，此处是全站单点）
+      if (e.key === "Escape" && !e.isComposing && !(e.keyCode === 229)) onClose();
     };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);

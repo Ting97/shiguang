@@ -42,8 +42,11 @@ export default function CaptureButton({
   const longFired = useRef(false);
   const startY = useRef(0);
 
-  if (!recRef.current) {
-    recRef.current = createVoiceRecorder({
+  // 录音器生命周期放进 effect：StrictMode 的 setup→cleanup→setup 不会重跑 render 体，
+  // render 体惰性创建 + cleanup destroy 会让第二次 setup 复用已销毁实例（dead 门拦截一切回调，
+  // 长按说话在开发模式彻底失灵——十四轮 P2）
+  useEffect(() => {
+    const rec = createVoiceRecorder({
       onState: setState,
       onTick: setSeconds,
       onText: onVoiceText,
@@ -51,9 +54,14 @@ export default function CaptureButton({
       onError,
       onHint,
     });
-  }
-  const rec = recRef.current;
-  useEffect(() => () => rec.destroy(), [rec]);
+    recRef.current = rec;
+    return () => {
+      rec.destroy();
+      recRef.current = null;
+    };
+    // 回调沿首次渲染捕获（与旧 render 体创建同口径）：父级 handlers 稳定或经 ref 转发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     try {
@@ -90,12 +98,12 @@ export default function CaptureButton({
     pressTimer.current = setTimeout(() => {
       longFired.current = true;
       markHintSeen();
-      void rec.begin();
+      void recRef.current?.begin();
     }, LONG_PRESS_MS);
   }
 
   function onMove(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!longFired.current || rec.getState() !== "recording") return;
+    if (!longFired.current || recRef.current?.getState() !== "recording") return;
     const dy = startY.current - e.clientY; // 上滑为正
     // 带迟滞：越过 80px 进入取消态，滑回 40px 内退出
     if (dy > CANCEL_SLIDE_PX) setCancelArmed(true);
@@ -111,18 +119,18 @@ export default function CaptureButton({
       return;
     }
     if (cancelArmed) {
-      if (rec.getState() === "recording") rec.discard();
-      else rec.release(); // 还在起流：走「按住即松开」丢弃路径
+      if (recRef.current?.getState() === "recording") recRef.current.discard();
+      else recRef.current?.release(); // 还在起流：走「按住即松开」丢弃路径
       setCancelArmed(false);
       return;
     }
-    rec.release(); // → transcribing → onText 回填面板
+    recRef.current?.release(); // → transcribing → onText 回填面板
   }
 
   function onCancel() {
     clearPressTimer();
     setCancelArmed(false);
-    rec.discard();
+    recRef.current?.discard();
   }
 
   const recording = state === "recording";

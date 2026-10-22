@@ -87,11 +87,10 @@ export function ContactDetailPage() {
   const [profiling, setProfiling] = useState(false); // AI 交往画像生成中
   // 删除档案两步确认（全站规范，替代原生 confirm）
   const armDelete = useArmConfirm();
-  // 往来时间线单条删除：重入锁（deletingId）+ 两步确认（armDelId 3 秒窗口）
+  // 往来时间线单条删除：重入锁（deletingId）+ 两步确认统一走 useArmConfirm
+  // （手写三件套缺 armedIdRef 镜像，<16ms 双击要第三击才确认——十四轮收口）
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [armDelId, setArmDelId] = useState<string | null>(null);
-  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (armTimerRef.current) clearTimeout(armTimerRef.current); }, []);
+  const armDel = useArmConfirm();
   // load 竞态序号：只允许最新一次请求落地（见 load 内说明）
   const loadSeqRef = useRef(0);
 
@@ -184,18 +183,11 @@ export function ContactDetailPage() {
 
   async function removeInteraction(id: string) {
     if (deletingId) return;
-    if (armDelId !== id) {
-      setArmDelId(id);
-      // 与 useArmConfirm 同款 3 秒窗口；句柄入 ref 供卸载清理（裸 setTimeout 会在卸载后 setState）
-      armTimerRef.current && clearTimeout(armTimerRef.current);
-      armTimerRef.current = setTimeout(() => setArmDelId((cur) => (cur === id ? null : cur)), 3000);
-      return;
-    }
+    if (!armDel.arm(id)) return;
     setDeletingId(id);
     try {
       await api(`/api/interactions/${id}`, "DELETE");
       toast("🗑 往来已删除");
-      setArmDelId(null);
       await load();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "err");
@@ -395,12 +387,12 @@ export function ContactDetailPage() {
                         <button
                           onClick={() => void removeInteraction(t.id)}
                           disabled={deletingId === t.id}
-                          title={armDelId === t.id ? "3 秒内再点确认删除（仅删除这条往来，档案与流水不受影响）" : "删除这条往来"}
+                          title={armDel.armedId === t.id ? "3 秒内再点确认删除（仅删除这条往来，档案与流水不受影响）" : "删除这条往来"}
                           className={`row-actions-hidden shrink-0 rounded px-1 py-0.5 text-micro transition ${
-                            armDelId === t.id ? "bg-rose-500/15 text-danger" : "text-ink-faint opacity-0 hover:text-danger group-hover:opacity-100 focus:opacity-100"
+                            armDel.armedId === t.id ? "bg-rose-500/15 text-danger" : "text-ink-faint opacity-0 hover:text-danger group-hover:opacity-100 focus:opacity-100"
                           }`}
                         >
-                          {deletingId === t.id ? "删除中…" : armDelId === t.id ? "确认删除" : <Trash2 size={11} aria-hidden />}
+                          {deletingId === t.id ? "删除中…" : armDel.armedId === t.id ? "确认删除" : <Trash2 size={11} aria-hidden />}
                         </button>
                       </div>
                       {t.summary && <p className="mt-1 text-sm text-ink">{displaySummary(t.summary)}</p>}

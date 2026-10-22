@@ -14,9 +14,10 @@ interface Props {
 /** 月视图：月历格 + 每日迷你结构环 + 月度统计 */
 export default function MonthView({ month, stats, activities, onPickDay }: Props) {
   const [y, m] = month.split("-").map(Number);
-  const first = new Date(y, m - 1, 1);
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const lead = (first.getDay() + 6) % 7; // 周一为 0
+  // UTC 历法算术（对齐 year-view「纯字符串/UTC 口径」约定）：本地 Date 在 DST 时区宿主会差一天
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const lead = (first.getUTCDay() + 6) % 7; // 周一为 0
   const actMap = new Map(activities.map((a) => [a.id, a]));
 
   const cells: (string | null)[] = [

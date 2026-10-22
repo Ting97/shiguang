@@ -38,13 +38,18 @@ export default function ContactListPage() {
   const [editing, setEditing] = useState<ContactRow | "new" | null>(null);
   const [inited, setInited] = useState(false);
   const initedRef = useRef(false);
+  // load 竞态序号：useDidShow 重拉与下拉刷新并发时，慢的旧回包不得覆盖新回包（对齐 feed loadSeq 范式）
+  const loadSeqRef = useRef(0);
 
   async function load() {
+    const seq = ++loadSeqRef.current;
     setLoadErr(null);
     try {
       const j = await loadContacts();
+      if (seq !== loadSeqRef.current) return;
       setContacts((j.contacts as ContactRow[]) ?? []);
     } catch (e: any) {
+      if (seq !== loadSeqRef.current) return;
       setLoadErr(e?.message ?? "加载失败");
     }
   }

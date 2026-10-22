@@ -144,8 +144,9 @@ export function PaymentForm({
   onDone: (text: string) => Promise<void>;
   onError: (text: string) => void;
 }) {
-  const suggest = debt.monthly_cents != null ? debt.monthly_cents / 100 : Math.min(debt.balance_cents / 100, 1000);
-  const [amount, setAmount] = useState(String(suggest));
+  // 建议还款额在分域算好再转元串（centsToYuanInput 整数商余，浮点 /100 会出长小数——十四轮 P2 收口）
+  const suggestCents = debt.monthly_cents ?? Math.min(debt.balance_cents, 100_000);
+  const [amount, setAmount] = useState(centsToYuanInput(suggestCents));
   const [paidAt, setPaidAt] = useState(bjToday());
   const [accountId, setAccountId] = useState("");
   const [note, setNote] = useState("");

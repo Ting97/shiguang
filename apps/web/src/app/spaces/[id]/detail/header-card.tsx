@@ -164,7 +164,7 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
                     onChange={(e) => setEditTitle(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit(m.id);
-                      if (e.key === "Escape") setEditingId(null);
+                      if (e.key === "Escape" && !e.nativeEvent.isComposing) setEditingId(null);
                     }}
                     maxLength={80}
                     className="min-w-0 flex-1 rounded-lg border border-line-soft bg-surface px-2 py-1 text-xs outline-none focus:border-sky-500"
@@ -248,7 +248,7 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
                       onChange={(e) => setEditTitle(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveEdit(m.id);
-                        if (e.key === "Escape") setEditingId(null);
+                        if (e.key === "Escape" && !e.nativeEvent.isComposing) setEditingId(null);
                       }}
                       maxLength={80}
                       className="min-w-0 flex-1 rounded-lg border border-line-soft bg-surface px-2 py-1 text-xs outline-none focus:border-sky-500"

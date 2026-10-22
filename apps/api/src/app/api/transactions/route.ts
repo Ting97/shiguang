@@ -8,8 +8,6 @@ import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TZ = "Asia/Shanghai";
-
 /** GET /api/transactions?month=YYYY-MM&status=all|draft|confirmed&limit=&offset= —— 月度流水列表。
  * limit>0 时分页返回并附 total 计数（配合「加载更多」）；limit 缺省/0 = 全量，兼容旧调用方 */
 export const GET = withModule("finance", async (req, { user }) => {
@@ -29,8 +27,13 @@ export const GET = withModule("finance", async (req, { user }) => {
   };
   const limit = Math.min(num(url.searchParams.get("limit")), 500);
   const offset = num(url.searchParams.get("offset"));
+  // sargable 化（对齐 finance/overview 九-F 口径）：to_char(occurred_at…)='$3' 对列套函数，
+  // idx_tx_user_time 走不了范围扫描；北京固定 UTC+8，月界预计算成半开区间 [start, end)
+  const [y, m] = month.split("-").map(Number);
+  const monthStart = new Date(Date.UTC(y, m - 1, 1, -8)).toISOString();
+  const monthEnd = new Date(Date.UTC(y, m, 1, -8)).toISOString();
   const where = `where t.user_id = $1${draftCond}
-       and to_char(t.occurred_at at time zone $2, 'YYYY-MM') = $3`;
+       and t.occurred_at >= $2 and t.occurred_at < $3`;
 
   const [list, count] = await Promise.all([
     pool.query(
@@ -41,10 +44,10 @@ export const GET = withModule("finance", async (req, { user }) => {
      left join accounts a on a.id = t.account_id
      ${where}
      order by t.occurred_at desc, t.created_at desc, t.id desc${limit > 0 ? ` limit $4 offset $5` : ""}`,
-      limit > 0 ? [user.id, TZ, month, limit, offset] : [user.id, TZ, month],
+      limit > 0 ? [user.id, monthStart, monthEnd, limit, offset] : [user.id, monthStart, monthEnd],
     ),
     limit > 0
-      ? pool.query(`select count(*)::int as n from transactions t ${where}`, [user.id, TZ, month])
+      ? pool.query(`select count(*)::int as n from transactions t ${where}`, [user.id, monthStart, monthEnd])
       : null,
   ]);
   return NextResponse.json({

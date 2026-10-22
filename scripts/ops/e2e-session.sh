@@ -13,5 +13,7 @@ if [ -z "$USERID" ]; then
   echo "E2E 测试账号不存在（phone=13900000001）" >&2
   exit 1
 fi
+# HOURS 必须是纯数字：拼进 SQL 前拦住注入面（root 操作者自伤面）
+case "$HOURS" in ''|*[!0-9]*) echo "HOURS 需为正整数" >&2; exit 1;; esac
 $P "insert into sessions (user_id, token_hash, user_agent, expires_at) values ('$USERID','$HASH','e2e-test', now() + interval '$HOURS hours')" >/dev/null
 echo "$TOKEN"

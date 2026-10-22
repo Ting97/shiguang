@@ -156,27 +156,27 @@ export async function buildReviewCtx(
       //   占位符与参数必须同条件收放：不带 limit $5 时参数也须停在 4 个（否则 bind 数失配 500）
       cfg.inject.entryDetail
         ? pool.query(
-            `select raw_text, mood, mood_score, created_at from entries
+            `select id, raw_text, mood, mood_score, created_at from entries
              where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date
-             order by created_at${rawEntryLimit > 0 ? ` limit $5::int` : ""}`,
+             order by created_at, id${rawEntryLimit > 0 ? ` limit $5::int` : ""}`,
             rawEntryLimit > 0 ? [...baseParams, rawEntryLimit] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       cfg.inject.blockDetail
         ? pool.query(
-            `select b.title, b.start_at, b.end_at, a.icon, a.name
+            `select b.id, b.title, b.start_at, b.end_at, a.icon, a.name
              from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
              where b.user_id = $1
                and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
-             order by b.start_at${blockCap > 0 ? ` limit $5::int` : ""}`,
+             order by b.start_at, b.id${blockCap > 0 ? ` limit $5::int` : ""}`,
             blockCap > 0 ? [...baseParams, blockCap] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
       cfg.inject.todoDetail
         ? pool.query(
-            `select title, done_at from todos
+            `select id, title, done_at from todos
              where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date
-             order by done_at${todoCap > 0 ? ` limit $5::int` : ""}`,
+             order by done_at, id${todoCap > 0 ? ` limit $5::int` : ""}`,
             todoCap > 0 ? [...baseParams, todoCap] : baseParams,
           )
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),

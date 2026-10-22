@@ -98,21 +98,33 @@ export const PUT = withAdminParams(async (req, { user, params }) => {
       ? cfgToSave
       : ((prev?.context_config as { inject: Record<string, boolean>; caps: Record<string, number>; userData?: UserDataEntry[] } | null) ?? null);
 
-  const { rows } = await pool.query(
-    `insert into ai_prompts (key, content, enabled, remark, user_template, context_config, updated_by, updated_at)
-     values ($1,$2,$3,$4,$5,$6::jsonb,$7,now())
-     on conflict (key) do update set
-       content = $2, enabled = $3, remark = $4, user_template = $5, context_config = $6::jsonb, updated_by = $7, updated_at = now()
-     returning key, content, enabled, remark, user_template, context_config, updated_at`,
-    [key, content, enabled === true, remark ?? null, finalTpl, finalCfg ? JSON.stringify(finalCfg) : null, user.id],
-  );
-  // 版本快照（三件套 payload；content 列保留兼容旧版本读取）
-  await pool.query(
-    `insert into ai_prompt_versions (key, content, payload, created_by) values ($1,$2,$3::jsonb,$4)`,
-    [key, content, JSON.stringify({ system: content, userTemplate: finalTpl, contextConfig: finalCfg }), user.id],
-  );
-  invalidatePrompts(key as PromptKey);
-  return NextResponse.json({ ok: true, prompt: rows[0] });
+  // 覆盖 upsert + 版本快照两步写事务化：第二条失败时 prompt 已生效但版本快照缺失，
+  // 版本历史/回滚链路出现空洞（十四轮 P3）
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const { rows } = await client.query(
+      `insert into ai_prompts (key, content, enabled, remark, user_template, context_config, updated_by, updated_at)
+       values ($1,$2,$3,$4,$5,$6::jsonb,$7,now())
+       on conflict (key) do update set
+         content = $2, enabled = $3, remark = $4, user_template = $5, context_config = $6::jsonb, updated_by = $7, updated_at = now()
+       returning key, content, enabled, remark, user_template, context_config, updated_at`,
+      [key, content, enabled === true, remark ?? null, finalTpl, finalCfg ? JSON.stringify(finalCfg) : null, user.id],
+    );
+    // 版本快照（三件套 payload；content 列保留兼容旧版本读取）
+    await client.query(
+      `insert into ai_prompt_versions (key, content, payload, created_by) values ($1,$2,$3::jsonb,$4)`,
+      [key, content, JSON.stringify({ system: content, userTemplate: finalTpl, contextConfig: finalCfg }), user.id],
+    );
+    await client.query("commit");
+    invalidatePrompts(key as PromptKey);
+    return NextResponse.json({ ok: true, prompt: rows[0] });
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 });
 
 /** GET /api/admin/prompts/[key] —— 版本历史（最近 30 条，含三件套 payload 供整体回滚） */

@@ -149,8 +149,9 @@ export function birthdayInfoOf(
   if (!m) return null;
   const month = Number(m[2]);
   const day = Number(m[3]);
-  // 脏数据（"00-00"/"99-99"）不产展示行：countdown 返回 null 但 date 会拼出「0月0日」
+  // 脏数据（"00-00"/"99-99"/"02-30"）不产展示行：countdown 返回 null 但 date 会拼出「2月30日」
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (day > new Date(Date.UTC(2000, month, 0)).getUTCDate()) return null; // 真实日历日（2 月无 30 日）
   return {
     date: `${month}月${day}日`,
     countdown: birthdayCountdown(c.birthday, today),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDismiss } from "./dismissable";
 import {
   Clock, ListTodo, Wallet, Smile, Users, Utensils,
@@ -58,6 +58,8 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
   const [spaceMenu, setSpaceMenu] = useState<Array<{ id: string; name: string; icon: string; color: string; status: string }> | null>(null);
   // 拉取失败独立终态：旧版与空列表共用「还没有进行中的空间」文案，误导且无重试
   const [spaceMenuErr, setSpaceMenuErr] = useState(false);
+  // 空间列表请求 seq 守卫：菜单关了再开会并发两个请求，慢的旧回包不得覆盖新回包
+  const spaceSeqRef = useRef(0);
 
   const [text, setText] = useState("");
   const [start, setStart] = useState("12:00");
@@ -303,10 +305,15 @@ export default function EntryMenu({ m, activities, busyDomain, onAI, onManual, o
         {spaceMenu === null ? (
           <button
             onClick={() => {
+              const seq = ++spaceSeqRef.current;
               setSpaceMenuErr(false);
               api("/api/spaces")
-                .then((j) => setSpaceMenu((j.spaces ?? []).filter((s: { status: string }) => s.status === "active")))
+                .then((j) => {
+                  if (seq !== spaceSeqRef.current) return;
+                  setSpaceMenu((j.spaces ?? []).filter((s: { status: string }) => s.status === "active"));
+                })
                 .catch(() => {
+                  if (seq !== spaceSeqRef.current) return;
                   setSpaceMenu([]);
                   setSpaceMenuErr(true);
                 });

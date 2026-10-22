@@ -38,7 +38,7 @@ export default function NotePanel(opts: {
         onChange={(e) => setNoteTitle(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) void saveNote();
-          if (e.key === "Escape") setNoteOpen(null);
+          if (e.key === "Escape" && !e.nativeEvent.isComposing) setNoteOpen(null);
         }}
         className="w-full rounded border border-line-strong bg-surface px-2 py-1 text-body outline-none focus:border-sky-500"
         placeholder="标题"
