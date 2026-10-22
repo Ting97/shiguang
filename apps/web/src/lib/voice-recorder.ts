@@ -40,6 +40,12 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
   let startAt = 0;
   // 按下后 getUserMedia 尚未就绪时松开 → 记下取消意图，流到手即拆（视为按太短）
   let releaseBeforeReady = false;
+  // 起流中被打断（来电/长按弹出系统菜单触发 pointercancel）→ 流到手静默拆，不录不提示
+  //（区别于 releaseBeforeReady 的「按太短」引导文案；此前 discard 只认 recording，requesting 阶段取消被吞）
+  let discardBeforeReady = false;
+  // begin 代际号：requesting 阶段取消回 idle 后用户立刻再次按下，旧一轮 getUserMedia 迟到返回时
+  // 凭代际号让位（否则会照旧开录，与新一次按下双路录音）
+  let beginGen = 0;
   // 到点自动结束（区别于松开，结束时给「已录满」提示）
   let autoStop = false;
   // destroy 后拆干净并不再触发任何回调
@@ -66,13 +72,22 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
 
   async function begin() {
     if (state !== "idle") return; // 转写中、已在录或权限申请中
+    const gen = ++beginGen;
     setState("requesting"); // 同步占位：getUserMedia 弹窗期间二次 begin() 不再重入（旧实现等 await 返回才置态，会泄漏第一路麦克风流）
     releaseBeforeReady = false;
+    discardBeforeReady = false;
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (dead) {
+      if (dead || gen !== beginGen) {
+        // 组件已卸载，或本轮流取消后用户已再次按下：本轮流静默拆流，状态交给胜者
         s.getTracks().forEach((t) => t.stop());
-        setState("idle"); // 回滚占位态（dead 时 onState 不外发）
+        if (dead) setState("idle"); // 回滚占位态（dead 时 onState 不外发）
+        return;
+      }
+      if (discardBeforeReady) {
+        // 手势取消（来电/系统菜单接管 pointercancel）：拆流不录、不提示（无「按太短」引导的必要）
+        s.getTracks().forEach((t) => t.stop());
+        setState("idle"); // 回滚占位态
         return;
       }
       if (releaseBeforeReady) {
@@ -129,8 +144,13 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
     if (state === "idle" || state === "requesting") releaseBeforeReady = true;
   }
 
-  /** 中断（来电/切走/上滑取消）：丢弃，不送识别 */
+  /** 中断（来电/切走/上滑取消）：丢弃，不送识别；起流中先记取消意图（流到手静默拆） */
   function discard() {
+    if (state === "requesting") {
+      discardBeforeReady = true;
+      backToIdle();
+      return;
+    }
     if (state !== "recording") return;
     const rec = recorder;
     recorder = null;

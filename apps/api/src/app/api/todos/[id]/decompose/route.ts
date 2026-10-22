@@ -143,12 +143,8 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     });
     return NextResponse.json({ error: "AI 没有给出可用的拆解结果，请稍后再试" }, { status: 502 });
   }
-  void writeAuditRecord({
-    userId: user.id, entryId: null, stage: "decompose",
-    model: activeModel(), engine: "decompose",
-    latencyMs: Date.now() - t0, ok: true,
-    promptTokens, completionTokens,
-  });
+  // ok:true 审计移到落库事务 commit 之后：落库失败（500）或 needMode 询问（409）都未交付产物，
+  // 不计免费额度（「配额只扣成功调用」，与 chat/service 先落库再写 ok:true 同口径）
 
   // ---- 落库（插入式 sort 定位） ----
   const limit = isAction ? 3 : 10;
@@ -216,6 +212,12 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       inserted.push(rows[0]);
     }
     await client.query("commit");
+    void writeAuditRecord({
+      userId: user.id, entryId: null, stage: "decompose",
+      model: activeModel(), engine: "decompose",
+      latencyMs: Date.now() - t0, ok: true,
+      promptTokens, completionTokens,
+    });
     return NextResponse.json({ ok: true, actions: inserted, engine: isAction ? "action-decompose" : "todo-decompose" });
   } catch (e) {
     await client.query("rollback").catch(() => {});

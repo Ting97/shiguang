@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClock, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays, relativeOffsetMinutes, detectDayRef } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays, relativeOffsetMinutes, detectDayRef } from "../src/time-infer.js";
 import { toCstWallClock, deterministicOccurredDate } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
@@ -428,4 +428,41 @@ test("裸 N号+周X：显式日完全压过周X相对推算（日程块与 finan
   assert.equal(deterministicOccurredDate("20号周日随了600", OCT8), "2026-09-20");
   // 本月已过的 N号 仍取本月
   assert.equal(deterministicOccurredDate("3号周三开了会", OCT8), "2026-10-03");
+});
+
+// —— 十八轮回归：parseClockRange 终点抬 pm 用 >=（等钟点区间曾跨日膨胀成 24.5h 块） ——
+
+test("parseClockRange：等钟点区间/裸 12 点到 1 点（起点过正午同样抬终点）", () => {
+  // 下午1点到1点半 → 13:00–13:30（旧版 1+12=13 > 13 不成立 → 01:30 跨日 +24h = 24.5h 块）
+  assert.deepEqual(parseClockRange("下午1点到1点半", "afternoon"), {
+    start: { hour: 13, minute: 0 }, end: { hour: 13, minute: 30 },
+  });
+  // 中午12点到1点 → 12:00–13:00（noon 不在 pmish，按起点本身 >=12 抬）
+  assert.deepEqual(parseClockRange("中午12点到1点", "noon"), {
+    start: { hour: 12, minute: 0 }, end: { hour: 13, minute: 0 },
+  });
+  // 晚上等钟点：晚上11点到11点半 → 23:00–23:30
+  assert.deepEqual(parseClockRange("晚上11点到11点半", "evening"), {
+    start: { hour: 23, minute: 0 }, end: { hour: 23, minute: 30 },
+  });
+  // 真跨日回归不伤：晚上11点到1点（13 >= 23 不成立，终点保持 1 点交跨日语义）
+  assert.deepEqual(parseClockRange("晚上11点到1点", "evening"), {
+    start: { hour: 23, minute: 0 }, end: { hour: 1, minute: 0 },
+  });
+  // 混时段回归不伤：上午10点到下午3点（终点片段自带时段词，不走钳制）
+  assert.deepEqual(parseClockRange("上午10点到下午3点", null), {
+    start: { hour: 10, minute: 0 }, end: { hour: 15, minute: 0 },
+  });
+});
+
+// —— 十八轮回归：中文分钟 {1,2} 截断三位中文数字（「十一点三十五」曾落 11:30） ——
+
+test("parseClock：三位中文数字分钟（三十五/二十五）", () => {
+  assert.deepEqual(parseClock("十一点三十五吃饭", null), { hour: 11, minute: 35 });
+  assert.deepEqual(parseClock("两点二十五开会", "afternoon"), { hour: 14, minute: 25 });
+  // 既有两位/半点回归不伤
+  assert.deepEqual(parseClock("十一点五十睡觉", null), { hour: 11, minute: 50 });
+  assert.deepEqual(parseClock("三点半", null), { hour: 3, minute: 30 });
+  // 分钟越界兜底保持（八十八 → cnToNumber=88 > 59 → null）
+  assert.equal(parseClock("三点八十八", null), null);
 });

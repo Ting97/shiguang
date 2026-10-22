@@ -96,7 +96,8 @@ export const PersonDraft = z.object({
 /** 饮食域：食物条目（kcal 可空 = 估不出） */
 export const DietItem = z.object({
   name: z.string(),
-  amount: z.string().nullish(),
+  // 与 V2 面 DietItemV2（.max(20)）同口径：legacy 字符串金额无上限时失控模型回包可塞超长串透传
+  amount: z.string().max(20).nullish(),
   kcal: z.coerce.number().int().positive().nullish(),
 });
 export const DietDraft = z.object({

@@ -361,6 +361,8 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     }
 
     let conflictTitle: string | null = null;
+    // 财务流水实际落库的 occurred_at（话术带日期时是历史日）：提交后按它失效复盘缓存
+    let financeOccurredAt: string | null = null;
 
     // ---- 日程域 ----
     if (r.intent === "todo") {
@@ -373,7 +375,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
         await recordRecognition(client, userId, entryId, "schedule", "none", { reason: overlapError(conflict, { title: r.title, start: r.time.start, end: r.time.end }) }, r.scheduleConfidence, r.engine);
         await recordRecognition(client, userId, entryId, "finance", r.finance.hasAmount ? (r.financeConfidence >= CONFIDENCE_THRESHOLD ? "applied" : "pending") : "none", r.finance, r.financeConfidence, r.engine);
         if (r.finance.hasAmount && r.financeConfidence >= CONFIDENCE_THRESHOLD) {
-          await insertTransaction(client, userId, entryId, r, rawText, current[0]?.created_at);
+          financeOccurredAt = await insertTransaction(client, userId, entryId, r, rawText, current[0]?.created_at);
         }
         await persistPeople(client, userId, entryId, r);
       } else {
@@ -424,7 +426,7 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     // ---- 财务域（冲突路径已落过则跳过）----
     if (!conflictTitle) {
       if (r.finance.hasAmount && r.financeConfidence >= CONFIDENCE_THRESHOLD) {
-        await insertTransaction(client, userId, entryId, r, rawText, current[0]?.created_at);
+        financeOccurredAt = await insertTransaction(client, userId, entryId, r, rawText, current[0]?.created_at);
         await recordRecognition(client, userId, entryId, "finance", "applied", r.finance, r.financeConfidence, r.engine);
       } else if (r.finance.hasAmount) {
         pendingDomains.push("finance");
@@ -471,6 +473,9 @@ export async function analyzeAndPersist(userId: string, entryId: string, rawText
     void invalidateReviewCachesForOccurrence(userId, new Date(current[0].created_at));
     void invalidateReviewCachesForOccurrence(userId, new Date(r.time.start));
     void invalidateReviewCachesForOccurrence(userId, new Date(r.time.end));
+    // 话术带日期的流水按「话术日期」落历史日（REQ-009 FR-E6）：created_at/time.start/time.end 均为今天，
+    // 不按 occurred_at 失效则该历史日的既有缓存被判「仍新鲜」，补记流水永远进不了历史复盘
+    if (financeOccurredAt) void invalidateReviewCachesForOccurrence(userId, new Date(financeOccurredAt));
     return {
       conflictTitle,
       pendingDomains,
@@ -506,7 +511,7 @@ export function resolveFinanceOccurredAt(
   return Number.isNaN(combined.getTime()) ? null : combined.toISOString();
 }
 
-/** 财务流水落库（主路径与冲突降级路径共用，保证只插一条） */
+/** 财务流水落库（主路径与冲突降级路径共用，保证只插一条）；返回实际落库的 occurred_at 供复盘缓存失效 */
 async function insertTransaction(
   client: import("pg").PoolClient,
   userId: string,
@@ -514,7 +519,8 @@ async function insertTransaction(
   r: import("@shiguangri/ai").ParseResult,
   rawText: string,
   entryCreatedAt?: Date | string | null,
-) {
+): Promise<string> {
+  const occurredAt = resolveFinanceOccurredAt(r.finance.occurredDate, entryCreatedAt) ?? r.time.end;
   await client.query(
     `insert into transactions (user_id, entry_id, direction, amount_cents, category, counterparty, note, occurred_at)
      values ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -525,9 +531,10 @@ async function insertTransaction(
       r.finance.category ?? "其他",
       r.finance.counterparty ?? null,
       rawText,
-      resolveFinanceOccurredAt(r.finance.occurredDate, entryCreatedAt) ?? r.time.end,
+      occurredAt,
     ],
   );
+  return occurredAt;
 }
 
 /** 人际草稿：动态提到的人自动建档 + 记往来（精确名/别名命中已有联系人则复用，避免称呼变体重建档） */

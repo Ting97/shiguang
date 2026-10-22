@@ -33,6 +33,11 @@ function assertDateRange(from: string, to: string) {
   if (!isValidCalendarDate(from) || !isValidCalendarDate(to)) {
     throw ApiError.badRequest("from/to 需为真实存在的日期（如 2025-13-01 非法）");
   }
+  // 跨度上限（对齐 fitness rangeGuard）：无上限时 from=0001-01-01&to=9999-12-31 会回全量历史块、
+  // stats 对每块开 generate_series，单请求即可拉爆响应体/聚合（前端最大跨度为年视图 365 天差）
+  if (new Date(`${to}T00:00:00+08:00`).getTime() - new Date(`${from}T00:00:00+08:00`).getTime() > 366 * 86_400_000) {
+    throw ApiError.badRequest("查询区间不能超过一年");
+  }
 }
 
 /** 倒挂/非法时间落库时 PG 约束兜底（QA 验收修复语义；detail 只进日志不下发）。
@@ -217,55 +222,62 @@ async function syncSleepBlockInner(
   userId: string,
   input: SleepSyncInput,
   exec: Pick<typeof pool, "query">,
-): Promise<SleepSyncResult> {
+): Promise<{ sync: SleepSyncResult; invalidateAts: Date[] }> {
   // 与 createBlock/updateBlock 同一把 per-user advisory lock：重叠预检与落库串行化（TOCTOU 收口）
   await exec.query(`select pg_advisory_xact_lock(hashtext($1))`, [`timeblocks:${userId}`]);
   // 「睡眠」预设分类必须存在（time_blocks 复合 FK 要求同用户行）：注册即播种 + 预设不可删，
   // 正常恒在；兜底缺失时跳过同步而非 23503 炸掉 fitness 打卡事务（与 067 回填守卫同口径）
   const hasAct = await exec.query(`select 1 from activities where id = 'sleep' and user_id = $1`, [userId]);
-  if (!hasAct.rows.length) return { ok: false, reason: "缺少「睡眠」分类，无法生成日程段" };
+  if (!hasAct.rows.length) return { sync: { ok: false, reason: "缺少「睡眠」分类，无法生成日程段" }, invalidateAts: [] };
   const prev = (await blocksRepo.bySleepLog(userId, input.sleepLogId, exec)).rows[0] as
     | { id: string; start_at: string | Date; end_at: string | Date }
     | undefined;
   if (input.sleepHX10 <= 0) {
     const removed = (await blocksRepo.removeBySleepLog(userId, input.sleepLogId, exec)).rows;
-    for (const r of removed) {
-      void invalidateReviewCachesForOccurrence(userId, new Date(r.start_at));
-      void invalidateReviewCachesForOccurrence(userId, new Date(r.end_at));
-    }
-    return { ok: true, blockId: null };
+    const invalidateAts = removed.flatMap((r) => [new Date(r.start_at), new Date(r.end_at)]);
+    return { sync: { ok: true, blockId: null }, invalidateAts };
   }
   const { startAt, endAt } = sleepRangeOf(input.logDate, input.sleepHX10);
   // 先预检再删旧：冲突时保留旧同步段不丢，仅跳过并返回原因——下次改时长/清走冲突日程后可重试
   const conflict = await findOverlap(userId, startAt, endAt, prev?.id, undefined, exec);
-  if (conflict) return { ok: false, reason: overlapError(conflict) };
+  if (conflict) return { sync: { ok: false, reason: overlapError(conflict) }, invalidateAts: [] };
   await blocksRepo.removeBySleepLog(userId, input.sleepLogId, exec);
   const block = (await blocksRepo.insert(userId, "sleep", "睡眠", startAt, endAt, exec, input.sleepLogId)).rows[0];
   // 新旧区间各自的起止日都失效复盘缓存：替换可能跨日移动分摊时长（与 createBlock/deleteBlock 同口径）
-  for (const d of [prev?.start_at, prev?.end_at, startAt, endAt]) {
-    if (d) void invalidateReviewCachesForOccurrence(userId, new Date(d));
-  }
-  return { ok: true, blockId: block.id as string };
+  const invalidateAts = [prev?.start_at, prev?.end_at, startAt, endAt]
+    .filter((d): d is string | Date => !!d)
+    .map((d) => new Date(d));
+  return { sync: { ok: true, blockId: block.id as string }, invalidateAts };
 }
 
-/** 保存/打卡睡眠后同步生成日程「😴 睡眠」跨天块。
- *  传 exec 时在调用方事务内执行（fitness 打卡/补录路径：先持 plan 行锁再取 timeblocks
- *  advisory lock，锁序恒为 plan 行锁 → advisory，与只持 advisory 的建块路径无死锁面）；
- *  不传时自开事务。 */
-export async function syncSleepBlock(userId: string, input: SleepSyncInput, exec?: Pick<typeof pool, "query">): Promise<SleepSyncResult> {
-  if (exec) return syncSleepBlockInner(userId, input, exec);
+/** 保存/打卡睡眠后同步生成日程「😴 睡眠」跨天块（自开事务）。
+ *  事务内路径用 syncSleepBlockInTx：复盘缓存失效必须在调用方 commit 之后触发——
+ *  在事务内先行失效，失效删除与提交之间的复盘生成请求会以旧数据重建缓存且水位不变（缓存永久陈旧） */
+export async function syncSleepBlock(userId: string, input: SleepSyncInput): Promise<SleepSyncResult> {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const r = await syncSleepBlockInner(userId, input, client);
+    const { sync, invalidateAts } = await syncSleepBlockInner(userId, input, client);
     await client.query("commit");
-    return r;
+    for (const at of invalidateAts) void invalidateReviewCachesForOccurrence(userId, at);
+    return sync;
   } catch (e) {
     await client.query("rollback").catch(() => {});
     throw e;
   } finally {
     client.release();
   }
+}
+
+/** 事务内路径（fitness 打卡/补录：先持 plan 行锁再取 timeblocks advisory lock，锁序恒为
+ *  plan → advisory，与只持 advisory 的建块路径无死锁面）；返回待失效事件时间，
+ *  调用方在其事务 commit 后统一触发失效。 */
+export async function syncSleepBlockInTx(
+  userId: string,
+  input: SleepSyncInput,
+  exec: Pick<typeof pool, "query">,
+): Promise<{ sync: SleepSyncResult; invalidateAts: Date[] }> {
+  return syncSleepBlockInner(userId, input, exec);
 }
 
 /** GET /api/blocks/range?from=YYYY-MM-DD&to=YYYY-MM-DD —— 区间内原始时间块 */

@@ -109,6 +109,12 @@ export function useTodoActions(ctx: TodoActionsCtx) {
         );
         return;
       }
+      // 响应形状防御（spaces 详情版同款）：约定形状之外的 2xx（代理/网关注入）裸取
+      // j.actions.length 会 TypeError → unhandledrejection → ChunkErrorReloader 整页刷新
+      if (!Array.isArray(j?.actions)) {
+        toast("服务异常，请稍后重试", "err");
+        return;
+      }
       toast(`✨ AI 拆出 ${j.actions.length} 个行动${isAction ? "，已插入原行动之后" : ""}`);
       try {
         await load(view);

@@ -8,6 +8,7 @@
  */
 import { pool } from "@/server/platform/db";
 import { loadConfig } from "@/server/platform/config";
+import { resolveUserModules } from "@/server/platform/modules";
 import { log } from "@/server/platform/http/logger";
 import { bjToday } from "@shiguangri/shared/date";
 import { lunarBirthdayCountdown } from "@shiguangri/shared/lunar";
@@ -213,8 +214,28 @@ export async function runDailyReminderPush(): Promise<void> {
     if (tokenRows.length === 0) return;
 
     let sent = 0;
+    // 模块门禁（REQ-028）对齐 /api/reminders 路由：goal 关 → 到期待办不推；people 关 →
+    // 生日/纪念日/久未联系不推（横幅因模块关闭不显示、推送却照发是矛盾行为）
+    const moduleCache = new Map<string, Set<string>>();
+    const modulesOf = async (uid: string) => {
+      let m = moduleCache.get(uid);
+      if (!m) {
+        const { rows } = await pool.query(`select role from profiles where id = $1`, [uid]);
+        const { modules } = await resolveUserModules({ id: uid, role: String(rows[0]?.role ?? "user") });
+        m = new Set(modules);
+        moduleCache.set(uid, m);
+      }
+      return m;
+    };
     for (const row of tokenRows) {
-      const body = summarize(byUser.get(row.user_id)!);
+      const c = byUser.get(row.user_id)!;
+      const mods = await modulesOf(row.user_id);
+      const body = summarize({
+        dueTodos: mods.has("goal") ? c.dueTodos : 0,
+        birthdays: mods.has("people") ? c.birthdays : 0,
+        anniversaries: mods.has("people") ? c.anniversaries : 0,
+        staleContacts: mods.has("people") ? c.staleContacts : 0,
+      });
       if (!body) continue;
       await expoPushSend(row.token, "拾光 · 今日提醒", body);
       sent += 1;

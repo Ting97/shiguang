@@ -3,6 +3,7 @@ import { pool } from "@/server/platform/db";
 import { withModule, readJsonCapped } from "@/server/platform/http/route";
 import { ApiError } from "@/server/platform/http/errors";
 import { isValidYearMonth, optionalTrimmed, assertUuidParam } from "@/server/platform/http/validate";
+import { isParsableMoment } from "@/server/platform/http/datetime";
 import { TX_CATEGORIES } from "@shiguangri/shared/finance";
 
 export const runtime = "nodejs";
@@ -91,6 +92,11 @@ export const POST = withModule("finance", async (req, { user }) => {
   const rawNote = optionalTrimmed(body.note, "note");
   if (rawNote && rawNote.length > 200) throw ApiError.badRequest("备注最长 200 字");
   const note = rawNote ?? null;
+  // occurredAt 类型 + 语义双守卫（与 PATCH 同口径）：非字符串（如 epoch 数字）会被 new Date
+  // 静默接受成错误日期入库，isNaN 拦不住——必须先拦类型
+  if (body.occurredAt !== undefined && (typeof body.occurredAt !== "string" || !isParsableMoment(body.occurredAt))) {
+    throw ApiError.badRequest("时间需为合法时间（ISO 格式，如 2025-06-01T09:00）");
+  }
   const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
   if (isNaN(occurredAt.getTime())) {
     throw ApiError.badRequest("时间格式不正确");
