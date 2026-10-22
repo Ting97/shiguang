@@ -41,6 +41,23 @@ export const entriesRepo = {
     // 状态守卫：并发双 confirm（pending 快照在事务外读入）只有第一方真正置 applied，防重复落库
     return client.query(`update entry_recognitions set status = 'applied', updated_at = now() where id = $1 and status = 'pending'`, [recId]);
   },
+  /** 派生行事件时间集合（删改前采集）：复盘水位按事件列（start_at/occurred_at/due_at/done_at）取 max，
+   *  删行会让对应周期水位回退、缓存被误判「仍新鲜」——只按 entries.created_at 失效覆盖不到
+   *  「昨天发生、今天发布/删除」的行，须逐事件时间补失效。end_at 一并采集（跨天块双日分摊） */
+  async eventTimesOf(client: import("pg").PoolClient, entryId: string, userId: string): Promise<Date[]> {
+    const { rows } = await client.query(
+      `select ts from (
+         select start_at as ts from time_blocks where entry_id = $1 and user_id = $2
+         union all select end_at from time_blocks where entry_id = $1 and user_id = $2
+         union all select occurred_at from transactions where entry_id = $1 and user_id = $2
+         union all select due_at from todos where entry_id = $1 and user_id = $2
+         union all select done_at from todos where entry_id = $1 and user_id = $2 and done_at is not null
+         union all select occurred_at from interactions where entry_id = $1 and user_id = $2
+       ) t where ts is not null`,
+      [entryId, userId],
+    );
+    return rows.map((r: { ts: Date }) => new Date(r.ts));
+  },
   /** 子表清空（confirm/edit 重写前、DELETE 前共用；顺序即依赖顺序） */
   async clearDerived(client: import("pg").PoolClient, entryId: string, userId: string) {
     // 拆解行动挂在本条动态的识别待办下（parent_todo_id on delete cascade）且自身无 entry_id：

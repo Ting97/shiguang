@@ -133,15 +133,22 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     console.warn(`[decompose] 生成失败: ${String(e).slice(0, 300)}`);
     return NextResponse.json({ error: "AI 拆解失败，请稍后再试" }, { status: 502 });
   }
+  if (!parsed || parsed.actions.length === 0) {
+    // 两次生成均不可解析：token 已耗但产物不可用——ok:false 不计免费额度（与 chat/reRecognize「配额只扣成功调用」同口径）
+    void writeAuditRecord({
+      userId: user.id, entryId: null, stage: "decompose",
+      model: activeModel(), engine: "decompose",
+      latencyMs: Date.now() - t0, ok: false, error: "unparseable output",
+      promptTokens, completionTokens,
+    });
+    return NextResponse.json({ error: "AI 没有给出可用的拆解结果，请稍后再试" }, { status: 502 });
+  }
   void writeAuditRecord({
     userId: user.id, entryId: null, stage: "decompose",
     model: activeModel(), engine: "decompose",
     latencyMs: Date.now() - t0, ok: true,
     promptTokens, completionTokens,
   });
-  if (!parsed || parsed.actions.length === 0) {
-    return NextResponse.json({ error: "AI 没有给出可用的拆解结果，请稍后再试" }, { status: 502 });
-  }
 
   // ---- 落库（插入式 sort 定位） ----
   const limit = isAction ? 3 : 10;
@@ -149,6 +156,9 @@ export const POST = withAuthParams(async (req, { user, params }) => {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // per-user advisory lock：sortAnchor→shift→insert 与 goal/service createTodo 同强度
+    //（并发双拆解会同读锚点/maxSort，平移交错、重复 sort、顺序错乱）
+    await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`todos:${user.id}`]);
 
     let insertSort: number;
     let insertParent: string | null;

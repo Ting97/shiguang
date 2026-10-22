@@ -26,6 +26,7 @@ export {
   bjNowMin,
   zhTime,
   combineHM,
+  combineHmEndCrossDay,
   isoToBjInput,
   bjInputToIso,
 } from "@shiguangri/shared";

@@ -96,8 +96,10 @@ export async function createBlock(userId: string, body: BlockWriteBody): Promise
     ).rows[0];
     await client.query("commit");
     // 补录历史时刻的块不抬 buildLatest 水位（只认 max(start_at)），当期缓存被误判「仍新鲜」
-    // → 复盘长期缺这块——按块起始日显式失效四档缓存（十一轮 P2，与 deleteBlock 同口径）
+    // → 复盘长期缺这块——按块起始日显式失效四档缓存（十一轮 P2，与 deleteBlock 同口径）；
+    // end_at 再失效一次：跨天块结束日分摊时长，起点失效覆盖不到结束日缓存（analyze 主路径同口径）
     void invalidateReviewCachesForOccurrence(userId, new Date(startAt));
+    void invalidateReviewCachesForOccurrence(userId, new Date(endAt));
     return { block };
   } catch (e) {
     await client.query("rollback").catch(() => {});
@@ -157,9 +159,12 @@ export async function updateBlock(userId: string, id: string, body: BlockWriteBo
     updated = (await blocksRepo.updateFields(id, userId, fields, client)).rows[0];
     await client.query("commit");
     // 跨日改期会让旧日多计/新日漏计（水位只认 max(start_at) 且行还在不触发显式失效）——
-    // 旧、新 start_at 各失效一次（十一轮 P2，与 deleteBlock 同口径）
+    // 旧、新 start_at 各失效一次（十一轮 P2，与 deleteBlock 同口径）；旧、新 end_at 同理
+    //（跨天块结束日分摊时长，只按 start_at 失效漏掉结束日缓存）
     void invalidateReviewCachesForOccurrence(userId, new Date(cur.start_at as string));
+    void invalidateReviewCachesForOccurrence(userId, new Date(cur.end_at as string));
     void invalidateReviewCachesForOccurrence(userId, new Date(newStart as string));
+    void invalidateReviewCachesForOccurrence(userId, new Date(newEnd as string));
   } catch (e) {
     await client.query("rollback").catch(() => {});
     const msg = String(e);
@@ -177,8 +182,10 @@ export async function deleteBlock(userId: string, id: string) {
   const deleted = (await blocksRepo.remove(id, userId)).rows[0];
   if (!deleted) throw ApiError.notFound("日程不存在");
   // 删除会让复盘水位（max(start_at)）回退、当期缓存被判「仍新鲜」回旧数据——
-  // 与 finance 删交易同口径，按块起始日显式失效四档复盘缓存（函数内部吞错降级，不阻塞删除）
+  // 与 finance 删交易同口径，按块起始日显式失效四档复盘缓存（函数内部吞错降级，不阻塞删除）；
+  // end_at 同失效（跨天块结束日缓存同样因水位回退而滞留已删数据）
   void invalidateReviewCachesForOccurrence(userId, new Date(deleted.start_at));
+  void invalidateReviewCachesForOccurrence(userId, new Date(deleted.end_at));
   return { ok: true as const };
 }
 

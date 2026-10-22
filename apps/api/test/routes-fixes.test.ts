@@ -295,6 +295,25 @@ test("HTTP admin/grants：覆盖写入记录操作管理员（审计可追溯）
   await call("DELETE", `/api/admin/grants?userId=${TCB}&module=debt`, { user: TCA });
 });
 
+test("HTTP fitness/plans：普通用户带 syncXunji=true → 403（十七轮：保存入参不再绕过训记 admin 收口）", async (t) => {
+  if (!tokB) return t.skip("HTTP 段未就绪");
+  const body = {
+    planDate: "2026-10-23",
+    moduleCode: "run",
+    source: "manual",
+    content: { workoutType: "easy", title: "不应落库的训练", segments: [] },
+    syncXunji: true,
+  };
+  const denied = await call("POST", "/api/fitness/plans", { user: TCB, body });
+  assert.equal(denied.status, 403, "普通用户 syncXunji=true 应 403（与 /sync-xunji 路由同口径）");
+  assert.match(String(denied.json.error), /仅管理员/);
+  // 不带 syncXunji 的同 body 应正常落库（模块能力不受影响），随后自清。
+  // 管理员放行分支不在此测：带真 XUNJI_API_KEY 的环境会真实外呼写训记（外部无删除接口），不冒此险
+  const ok = await call("POST", "/api/fitness/plans", { user: TCB, body: { ...body, syncXunji: undefined } });
+  assert.equal(ok.status, 200, `不带 syncXunji 应正常保存：${JSON.stringify(ok.json)}`);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1`, [TCB]);
+});
+
 test("HTTP teardown: 清理 22280000 前缀测试数据", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");

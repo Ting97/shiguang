@@ -420,7 +420,8 @@ export default function MomentCard({
                         run(async () => {
                           // 空值显式拦截（旧版空串穿到 combineHM 抛 Invalid time value 原始错误）
                           if (!editBlock.start || !editBlock.end) throw new Error("请选择开始和结束时间");
-                          if (editBlock.end <= editBlock.start) throw new Error("结束时间必须晚于开始时间");
+                          // 不按字符串比较拒绝 end<=start：跨天块（22:00→次日01:00）合法，
+                          // 下方 combineHmEndCrossDay 已按「≤起点即 +1 天」处理（UI 也有「次日」提示）
                           // startAt 兜底当前时刻：极端脏数据缺起始时间时 combineHM 需要一个合法日期基点
                           await patchBlock(b.id, {
                             title: editBlock.title.trim() || b.title,

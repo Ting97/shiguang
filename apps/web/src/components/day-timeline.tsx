@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bjToday } from "@/lib/date";
 import { bjNowMin } from "@/lib/bj-time"; // 实现单源 @shiguangri/shared（UTC+8 推算，禁本地 getter）
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
+import { toast } from "@/shared/ui/toast";
 import type { Activity, Block } from "@/lib/types";
 
 const PX_PER_MIN = 0.75; // 一天 1080px，一小时 45px
@@ -121,23 +122,25 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
 
   async function submitCreate() {
     if (!draft || !draft.title.trim() || saving) return;
-    // 结束必须晚于开始（同日程页行内编辑校验口径），不合法就地提示并中止
-    if (draft.end <= draft.start) {
-      setDraftErr("结束时间必须晚于开始时间");
-      return;
-    }
+    // 结束钟点 ≤ 开始钟点 = 跨天次日语义（23:00→01:00）：endAt 用「开始日 + end 钟点，≤ 开始
+    // 自动 +1 天」的跨日组合放行（与动态流行内编辑/日程页编辑同口径），toast 说明防误解——
+    // 旧版恒拦「结束时间必须晚于开始时间」，首页时间轴手动路径同样无法创建跨天块
+    const [sh, sm] = draft.start.split(":").map(Number);
+    const [eh, em] = draft.end.split(":").map(Number);
+    const crossesDay = eh * 60 + em <= sh * 60 + sm;
     setDraftErr(null);
     setSaving(true); // 提交期间锁表单：防双击/连按 Enter 重复建块
     try {
-      const [sh, sm] = draft.start.split(":").map(Number);
-      const [eh, em] = draft.end.split(":").map(Number);
       const ok = await onCreate({
         title: draft.title.trim(),
         startAt: isoFromMinutes(sh * 60 + sm),
-        endAt: isoFromMinutes(eh * 60 + em),
+        endAt: isoFromMinutes(eh * 60 + em + (crossesDay ? 1440 : 0)),
         activityId: draft.activityId,
       });
-      if (ok) setDraft(null);
+      if (ok) {
+        if (crossesDay) toast(`已按跨天块创建：${draft.start} → 次日 ${draft.end}`);
+        setDraft(null);
+      }
     } finally {
       setSaving(false);
     }

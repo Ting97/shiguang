@@ -17,6 +17,7 @@ import {
 } from "@/lib/date";
 import type { Activity, Block, DayStat } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
+import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
 import { bjDateKey, combineHM, combineHmEndCrossDay, zhTime } from "@/lib/bj-time";
 
@@ -132,12 +133,11 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     if (!b) return;
     // 跨天块（23:00→次日 07:00 的睡眠）end 钟点 ≤ start 是合法次日语义，不走同日校验；
     // 结束写回用「开始日 + end 钟点，≤ 开始自动 +1 天」的跨日组合——旧逻辑对跨天块恒报
-    // 「结束必须晚于开始时间」（无法编辑），绕过校验又会把结束钉在原次日日期、块膨胀约 24 小时
-    const crossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
-    if (!crossDay && editing.end <= editing.start) {
-      setErr("结束时间必须晚于开始时间");
-      return;
-    }
+    // 「结束必须晚于开始时间」（无法编辑），绕过校验又会把结束钉在原次日日期、块膨胀约 24 小时。
+    // 十七轮：同日块编辑出 end ≤ start 同样按次日语义放行（23:00→01:00 一改即成，与动态流
+    // 行内编辑同口径）——旧逻辑手动路径完全无法创建/改成跨天块，toast 说明跨天防误触误解
+    const storedCrossDay = bjDateKey(b.start_at) !== bjDateKey(b.end_at);
+    const crossDay = storedCrossDay || editing.end <= editing.start;
     setEditSaving(true);
     try {
       const startAt = combineHM(b.start_at, editing.start);
@@ -148,6 +148,7 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
         endAt: crossDay ? combineHmEndCrossDay(startAt, editing.end, b.end_at) : combineHM(b.end_at, editing.end),
         activityId: editing.activityId,
       });
+      if (!storedCrossDay && crossDay) toast(`已按跨天块保存：${editing.start} → 次日 ${editing.end}`);
     } catch (e) {
       if (e instanceof ApiClientError) { setErr(e.message === "操作失败" ? "保存失败" : e.message); return; }
       setErr(e instanceof Error ? e.message : String(e)); // 非接口错误也就地提示，不外抛（外抛会触发整页自愈刷新）

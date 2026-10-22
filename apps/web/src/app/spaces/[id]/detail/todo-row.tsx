@@ -50,9 +50,14 @@ export default function TodoRowItem(opts: {
             <button
               onClick={(e) => {
                 if (pendingCount(t) > 0) {
-                  // 已有未完成行动：打开行菜单给出「重新生成 / 追加」显式选择，不盲发
+                  // 已有未完成行动：打开行菜单给出「重新生成 / 追加」显式选择，不盲发；
+                  // 移动端不传锚点（null）走底部弹层形态（todo-board 同口径）
                   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                  setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) });
+                  setMenuPos(
+                    window.innerWidth >= 640
+                      ? { top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) }
+                      : null,
+                  );
                   setMenuRow({ todo: t, isChild: false });
                   return;
                 }
@@ -71,7 +76,12 @@ export default function TodoRowItem(opts: {
                 const closed = menuClosedRef.current;
                 if (closed && closed.todoId === t.id && Date.now() - closed.at < 300) return;
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) });
+                // 移动端不传锚点（null）走底部弹层形态（todo-board 同口径）
+                setMenuPos(
+                  window.innerWidth >= 640
+                    ? { top: Math.min(r.bottom + 6, window.innerHeight - 260), left: Math.max(8, r.right - 224) }
+                    : null,
+                );
                 setMenuRow({ todo: t, isChild: false });
               }}
               title="更多操作"
@@ -113,7 +123,12 @@ export default function TodoRowItem(opts: {
                         const closed = menuClosedRef.current;
                         if (closed && closed.todoId === c.id && Date.now() - closed.at < 300) return;
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                        // 移动端不传锚点（null）走底部弹层形态（todo-board 同口径）
+                        setMenuPos(
+                          window.innerWidth >= 640
+                            ? { top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) }
+                            : null,
+                        );
                         setMenuRow({ todo: c, isChild: true });
                       }}
                       title="更多操作"

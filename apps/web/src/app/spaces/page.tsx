@@ -293,7 +293,12 @@ export default function SpacesPage() {
                         const closed = cardMenuClosedRef.current;
                         if (closed && closed.spaceId === s.id && Date.now() - closed.at < 300) return; // 刚被本次点击的 pointerdown 关闭：视为关闭操作
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setCardMenuPos({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                        // 移动端不传锚点（pos=null）：菜单走全宽底部弹层形态，内联 top/left 与 sm: 弹层类四向约束冲突会错位（todo-board 同口径）
+                        setCardMenuPos(
+                          window.innerWidth >= 640
+                            ? { top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) }
+                            : null,
+                        );
                         setCardMenu(s);
                       }}
                       title="更多操作"

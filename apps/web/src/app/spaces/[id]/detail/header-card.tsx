@@ -326,7 +326,7 @@ export default function SpaceHeaderCard(opts: {
   setMsg: Dispatch<SetStateAction<Msg>>;
   /** 打开 ⋯ 菜单（detail.tsx 携带「再点关闭」仲裁：菜单开着再点 ⋯，pointerdown 先关、
    *  click 不再重开——直接传 setSpaceMenu 会关不上，十一轮补齐同 todo-board） */
-  openSpaceMenu: (pos: Pos) => void;
+  openSpaceMenu: (pos: Pos | null) => void;
 }) {
   const { id, space, onSaveTargetDate, setSpace, setMsg, openSpaceMenu } = opts;
   // 目标到期时间就地编辑（头部 ⏳ 日期可点击调整/清除）
@@ -427,7 +427,12 @@ export default function SpaceHeaderCard(opts: {
             <button
               onClick={(e) => {
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                openSpaceMenu({ top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) });
+                // 移动端不传锚点（null）：菜单走全宽底部弹层形态，内联 top/left 与 sm: 弹层类四向约束冲突会错位（todo-board 同口径）
+                openSpaceMenu(
+                  window.innerWidth >= 640
+                    ? { top: Math.min(r.bottom + 6, window.innerHeight - 240), left: Math.max(8, r.right - 224) }
+                    : null,
+                );
               }}
               title="更多操作"
               className="rounded px-2 py-1 leading-none text-ink-dim transition hover:bg-soft hover:text-ink"

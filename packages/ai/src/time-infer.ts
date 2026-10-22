@@ -130,7 +130,10 @@ export function parseClock(text: string, period: PeriodHint | null): { hour: num
   if (!m) return null;
   // 叠字守卫：中文数字叠字（"一一"）非数字；单字（一/三）与阿拉伯数字（11/22）合法
   if (m[1].length > 1 && !/^[0-9]+$/.test(m[1]) && [...m[1]].every((c) => c === m[1][0])) return null;
-  const n = cnToNumber(m[1]);
+  // 约数并列（"两三点""七八点"）先于 cnToNumber：cnToNumber 按复合进位把「两三」直读成 23 点——
+  // 两位均为独立数码且不同字时按约数取末位（区间上界），与 relativeOffsetDays/duration 同款
+  const approx = /^([一两俩二三四五六七八九])([一两俩二三四五六七八九])$/.exec(m[1]);
+  const n = approx && approx[1] !== approx[2] ? cnToNumber(approx[2]) : cnToNumber(m[1]);
   if (n === null || n > 23) return null;
   let hour = n;
   // "点半"→30；点后数字（阿拉伯/中文）→分钟；点号两位（6.30）→30 分（须两位数，避免"5.5小时"误伤）
