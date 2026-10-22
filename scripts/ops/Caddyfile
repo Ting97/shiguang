@@ -1,7 +1,9 @@
 # Caddy 反代模板（REQ-009 FR-F3）：生产在 /etc/caddy/Caddyfile，改动须同步本模板
-# 自动 HTTPS（Let's Encrypt）；web 静态由 API 进程托管（/ 单一上游），无第二上游
+# 2026-10-22 十六轮：按生产实测回填（reverse_proxy 3000 + 安全响应头；生产无 encode gzip）
 shiguang.ting97.cn {
-	encode gzip
+	log {
+		output file /var/log/caddy/shiguang.access.log
+	}
 	# 基础安全响应头（十六轮补齐：模板与生产同步）
 	header {
 		Strict-Transport-Security "max-age=31536000"
