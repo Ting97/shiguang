@@ -8,6 +8,7 @@
  * - dry_run 会真实落库（实测踩坑）——一律直接写
  * - key 只存 .env（XUNJI_API_KEY，经 config），不落日志不回显
  */
+import { createHash } from "node:crypto";
 import { loadConfig } from "@/server/platform/config";
 import { ApiError } from "@/server/platform/http/errors";
 import type { RunPlanContent, StrengthPlanContent } from "@shiguangri/shared/fitness-types";
@@ -220,12 +221,12 @@ function requireKey(): string {
   return key;
 }
 
-/** 错误文案 → ApiError（带官方提示语义；不回显 key） */
+/** key 无效文案统一指向每用户配置入口（REQ-041 起 key 按用户绑定） */
 function toApiError(payload: XunjiShell, status: number): ApiError {
   // 实测错误形态：{"success":false,"res":"too frequent, retry after 20s"}（文案在 res 字符串里）
   const raw = typeof payload.res === "string" && payload.res ? payload.res : String(payload.error ?? payload.msg ?? payload.message ?? `HTTP ${status}`);
   if (/apikey missing|apikey invalid/i.test(raw)) {
-    return new ApiError(502, "upstream", `训记 key 无效（${raw}）——请在训记 App 内重新申请 Open API key 并更新 .env`);
+    return new ApiError(502, "upstream", `训记 apiKey 无效（${raw}）——请在【我的 → 训记同步】重新绑定训记 App 内申请的 key`);
   }
   if (/仅VIP|vip/i.test(raw)) {
     return new ApiError(402, "upstream", "训记提示「仅 VIP 可用」——写入功能需要训记 App 会员");
@@ -238,8 +239,12 @@ function toApiError(payload: XunjiShell, status: number): ApiError {
   return new ApiError(502, "upstream", `训记接口错误：${raw.slice(0, 150)}`);
 }
 
-async function xunjiPost<T = XunjiShell>(path: string, body: unknown, fetcher: FetchLike = defaultFetch): Promise<T> {
-  const key = requireKey();
+/** key 指纹（读缓存分桶用）：每用户 key（REQ-041）下同日不同账号的数据必须隔离，
+ * 缓存键带上 key 哈希前缀，防止 A 账号数据串给 B；指纹不出现在错误/日志 */
+const keyTag = (key: string) => createHash("sha256").update(key).digest("hex").slice(0, 8);
+
+async function xunjiPost<T = XunjiShell>(path: string, body: unknown, fetcher: FetchLike = defaultFetch, keyOverride?: string): Promise<T> {
+  const key = keyOverride ?? requireKey();
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
@@ -273,27 +278,32 @@ async function xunjiPost<T = XunjiShell>(path: string, body: unknown, fetcher: F
 const readCache = new Map<string, { at: number; data: XunjiTrain[] }>();
 
 export function xunjiCacheInvalidate(datestr: string) {
-  readCache.delete(datestr);
+  // 缓存键带 key 指纹前缀（REQ-041）：按后缀匹配清掉所有账号该日的条目
+  const suffix = `:${datestr}`;
+  for (const k of readCache.keys()) if (k.endsWith(suffix)) readCache.delete(k);
 }
 
-/** 读某日训练（include_full_data：未打勾组/RPE/备注/心率）。实测 res 形状：{schema, datestr, limits, trains:[...]} */
-export async function readTrains(datestr: string, includeFull = true, fetcher: FetchLike = defaultFetch): Promise<XunjiTrain[]> {
-  const hit = readCache.get(datestr);
+/** 读某日训练（include_full_data：未打勾组/RPE/备注/心率）。实测 res 形状：{schema, datestr, limits, trains:[...]}。
+ * key 为该用户的训记 apiKey（REQ-041）；缺省回落部署级 XUNJI_API_KEY（目录拉取等部署级操作） */
+export async function readTrains(datestr: string, includeFull = true, fetcher: FetchLike = defaultFetch, key?: string): Promise<XunjiTrain[]> {
+  const tag = keyTag(key ?? requireKey());
+  const cacheKey = `${tag}:${datestr}`;
+  const hit = readCache.get(cacheKey);
   if (hit && Date.now() - hit.at < READ_CACHE_TTL_MS) return hit.data;
   const payload = await xunjiPost<{ res: { trains?: XunjiTrain[] } | XunjiTrain[] }>("/api_trains_for_llm_v2", {
     schema_version: "train_open_api_v2",
     datestr,
     include_full_data: includeFull,
-  }, fetcher);
+  }, fetcher, key);
   const trains = Array.isArray(payload.res) ? payload.res : (payload.res?.trains ?? []);
-  // 容量上限：键是任意 datestr（chat 工具允许管理员查任意日期），无界会常驻进程内存
+  // 容量上限：键是任意 datestr（chat 工具允许查任意日期），无界会常驻进程内存
   if (readCache.size >= 400) {
     let oldestKey: string | null = null;
     let oldestAt = Infinity;
     for (const [k, v] of readCache) if (v.at < oldestAt) { oldestAt = v.at; oldestKey = k; }
     if (oldestKey) readCache.delete(oldestKey);
   }
-  readCache.set(datestr, { at: Date.now(), data: trains });
+  readCache.set(cacheKey, { at: Date.now(), data: trains });
   return trains;
 }
 
@@ -303,16 +313,28 @@ export async function upsertTrains(
   trains: XunjiTrain[],
   clientRequestId: string,
   fetcher: FetchLike = defaultFetch,
+  key?: string,
 ): Promise<XunjiTrain[]> {
   if (trains.length < 1 || trains.length > 4) throw ApiError.badRequest("训记单次最多写入 4 条训练");
   const payload = await xunjiPost<{ res: { trains?: XunjiTrain[] } | XunjiTrain[] }>("/api_upsert_trains_for_llm_v2", {
     schema_version: "train_open_api_v2",
     client_request_id: clientRequestId,
     res: trains,
-  }, fetcher);
+  }, fetcher, key);
   const normalized = Array.isArray(payload.res) ? payload.res : (payload.res?.trains ?? trains);
-  readCache.set(datestr, { at: Date.now(), data: normalized });
+  const tag = keyTag(key ?? requireKey());
+  readCache.set(`${tag}:${datestr}`, { at: Date.now(), data: normalized });
   return normalized;
+}
+
+/** 绑定前即时校验候选 key（REQ-041）：读哨兵日期——key 无效会得到「apikey invalid」抛 502，
+ * 有效 key 返回空数据（2000-01-01 必无训练）。坏 key 不落库（与 Bitget 绑定同防线） */
+export async function validateXunjiKey(key: string, fetcher: FetchLike = defaultFetch): Promise<void> {
+  await xunjiPost("/api_trains_for_llm_v2", {
+    schema_version: "train_open_api_v2",
+    datestr: "2000-01-01",
+    include_full_data: false,
+  }, fetcher, key);
 }
 
 // ---------------------------------------------------------------------------

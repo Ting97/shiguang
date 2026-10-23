@@ -8,10 +8,9 @@
  */
 import { z } from "zod";
 import { pool } from "@/server/platform/db";
-import { loadConfig } from "@/server/platform/config";
 import { bjAddDays, bjMondayOf, bjToday } from "@shiguangri/shared/date";
 import { FitnessPlanDraftV2, type AgentToolSpec } from "@shiguangri/ai";
-import { draftToCanonicalPlan, readTrains, makeLocalResolver } from "@/server/fitness";
+import { draftToCanonicalPlan, readTrains, makeLocalResolver, getXunjiKey } from "@/server/fitness";
 
 /** chat 域跨域只读表清单（依赖规则同 insight 域：新增跨域读先登记） */
 export const CHAT_READABLE_TABLES = [
@@ -915,14 +914,13 @@ const queryXunjiTrains: ChatTool = {
     date: bjDate.optional().describe("北京日期（默认昨天）"),
   }),
   async execute(ctx, p) {
-    // 训记读的是部署级唯一 XUNJI_API_KEY（运营者账号）的数据，与请求用户无关：
-    // 仅管理员可用，普通注册用户问「昨天练了什么」不得读到他人训练数据（跨用户泄露面）
-    const { rows: roleRows } = await pool.query(`select role from profiles where id = $1`, [ctx.userId]);
-    if (roleRows[0]?.role !== "admin") return { enabled: false, hint: "训记查询未绑定当前账号，仅管理员账号可用" };
+    // REQ-041：训记数据按用户自己的 apiKey 读取（【我的 → 训记同步】绑定）——
+    // 无绑定时不可用；有绑定则任何用户都只读到自己账号的数据，无跨用户泄露面
     const { date } = p as { date?: string };
-    if (!loadConfig().xunjiApiKey) return { enabled: false, hint: "未配置 XUNJI_API_KEY，训记查询不可用" };
+    const apiKey = await getXunjiKey(ctx.userId);
+    if (!apiKey) return { enabled: false, hint: "未绑定训记 apiKey——在【我的 → 训记同步】配置后可查询自己的实练" };
     const target = date ?? bjAddDays(bjToday(), -1);
-    const trains = await readTrains(target, true);
+    const trains = await readTrains(target, true, undefined, apiKey);
     const localName = makeLocalResolver();
     const items = trains.flatMap((t: { title?: string; movements?: unknown[] }) =>
       (t.movements ?? []).map((m) => {
