@@ -25,8 +25,8 @@ import {
 import { assembleUserPrompt, checkAiQuota, getPromptBundle, writeAuditRecord } from "@/server/ai";
 import { syncSleepBlock, syncSleepBlockInTx } from "@/server/time";
 import { invalidateReviewCachesForOccurrence } from "@/server/insight";
-import { loadConfig } from "../platform/config";
 import { fitnessRepo } from "./repo";
+import { getXunjiKey, getXunjiKeyInfo, removeXunjiKey, saveXunjiKey } from "./xunji-keys";
 import {
   catalogToNameSet,
   fetchCatalogMovements,
@@ -870,6 +870,15 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
   return mapping;
 }
 
+/** 未绑定训记 key 的统一拦截文案（REQ-041：用户数据操作严格走本人 key，不再回落部署级运营者账号） */
+const requireUserXunjiKey = async (userId: string) => {
+  const key = await getXunjiKey(userId);
+  if (!key) {
+    throw ApiError.forbidden("尚未绑定训记 apiKey——请在【我的 → 训记同步】配置自己训记 App 内申请的 key 后再同步");
+  }
+  return key;
+};
+
 /** 计划 → 训记（用户已经过确认卡/按钮确认）。已同步过的计划带 localid 走更新，防重复建训练。
  * REQ-023：力量动作名先经 用户别名→内置别名→目录 分流，仍有目录外名字时返回
  * needsConfirmation（含候选官方名）交前端弹窗确认；确认调用带 mappings/skips——
@@ -887,6 +896,8 @@ async function syncPlanToXunji(
   const plan = rows[0];
   if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("已打卡计划不再同步训记");
   if (plan.status === "skipped") throw ApiError.badRequest("已跳过计划不同步训记");
+
+  const apiKey = await requireUserXunjiKey(userId); // 写入的是用户自己的训记账号（REQ-041）
 
   const snapshot = await loadXunjiCatalog(fetcher);
   const aliasRows = await fitnessRepo.listXunjiAliases(userId);
@@ -1008,7 +1019,7 @@ async function syncPlanToXunji(
     const prev = ((fresh.xunji_sync ?? null) as { localids?: string[] } | null);
     if (prev?.localids?.length) freshTrain.localid = prev.localids[0]; // 更新保留 localid（start/end 原样透传由服务端默认）
 
-    const normalized = await upsertTrains(fresh.plan_date, [freshTrain], plan.id, fetcher);
+    const normalized = await upsertTrains(fresh.plan_date, [freshTrain], plan.id, fetcher, apiKey);
     const localids = normalized.map((t) => t.localid).filter((x): x is string | number => x != null);
     try {
       await fitnessRepo.updateXunjiSync(planId, userId, { localids, syncedAt: new Date().toISOString() });
@@ -1043,7 +1054,8 @@ async function pullXunjiCompletion(
   const plan = rows[0];
   if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("该计划已打卡，不能再次同步");
 
-  const trains = await readTrains(plan.plan_date, true, fetcher);
+  const apiKey = await requireUserXunjiKey(userId); // 读的是用户自己训记账号的实练（REQ-041）
+  const trains = await readTrains(plan.plan_date, true, fetcher, apiKey);
   let actual: Record<string, unknown>;
   let summary: string;
   if (plan.module_code === "strength") {
@@ -1074,9 +1086,11 @@ async function pullXunjiCompletion(
   return { preview: Boolean(opts.preview), status: "done", summary, actual };
 }
 
-/** 前端按钮显隐用：训记功能是否已配置 */
-function xunjiEnabled() {
-  return { enabled: Boolean(loadConfig().xunjiApiKey) };
+/** 前端按钮显隐用：当前用户是否已绑定自己的训记 apiKey（REQ-041 起不再看部署级 env）。
+ * enabled 保留旧字段名（前端兼容）；bound/masked/updatedAt 供配置卡展示 */
+async function xunjiEnabled(userId: string) {
+  const info = await getXunjiKeyInfo(userId);
+  return { enabled: info.bound, ...info };
 }
 
 // ---------------------------------------------------------------------------
@@ -1379,6 +1393,10 @@ export const fitnessService = {
   syncPlanToXunji,
   pullXunjiCompletion,
   xunjiEnabled,
+  xunjiKeyInfo: getXunjiKeyInfo,
+  xunjiKeySave: saveXunjiKey,
+  xunjiKeyRemove: removeXunjiKey,
+  getXunjiKey,
   listLogs,
   addLog,
   listMetrics,

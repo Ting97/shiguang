@@ -16,6 +16,7 @@ const UB = "22250000-2225-4222-8222-222500001172"; // 越权隔离用户
 // 构建 pg Pool 且 connectionString 冻结——若先落 placeholder 再由 ensureLoaded 改 env，
 // 池已指向占位库（与 ensureLoaded 的模块导入存在竞态，全量套件下稳定落在 placeholder）
 process.env.XUNJI_API_KEY ??= "xjllm_test_key";
+process.env.EXCHANGE_ENC_KEY ??= "unit-test-enc-key";
 process.env.DATABASE_URL ??= process.env.SHIGUANGRI_TEST_DB ?? "postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder";
 
 // 纯函数/客户端模块不依赖 DB（CJS 输出不支持顶层 await：模块级 Promise，各 test 内 await）
@@ -231,7 +232,30 @@ test("客户端：错误分类（too frequent 带 retry 提示 / apikey invalid 
   const freq = async () => errJson({ error: "too frequent", retry: 37 });
   await assert.rejects(() => readTrains(todayStr(), true, freq as any), /37 秒/);
   const badKey = async () => errJson({ error: "apikey invalid" });
-  await assert.rejects(() => readTrains(todayStr(), true, badKey as any), /重新申请/);
+  await assert.rejects(() => readTrains(todayStr(), true, badKey as any), /重新绑定/);
+});
+
+test("客户端：每用户 key 读缓存分桶（REQ-041）——同日不同 key 数据隔离", async () => {
+  const { readTrains, xunjiCacheInvalidate } = await modP;
+  const d = todayStr();
+  xunjiCacheInvalidate(d);
+  let calls = 0;
+  // 按 Authorization 返回该账号自己的数据：keyA 练「卧推」、keyB 练「划船」
+  const fetcher = async (url: string, init?: { headers?: Record<string, string> }) => {
+    calls++;
+    const bearer = init?.headers?.Authorization ?? "";
+    const data = bearer.endsWith("key-A")
+      ? [{ movements: [{ name: "哑铃卧推" }] }]
+      : [{ movements: [{ name: "坐姿划船" }] }];
+    return { ok: true, status: 200, text: async () => JSON.stringify({ res: data }) };
+  };
+  const a1 = await readTrains(d, true, fetcher as any, "key-A");
+  assert.equal(a1[0].movements[0].name, "哑铃卧推");
+  const b1 = await readTrains(d, true, fetcher as any, "key-B");
+  assert.equal(b1[0].movements[0].name, "坐姿划船", "同日不同 key 各自外呼（不串缓存）");
+  const a2 = await readTrains(d, true, fetcher as any, "key-A");
+  assert.equal(a2[0].movements[0].name, "哑铃卧推", "keyA 二读仍是自己数据");
+  assert.equal(calls, 2, "每 key 各一次外呼，其余命中缓存");
 });
 
 // ---------------------------------------------------------------------------
@@ -251,6 +275,53 @@ async function freshCatalogState() {
   }
 }
 
+/** REQ-041：sync/pull 严格走每用户绑定的 key——真库用例统一先绑定（xunjiKeySave 自带 stub 校验外呼） */
+async function bindXunjiKey(user = UA, key = "xjllm_test_key") {
+  await fitnessService.xunjiKeySave(user, key, stubFetcher({}).fetcher);
+}
+
+test("REQ-041 真库：key 绑定（校验外呼带 Bearer）/脱敏查询/解绑；未绑定 sync/pull 拒绝", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
+  await pool.query(`delete from user_integration_keys where user_id = $1`, [UA]);
+
+  // 未绑定：savePlanDraft 不受影响（目录走部署级），sync/pull 403 且文案指向配置入口
+  const saved = await fitnessService.savePlanDraft(UA, {
+    planDate: todayStr(),
+    moduleCode: "run",
+    source: "manual",
+    content: { workoutType: "easy", title: "轻松跑", segments: [{ label: "有氧", distanceM: 3000, paceSPerKm: 400 }] },
+  });
+  await assert.rejects(() => fitnessService.syncPlanToXunji(UA, saved.plan.id, stubFetcher({}).fetcher), /尚未绑定训记/);
+  await assert.rejects(() => fitnessService.pullXunjiCompletion(UA, saved.plan.id, {}, stubFetcher({}).fetcher), /尚未绑定训记/);
+
+  // 绑定：校验外呼带 Bearer <key>；状态脱敏（明文不回显）
+  let authHeader = "";
+  const fetcher = async (url: string, init?: { headers?: Record<string, string> }) => {
+    authHeader = init?.headers?.Authorization ?? "";
+    return { ok: true, status: 200, text: async () => JSON.stringify({ res: [] }) };
+  };
+  const masked = await fitnessService.xunjiKeySave(UA, "xjllm_user_key_9f2", fetcher as any);
+  assert.equal(authHeader, "Bearer xjllm_user_key_9f2", "校验外呼携带候选 key");
+  assert.equal(masked.apiKeyMasked, "xjl***9f2");
+  const info = await fitnessService.xunjiKeyInfo(UA);
+  assert.equal(info.bound, true);
+  assert.equal(info.apiKeyMasked, "xjl***9f2");
+  assert.ok(!JSON.stringify(info).includes("xjllm_user_key_9f2"), "明文 key 不出现在绑定状态里");
+  // 绑定后 sync 通过（跑步计划走回退直写路径即可验证不再被 403 拦截）
+  await freshCatalogState();
+  const synced = await fitnessService.syncPlanToXunji(UA, saved.plan.id, stubFetcher({}).fetcher);
+  assert.equal(synced.synced, true);
+
+  // 解绑：状态回落未绑定；再次 sync 回到 403
+  await fitnessService.xunjiKeyRemove(UA);
+  assert.equal((await fitnessService.xunjiKeyInfo(UA)).bound, false);
+  await assert.rejects(() => fitnessService.syncPlanToXunji(UA, saved.plan.id, stubFetcher({}).fetcher), /尚未绑定训记/);
+  await pool.query(`delete from fitness_daily_plans where user_id = $1`, [UA]).catch(() => {});
+  await pool.query(`delete from todos where user_id = $1 and fitness_plan_id is not null`, [UA]).catch(() => {});
+});
+
 test("真库：sync 幂等（首建→回写 localid；二次同步带 localid 走更新）", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
@@ -259,6 +330,7 @@ test("真库：sync 幂等（首建→回写 localid；二次同步带 localid �
   await pool.query(`delete from fitness_daily_plans where user_id = $1`, [UA]);
   await pool.query(`delete from fitness_session_logs where user_id = $1`, [UA]);
   await pool.query(`delete from todos where user_id = $1 and fitness_plan_id is not null`, [UA]);
+  await bindXunjiKey();
 
   const saved = await fitnessService.savePlanDraft(UA, {
     planDate: todayStr(),
@@ -310,6 +382,7 @@ test("真库：pull 按训记打勾组自动打卡（日志+行动完成）；�
   // 上一条 sync 测试的 upsert 已把「今天」读缓存覆盖为空——官方 90s 缓存语义正确，测试侧先失效
   const { xunjiCacheInvalidate } = await modP;
   xunjiCacheInvalidate(todayStr());
+  await bindXunjiKey();
 
   const saved = await fitnessService.savePlanDraft(UA, {
     planDate: todayStr(),
@@ -364,6 +437,7 @@ test("真库：越权 404；训记里无打勾数据时拒绝", async (t) => {
   const { xunjiCacheInvalidate } = await modP;
   xunjiCacheInvalidate(todayStr());
   await pool.query(`insert into profiles (id, nickname) values ($1,'训记B') on conflict (id) do update set nickname=excluded.nickname`, [UB]);
+  await bindXunjiKey();
 
   const tomorrow = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
   const saved = await fitnessService.savePlanDraft(UA, {
@@ -462,6 +536,7 @@ test("REQ-023 真库：同步遇目录外动作名返回 needsConfirmation → �
   await pool.query(`delete from fitness_xunji_aliases where user_id = $1`, [UA]);
   const day = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
   await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+  await bindXunjiKey();
 
   // 目录：无光杆「臀桥」「登山者」，有「后倾臀桥」（与线上实际一致的情形）
   const catalog = {
@@ -652,6 +727,7 @@ test("REQ-022 真库：savePlanDraft 落库前对齐官方名（note 记佳易�
   await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
   const day = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
   await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+  await bindXunjiKey();
 
   const catalog = { res: { movements: [{ name: "坐姿划船", type: "背" }, { name: "哑铃卧推", type: "胸" }] } };
   const stub = stubFetcher({ catalog });
@@ -703,6 +779,7 @@ test("真库：跑步计划同步——目录无逐字「跑步」自动对齐�
   await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);
   const day = new Date(Date.now() + 8 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
   await pool.query(`delete from fitness_daily_plans where user_id = $1 and plan_date = $2`, [UA, day]);
+  await bindXunjiKey();
 
   const saved = await fitnessService.savePlanDraft(UA, {
     planDate: day,

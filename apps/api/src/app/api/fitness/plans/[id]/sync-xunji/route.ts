@@ -8,9 +8,7 @@ import { fitnessService } from "@/server/fitness";
  * REQ-023：无 body 首次同步——遇目录外动作名返回 {needsConfirmation, unmatched:[{name,candidates}]};
  * 带 {mappings:{拾光名:官方名}, skips:[跳过动作]} 的确认调用——映射入每用户别名表后执行同步 */
 export const POST = withModuleParams("fitness", async (req, ctx) => {
-  // 训记凭据是部署级唯一 XUNJI_API_KEY（运营者账号）：sync 会把训练写入该外部账号且其 API 无删除接口——
-  // 普通注册用户不得经此污染运营者训记（与 chat/tools 的 queryXunjiTrains 同口径 admin 收口）
-  if (ctx.user.role !== "admin") throw ApiError.forbidden("训记同步使用部署级账号，仅管理员可用");
+  // REQ-041：写入用户自己绑定的训记账号（service 层校验绑定）——不再部署级运营者账号，无需 admin 收口
   const { id } = await ctx.params;
   assertUuidParam(id, "id"); // 缺预检时畸形 id 直落 PG 22P02 → 500（同文件 PATCH/DELETE 已有，十四轮补齐）
   let confirm: { mappings?: Record<string, string>; skips?: string[] } | undefined;

@@ -9,6 +9,7 @@ import { toast } from "@/shared/ui/toast";
 import { useSession } from "@/shared/session";
 import { TagChip } from "@/components/tag-chip";
 import ModulePrefsSection from "@/components/module-prefs-section";
+import XunjiKeySection from "@/components/xunji-key-section";
 import { useArmConfirm } from "@/lib/use-arm-confirm";
 import { clearCachedApiData } from "@/lib/sw-cache";
 
@@ -173,6 +174,9 @@ export default function ProfilePage() {
 
             {/* 功能管理（REQ-028 用户自选层）：放在账号资料后，最高频设置位 */}
             <ModulePrefsSection />
+
+            {/* 训记同步（REQ-041 每用户 apiKey 绑定）：放在功能管理后——训练模块的外部同步入口 */}
+            <XunjiKeySection />
 
             {/* 修改密码 */}
             <section className="glass rounded-2xl p-5">
