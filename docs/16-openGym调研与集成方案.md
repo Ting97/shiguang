@@ -75,3 +75,13 @@
 | 3 替代评估 | 训记 vs openGym 双轨一段时间后二选一下线另一条 | openGym 覆盖训记全部用例（目录大、可删数据是优势） |
 
 > 与 REQ-042 的关系：本批建的 `user_integration_keys`（user_id, provider, api_key_enc）就是为多集成凭据设计的——openGym 的 Bearer token + 实例地址（地址非秘密可另存 config 列或约定 provider 约定默认实例）可直接复用该表与绑定/解绑/脱敏 UI 范式。
+
+## 九、阶段 0 部署实录（2026-10-23 已上线）
+
+- **访问**：https://shiguang.ting97.cn/opengym/（复用主站域名 + 证书，子路径反代，未开新端口/安全组）
+- **形态**：tencent 服务器 Docker（CentOS 9 装的 docker-ce 29.9.2，腾讯云内网镜像源）+ 官方预构建镜像（ghcr 经南京大学镜像 `ghcr.nju.edu.cn` 拉取后 retag；ghcr/codeload 直连均龟速，源码 tarball 由 Mac 中转 ghfast.top 代理下载 208MB）
+- **部署目录** `/opt/opengym`（compose 项目名 opengym；数据卷 `./data`——**备份它 = 备份整个实例**，建议纳入服务器备份）：
+  - `.env` 关键项：`RP_ID=shiguang.ting97.cn`（passkey 绑定主域）、`ORIGIN=https://shiguang.ting97.cn`、`BASE_PATH=/opengym`（前缀透传）、`WEB_PORT=8484`、`FIRST_USER_ADMIN=1`（首个注册者成为管理员——**请先注册再开放给家人**）、`PASSWORD_LOGIN=1`（无 passkey 环境兜底）、`DEFAULT_LANG=zh`
+- **Caddy**：shiguang.ting97.cn 站点内加 `handle /opengym* → 127.0.0.1:8484`，其余回落拾光 3000（改动备份 `Caddyfile.bak.20261023-opengym`，validate 后 reload，主站 /login 200 复核不受影响）
+- **验证**：`/opengym/` 200、`/opengym/api/health {"ok":true,"users":0,"writable":true}`、`/opengym/api/config`（password_login/default_lang 生效）、静态资源（相对路径 ./assets/*）200、docker 开机自启
+- **后续待办**：注册首个账号（成管理员）后建议开 `INVITE_ONLY=1`（管理面板生成邀请码再给家人）；家人各自注册自己的 profile
