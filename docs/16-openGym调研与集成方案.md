@@ -81,7 +81,18 @@
 - **访问**：https://shiguang.ting97.cn/opengym/（复用主站域名 + 证书，子路径反代，未开新端口/安全组）
 - **形态**：tencent 服务器 Docker（CentOS 9 装的 docker-ce 29.9.2，腾讯云内网镜像源）+ 官方预构建镜像（ghcr 经南京大学镜像 `ghcr.nju.edu.cn` 拉取后 retag；ghcr/codeload 直连均龟速，源码 tarball 由 Mac 中转 ghfast.top 代理下载 208MB）
 - **部署目录** `/opt/opengym`（compose 项目名 opengym；数据卷 `./data`——**备份它 = 备份整个实例**，建议纳入服务器备份）：
-  - `.env` 关键项：`RP_ID=shiguang.ting97.cn`（passkey 绑定主域）、`ORIGIN=https://shiguang.ting97.cn`、`BASE_PATH=/opengym`（前缀透传）、`WEB_PORT=8484`、`FIRST_USER_ADMIN=1`（首个注册者成为管理员——**请先注册再开放给家人**）、`PASSWORD_LOGIN=1`（无 passkey 环境兜底）、`DEFAULT_LANG=zh`
+  - `.env` 关键项（v2 修正后）：`RP_ID=shiguang.ting97.cn`（passkey 绑定主域）、`ORIGIN=https://shiguang.ting97.cn`、`WEB_PORT=8484`、`FIRST_USER_ADMIN=1`（首个注册者成为管理员——**请先注册再开放给家人**）、`PASSWORD_LOGIN=1`（无 passkey 环境兜底）、`DEFAULT_LANG=zh`（~~BASE_PATH~~ 已移除，见下方 v2）
 - **Caddy**：shiguang.ting97.cn 站点内加 `handle /opengym* → 127.0.0.1:8484`，其余回落拾光 3000（改动备份 `Caddyfile.bak.20261023-opengym`，validate 后 reload，主站 /login 200 复核不受影响）
 - **验证**：`/opengym/` 200、`/opengym/api/health {"ok":true,"users":0,"writable":true}`、`/opengym/api/config`（password_login/default_lang 生效）、静态资源（相对路径 ./assets/*）200、docker 开机自启
 - **后续待办**：注册首个账号（成管理员）后建议开 `INVITE_ONLY=1`（管理面板生成邀请码再给家人）；家人各自注册自己的 profile
+
+### v2 修正（2026-10-23 晚）：手机 App 不支持子路径，改双入口
+
+**问题**：手机 App 绑定 `https://shiguang.ting97.cn/opengym` 后显示未登录。根因（读 App 源码 `frontend/src/lib/remote.js` 确认）：`normalizeServerUrl` 只返回 `new URL(input).origin`——**用户输入的路径前缀被直接丢弃**，App 实际请求 `https://shiguang.ting97.cn/api/...`（拾光主站），自然 401。子路径部署仅对浏览器有效，手机 App 必须独占一个 origin。
+
+**改法**：
+
+1. 容器改回**根路径部署**（删 `BASE_PATH`，`docker compose up -d --force-recreate web`）；
+2. 浏览器入口保持 `https://shiguang.ting97.cn/opengym/`：Caddy 改 `handle_path /opengym/*`（剥前缀转发——官方文档支持的「proxy strips the prefix」模式，前端按自身地址推导 API，`/opengym/api/*` 剥成 `/api/*`），`redir /opengym /opengym/`；
+3. 新增手机 App 专用源 `https://shiguang.ting97.cn:8443`（Caddy 独立站点直反 8484）。App 服务器地址填这个（origin 含端口，`normalizeServerUrl` 原样保留）；CORS 预检由 openGym 自答（反射任意 Origin + Bearer 免 CSRF），Caddy 只透传；`RP_ID` 不变——已有账号的 passkey 不失效；
+4. 验证：浏览器路径 200/api health ok/资源 200 复核通过；**8443 外网不通——服务器安全组只放行 22/80/443（firewalld 本身 inactive，纯腾讯云控制台层），需在控制台放行 8443/TCP 后手机配对方可使用**。
