@@ -198,8 +198,9 @@ export const interactionsRepo = {
       [...vals, id, userId],
     );
   },
+  // returning 带 occurred_at：删除让复盘水位（max(occurred_at)）回退，调用方按原发生日失效复盘缓存
   remove(id: string, userId: string) {
-    return pool.query(`delete from interactions where id = $1 and user_id = $2 returning id`, [id, userId]);
+    return pool.query(`delete from interactions where id = $1 and user_id = $2 returning id, occurred_at`, [id, userId]);
   },
   /** 画像提炼的往来记录输入（最近 50 条） */
   recentForProfile(contactId: string, userId: string) {

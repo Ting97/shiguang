@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { api } from "@/shared/api";
 import { RowAction } from "./row-action";
-import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { RowActionMenu, useRowMenu } from "./row-action-menu";
 import { useHoverCapable } from "./use-hover-capable";
 import { combineHM, combineHmEndCrossDay } from "@/lib/bj-time"; // 北京口径版：本地 setHours 在海外设备会偏 8 小时（与日程页同源）
 import { dayPrefix, zhClock } from "./kit";
@@ -31,7 +31,7 @@ interface BlockRowsProps {
 /** ---- 日程块 ----：展示 + 行内编辑/删除 */
 export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps) {
   const hoverOk = useHoverCapable();
-  const [menu, setMenu] = useState<RowMenuState | null>(null);
+  const { menu, open, close } = useRowMenu();
   const [editBlock, setEditBlock] = useState<EditBlockState | null>(null);
 
   return (
@@ -98,7 +98,7 @@ export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps)
             className="group/row flex items-center gap-x-2 gap-y-0.5"
             onClick={(e) => {
               if (hoverOk) return;
-              setMenu({
+              open(`block:${b.id}`, {
                 x: e.clientX,
                 y: e.clientY,
                 onEdit: () =>
@@ -139,7 +139,7 @@ export function BlockRows({ m, activities, run, del, delArmed }: BlockRowsProps)
           </p>
         ),
       )}
-      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
+      <RowActionMenu menu={menu} onClose={close} />
     </>
   );
 }

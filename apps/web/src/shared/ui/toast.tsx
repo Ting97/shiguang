@@ -72,7 +72,10 @@ export function ToastHost() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing) dismissOldest?.();
+      // defaultPrevented = 本次 Esc 已被某浮层（useDismiss）消费关闭：浮层关闭瞬间弹出的
+      // 操作提示（脏表单「已取消，未保存」等）不能被这里当「最旧 toast」立即吃掉
+      //（十九轮实测：Esc 关闭脏表单零反馈根因，与 dismissable 的消费标记配套）
+      if (e.key === "Escape" && !e.isComposing && !e.defaultPrevented) dismissOldest?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

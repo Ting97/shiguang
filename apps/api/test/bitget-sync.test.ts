@@ -195,12 +195,46 @@ test("bitget：同步 stub 上游——窗口过滤 + 落库 + 二次幂等全 d
   assert.equal(Number(rows[0].net_profit), 1.01, "生成列净额=cashFlow+开仓费（1.44-0.43）");
   assert.equal(rows[0].source, "bitget", "账户来源 bitget");
 
-  // 增量默认：from 缺省 = 该账号最后一笔平仓日 -1 天（WIN_TS），to 缺省 = 今天
+  // 增量默认：from 缺省 = 该账号最后一笔平仓日回看 30 天（给开仓行留配对余量，十九轮），to 缺省 = 今天
   const inc = await syncBitget(UA, { keyLabel: "默认", login: "bitget-t", dryRun: true }, fetcher);
-  const expectFrom = new Date(Math.floor(WIN_TS / 1000) * 1000 - 86_400_000 + 8 * 3600_000).toISOString().slice(0, 10);
-  assert.equal(inc.fromUsed, expectFrom, "from 缺省取最后平仓日前一日（北京日）");
+  const expectFrom = new Date(Math.floor(WIN_TS / 1000) * 1000 - 30 * 86_400_000 + 8 * 3600_000).toISOString().slice(0, 10);
+  assert.equal(inc.fromUsed, expectFrom, "from 缺省取最后平仓日回看 30 天（北京日）");
   assert.equal(inc.toUsed, new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10), "to 缺省今天");
   assert.equal(inc.rowsDup, 1, "增量窗口重叠段幂等 dup");
+  await cleanup();
+});
+
+test("bitget：开仓行早于窗口下界仍可配对（十九轮——开仓行只设上界，配对供给不因增量窗口截断）", async (t) => {
+  await ensureLoaded();
+  if (!dbReady) return t.skip("测试库不可达");
+  await cleanup();
+  process.env.EXCHANGE_ENC_KEY = "test-enc-key";
+  await pool.query(`insert into profiles (id, nickname) values ($1,'bitget测试') on conflict (id) do nothing`, [UA]);
+  const { saveBitgetKeys, syncBitget } = await import("../src/server/finance");
+  const ok = (data: unknown) => JSON.stringify({ code: "00000", data });
+  // 开仓行 open 在 from（WIN_TS-1 天）之前多天：旧窗口过滤把它按下界截掉，
+  // 平仓行只能兜底配对（openTime=closeTime、开仓费丢失）；现开仓行仅设上界仍可配对
+  const openTs = WIN_TS - 6 * 86_400_000;
+  const page = { list: [
+    { id: "O1", ts: String(openTs), symbol: "XAUUSD", side: "buy", qty: "0.5", fee: "-1.20", cashFlow: "0", openPrice: "4100", closePrice: "0", orderId: "22677000" },
+    { id: "C1", ts: String(WIN_TS), symbol: "XAUUSD", side: "sell", qty: "0.5", fee: "-0.30", cashFlow: "5.55", openPrice: "4100", closePrice: "4111.1", orderId: "22677001" },
+  ], cursor: null };
+  const fetcher = (url: string) => {
+    if (url.includes("/api/v3/account/info")) return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(ok({})) });
+    return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(ok(page)) });
+  };
+  await saveBitgetKeys(UA, { apiKey: "k-3333", apiSecret: "s-3333", passphrase: "p-3333" }, fetcher);
+  const from = new Date(Math.floor(WIN_TS / 1000) * 1000 - 86_400_000 + 8 * 3600_000).toISOString().slice(0, 10);
+  const r = await syncBitget(UA, { from, to: new Date(WIN_TS + 86_400_000 + 8 * 3600_000).toISOString().slice(0, 10), keyLabel: "默认", login: "bitget-old-open", dryRun: false }, fetcher);
+  assert.equal(r.rowsNew, 1, "仅平仓行入库（开仓行不落库）");
+  assert.equal((r as any).openRowsUnmatched, 0, "窗外开仓行被平仓行消费");
+  const { rows } = await pool.query(
+    `select t.open_time, t.close_time, t.commission, t.net_profit from trades t join trade_accounts a on a.id = t.account_id where a.login = 'bitget-old-open'`,
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(new Date(rows[0].open_time).getTime(), openTs, "openTime 取窗外开仓行 ts（非平仓时间兜底）");
+  assert.equal(Number(rows[0].commission), -1.5, "开仓费归属（-1.20 + -0.30）");
+  assert.equal(Number(rows[0].net_profit), 4.35, "净额=cashFlow+开仓费（5.55-1.20）");
   await cleanup();
 });
 

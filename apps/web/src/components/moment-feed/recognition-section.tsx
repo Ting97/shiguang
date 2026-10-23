@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import type { Activity, FeedMoment } from "@/lib/types";
 import { Trash2, Users, Utensils } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
-import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { RowActionMenu, useRowMenu } from "./row-action-menu";
 import { useHoverCapable } from "./use-hover-capable";
 import { BlockRows } from "./recognition-blocks";
 import { TodoRows } from "./recognition-todos";
@@ -25,7 +24,7 @@ interface RecognitionSectionProps {
 /** AI 识别产物容器：日程 / todo / 金额 / 人物 / 饮食（均可修改/删除），无任何产物时不渲染 */
 export function RecognitionSection({ m, activities, run, del, delArmed }: RecognitionSectionProps) {
   const hoverOk = useHoverCapable();
-  const [menu, setMenu] = useState<RowMenuState | null>(null);
+  const { menu, open, close } = useRowMenu();
   if (!(m.blocks.length > 0 || m.todos.length > 0 || m.transactions.length > 0 || m.people.length > 0 || m.diet)) {
     return null;
   }
@@ -47,7 +46,7 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
           className="group/row flex items-center gap-x-2 text-ink-mute"
           onClick={(e) => {
             if (hoverOk) return;
-            setMenu({
+            open(`people:${m.id}`, {
               x: e.clientX,
               y: e.clientY,
               onDelete: () =>
@@ -73,7 +72,7 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
           className="group/row flex items-center gap-x-2 text-ink-mute"
           onClick={(e) => {
             if (hoverOk) return;
-            setMenu({
+            open(`diet:${m.id}`, {
               x: e.clientX,
               y: e.clientY,
               onDelete: () =>
@@ -105,7 +104,7 @@ export function RecognitionSection({ m, activities, run, del, delArmed }: Recogn
           </button>
         </p>
       )}
-      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
+      <RowActionMenu menu={menu} onClose={close} />
     </div>
   );
 }

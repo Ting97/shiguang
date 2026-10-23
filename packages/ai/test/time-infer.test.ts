@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays, relativeOffsetMinutes, detectDayRef } from "../src/time-infer.js";
+import { inferTimeBlock, detectPeriod, detectFuture, parseClock, parseClockRange, anchorRangeToToday, hasExplicitDayRef, relativeOffsetDays, relativeOffsetMinutes, detectDayRef, resolveMoment } from "../src/time-infer.js";
 import { toCstWallClock, deterministicOccurredDate } from "../src/parse.js";
 
 const NOW = new Date(2026, 8, 17, 15, 0); // 2026-09-17（周四）15:00 本地时间
@@ -465,4 +465,34 @@ test("parseClock：三位中文数字分钟（三十五/二十五）", () => {
   assert.deepEqual(parseClock("三点半", null), { hour: 3, minute: 30 });
   // 分钟越界兜底保持（八十八 → cnToNumber=88 > 59 → null）
   assert.equal(parseClock("三点八十八", null), null);
+});
+
+// —— 十九轮回归：resolveMoment 宽形态 naive（斜杠/点分隔、单位数月日时）按北京帧解析 ——
+
+test("resolveMoment：非标准 naive 形态不再按宿主时区解释（UTC 宿主偏 8 小时家族）", () => {
+  const now = new Date("2026-10-23T08:00:00+08:00");
+  // 标准形态回归
+  assert.deepEqual(resolveMoment("2026-10-23 14:00", now), new Date("2026-10-23T14:00:00+08:00"));
+  // 斜杠/点分隔与单位数月日时（旧版落 new Date(t) 按宿主时区，UTC 容器上偏 8 小时）
+  assert.deepEqual(resolveMoment("2026/10/23 14:00", now), new Date("2026-10-23T14:00:00+08:00"));
+  assert.deepEqual(resolveMoment("2026.10.23 14:00", now), new Date("2026-10-23T14:00:00+08:00"));
+  assert.deepEqual(resolveMoment("2026-10-8 9:30", now), new Date("2026-10-08T09:30:00+08:00"));
+  // 带秒/毫秒形态保持
+  assert.deepEqual(resolveMoment("2026/10/23 14:00:30", now), new Date("2026-10-23T14:00:30+08:00"));
+  // 显式时区维持原样（语义自足）
+  assert.deepEqual(resolveMoment("2026-10-23T14:00:00Z", now), new Date("2026-10-23T14:00:00Z"));
+  // 垃圾/越幅/超 366 天仍 null
+  assert.equal(resolveMoment("明天下午", now), null);
+  assert.equal(resolveMoment("2026-10-23 25:00", now), null);
+  assert.equal(resolveMoment("2020-01-01 08:00", now), null);
+});
+
+// —— 十九轮回归：detectFuture 否定式「不/没记得」是回忆陈述非计划 ——
+
+test("detectFuture：否定式「不记得/没记得」不产未来 todo（规则兜底幻影提醒家族）", () => {
+  assert.equal(detectFuture("我不记得带钥匙了"), null);
+  assert.equal(detectFuture("没记得存档，找不到了"), null);
+  // 肯定式「记得」仍判未来
+  assert.equal(detectFuture("记得倒垃圾"), "soon");
+  assert.equal(detectFuture("待会儿记得倒垃圾"), "soon");
 });

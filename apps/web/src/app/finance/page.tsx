@@ -118,11 +118,15 @@ export default function FinancePage() {
     if (drafts.length === 0 || confirmBusy) return;
     setConfirmBusy(true); // 提交期间锁按钮：防双击双发整批 PATCH
     try {
-      await Promise.all(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true })));
-      toast(`✅ 已全部确认（${drafts.length} 笔）`);
-      await load();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), "err");
+      // allSettled：旧版 Promise.all 任一失败即进 catch 立刻刷新——其余在途 PATCH 随后成功的
+      // 会被这次刷新显示回「待确认」，且用户不知道哪几笔已生效；逐笔 settle 后统一刷新+计数
+      const results = await Promise.allSettled(drafts.map((t) => api(`/api/transactions/${t.id}`, "PATCH", { confirm: true })));
+      const fails = results.filter((r) => r.status === "rejected");
+      if (fails.length === 0) toast(`✅ 已全部确认（${drafts.length} 笔）`);
+      else {
+        const firstErr = fails[0] as PromiseRejectedResult;
+        toast(`已确认 ${drafts.length - fails.length} 笔，${fails.length} 笔失败：${firstErr.reason instanceof Error ? firstErr.reason.message : String(firstErr.reason)}`, "err");
+      }
       await load();
     } finally {
       setConfirmBusy(false);

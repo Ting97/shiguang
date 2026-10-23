@@ -22,7 +22,14 @@ export function useDismiss<T extends HTMLElement>(onClose: () => void, active = 
     const onKey = (e: KeyboardEvent) => {
       // IME 组合中按 Esc 是取消候选词，不是关闭浮层——不判 isComposing 会把正在打字的草稿整个关掉
       //（十四轮 P2：Enter 路径全站已守，Esc 路径系统性漏守，此处是全站单点）
-      if (e.key === "Escape" && !e.isComposing && !(e.keyCode === 229)) onClose();
+      if (e.key === "Escape" && !e.isComposing && !(e.keyCode === 229)) {
+        // 标记本次 Esc 已被浮层消费：ToastHost 的「Esc 关最旧 toast」同键监听 window 冒泡，
+        // 浮层关闭瞬间弹出的操作提示（如「已取消，未保存」）会被它当最旧 toast 立即吃掉——
+        // 脏表单 Esc 关闭从此无任何反馈（十九轮实测定位）。preventDefault 是消费标记，
+        // ToastHost 侧见 defaultPrevented 让位
+        e.preventDefault();
+        onClose();
+      }
     };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
