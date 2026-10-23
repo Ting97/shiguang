@@ -914,7 +914,7 @@ const queryXunjiTrains: ChatTool = {
     date: bjDate.optional().describe("北京日期（默认昨天）"),
   }),
   async execute(ctx, p) {
-    // REQ-041：训记数据按用户自己的 apiKey 读取（【我的 → 训记同步】绑定）——
+    // REQ-042：训记数据按用户自己的 apiKey 读取（【我的 → 训记同步】绑定）——
     // 无绑定时不可用；有绑定则任何用户都只读到自己账号的数据，无跨用户泄露面
     const { date } = p as { date?: string };
     const apiKey = await getXunjiKey(ctx.userId);

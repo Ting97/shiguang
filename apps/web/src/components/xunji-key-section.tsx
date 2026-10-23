@@ -1,6 +1,6 @@
 "use client";
 
-/** 【我的 → 训记同步】配置卡（REQ-041）：每用户绑定自己的训记 Open API key。
+/** 【我的 → 训记同步】配置卡（REQ-042）：每用户绑定自己的训记 Open API key。
  * 绑定即远端校验（坏 key 当场报原因不落库）；key AES 加密存储，界面只见脱敏形式 */
 import { useCallback, useEffect, useState } from "react";
 import { Dumbbell } from "lucide-react";

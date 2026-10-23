@@ -175,7 +175,7 @@ export default function ProfilePage() {
             {/* 功能管理（REQ-028 用户自选层）：放在账号资料后，最高频设置位 */}
             <ModulePrefsSection />
 
-            {/* 训记同步（REQ-041 每用户 apiKey 绑定）：放在功能管理后——训练模块的外部同步入口 */}
+            {/* 训记同步（REQ-042 每用户 apiKey 绑定）：放在功能管理后——训练模块的外部同步入口 */}
             <XunjiKeySection />
 
             {/* 修改密码 */}

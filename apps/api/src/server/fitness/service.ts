@@ -870,7 +870,7 @@ export async function matchXunjiOfficialNames(userId: string, names: string[], o
   return mapping;
 }
 
-/** 未绑定训记 key 的统一拦截文案（REQ-041：用户数据操作严格走本人 key，不再回落部署级运营者账号） */
+/** 未绑定训记 key 的统一拦截文案（REQ-042：用户数据操作严格走本人 key，不再回落部署级运营者账号） */
 const requireUserXunjiKey = async (userId: string) => {
   const key = await getXunjiKey(userId);
   if (!key) {
@@ -897,7 +897,7 @@ async function syncPlanToXunji(
   if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("已打卡计划不再同步训记");
   if (plan.status === "skipped") throw ApiError.badRequest("已跳过计划不同步训记");
 
-  const apiKey = await requireUserXunjiKey(userId); // 写入的是用户自己的训记账号（REQ-041）
+  const apiKey = await requireUserXunjiKey(userId); // 写入的是用户自己的训记账号（REQ-042）
 
   const snapshot = await loadXunjiCatalog(fetcher);
   const aliasRows = await fitnessRepo.listXunjiAliases(userId);
@@ -1054,7 +1054,7 @@ async function pullXunjiCompletion(
   const plan = rows[0];
   if (plan.status === "done" || plan.status === "partial") throw ApiError.badRequest("该计划已打卡，不能再次同步");
 
-  const apiKey = await requireUserXunjiKey(userId); // 读的是用户自己训记账号的实练（REQ-041）
+  const apiKey = await requireUserXunjiKey(userId); // 读的是用户自己训记账号的实练（REQ-042）
   const trains = await readTrains(plan.plan_date, true, fetcher, apiKey);
   let actual: Record<string, unknown>;
   let summary: string;
@@ -1086,7 +1086,7 @@ async function pullXunjiCompletion(
   return { preview: Boolean(opts.preview), status: "done", summary, actual };
 }
 
-/** 前端按钮显隐用：当前用户是否已绑定自己的训记 apiKey（REQ-041 起不再看部署级 env）。
+/** 前端按钮显隐用：当前用户是否已绑定自己的训记 apiKey（REQ-042 起不再看部署级 env）。
  * enabled 保留旧字段名（前端兼容）；bound/masked/updatedAt 供配置卡展示 */
 async function xunjiEnabled(userId: string) {
   const info = await getXunjiKeyInfo(userId);

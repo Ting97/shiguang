@@ -1,5 +1,5 @@
 /**
- * 训记 Open API key 每用户绑定（REQ-041）：
+ * 训记 Open API key 每用户绑定（REQ-042）：
  * - 存取：user_integration_keys（provider='xunji'），AES-256-GCM 加密（与 user_exchange_keys 同格式：
  *   iv12 + tag16 + 密文，整体 base64；密钥 EXCHANGE_ENC_KEY）——key 整体是秘密，明文永不入库/日志/回显
  * - 绑定即校验：validateXunjiKey 读哨兵日期，坏 key 当场报训记原因不落库（Bitget 绑定同防线）

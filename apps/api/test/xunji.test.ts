@@ -235,7 +235,7 @@ test("客户端：错误分类（too frequent 带 retry 提示 / apikey invalid 
   await assert.rejects(() => readTrains(todayStr(), true, badKey as any), /重新绑定/);
 });
 
-test("客户端：每用户 key 读缓存分桶（REQ-041）——同日不同 key 数据隔离", async () => {
+test("客户端：每用户 key 读缓存分桶（REQ-042）——同日不同 key 数据隔离", async () => {
   const { readTrains, xunjiCacheInvalidate } = await modP;
   const d = todayStr();
   xunjiCacheInvalidate(d);
@@ -275,12 +275,12 @@ async function freshCatalogState() {
   }
 }
 
-/** REQ-041：sync/pull 严格走每用户绑定的 key——真库用例统一先绑定（xunjiKeySave 自带 stub 校验外呼） */
+/** REQ-042：sync/pull 严格走每用户绑定的 key——真库用例统一先绑定（xunjiKeySave 自带 stub 校验外呼） */
 async function bindXunjiKey(user = UA, key = "xjllm_test_key") {
   await fitnessService.xunjiKeySave(user, key, stubFetcher({}).fetcher);
 }
 
-test("REQ-041 真库：key 绑定（校验外呼带 Bearer）/脱敏查询/解绑；未绑定 sync/pull 拒绝", async (t) => {
+test("REQ-042 真库：key 绑定（校验外呼带 Bearer）/脱敏查询/解绑；未绑定 sync/pull 拒绝", async (t) => {
   await ensureLoaded();
   if (!dbReady) return t.skip("测试库不可达");
   await pool.query(`insert into profiles (id, nickname) values ($1,'训记A') on conflict (id) do update set nickname=excluded.nickname`, [UA]);

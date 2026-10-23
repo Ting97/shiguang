@@ -35,9 +35,9 @@
 
 **目标**：用户在 openGym（手机）里逐组打勾记录实练，拾光计划卡「回读打卡」把当日实练拉回。
 
-1. **凭据**：用户在拾光【我的】填 openGym 实例地址 + 一次性配对码（openGym 网页发起 `/api/pair/create` 得码 → 拾光后端 `/api/pair/redeem` 换 Bearer token）。token 与实例地址存 `user_integration_keys`（REQ-041 迁移 068 已建，`provider='opengym'` 直接复用，token 走既有 AES-256-GCM 加密列）。
+1. **凭据**：用户在拾光【我的】填 openGym 实例地址 + 一次性配对码（openGym 网页发起 `/api/pair/create` 得码 → 拾光后端 `/api/pair/redeem` 换 Bearer token）。token 与实例地址存 `user_integration_keys`（REQ-042 迁移 068 已建，`provider='opengym'` 直接复用，token 走既有 AES-256-GCM 加密列）。
 2. **读取**：`GET /api/data`（带 Bearer）→ 取 `workouts[]`，按日期过滤当日 → 映射到拾光 `session_logs`/打卡 actual。workout 结构含 exercises→sets（weight/reps/done），与训记 trains 结构类似，可复用 `trainsToStrengthActual` 的映射思路重写一份。
-3. **安全**：纯读，永不 PUT，零合并风险；token 加密存储 + 脱敏展示，同 REQ-041 防线。
+3. **安全**：纯读，永不 PUT，零合并风险；token 加密存储 + 脱敏展示，同 REQ-042 防线。
 4. **工作量**：一个小模块（client + 映射函数 + 一个路由 + 配置卡扩展），约一天。
 
 ## 五、若做成训记同款「同步」（计划下发）——可行但要做整档写回协议
@@ -57,7 +57,7 @@
 
 - tencent 服务器同机 Docker Compose（amd64 镜像官方提供），nginx 加一段 `/opengym/` 反代到其容器端口——与拾光同域免跨域，HTTPS 复用现有证书
 - 资源占用小（静态前端 + 文件存储后端）；备份 = 定期 tar `data/` 目录（纳入现有备份脚本）
-- 多用户：openGym 自带 passkey 注册（可开邀请码/管理员建号），家人各自注册即可；拾光侧每人绑定自己的 token（同 REQ-041 模式）
+- 多用户：openGym 自带 passkey 注册（可开邀请码/管理员建号），家人各自注册即可；拾光侧每人绑定自己的 token（同 REQ-042 模式）
 
 ## 七、安全与合规
 
@@ -70,8 +70,8 @@
 | 阶段 | 内容 | 判据 |
 | --- | --- | --- |
 | 0 试用（先做） | tencent 起 openGym 实例，日常用它官方 App 记训练 1~2 周 | 是否比训记顺手（打勾速度/组间计时/历史回看） |
-| 1 只读拉取 | REQ-041 凭据模式扩展 provider='opengym'，计划卡「回读打卡」支持 openGym 源 | 试用养成习惯 |
+| 1 只读拉取 | REQ-042 凭据模式扩展 provider='opengym'，计划卡「回读打卡」支持 openGym 源 | 试用养成习惯 |
 | 2 计划下发 | 整档写回协议 + 确认卡接线 | 阶段 1 使用频率高 |
 | 3 替代评估 | 训记 vs openGym 双轨一段时间后二选一下线另一条 | openGym 覆盖训记全部用例（目录大、可删数据是优势） |
 
-> 与 REQ-041 的关系：本批建的 `user_integration_keys`（user_id, provider, api_key_enc）就是为多集成凭据设计的——openGym 的 Bearer token + 实例地址（地址非秘密可另存 config 列或约定 provider 约定默认实例）可直接复用该表与绑定/解绑/脱敏 UI 范式。
+> 与 REQ-042 的关系：本批建的 `user_integration_keys`（user_id, provider, api_key_enc）就是为多集成凭据设计的——openGym 的 Bearer token + 实例地址（地址非秘密可另存 config 列或约定 provider 约定默认实例）可直接复用该表与绑定/解绑/脱敏 UI 范式。

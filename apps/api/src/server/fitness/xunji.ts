@@ -221,7 +221,7 @@ function requireKey(): string {
   return key;
 }
 
-/** key 无效文案统一指向每用户配置入口（REQ-041 起 key 按用户绑定） */
+/** key 无效文案统一指向每用户配置入口（REQ-042 起 key 按用户绑定） */
 function toApiError(payload: XunjiShell, status: number): ApiError {
   // 实测错误形态：{"success":false,"res":"too frequent, retry after 20s"}（文案在 res 字符串里）
   const raw = typeof payload.res === "string" && payload.res ? payload.res : String(payload.error ?? payload.msg ?? payload.message ?? `HTTP ${status}`);
@@ -239,7 +239,7 @@ function toApiError(payload: XunjiShell, status: number): ApiError {
   return new ApiError(502, "upstream", `训记接口错误：${raw.slice(0, 150)}`);
 }
 
-/** key 指纹（读缓存分桶用）：每用户 key（REQ-041）下同日不同账号的数据必须隔离，
+/** key 指纹（读缓存分桶用）：每用户 key（REQ-042）下同日不同账号的数据必须隔离，
  * 缓存键带上 key 哈希前缀，防止 A 账号数据串给 B；指纹不出现在错误/日志 */
 const keyTag = (key: string) => createHash("sha256").update(key).digest("hex").slice(0, 8);
 
@@ -278,13 +278,13 @@ async function xunjiPost<T = XunjiShell>(path: string, body: unknown, fetcher: F
 const readCache = new Map<string, { at: number; data: XunjiTrain[] }>();
 
 export function xunjiCacheInvalidate(datestr: string) {
-  // 缓存键带 key 指纹前缀（REQ-041）：按后缀匹配清掉所有账号该日的条目
+  // 缓存键带 key 指纹前缀（REQ-042）：按后缀匹配清掉所有账号该日的条目
   const suffix = `:${datestr}`;
   for (const k of readCache.keys()) if (k.endsWith(suffix)) readCache.delete(k);
 }
 
 /** 读某日训练（include_full_data：未打勾组/RPE/备注/心率）。实测 res 形状：{schema, datestr, limits, trains:[...]}。
- * key 为该用户的训记 apiKey（REQ-041）；缺省回落部署级 XUNJI_API_KEY（目录拉取等部署级操作） */
+ * key 为该用户的训记 apiKey（REQ-042）；缺省回落部署级 XUNJI_API_KEY（目录拉取等部署级操作） */
 export async function readTrains(datestr: string, includeFull = true, fetcher: FetchLike = defaultFetch, key?: string): Promise<XunjiTrain[]> {
   const tag = keyTag(key ?? requireKey());
   const cacheKey = `${tag}:${datestr}`;
@@ -327,7 +327,7 @@ export async function upsertTrains(
   return normalized;
 }
 
-/** 绑定前即时校验候选 key（REQ-041）：读哨兵日期——key 无效会得到「apikey invalid」抛 502，
+/** 绑定前即时校验候选 key（REQ-042）：读哨兵日期——key 无效会得到「apikey invalid」抛 502，
  * 有效 key 返回空数据（2000-01-01 必无训练）。坏 key 不落库（与 Bitget 绑定同防线） */
 export async function validateXunjiKey(key: string, fetcher: FetchLike = defaultFetch): Promise<void> {
   await xunjiPost("/api_trains_for_llm_v2", {
