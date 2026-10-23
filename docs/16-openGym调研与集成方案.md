@@ -96,3 +96,22 @@
 2. 浏览器入口保持 `https://shiguang.ting97.cn/opengym/`：Caddy 改 `handle_path /opengym/*`（剥前缀转发——官方文档支持的「proxy strips the prefix」模式，前端按自身地址推导 API，`/opengym/api/*` 剥成 `/api/*`），`redir /opengym /opengym/`；
 3. 新增手机 App 专用源 `https://shiguang.ting97.cn:8443`（Caddy 独立站点直反 8484）。App 服务器地址填这个（origin 含端口，`normalizeServerUrl` 原样保留）；CORS 预检由 openGym 自答（反射任意 Origin + Bearer 免 CSRF），Caddy 只透传；`RP_ID` 不变——已有账号的 passkey 不失效；
 4. 验证：浏览器路径 200/api health ok/资源 200 复核通过；**8443 外网不通——服务器安全组只放行 22/80/443（firewalld 本身 inactive，纯腾讯云控制台层），需在控制台放行 8443/TCP 后手机配对方可使用**。
+
+### v3 追加（2026-10-23 晚）：AI Coach「你的 AI 提供商未能给出回答」排查与配置
+
+**现象**：手机用 AI 教练一直报 `你的 AI 提供商未能给出回答。could not reach open.bigmodel.cn: Software caused connection abort`。
+
+**排查结论（不是服务器网络问题）**：
+
+- 服务器/容器到 open.bigmodel.cn 全通：DNS、HEAD、大小 POST（300KB 级）、真实 key 长生成均 200；用应用同款 undici Agent（headersTimeout/bodyTimeout/connectTimeout 显式构造）复测同样全通。
+- Caddy 日志还原时间线：用户 7 次 `POST /api/admin/coach/config` 全部 200（11:25–11:26，均为开关/provider 切换），**baseUrl/key 从未成功保存**（coach.json 的 providerOptions/auth 一直为空）；服务端也从未收到任何 coach 任务请求——服务端不可能报出「could not reach open.bigmodel.cn」（没配 base 就只会报 no endpoint configured）。
+- 真正来源是**手机端 BYOK 模式**：CoachSetup 选了「Runs on this phone with your own API key」（mode=byok）后，coach 在手机进程内跑同一套 adapter，经 capacitor 原生 HTTP **直连** open.bigmodel.cn——`Software caused connection abort` 正是 Android `ECONNABORTED` 的 Java 报文（手机所在运营商网络中断了该连接）。8443 站点未开 access log，手机请求不可见，与日志缺失吻合。
+- 容器日志每小时一条 `coach warmup: endpoint not reachable` 是**上游 bug 且无害**：warmup.js 调 invoke 时漏传 env（API key），云 API 会 401，而 warmup 对任何失败都记这句（本就只服务本地无 key 端点的 KV 前缀缓存预热，对云 API 无意义）。忽略即可，勿据此误判网络。
+
+**处理**：
+
+1. 服务器端实例 coach 已按 REQ-042 同款运营模式补全配置（seed 脚本容器内走应用自身 `coach/config.js` 写入，key 经 env 传入不落日志，AES-GCM 加密存 `/opt/opengym/data/coach.json`）：
+   - provider=compatible，baseUrl=`https://open.bigmodel.cn/api/paas/v4`，key=拾光线上同款 ZHIPUAI_API_KEY，model=glm-5.3-flash（与拾光 GLM_MODEL 一致）；
+   - 验证：models 检查 ok（11 个模型）；应用同路径 invoke 实测返回 `{"coach_contract":1}`（code 0）；管理卡 check `HTTPS · open.bigmodel.cn · 11 models`。
+2. 手机端改用服务端模式：Coach 设置里选「Use my self-hosted openGym / 使用我自托管的 openGym」（mode=server）——coach 改由服务器出网调用 bigmodel，手机不再直连 AI 商，规避运营商网络中断问题。浏览器端（/opengym/）本就走服务端，配置后即用。
+3. 注意 warmup 漏传 env 的上游 bug 在升级镜像前会持续产生该误导性日志行；若未来想在手机继续 BYOK，需先解决手机网络到 bigmodel 的连通（换 WiFi/热点验证）。
