@@ -55,6 +55,17 @@ test("北京时间 → UTC ISO", () => {
   assert.equal(parseCstTime("2026/09/01"), null);
 });
 
+// —— 十九轮回归：假日历日（2/30、4/31）JS 静默进位成次月（isNaN 拦不住），须拒绝而非错月入账 ——
+
+test("parseCstTime：假日历日拒绝（静默进位守卫）", () => {
+  assert.equal(parseCstTime("2026-02-30 12:00:00"), null);
+  assert.equal(parseCstTime("2026-04-31 09:30"), null);
+  assert.equal(parseCstTime("2026-13-01 08:00"), null);
+  // 相邻真实日不受影响
+  assert.equal(parseCstTime("2026-02-28 12:00:00"), "2026-02-28T04:00:00.000Z");
+  assert.equal(parseCstTime("2028-02-29 00:30"), "2028-02-28T16:30:00.000Z");
+});
+
 test("CSV 容错解析：引号内逗号", () => {
   const rows = splitCsvLines('a,b,c\n"x, y",2,"多\n行"');
   assert.deepEqual(rows, [["a", "b", "c"], ["x, y", "2", "多\n行"]]);

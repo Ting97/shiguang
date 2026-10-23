@@ -179,10 +179,10 @@ export const todoRepo = {
     ).rows[0];
   },
 
-  /** user_id 谓词纵深防御（id 已随调用方属主校验，仍带上同列收口）；returning 带 start_at：
-   *  删除历史完成块会让复盘水位（max(start_at)）回退，调用方按块起始日显式失效复盘缓存 */
+  /** user_id 谓词纵深防御（id 已随调用方属主校验，仍带上同列收口）；returning 带起止时刻：
+   *  删除历史完成块会让复盘水位（max(start_at)）回退，调用方按起止两日显式失效复盘缓存（跨天块结束日同权） */
   deleteDoneBlock(client: DB, blockId: string, userId: string) {
-    return client.query(`delete from time_blocks where id = $1 and user_id = $2 returning start_at`, [blockId, userId]);
+    return client.query(`delete from time_blocks where id = $1 and user_id = $2 returning start_at, end_at`, [blockId, userId]);
   },
 
   restore(client: DB, id: string, userId: string) {

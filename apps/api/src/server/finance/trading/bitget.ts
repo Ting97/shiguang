@@ -229,7 +229,7 @@ export interface SyncBitgetBody {
   keyLabel?: string;
   login?: string;
   nickname?: string;
-  /** YYYY-MM-DD（北京日历日）；from 缺省 = 增量——从该账号最后一笔平仓的前一天拉起（无历史则近 30 天） */
+  /** YYYY-MM-DD（北京日历日）；from 缺省 = 增量——从该账号最后一笔平仓回看 30 天拉起（无历史则近 30 天） */
   from?: string;
   to?: string;
   dryRun?: boolean;
@@ -240,8 +240,8 @@ const bjYmd = (d: Date) => new Date(d.getTime() + 8 * 3600_000).toISOString().sl
 /**
  * 手动同步：按 keyLabel 取对应密钥，拉 CFD 资金流水（游标翻页，整页早于窗口即停），
  * 按北京日历日窗口过滤后归组成 trade 落库。不同密钥各自落独立交易账号（login 缺省=keyLabel），
- * 同一把 key 重复同步按平仓单 orderId 幂等去重。from 缺省 = 增量同步（最后平仓日-1 天），
- * 常规增量只需翻几页，避开限频与长等待。
+ * 同一把 key 重复同步按平仓单 orderId 幂等去重。from 缺省 = 增量同步（最后平仓日回看 30 天，
+ * 给开仓行留配对余量），常规增量只需翻几页，避开限频与长等待。
  */
 export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?: FetchLike) {
   const to = String(body.to ?? "") || bjYmd(new Date());
@@ -254,16 +254,19 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
 
   let from = String(body.from ?? "");
   if (!from) {
-    // 增量默认：该账号最后一笔平仓日 -1 天（重叠窗口幂等去重兜底）；无历史则近 30 天。
-    // source 过滤：login 缺省即 keyLabel（如「默认」），MT5 账号 login 同名时另一来源的
-    // 平仓时间会把增量起点污染成异常窗口（多拉/漏拉由 ticket 幂等兜底，但窗口不可控放大）
+    // 增量默认：该账号最后一笔平仓日回看 30 天（重叠窗口幂等去重兜底）；无历史则近 30 天。
+    // 回看余量是给开仓行的：开仓行只是配对供给（openTime/开仓费归属），ts 常比平仓早得多——
+    // 旧版只回看 1 天时近期平仓的开仓行整行拉不到，配对恒落空（openTime 兜底成平仓时间 →
+    // 跨日单持仓时长恒 0；开仓费丢失 → net_profit 系统性少计）。持仓 >30 天的长线单仍会
+    // 退化为兜底配对，可显式传 from 做分段全量纠偏。source 过滤：login 缺省即 keyLabel（如「默认」），
+    // MT5 账号 login 同名时另一来源的平仓时间会把增量起点污染成异常窗口（多拉/漏拉由 ticket 幂等兜底）
     const { rows } = await pool.query(
       `select max(close_time) as last from trades t join trade_accounts a on a.id = t.account_id
        where t.user_id = $1 and a.login = $2 and a.source = 'bitget'`,
       [userId, login],
     );
     const last = rows[0]?.last ? new Date(rows[0].last) : null;
-    from = last ? bjYmd(new Date(last.getTime() - 86_400_000)) : bjYmd(new Date(Date.now() - 30 * 86_400_000));
+    from = last ? bjYmd(new Date(last.getTime() - 30 * 86_400_000)) : bjYmd(new Date(Date.now() - 30 * 86_400_000));
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !isValidCalendarDate(from)) throw ApiError.badRequest("from 需为真实存在的日期（YYYY-MM-DD）");
   if (Date.parse(from) > Date.parse(to)) throw ApiError.badRequest("from 不能晚于 to");
@@ -276,11 +279,18 @@ export async function syncBitget(userId: string, body: SyncBitgetBody, fetcher?:
   const toTimeMs = Date.parse(`${to}T00:00:00+08:00`) + 86_400_000;
   const cred = await loadCred(userId, keyLabel);
 
-  // minTs：流水倒序返回，整页早于窗口下界即停——近 30 天的增量同步几十页内结束
+  // minTs：流水倒序返回，整页早于窗口下界即停——常规增量几十页内结束
   const all = await fetchCfdRecords<CfdRecord>(cred, { fetcher, minTs: fromTimeMs });
+  // 窗口过滤分型：开仓行只是配对供给（不生成 trade），ts 常远早于平仓窗口——按下界滤掉会让
+  // 配对恒落空（openTime 兜底成平仓时间 → 跨日单持仓时长恒 0；开仓费丢失 → net_profit 系统性
+  // 少计），故开仓行只设上界；平仓行（生成 trade）保持 [from,to) 完整窗口语义，增量起点回看
+  // 30 天已给开仓行留出配对余量（见增量默认注释）。开仓行判定与 groupCfdRecords 入栈条件同源
+  const isOpenShaped = (r: CfdRecord) =>
+    !!r.symbol && String(r.orderId ?? "") !== "0" && !num(r.closePrice) && !num(r.cashFlow) && !!num(r.openPrice);
   const inWindow = all.filter((r) => {
     const t = Number(r.ts);
-    return t >= fromTimeMs && t < toTimeMs;
+    if (t >= toTimeMs) return false;
+    return isOpenShaped(r) || t >= fromTimeMs;
   });
   const grouped = groupCfdRecords(inWindow);
   const result = grouped.rows.length

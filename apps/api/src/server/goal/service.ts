@@ -225,13 +225,19 @@ async function undoDoneTodo(userId: string, id: string) {
     // 撤销完成会让复盘水位（max(done_at)/max(start_at)）回退、当期缓存被判「仍新鲜」——
     // 提交后按各自时间列显式失效复盘缓存（与 finance 删交易同口径；函数内部吞错降级，不阻塞撤销）
     const doneAt = todo.done_at as string | Date | null;
-    const blockStart = todo.done_block_id
-      ? (((await todoRepo.deleteDoneBlock(client, todo.done_block_id, userId)).rows[0]?.start_at as string | Date | null) ?? null)
-      : null;
+    // 跨天块结束日的缓存与起始日同权（deleteBlock 路径同口径）：只失效 start 会让结束日小结滞留已删块
+    const blockTimes = todo.done_block_id
+      ? ((await todoRepo.deleteDoneBlock(client, todo.done_block_id, userId)).rows[0] as
+          | { start_at: string | Date; end_at: string | Date }
+          | undefined)
+      : undefined;
     const restored = (await todoRepo.restore(client, id, userId)).rows[0];
     await client.query("commit");
     if (doneAt) void invalidateReviewCachesForOccurrence(userId, new Date(doneAt));
-    if (blockStart) void invalidateReviewCachesForOccurrence(userId, new Date(blockStart));
+    if (blockTimes) {
+      void invalidateReviewCachesForOccurrence(userId, new Date(blockTimes.start_at));
+      void invalidateReviewCachesForOccurrence(userId, new Date(blockTimes.end_at));
+    }
     return { todo: restored };
   } catch (e) {
     await client.query("rollback").catch(() => {});

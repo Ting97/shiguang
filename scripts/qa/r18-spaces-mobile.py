@@ -84,6 +84,7 @@ def main():
         # ---------- M1 登录 ----------
         page.goto(f"{BASE}/login")
         page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(1200)  # React 水合完成再填表（裸 domcontentloaded 会竞态空填）
         react_fill(page, "input[placeholder*='手机号']", PHONE)
         react_fill(page, "input[type='password']", PASSWORD, 0)
         page.get_by_role("button", name="登录", exact=True).click()

@@ -119,3 +119,17 @@ export async function invalidateReviewCachesForOccurrence(userId: string, occurr
     console.error("[review-cache] 失效失败（降级为可能旧缓存）:", e);
   }
 }
+
+/**
+ * 全量失效该用户四档小结缓存（分类改名/删除用）：复盘文本直接消费 activities.name/icon
+ * （聚合 join + 明细逐条拼接），而新鲜度水位没有任何 activities 列——改名/删除后历史周期
+ * 被判「仍新鲜」，旧分类名/旧归类永久滞留，与统计页（实时读）口径矛盾。分类操作是低频
+ * 设置动作且牵涉全部历史周期，逐周期失效反而不划算：整表清掉靠下次读取惰性重建。
+ */
+export async function invalidateAllReviewCaches(userId: string): Promise<void> {
+  try {
+    await pool.query(`delete from review_caches where user_id = $1`, [userId]);
+  } catch (e) {
+    console.error("[review-cache] 全量失效失败（降级为可能旧缓存）:", e);
+  }
+}

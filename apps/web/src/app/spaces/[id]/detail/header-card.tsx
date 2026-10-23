@@ -109,11 +109,11 @@ function MilestoneSection({ id, color, setSpace }: { id: string; color: string; 
         <span className="text-badge text-ink-faint">阶段目标（完成一个阶段推进一程）</span>
         <span className="flex items-center gap-2 text-badge">
           {(items?.length ?? 0) > 0 && (
-            <button className="text-ink-mute transition hover:text-accent" onClick={() => setHistoryOpen(true)}>
+            <button className="tap-lg text-ink-mute transition hover:text-accent" onClick={() => setHistoryOpen(true)}>
               历史 {items!.length} · 达成 {doneCount}
             </button>
           )}
-          <button className="flex items-center gap-0.5 text-accent transition hover:underline" onClick={() => setAdding((v) => !v)}>
+          <button className="tap-lg flex items-center gap-0.5 text-accent transition hover:underline" onClick={() => setAdding((v) => !v)}>
             <Plus size={11} aria-hidden /> 阶段
           </button>
         </span>

@@ -111,6 +111,7 @@ def main():
         # ---------- T1 注册/登录（幂等：已注册则直接登录） ----------
         page.goto(f"{BASE}/login")
         page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(1200)  # React 水合完成再填表（裸 domcontentloaded 会竞态空填）
 
         def try_login():
             react_fill(page, "input[placeholder*='手机号']", PHONE)

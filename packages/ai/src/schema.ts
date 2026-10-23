@@ -301,7 +301,10 @@ export const DietItemV2 = z.object({
     .min(1)
     .max(16)
     .refine((n) => !/^(今天|今日|刚才|刚刚|我|现在)/.test(n.trim()), { message: "items[].name 不能是句子片段" }),
-  amount: z.string().nullish(),
+  // 上限与输出契约 DietItem.amount(.max(20)) 同口径：V2 放行超长串会在 mapAiResult 的
+  // ParseResult 二次校验处炸掉——失败发生在 V2 safeParse 之后，绕过「校验失败重问一次」，
+  // 一次五域全对的识别被单字段整包报废降级规则（十九轮补：max 只修了 legacy 面漏了 V2 面）
+  amount: z.string().max(20).nullish(),
   kcal: z.coerce.number().int().positive().max(5000).nullish(),
 });
 export const DietDraftV2 = z
@@ -366,6 +369,10 @@ export function domainExtractionV2(domain: string): z.ZodTypeAny {
 /**
  * LLM 的原始抽取结果（时间由确定性引擎计算，不让模型编时间戳）；数值宽容（模型偶发输出字符串数字）。
  * JSON 键序即生成序：reasoning 放最前引导模型先逐域判断再下结论（reasoning-before-answer）。
+ *
+ * ⚠ 仅类型用途（type-only）：运行时全量/单域校验走 V2 面（FullExtractionV2/domainExtractionV2/
+ * OpenVocabExtraction → assembleExtraction 裸 as），本 schema 已无任何 .parse/.safeParse 调用方，
+ * 字段约束也不再与真实装配体同步——改约束前先确认目标在 V2 面（十九轮注记，防误改错位）。
  */
 export const LlmExtraction = z.object({
   reasoning: z

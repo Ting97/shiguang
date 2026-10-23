@@ -416,16 +416,21 @@ const getReview: ChatTool = {
   }),
   async execute(ctx, p) {
     const { kind, date } = p as { kind: "day" | "week" | "month" | "year" | "trade_week"; date: string };
-    // trade_week 读的是 trade_review 子模块（商业门禁，finance/review/week 路由同款 withModule）
-    // 生成的收支周报：模块关闭后助手同口径不可读（防旁路，与域级门禁同批）
-    if (kind === "trade_week" && !(await moduleAllowed(ctx, "trade_review"))) {
-      return { kind, periodKey: bjMondayOf(date), cached: false, hint: "用户未开通收支复盘模块，请说明该查询不可用并指引去财务页开通" };
-    }
     const periodKey =
       kind === "day" ? date
       : kind === "week" || kind === "trade_week" ? bjMondayOf(date)
       : kind === "month" ? date.slice(0, 7)
       : date.slice(0, 4);
+    // trade_week 读的是 trade_review 子模块（商业门禁，finance/review/week 路由同款 withModule）
+    // 生成的收支周报：模块关闭后助手同口径不可读（防旁路，与域级门禁同批）
+    if (kind === "trade_week" && !(await moduleAllowed(ctx, "trade_review"))) {
+      return { kind, periodKey, cached: false, hint: "用户未开通收支复盘模块，请说明该查询不可用并指引去财务页开通" };
+    }
+    // 复盘四档读的是 insight 子模块（用户可自关，/api/review/** 路由同款 withModule("insight")）：
+    // 模块关闭后路由 403 而助手照常回已生成小结即成旁路——同口径拦截（十九轮补，与 trade_week 同批漏网）
+    if (kind !== "trade_week" && !(await moduleAllowed(ctx, "insight"))) {
+      return { kind, periodKey, cached: false, hint: "用户未开通AI复盘模块，请说明该查询不可用并指引去【我的 → 功能管理】开通" };
+    }
     const { rows } = await pool.query(
       `select kind, period_key, review, to_char(updated_at at time zone 'Asia/Shanghai', 'MM-DD HH24:MI') as updated_bj
        from review_caches

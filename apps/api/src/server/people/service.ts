@@ -8,6 +8,7 @@ import { chat, extractJson, hasApiKey, activeModel } from "@shiguangri/ai";
 import { ApiError } from "../platform/http/errors";
 import { isParsableMoment, isValidCalendarDate } from "../platform/http/datetime";
 import { pool } from "../platform/db";
+import { invalidateReviewCachesForOccurrence } from "../insight";
 import { checkAiQuota, writeAuditRecord } from "../ai";
 import { contactsRepo, interactionsRepo, peopleMoneyRepo } from "./repo";
 
@@ -224,8 +225,12 @@ export async function updateContact(userId: string, id: string, body: ContactUps
 
 /** DELETE /api/contacts/:id —— 删除联系人（往来事件级联删除，动态本体与流水不受影响） */
 export async function deleteContact(userId: string, id: string) {
+  // 级联删光往来先采事件时间（contacts 删后无从查起）：删除让 interactions max(occurred_at) 水位
+  // 回退、当期复盘缓存被判「仍新鲜」——已删往来滞留在日/周/月小结（与删块/删流水同家族，十九轮补）
+  const old = await pool.query(`select occurred_at from interactions where contact_id = $1 and user_id = $2`, [id, userId]);
   const deleted = (await contactsRepo.remove(id, userId)).rows[0];
   if (!deleted) throw ApiError.notFound("联系人不存在");
+  for (const r of old.rows) void invalidateReviewCachesForOccurrence(userId, new Date(r.occurred_at));
   return { ok: true as const };
 }
 
@@ -263,6 +268,9 @@ export async function createInteraction(userId: string, contactId: string, body:
   const created = (
     await interactionsRepo.create(userId, contactId, type, trimmedCapped(body.summary, 200, "往来摘要"), occurredAt.toISOString())
   ).rows[0];
+  // 补记历史时刻不抬 buildLatest 水位（interactions 无 updated_at 兜底臂）：先生成的历史周期
+  // 小结会被判「仍新鲜」而永久缺这笔——按发生日显式失效（与流水 occurred_at 同口径，十九轮补）
+  void invalidateReviewCachesForOccurrence(userId, occurredAt);
   return { interaction: created };
 }
 
@@ -292,8 +300,16 @@ export async function updateInteraction(userId: string, id: string, body: Intera
   if (sets.length === 0) {
     throw ApiError.badRequest("没有可更新的字段");
   }
+  // occurred_at 跨周期改移时新旧两日都要失效（改移让旧日水位回退、新日需补数，十九轮补）
+  const prev = body.occurredAt !== undefined
+    ? (await pool.query(`select occurred_at from interactions where id = $1 and user_id = $2`, [id, userId])).rows[0]?.occurred_at
+    : null;
   const updated = (await interactionsRepo.updateFields(id, userId, sets, vals)).rows[0];
   if (!updated) throw ApiError.notFound("往来记录不存在");
+  if (prev && new Date(prev).getTime() !== new Date(updated.occurred_at).getTime()) {
+    void invalidateReviewCachesForOccurrence(userId, new Date(prev));
+  }
+  void invalidateReviewCachesForOccurrence(userId, new Date(updated.occurred_at));
   return { interaction: updated };
 }
 
@@ -301,6 +317,8 @@ export async function updateInteraction(userId: string, id: string, body: Intera
 export async function deleteInteraction(userId: string, id: string) {
   const deleted = (await interactionsRepo.remove(id, userId)).rows[0];
   if (!deleted) throw ApiError.notFound("往来记录不存在");
+  // 删除让 max(occurred_at) 水位回退、当期缓存被判「仍新鲜」：按原发生日显式失效（十九轮补）
+  void invalidateReviewCachesForOccurrence(userId, new Date(deleted.occurred_at));
   return { ok: true as const };
 }
 

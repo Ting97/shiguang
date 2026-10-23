@@ -95,7 +95,22 @@ export function parseCstTime(raw: string): string | null {
   const [, y, mo, d, h, mi, s] = m;
   const iso = `${y}-${mo}-${d}T${h}:${mi}:${s ?? "00"}+08:00`;
   const date = new Date(iso);
-  return isNaN(date.getTime()) ? null : date.toISOString();
+  if (isNaN(date.getTime())) return null;
+  // 假日历日守卫：JS 对 2/30、4/31 不报 Invalid Date 而是静默进位成次月（isNaN 拦不住）——
+  // 手改/异常账单行会以错误月份入账。回读须在北京帧（+8h 转 UTC getter）比对，直接比 UTC
+  // 分量会把所有正常行都拦掉（北京 12:30 = UTC 04:30）；不等即非法
+  //（与 ai/schema isRealYmd、shared/date parseYmd 同口径，十九轮补）
+  const bj = new Date(date.getTime() + 8 * 3600_000);
+  if (
+    bj.getUTCFullYear() !== Number(y) ||
+    bj.getUTCMonth() !== Number(mo) - 1 ||
+    bj.getUTCDate() !== Number(d) ||
+    bj.getUTCHours() !== Number(h) ||
+    bj.getUTCMinutes() !== Number(mi)
+  ) {
+    return null;
+  }
+  return date.toISOString();
 }
 
 const COL = (header: string[]) => {

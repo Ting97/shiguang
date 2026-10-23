@@ -6,7 +6,7 @@ import { ClipboardList } from "lucide-react";
 import { api } from "@/shared/api";
 import { TagChip } from "../tag-chip";
 import { RowAction } from "./row-action";
-import { RowActionMenu, type RowMenuState } from "./row-action-menu";
+import { RowActionMenu, useRowMenu } from "./row-action-menu";
 import { useHoverCapable } from "./use-hover-capable";
 import { isoToLocalInput, localInputToIso, todoTimeLabel } from "./kit";
 import type { DelFn, RunFn } from "./types";
@@ -32,7 +32,7 @@ interface TodoRowsProps {
 /** ---- todo ----：展示 + 行内编辑/删除 */
 export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
   const hoverOk = useHoverCapable();
-  const [menu, setMenu] = useState<RowMenuState | null>(null);
+  const { menu, open, close } = useRowMenu();
   const [editTodo, setEditTodo] = useState<EditTodoState | null>(null);
 
   return (
@@ -97,7 +97,7 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
             className="group/row flex items-center gap-x-2"
             onClick={(e) => {
               if (hoverOk) return;
-              setMenu({
+              open(`todo:${td.id}`, {
                 x: e.clientX,
                 y: e.clientY,
                 onEdit: () =>
@@ -134,7 +134,7 @@ export function TodoRows({ m, activities, run, del, delArmed }: TodoRowsProps) {
           </p>
         ),
       )}
-      <RowActionMenu menu={menu} onClose={() => setMenu(null)} />
+      <RowActionMenu menu={menu} onClose={close} />
     </>
   );
 }

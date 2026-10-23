@@ -79,8 +79,10 @@ export function detectFuture(text: string): FutureHint | null {
   if (/(过|等|再)一会儿|一会儿(再|之后|就去|要)/.test(text)) return "soon";
   // 计划/准备只认动词性用法（"准备去开会"是未来，"工作准备/准备工作"是名词），
   // 裸词会误伤补记（如"今天9:10到9:30工作准备+喝水"被拐进未来分支），已交给 LLM 结合当前时间判定。
-  // "记得"排除回忆性搭配（小时候/以前/上次/当年/那次/起来…）：裸词会把"记得小时候…"拐进未来分支
-  if (/(计划[着去要下]|打算|准备[去要下]|记得(?!(小|以|上|当|曾|那|有|起|很))|记得到|要[去办交开]|得去)/.test(text)) return "soon";
+  // "记得"排除回忆性搭配（小时候/以前/上次/当年/那次/起来…）：裸词会把"记得小时候…"拐进未来分支；
+  // 否定式「不/没记得」是回忆陈述不是计划（"我不记得带钥匙了"曾产出 now+1h 的幻影提醒，
+  // 规则兜底路径 GLM 熔断时才发作，十九轮补——思路同 mood-rules NEGATORS）
+  if (/(计划[着去要下]|打算|准备[去要下]|(?<![不没未甭])记得(?!(小|以|上|当|曾|那|有|起|很))|记得到|要[去办交开]|得去)/.test(text)) return "soon";
   return null;
 }
 
@@ -231,9 +233,15 @@ export function resolveMoment(s: string | null | undefined, now: Date): Date | n
   // 契约约定无时区串即北京本地时间：显式补 +08:00 再解析，
   // 否则 new Date(s) 按宿主时区解释，UTC 宿主上整体偏 8 小时。
   // 已带时区（Z/±HH:MM）或纯日期串维持原样（后者按 ECMAScript 规范本就与宿主时区无关）。
+  // naive 形态放宽到斜杠/点分隔与单位数月日时（模型漂移常见变体）——放任 new Date() 走宿主
+  // 时区，UTC 容器上偏 8 小时且 CST 本机永不复现（十九轮补）；归一后再补 +08:00
   const t = s.trim();
-  const naive = t.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)$/);
-  const d = new Date(naive ? `${naive[1]}T${naive[2]}+08:00` : t);
+  const naive = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/);
+  const d = naive
+    ? new Date(
+        `${naive[1]}-${naive[2].padStart(2, "0")}-${naive[3].padStart(2, "0")}T${naive[4].padStart(2, "0")}:${naive[5]}:${naive[6] ?? "00"}+08:00`,
+      )
+    : new Date(t);
   if (isNaN(d.getTime())) return null;
   if (Math.abs(d.getTime() - now.getTime()) > MAX_SPAN_MS) return null;
   return d;

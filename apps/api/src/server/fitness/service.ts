@@ -448,7 +448,13 @@ async function deletePlan(userId: string, id: string) {
   if (!isUuid(id)) throw ApiError.badRequest("id 参数不合法");
   const { rows } = await fitnessRepo.planOwned(id, userId);
   if (!rows.length) throw ApiError.notFound("计划不存在");
+  // 级联删除含已完成联动 todo（FK on delete cascade）：删除让复盘水位 max(done_at) 回退、
+  // 当期小结被判「仍新鲜」而滞留已不存在的完成记录——删前采 done_at、删后显式失效（十九轮补）
+  const doneAts = (
+    await pool.query(`select done_at from todos where fitness_plan_id = $1 and user_id = $2 and done_at is not null`, [id, userId])
+  ).rows as { done_at: string | Date }[];
   await fitnessRepo.deletePlan(id, userId);
+  for (const r of doneAts) void invalidateReviewCachesForOccurrence(userId, new Date(r.done_at));
   return { deleted: true };
 }
 

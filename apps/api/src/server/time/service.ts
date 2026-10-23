@@ -7,7 +7,7 @@
 import { findOverlap, overlapError, pool } from "@/server/platform/db";
 import { isParsableMoment, isValidCalendarDate } from "@/server/platform/http/datetime";
 import { ApiError } from "../platform/http/errors";
-import { invalidateReviewCachesForOccurrence } from "@/server/insight";
+import { invalidateReviewCachesForOccurrence, invalidateAllReviewCaches } from "@/server/insight";
 import { activitiesRepo, blocksRepo, statsRepo, hasReviewablesInRange } from "./repo";
 import { seedPresetActivities } from "./seed";
 
@@ -368,6 +368,9 @@ export async function updateActivity(userId: string, id: string, body: ActivityB
   try {
     const updated = (await activitiesRepo.updateFields(id, userId, fields)).rows[0];
     if (!updated) throw ApiError.notFound("分类不存在");
+    // 改名/改图标影响复盘文本（直接消费 activities.name/icon），而新鲜度水位没有 activities 列——
+    // 历史周期会被判「仍新鲜」而永久滞留旧名，整表失效靠惰性重建（invalidateAllReviewCaches 注释）
+    if (fields.some(([col]) => col === "name" || col === "icon")) void invalidateAllReviewCaches(userId);
     return { activity: updated };
   } catch (e) {
     if (e instanceof ApiError) throw e;
@@ -383,6 +386,8 @@ export async function deleteActivity(userId: string, id: string) {
   const r = await activitiesRepo.deleteCustom(id, userId);
   if (r === "not_found") throw ApiError.notFound("分类不存在");
   if (r === "preset") throw ApiError.badRequest("预设分类不可删除（可修改名称/图标/颜色）");
+  // 重挂「其他」改变统计归类口径 + 旧分类名从复盘文本消失：同 updateActivity 全量失效（水位无 activities 列）
+  void invalidateAllReviewCaches(userId);
   return { ok: true as const, reassigned: true };
 }
 
