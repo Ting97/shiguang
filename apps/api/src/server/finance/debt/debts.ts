@@ -24,7 +24,11 @@ export function serializeDebt(row: Record<string, unknown>) {
 }
 
 export function serializePayment(row: Record<string, unknown>) {
-  return { ...row, amount_cents: Number(row.amount_cents) };
+  // paid_at 归一化与 serializeDebt 同口径（二十轮 P3）：date 列 node-pg 解析为宿主本地零点
+  // Date，原样透传的 wire 格式随宿主时区漂移（CST 宿主回传昨日 16:00Z、UTC 宿主回传当日 00:00Z）
+  const paidAt =
+    row.paid_at instanceof Date ? new Date(row.paid_at.getTime() + 8 * 3600_000).toISOString().slice(0, 10) : row.paid_at;
+  return { ...row, amount_cents: Number(row.amount_cents), paid_at: paidAt == null ? null : String(paidAt).slice(0, 10) };
 }
 
 

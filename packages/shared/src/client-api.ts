@@ -63,6 +63,20 @@ export async function getSessionToken(): Promise<string | null> {
 
 /** 通用 JSON 请求封装：可选 JSON body 与附加头（如 setup 一次性令牌 x-setup-token）；返回解析后的 JSON（默认 any——历史调用点直接取字段） */
 
+/** AbortSignal.timeout 降级：静态方法需 Chrome 103+/Safari 16+，旧 WebView（iOS 15/Capacitor
+ *  WKWebView）上不存在会在 fetch 前同步抛 TypeError、全部请求不可用（二十轮） */
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(ms);
+  }
+  if (typeof AbortController !== "undefined") {
+    const ctl = new AbortController();
+    setTimeout(() => ctl.abort(), ms);
+    return ctl.signal;
+  }
+  return undefined;
+}
+
 export async function api<T = any>(
   url: string,
   method: string,
@@ -81,7 +95,7 @@ export async function api<T = any>(
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     // 慢网/挂起请求不再无限等待（超时抛 TimeoutError，调用方按网络错误口径提示重试）
-    signal: AbortSignal.timeout(opts?.timeoutMs ?? 30_000),
+    signal: timeoutSignal(opts?.timeoutMs ?? 30_000),
   });
   return parseResponse<T>(r);
 }
@@ -128,7 +142,7 @@ export async function apiForm<T = any>(url: string, form: FormData, method = "PO
     headers,
     body: form,
     // 上传（多图/语音）弱网耗时更长，给 120s；JSON 通道 30s
-    signal: AbortSignal.timeout(120_000),
+    signal: timeoutSignal(120_000),
   });
   return parseResponse<T>(r);
 }

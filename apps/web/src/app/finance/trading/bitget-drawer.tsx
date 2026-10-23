@@ -5,6 +5,7 @@ import { confirmDialog } from "@/shared/ui/confirm";
 import { X, Zap } from "lucide-react";
 import { api, ApiClientError } from "@/shared/api";
 import { toast } from "@/shared/ui/toast";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 
 /** 北京日历日（n 天前）——与 kit.bjToday 同口径（UTC getter + 8h） */
 const isoDaysAgo = (n: number) => new Date(Date.now() + 8 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
@@ -20,6 +21,7 @@ interface KeyRow {
 }
 
 export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => void; onSynced: () => Promise<void> }) {
+  useBodyScrollLock(true); // 遮罩上滑动背景跟手（二十轮）
   const [status, setStatus] = useState<{ bound: boolean; keys?: KeyRow[] } | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -40,7 +42,10 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
   quietRef.current = busy || confirming;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing && !(e.keyCode === 229) && !quietRef.current) onClose();
+      if (e.key === "Escape" && !e.isComposing && !(e.keyCode === 229) && !quietRef.current) {
+        e.preventDefault(); // Esc 消费标记（r19 规范），防 ToastHost 同帧吃 toast
+        onClose();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -112,6 +117,11 @@ export default function BitgetDrawer({ onClose, onSynced }: { onClose: () => voi
 
   async function sync(dryRun: boolean) {
     if (busy) return;
+    // 日期区间倒置拦截（二十轮 P3）：开始>结束直接发同步，服务端按区间查询返回空集被误读为「无数据」
+    if (from > to) {
+      toast("开始日期不能晚于结束日期", "err");
+      return;
+    }
     setBusy(true);
     setSummary(null);
     try {

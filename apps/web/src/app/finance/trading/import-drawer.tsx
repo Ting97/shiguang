@@ -5,6 +5,7 @@ import { ArrowLeft, Download, FileText, KeyRound, X } from "lucide-react";
 import { MT5_TZ_LABEL, parseMt5File, type Mt5Source, type TradeRow } from "@/lib/mt5-parse";
 import { api } from "@/shared/api";
 import { useDismiss } from "@/components/dismissable";
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock";
 import { TagChip } from "@/components/tag-chip";
 import { bjTime, fmtUsd, pnlColor, type DryRunPreview } from "./kit";
 
@@ -23,6 +24,7 @@ export default function TradingImportDrawer({
   const [rawName, setRawName] = useState("");
   const [fileLabel, setFileLabel] = useState<string | null>(null);
   const [parsed, setParsed] = useState<{ login: string | null; rows: TradeRow[]; source: Mt5Source } | null>(null);
+  useBodyScrollLock(true); // 遮罩上滑动背景跟手（二十轮，与 debt/import-drawer 同款）
   const [login, setLogin] = useState("");
   const [nickname, setNickname] = useState("");
   const [preview, setPreview] = useState<DryRunPreview | null>(null);
@@ -83,8 +85,12 @@ export default function TradingImportDrawer({
     setError(null);
     setBusy(true);
     try {
-      const j = await api<{ rowsNew: number; rowsDup: number }>("/api/trading/import", "POST", { ...body(), dryRun: false });
-      setResult(`✅ 已导入 ${j.rowsNew} 笔${j.rowsDup ? ` · 跳过重复 ${j.rowsDup} 笔` : ""}`);
+      const j = await api<{ rowsNew: number; rowsDup: number; rowsNoSymbol?: number }>("/api/trading/import", "POST", { ...body(), dryRun: false });
+      setResult(
+        `✅ 已导入 ${j.rowsNew} 笔${j.rowsDup ? ` · 跳过重复 ${j.rowsDup} 笔` : ""}${
+          j.rowsNoSymbol ? ` · ⚠️ ${j.rowsNoSymbol} 笔缺品种列（记为 UNKNOWN，请核对报表格式）` : ""
+        }`,
+      );
       setPreview(null);
       await onImported();
     } catch (e) {

@@ -60,20 +60,20 @@ export const PATCH = withAdminSchema(patchSchema, async (req, { user, valid }) =
   if (enabled === undefined && user_toggleable === undefined) {
     throw ApiError.badRequest("enabled 与 user_toggleable 至少传一项");
   }
-  const cur = await pool.query(
-    `select enabled, user_toggleable from module_states where module = $1`,
-    [module],
-  );
-  const nextEnabled = enabled ?? (cur.rows[0]?.enabled ?? def.defaultOn);
-  const nextToggleable = user_toggleable ?? (cur.rows[0]?.user_toggleable ?? def.userToggleableDefault);
-  await pool.query(
+  // 单语句 upsert + coalesce 兜底（二十轮）：旧版先读 cur 再算 next 的 read-modify-write，
+  // 两管理员并发各改一个维度时后写者以陈旧值覆盖前者维度
+  const { rows } = await pool.query(
     `insert into module_states (module, enabled, user_toggleable, updated_by)
-     values ($1,$2,$3,$4)
+     values ($1, coalesce($2, $3), coalesce($4, $5), $6)
      on conflict (module) do update set
-       enabled = excluded.enabled, user_toggleable = excluded.user_toggleable,
-       updated_by = excluded.updated_by, updated_at = now()`,
-    [module, nextEnabled, nextToggleable, user.id],
+       enabled = coalesce($2, module_states.enabled),
+       user_toggleable = coalesce($4, module_states.user_toggleable),
+       updated_by = excluded.updated_by, updated_at = now()
+     returning enabled, user_toggleable`,
+    [module, enabled ?? null, def.defaultOn, user_toggleable ?? null, def.userToggleableDefault, user.id],
   );
+  const nextEnabled = rows[0].enabled;
+  const nextToggleable = rows[0].user_toggleable;
   invalidateModuleCache(); // 全局层变更：全清
   void writeAuditRecord({
     userId: user.id,

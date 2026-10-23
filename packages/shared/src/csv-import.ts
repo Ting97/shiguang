@@ -82,9 +82,11 @@ export function parseAmount(raw: string): number | null {
   const cleaned = raw.replace(/[¥￥,\s]/g, "").trim();
   if (!cleaned) return null;
   if (!/^\d+(?:\.\d+)?$/.test(cleaned)) return null; // 非纯数字（含负号/科学计数）不认
-  // 字符串商余口径（对齐 yuanToCents）：parseFloat*100 对三位小数会舍错（1.115→111.49999→111）
+  // 字符串商余口径（对齐 yuanToCents）：parseFloat*100 对三位小数会舍错（1.115→111.49999→111）；
+  // 第三位小数同样四舍五入进 1（二十轮：注释宣称对齐 yuanToCents 但漏了 frac[2]>=5 进位，两口径差 1 分）
   const [int, frac = ""] = cleaned.split(".");
-  const cents = Number(int) * 100 + Number((frac + "00").slice(0, 2));
+  let cents = Number(int) * 100 + Number((frac + "00").slice(0, 2));
+  if (Number(frac[2] ?? "0") >= 5) cents += 1;
   return cents;
 }
 

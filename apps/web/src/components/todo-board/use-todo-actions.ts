@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { TodoItem, TodoRow } from "@/lib/types";
 import { api, ApiClientError } from "@/shared/api";
@@ -59,7 +59,21 @@ export function useTodoActions(ctx: TodoActionsCtx) {
     }
   }
 
+  // per-id 在途门（二十轮 P3）：完成圆圈快速双点会完成→恢复两次 PATCH + 两条矛盾 toast
+  //（同仓 busyId/addTodo 都有锁，toggleDone 是漏网）；同 id 在途时后续点击忽略
+  const togglingIds = useRef(new Set<string>());
+
   async function patchTodo(id: string, body: Record<string, unknown>, okText?: string) {
+    if (togglingIds.current.has(id)) return false;
+    togglingIds.current.add(id);
+    try {
+      return await patchTodoInner(id, body, okText);
+    } finally {
+      togglingIds.current.delete(id);
+    }
+  }
+
+  async function patchTodoInner(id: string, body: Record<string, unknown>, okText?: string) {
     try {
       await api<any>(`/api/todos/${id}`, "PATCH", body);
     } catch (e) {

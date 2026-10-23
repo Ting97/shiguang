@@ -379,16 +379,22 @@ async function buildLatest(userId: string, kind: ReviewContentKind, period: Revi
     from = `${month}-01`;
     to = localYmd(new Date(Date.UTC(y, m, 0)));
   }
+  // 二十轮 sargable 化（对齐 year 分支 9-F）：(col at time zone $2)::date between 对列套函数
+  // 不可走索引——北京固定 UTC+8，日界即半开区间 [from 00:00+08, to+1 00:00+08)，改纯范围条件。
+  // 复盘四路由每次查看（含缓存命中）都先跑 buildLatest，旧式写法每请求全量扫用户四表
+  const fromTs = `${from}T00:00:00+08:00`;
+  const [ty, tm, td] = to.split("-").map(Number);
+  const toTs = `${localYmd(new Date(Date.UTC(ty, tm - 1, td + 1)))}T00:00:00+08:00`;
   const { rows } = await pool.query(
     `select greatest(
-       (select max(created_at) from entries where user_id = $1 and (created_at at time zone $2)::date between $3::date and $4::date),
-       (select max(done_at) from todos where user_id = $1 and status = 'done' and (done_at at time zone $2)::date between $3::date and $4::date),
-       (select max(occurred_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date and occurred_at <= now()),
-       (select max(updated_at) from transactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date),
-       (select max(start_at) from time_blocks where user_id = $1 and (start_at at time zone $2)::date between $3::date and $4::date and start_at <= now()),
-       (select max(occurred_at) from interactions where user_id = $1 and (occurred_at at time zone $2)::date between $3::date and $4::date and occurred_at <= now())
+       (select max(created_at) from entries where user_id = $1 and created_at >= $2::timestamptz and created_at < $3::timestamptz),
+       (select max(done_at) from todos where user_id = $1 and status = 'done' and done_at >= $2::timestamptz and done_at < $3::timestamptz),
+       (select max(occurred_at) from transactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz and occurred_at <= now()),
+       (select max(updated_at) from transactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz),
+       (select max(start_at) from time_blocks where user_id = $1 and start_at >= $2::timestamptz and start_at < $3::timestamptz and start_at <= now()),
+       (select max(occurred_at) from interactions where user_id = $1 and occurred_at >= $2::timestamptz and occurred_at < $3::timestamptz and occurred_at <= now())
      ) as latest`,
-    [userId, TZ, from, to],
+    [userId, fromTs, toTs],
   );
   return (rows[0]?.latest as Date | null) ?? null;
 }
@@ -502,12 +508,25 @@ async function buildSubRows(
   if (kind === "week") {
     const [a, b, c] = await Promise.all([
       pool.query(
-        `select (b.start_at at time zone $2)::date::text as day, a.name, a.icon,
-                sum(floor(extract(epoch from least((b.end_at at time zone $2), ($4::date + 1))
-                         - greatest((b.start_at at time zone $2), $3::date)) / 60))::int as mins
-         from time_blocks b join activities a on a.id = b.activity_id and a.user_id = b.user_id
+        // 跨天块按天拆行（二十轮，对齐 month/year 分支与 day 档主聚合口径）：旧版把整段
+        // 记入起始日——睡眠 23:00→07:00 的 8h 全记在周一，与同 payload 的日小结、日复盘、
+        // 统计页（statsRepo 按天 generate_series 拆分）互相矛盾，LLM 输入事实失真。
+        // lateral generate_series 按 '1 day' 拆分 + 交集钳制（month/year 同范式）
+        `select d.pstart::date::text as day, a.name, a.icon,
+                sum(floor(extract(epoch from
+                  least(least((b.end_at at time zone $2), ($4::date + 1)::timestamp), d.pstart + interval '1 day')
+                  - greatest(greatest((b.start_at at time zone $2), $3::date::timestamp), d.pstart)
+                ) / 60))::int as mins
+         from time_blocks b
+         join activities a on a.id = b.activity_id and a.user_id = b.user_id
+         join lateral generate_series(
+                date_trunc('day', greatest((b.start_at at time zone $2), $3::date::timestamp)),
+                date_trunc('day', least((b.end_at at time zone $2), ($4::date + 1)::timestamp)),
+                interval '1 day') d(pstart) on true
          where b.user_id = $1
            and (b.end_at at time zone $2) > $3::date and (b.start_at at time zone $2) < ($4::date + 1)
+           and least(least((b.end_at at time zone $2), ($4::date + 1)::timestamp), d.pstart + interval '1 day')
+             > greatest(greatest((b.start_at at time zone $2), $3::date::timestamp), d.pstart)
          group by 1, 2, 3`,
         base,
       ),

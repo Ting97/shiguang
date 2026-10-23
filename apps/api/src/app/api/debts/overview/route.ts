@@ -41,7 +41,9 @@ export const GET = withModule("debt", async (_req, { user }) => {
   ).rows[0];
   const assetBalance = Number(assets.balance);
 
-  // 到期墙：未来 6 个月内到期（先息后本 = 本金到期节点）
+  // 到期墙：未来 6 个月内到期（先息后本 = 本金到期节点）+ 已逾期段（二十轮 P2）。
+  // 旧版 dm>=0 过滤把 due 已过的活跃负债整体排除——先息后本类一旦逾期，本金风险从总览
+  // 消失（余额仍挂账但墙里看不见），与备付页同样盲区，一并补
   // 注意：node-pg 把 date 解析为 Date 对象（本地时区 00:00），先归一化为 YYYY-MM-DD 再计算
   const nowBj = new Date(Date.now() + 8 * 3600_000);
   const bjDayOf = (d: unknown): string =>
@@ -60,18 +62,22 @@ export const GET = withModule("debt", async (_req, { user }) => {
     .filter((r) => r.due_date)
     .map((r) => ({ ...r, due: bjDayOf(r.due_date) }))
     .map((r) => ({ ...r, dm: monthDiff(Date.parse(`${r.due}T00:00:00Z`)) }))
-    .filter((r) => r.dm >= 0 && r.dm <= 6)
-    .sort((a, b) => a.dm - b.dm)
-    .map((r) => ({
-      id: r.id,
-      name: r.name,
-      type: r.type,
-      dueDate: r.due,
-      balanceCents: Number(r.balance_cents),
-      monthlyCents: r.monthly_cents === null ? null : Number(r.monthly_cents),
-      daysLeft: Math.max(0, Math.round((Date.parse(`${r.due}T00:00:00Z`) - todayBjMs) / 86_400_000)),
-      level: r.dm <= 3 ? "danger" : "warn",
-    }));
+    .filter((r) => r.dm <= 6)
+    .sort((a, b) => a.dm - b.dm) // 逾期（dm<0）排最前，按逾期时间降序
+    .map((r) => {
+      const daysLeft = Math.round((Date.parse(`${r.due}T00:00:00Z`) - todayBjMs) / 86_400_000);
+      return {
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        dueDate: r.due,
+        balanceCents: Number(r.balance_cents),
+        monthlyCents: r.monthly_cents === null ? null : Number(r.monthly_cents),
+        daysLeft,
+        // 已逾期 > 未来 3 个月 danger > warn；daysLeft 负数=已逾期 N 天（前端相应渲染）
+        level: daysLeft < 0 ? "overdue" : r.dm <= 3 ? "danger" : "warn",
+      };
+    });
 
   // 现金流月视图：本月真实收支 vs 月供应还（已关联记账的还款不重复扣）。
   // sargable 化（与 finance/overview 同范式）：to_char(occurred_at…) = 'YYYY-MM' 对列套函数
@@ -79,6 +85,7 @@ export const GET = withModule("debt", async (_req, { user }) => {
   // 会被记到上月）——统一预计算北京月界半开区间 [start, end) 纯范围比较
   const monthKey = nowBj.toISOString().slice(0, 7);
   const [my, mm] = monthKey.split("-").map(Number);
+  const nextMonthKey = `${mm === 12 ? my + 1 : my}-${mm === 12 ? "01" : String(mm + 1).padStart(2, "0")}`;
   const monthStart = new Date(Date.UTC(my, mm - 1, 1, -8)).toISOString();
   const monthEnd = new Date(Date.UTC(my, mm, 1, -8)).toISOString();
   const cf = (
@@ -95,9 +102,12 @@ export const GET = withModule("debt", async (_req, { user }) => {
   const paidThisMonth = Number(
     (
       await pool.query(
+        // paid_at 是 date 列（二十轮 P2）：传 timestamptz 形参时 PG 类型推断按 date>=date 精确匹配，
+        // text→date 转换忽略时区按字面日期截断——窗口起点实际是「上月最后一日」而非北京本月一日，
+        // 整月期间 paidThisMonth 恒多计上月末日的还款。改传纯日期串 + ::date 显式收口（半开区间）
         `select coalesce(sum(amount_cents), 0)::bigint as n from liability_payments
-         where user_id = $1 and paid_at >= $2 and paid_at < $3`,
-        [user.id, monthStart, monthEnd],
+         where user_id = $1 and paid_at >= $2::date and paid_at < $3::date`,
+        [user.id, `${monthKey}-01`, `${nextMonthKey}-01`],
       )
     ).rows[0].n,
   );
@@ -108,6 +118,12 @@ export const GET = withModule("debt", async (_req, { user }) => {
   const gapCents = realizedCents - remainingDue;
 
   const hints: string[] = [];
+  const overdue = wall.filter((w) => w.level === "overdue");
+  if (overdue.length > 0) {
+    hints.push(
+      `🚨 ${overdue.length} 笔已逾期（合计剩余 ¥${(overdue.reduce((s, w) => s + w.balanceCents, 0) / 100).toFixed(0)}），请优先安排还款`,
+    );
+  }
   if (wall.length > 0) {
     const danger = wall.filter((w) => w.level === "danger");
     if (danger.length > 0) {

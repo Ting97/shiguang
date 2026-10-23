@@ -32,6 +32,10 @@ export default function SetupPage() {
       toast("请先填写昵称与手机号", "err");
       return;
     }
+    if (password.length < 8) {
+      toast("密码至少 8 位", "err"); // 前端先拦（二十轮）：服务端 422 兜底但往返慢
+      return;
+    }
     if (password !== confirm) {
       toast("两次输入的密码不一致", "err");
       return;

@@ -40,7 +40,11 @@ export default function FinancePage() {
   const [visible, setVisible] = useState(PAGE_SIZE);
   // 加载失败态：给出重试入口，避免网络异常时永远停在骨架屏
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  // 「加载更多」在途态（二十轮 P3）：按钮反馈 + 防连点
+  const [loadingMore, setLoadingMore] = useState(false);
   const [adding, setAdding] = useState(false);
+  // 记一笔提交中禁关弹层（二十轮 P2）：POST 在途关弹层会丢成功反馈、诱发重复记账
+  const [txBusy, setTxBusy] = useState(false);
   const [managingAccount, setManagingAccount] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false); // 确认提交中：防双击双发 PATCH
@@ -55,6 +59,8 @@ export default function FinancePage() {
     if (!month) return; // mounted 前不取数（month 由 mount effect 初始化）
     const seq = ++loadSeq.current;
     setLoadErr(null);
+    // 扩窗加载在途反馈（二十轮 P3）：visible > 首页才亮「加载中…」，切月加载不误亮
+    if (visible > PAGE_SIZE) setLoadingMore(true);
     try {
       // 已确认流水分块拉取：API 单次 limit 钳 500，旧版直接把窗口传给 limit，
       // 单月 >500 笔时返回恒 500 条、txs.length < total 恒真 →「加载更多」成死按钮
@@ -87,6 +93,8 @@ export default function FinancePage() {
       if (seq !== loadSeq.current) return;
       // 失败不停在骨架屏（历史 bug：无 catch 时 unhandled rejection + 永久加载中）
       setLoadErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (seq === loadSeq.current) setLoadingMore(false);
     }
   }, [month, visible]);
   useEffect(() => {
@@ -260,6 +268,7 @@ export default function FinancePage() {
         <ConfirmedTxSection
           txs={confirmed}
           total={confirmedTotal}
+          loadingMore={loadingMore}
           onLoadMore={() => setVisible((v) => v + PAGE_SIZE)}
           editing={editing}
           setEditing={setEditing}
@@ -275,10 +284,11 @@ export default function FinancePage() {
 
         {/* 手动记账弹层 */}
         {adding && (
-          <Modal title="记一笔" onClose={() => setAdding(false)}>
+          <Modal title="记一笔" onClose={() => setAdding(false)} busy={txBusy}>
             <TxForm
               accounts={ov.accounts}
               onCancel={() => setAdding(false)}
+              onBusyChange={setTxBusy}
               onSubmit={async (payload) => {
                 try {
                   await api("/api/transactions", "POST", payload);

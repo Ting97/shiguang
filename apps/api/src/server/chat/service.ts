@@ -354,6 +354,11 @@ export async function sendMessage(
     if (/额度熔断|quota|429|限流/.test(msg)) {
       throw ApiError.upstream("AI 服务暂时不可用（限流/额度），请稍后再试");
     }
+    // 模型输出类失败（空内容/工具参数不合法，二十轮）：收敛为友好上游文案而非裸 500——
+    // GlmError(badOutput) 的原始 detail 只进上方审计，不下发用户
+    if ((e as { name?: string })?.name === "GlmError") {
+      throw ApiError.upstream("AI 本次回复生成失败，请重新发送或换个说法");
+    }
     throw e;
   }
 }

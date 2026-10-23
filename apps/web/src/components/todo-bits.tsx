@@ -15,6 +15,7 @@ export const zhTime = (iso: string | null) => (iso ? sharedZhTime(iso) : "");
 export const dueTag = (iso: string | null) => {
   if (!iso) return null;
   const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null; // 非法 ISO 防御：旧版落「NaN 天后」（二十轮）
   if (t < Date.now()) return { text: "已过期", cls: "text-danger" };
   const days = bjDayIdx(t) - bjDayIdx(Date.now());
   if (days === 0) return { text: "今天", cls: "text-warn" };

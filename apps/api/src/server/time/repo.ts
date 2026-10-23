@@ -75,8 +75,10 @@ export const blocksRepo = {
   },
 };
 
-/** 区间内是否有时间块以外的可复盘数据（动态/非草稿流水/已完成 todo，口径对齐复盘管线取数）。
+/** 区间内是否有时间块以外的可复盘数据（动态/非草稿流水/已完成 todo/人际往来，口径对齐复盘管线取数）。
  *  复盘卡「有记录」判定用：只记了账或心情而没记时间块的日子/周，生成按钮不应被禁。
+ *  二十轮补 interactions：人际域支持无动态的独立往来（entry_id 为空、可补历史日），
+ *  复盘管线把人际互动计为事实行——漏查会让「只有手工往来」的日子误判为无可复盘。
  *  界谓词用 sargable 写法（列裸比较，走 idx_*_user_time 前导索引）：
  *  旧 `(col at time zone $2)::date between` 对列套表达式，每次区间查询顺序扫描用户全量数据 */
 export async function hasReviewablesInRange(userId: string, tz: string, from: string, to: string) {
@@ -84,6 +86,7 @@ export async function hasReviewablesInRange(userId: string, tz: string, from: st
     `select exists (select 1 from entries where user_id = $1 and created_at >= $3::date::timestamp at time zone $2 and created_at < ($4::date + 1)::timestamp at time zone $2)
       or exists (select 1 from transactions where user_id = $1 and is_draft = false and occurred_at >= $3::date::timestamp at time zone $2 and occurred_at < ($4::date + 1)::timestamp at time zone $2)
       or exists (select 1 from todos where user_id = $1 and status = 'done' and done_at >= $3::date::timestamp at time zone $2 and done_at < ($4::date + 1)::timestamp at time zone $2)
+      or exists (select 1 from interactions where user_id = $1 and occurred_at >= $3::date::timestamp at time zone $2 and occurred_at < ($4::date + 1)::timestamp at time zone $2)
       as has_extras`,
     [userId, tz, from, to],
   );

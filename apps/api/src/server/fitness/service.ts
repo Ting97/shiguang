@@ -522,6 +522,11 @@ async function updatePlan(userId: string, id: string, body: unknown) {
     if (locked.rows[0].status === "done" || locked.rows[0].status === "partial") {
       throw ApiError.badRequest("该计划已打卡，不能再次修改");
     }
+    // 内容编辑守卫锁内复核（二十轮）：上方 `仅草稿可编辑` 用的是事务前快照——
+    // 并发 draft→confirmed 落在快照与加锁之间时，已确认计划的内容仍会被改
+    if (v.content !== undefined && locked.rows[0].status !== "draft") {
+      throw ApiError.badRequest("仅草稿状态可编辑内容");
+    }
     const planRow = (await fitnessRepo.updatePlan(id, userId, sets, vals, client)).rows[0];
 
     // skipped → 清理未完成联动行动；done/partial → 落执行记录 + 完成联动行动

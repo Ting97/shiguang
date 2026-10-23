@@ -90,6 +90,11 @@ export default function LoginPage() {
       toast("请先填写手机号 / 邮箱", "err");
       return;
     }
+    if (isRegister && password.length < 8) {
+      // 长度/一致性属表单校验（二十轮）：服务端 422 兜底但往返慢，toast 收口提交反馈
+      toast("密码至少 8 位", "err");
+      return;
+    }
     if (isRegister && password !== password2) {
       // 密码一致性属表单校验：字段旁已有 ✓/✗ 即时指示，这里 toast 收口提交反馈
       toast("两次输入的密码不一致", "err");

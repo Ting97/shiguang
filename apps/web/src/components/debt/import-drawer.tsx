@@ -54,23 +54,17 @@ export default function DebtImportDrawer({
     [],
   );
 
-  useEffect(() => {
-    if (!open) {
-      setJsonText("");
-      setFileName("");
-      setPreview(null);
-      setRows(null);
-      setSkipped(new Set());
-      setErr(null);
-      setDoneMsg(null);
-    }
-  }, [open]);
+  // 状态重置随组件卸载自动发生（父层条件渲染 importing && <Drawer>，二十轮）：
+  // 旧版 !open 分支是死代码——组件卸载后 effect 根本不会执行，纯误导维护者，删除
 
   // Esc 关闭（全站浮层统一；busy 导入中忽略，防中途 Esc 丢反馈）；busy 时遮罩/×同样不关
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing && !busyRef.current) onClose();
+      if (e.key === "Escape" && !e.isComposing && !busyRef.current) {
+        e.preventDefault(); // Esc 消费标记（r19 规范），防 ToastHost 同帧吃 toast
+        onClose();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);

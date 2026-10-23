@@ -5,6 +5,7 @@ import { bjToday } from "@/lib/date";
 import { bjNowMin } from "@/lib/bj-time"; // 实现单源 @shiguangri/shared（UTC+8 推算，禁本地 getter）
 import BlockDraftForm, { type BlockDraftValue } from "@/components/block-draft-form";
 import { toast } from "@/shared/ui/toast";
+import { confirmDialog } from "@/shared/ui/confirm";
 import type { Activity, Block } from "@/lib/types";
 
 const PX_PER_MIN = 0.75; // 一天 1080px，一小时 45px
@@ -97,7 +98,18 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
   }, [blocks, date]);
 
   /** 在绝对分钟处打开补录：定位到该时刻所在的 1 小时整点区间（钳进缺口；贴边不足 5 分钟回退缺口末段一小时） */
-  function openSlotAt(absMin: number) {
+  async function openSlotAt(absMin: number) {
+    // 草稿脏检查（二十轮）：标题已输入时点另一缺口/空白，静默 setDraft 会丢掉整段草稿
+    //（与「Esc 脏关闭零反馈」同族）；confirmDialog 为全站确认范式（禁原生 window.confirm）
+    if (draft && draft.title.trim()) {
+      const ok = await confirmDialog({
+        title: "放弃当前补录草稿？",
+        message: "已输入的标题尚未保存，新建补录会将其清空。",
+        confirmText: "放弃并新建",
+        danger: false,
+      });
+      if (!ok) return;
+    }
     const gap = gaps.find((g) => absMin >= g.s && absMin <= g.e);
     if (!gap) return;
     const hourStart = Math.floor(absMin / 60) * 60;
@@ -204,7 +216,19 @@ export default function DayTimeline({ date, blocks, activities, onCreate, onEdit
             return (
               <button
                 key={b.id}
-                onClick={() => onEditBlock(b)}
+                onClick={async () => {
+                  // 草稿脏检查同 openSlotAt（二十轮）：打字中点日程块会打开块编辑器顶掉草稿
+                  if (draft && draft.title.trim()) {
+                    const ok = await confirmDialog({
+                      title: "放弃当前补录草稿？",
+                      message: "已输入的标题尚未保存，打开日程编辑会将其清空。",
+                      confirmText: "放弃草稿",
+                      danger: false,
+                    });
+                    if (!ok) return;
+                  }
+                  onEditBlock(b);
+                }}
                 title="点击修改/删除"
                 className="absolute left-10 right-2 overflow-hidden rounded border-l-4 px-2 text-left transition hover:brightness-125"
                 style={{

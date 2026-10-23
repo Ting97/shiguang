@@ -28,7 +28,7 @@ export function InteractionFormModal({
   const [err, setErr] = useState<string | null>(null);
 
   return (
-    <Modal title={`补一笔往来 · ${contactName}`} onClose={onClose}>
+    <Modal title={`补一笔往来 · ${contactName}`} onClose={onClose} busy={busy}>
       <div className="space-y-2.5">
           <div className="flex gap-2">
             <select

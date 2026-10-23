@@ -38,6 +38,10 @@ export default function DebtPage() {
   const [sim, setSim] = useState<SimResult | null>(null);
   const [simBusy, setSimBusy] = useState(false);
   const [importing, setImporting] = useState(false); // REQ-005 R2 导入抽屉
+  // 表单 busy 上报（二十轮 P2）：提交中传给 Modal 禁 Esc/遮罩/× 关闭，防在途提交反馈丢失后重复录入
+  const [formBusy, setFormBusy] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
+  const [accountsErr, setAccountsErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadErr(null);
@@ -57,12 +61,14 @@ export default function DebtPage() {
       // 非 403 的失败不停在骨架屏（历史 bug：throw 造成 unhandled rejection + 永久加载中）
       setLoadErr(e instanceof Error ? e.message : String(e));
     }
-    // 账户列表仅供还款选账（原 if (a.ok)）：失败不阻塞负债页主数据
+    // 账户列表仅供还款选账：失败不阻塞负债页主数据，但也不再静默（二十轮 P3）——
+    // 还款弹层的账户下拉只剩「不联动记账」，用户无从知道可选项缺失
     try {
       const a = await api<{ accounts?: Account[] }>("/api/accounts");
       setAccounts(a.accounts ?? []);
+      setAccountsErr(null);
     } catch {
-      /* 同原 a.ok === false：忽略 */
+      setAccountsErr("账户列表加载失败，还款暂不能联动记账");
     }
   }, []);
   useEffect(() => {
@@ -122,6 +128,14 @@ export default function DebtPage() {
         {loadErr && (
           <div className="msg-banner msg-banner-err mb-4">
             加载失败：{loadErr}
+            <button onClick={() => void load()} className="ml-2 underline underline-offset-2">
+              重试
+            </button>
+          </div>
+        )}
+        {accountsErr && !loadErr && (
+          <div className="msg-banner msg-banner-err mb-4">
+            {accountsErr}
             <button onClick={() => void load()} className="ml-2 underline underline-offset-2">
               重试
             </button>
@@ -210,21 +224,31 @@ export default function DebtPage() {
               <section className="mb-4 rounded-2xl border border-line-soft bg-surface/50 p-5">
                 <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft">
                   <TagChip icon={<Hourglass size={12} />} label="到期墙" tone="amber" />
-                  <span className="text-xs font-normal text-ink-dim">未来 6 个月内到期</span>
+                  <span className="text-xs font-normal text-ink-dim">
+                    {ov.wall.some((w) => w.level === "overdue") ? "含已逾期负债" : "未来 6 个月内到期"}
+                  </span>
                 </h2>
                 <ul className="space-y-2">
                   {ov.wall.map((w) => (
                     <li
                       key={w.id}
                       className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-3 py-2.5 text-xs ${
-                        w.level === "danger" ? "border-rose-500/30 bg-rose-500/[0.06]" : "border-amber-500/30 bg-amber-500/[0.06]"
+                        w.level === "overdue"
+                          ? "border-rose-500/50 bg-rose-500/10"
+                          : w.level === "danger"
+                            ? "border-rose-500/30 bg-rose-500/[0.06]"
+                            : "border-amber-500/30 bg-amber-500/[0.06]"
                       }`}
                     >
                       <span>{DEBT_TYPE_META[w.type]?.icon}</span>
                       <span className="font-medium text-ink">{w.name}</span>
-                      <span className={w.level === "danger" ? "text-danger" : "text-warn"}>
+                      <span className={w.level === "overdue" || w.level === "danger" ? "text-danger" : "text-warn"}>
                         {w.dueDate.slice(0, 10)} 到期
-                        <span className="ml-1.5">剩 {w.daysLeft} 天</span>
+                        {w.daysLeft < 0 ? (
+                          <span className="ml-1.5 font-semibold">已逾期 {Math.abs(w.daysLeft)} 天</span>
+                        ) : (
+                          <span className="ml-1.5">剩 {w.daysLeft} 天</span>
+                        )}
                       </span>
                       <span className="ml-auto font-semibold tabular-nums text-ink">{fmt(w.balanceCents)}</span>
                       {w.monthlyCents === 0 && <span className="text-badge text-ink-faint">无月供 · 到期一次结清</span>}
@@ -239,17 +263,17 @@ export default function DebtPage() {
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
                   <TagChip icon={<Landmark size={12} />} label="负债档案" tone="rose" />
-                  <span className="text-xs font-normal text-ink-dim">{active.length} 笔进行中</span>
+                  <span className="whitespace-nowrap text-xs font-normal text-ink-dim">{active.length} 笔进行中</span>
                 </h2>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setImporting(true)}
                     title="从 trade.ting97.cn 导出的 JSON 导入"
-                    className="flex items-center gap-1 rounded-xl border border-line-soft px-3 py-1.5 text-xs text-ink-mute transition hover:text-accent"
+                    className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border border-line-soft px-3 py-1.5 text-xs text-ink-mute transition hover:text-accent"
                   >
                     <Download size={12} aria-hidden /> 导入
                   </button>
-                  <button onClick={() => setEditing("new")} className="flex items-center gap-1 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
+                  <button onClick={() => setEditing("new")} className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-sky-500/20">
                     <Plus size={12} aria-hidden /> 新建档案
                   </button>
                 </div>
@@ -412,12 +436,14 @@ export default function DebtPage() {
         )}
       </div>
 
-      {/* 新建/编辑档案弹层 */}
+      {/* 新建/编辑档案弹层。busy 提升到 Modal（二十轮 P2）：提交中禁 Esc/点遮罩/× 关闭，
+          防 POST 在途弹层被关、成功反馈丢失后重复建档 */}
       {editing && (
-        <Modal title={editing === "new" ? "新建负债档案" : "编辑负债档案"} onClose={() => setEditing(null)}>
+        <Modal title={editing === "new" ? "新建负债档案" : "编辑负债档案"} onClose={() => setEditing(null)} busy={formBusy}>
           <DebtForm
             initial={editing === "new" ? null : editing}
             onCancel={() => setEditing(null)}
+            onBusyChange={setFormBusy}
             onSubmit={async (payload) => {
               if (editing === "new") await api("/api/debts", "POST", payload);
               else await api(`/api/debts/${editing.id}`, "PATCH", payload);
@@ -435,19 +461,20 @@ export default function DebtPage() {
           open={importing}
           onClose={() => setImporting(false)}
           onDone={async () => {
-            toast("✅ 导入完成");
             await load();
           }}
         />
       )}
 
-      {/* 还款弹层 */}
+      {/* 还款弹层。busy 提升到 Modal（二十轮 P2）：提交中关闭弹层会让「已记还款」toast
+          在弹层已关后才弹，用户误以为取消、重录再提交 → 同笔负债双还款余额双扣 */}
       {paying && (
-        <Modal title={`还款 · ${paying.name}`} onClose={() => setPaying(null)}>
+        <Modal title={`还款 · ${paying.name}`} onClose={() => setPaying(null)} busy={payBusy}>
           <PaymentForm
             debt={paying}
             accounts={accounts}
             onCancel={() => setPaying(null)}
+            onBusyChange={setPayBusy}
             onDone={async (text) => {
               setPaying(null);
               toast(text);
