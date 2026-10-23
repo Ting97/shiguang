@@ -36,7 +36,7 @@ export interface Wall {
   balanceCents: number;
   monthlyCents: number | null;
   daysLeft: number;
-  level: "danger" | "warn";
+  level: "overdue" | "danger" | "warn"; // overdue=已逾期（二十轮：逾期负债此前在到期墙不可见）
 }
 export interface Overview {
   totals: { balanceCents: number; bankCents: number; monthlyDueCents: number; weightedRatePct: number; liabilityCount: number };

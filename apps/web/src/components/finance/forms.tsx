@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Archive } from "lucide-react";
 import { Dismissable } from "@/components/dismissable";
 import { TX_CATEGORIES, yuanToCents, centsToYuanInput } from "@/lib/finance";
@@ -14,12 +14,15 @@ export function TxForm({
   accounts = [],
   onCancel,
   onSubmit,
+  onBusyChange,
 }: {
   initial?: Tx | null;
   /** 账户列表（记一笔可挂账户；空列表=不显示账户选择，保持旧行为） */
   accounts?: Account[];
   onCancel: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
+  /** busy 上报（二十轮 P2）：页面层传 <Modal busy> 提交中禁关闭，防在途提交反馈丢失后重复录入 */
+  onBusyChange?: (b: boolean) => void;
 }) {
   const [direction, setDirection] = useState<"out" | "in">(initial?.direction ?? "out");
   const [amount, setAmount] = useState(initial ? centsToYuanInput(initial.amount_cents) : "");
@@ -37,6 +40,7 @@ export function TxForm({
   const [busy, setBusy] = useState(false);
   // 提交失败就地提示（历史 bug：无 catch 时静默失败，unhandled rejection 还会触发整页刷新清空表单）
   const [err, setErr] = useState<string | null>(null);
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
 
   /** 保存：按钮 submit 与表单 Enter 提交共用，守卫防双触发 */
   async function save() {
@@ -238,6 +242,13 @@ export function AccountManager({ accounts, onChanged }: { accounts: Account[]; o
                 defaultValue={centsToYuanInput(a.openingBalanceCents)}
                 title="期初余额（元，改后账户余额=新期初+流水）"
                 onBlur={async (e) => {
+                  // 清空=放弃修改意图（二十轮 P3）：非受控 defaultValue 清空后失焦报
+                  // 「金额格式不正确」是误报——恢复显示原值即可，不改库
+                  if (!e.target.value.trim()) {
+                    e.target.value = centsToYuanInput(a.openingBalanceCents);
+                    setRowErr((prev) => ({ ...prev, [a.id]: null }));
+                    return;
+                  }
                   const v = yuanToCents(e.target.value);
                   if (v == null) {
                     // 非法输入就地提示（原 parseFloat NaN 版静默忽略，会让人以为已保存）

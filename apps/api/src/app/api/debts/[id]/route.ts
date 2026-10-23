@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const PATCH = withModuleParams("debt", async (req, { user, params }) => {
   const { id } = await params;
   assertUuidParam(id, "id"); // 非法 uuid 落 SQL 会 22P02 → 500，先拦成 400
-  const owned = await pool.query(`select id from liabilities where id = $1 and user_id = $2`, [id, user.id]);
+  const owned = await pool.query(`select id, status from liabilities where id = $1 and user_id = $2`, [id, user.id]);
   if (!owned.rows[0]) throw ApiError.notFound("负债不存在");
 
   const body = (await readJsonCapped(req) as any) as Record<string, unknown>;
@@ -26,6 +26,13 @@ export const PATCH = withModuleParams("debt", async (req, { user, params }) => {
   if (body.status !== undefined) v.status = body.status;
   const cols = Object.keys(v);
   if (cols.length === 0) throw ApiError.badRequest("没有可更新的字段");
+  // 状态归一（二十轮 P3）：PATCH 允许 balance/status 各自独立改，会造出「cleared + 余额>0」
+  // （之后记还款被「仅 active 可还款」拦 400，用户必须再补一次 PATCH）与「active + 余额=0」
+  // （月供仍进备付/模拟）的矛盾态——落库前按余额归一；用户显式传 archived 不受影响
+  if (v.balance_cents !== undefined && body.status === undefined) {
+    if (Number(v.balance_cents) === 0) v.status = "cleared";
+    else if (owned.rows[0].status === "cleared") v.status = "active";
+  }
   const updated = (
     await pool.query(
       `update liabilities set ${cols.map((c, i) => `${c} = $${i + 1}`).join(", ")}, updated_at = now()

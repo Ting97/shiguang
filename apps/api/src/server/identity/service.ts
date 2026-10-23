@@ -3,7 +3,7 @@
  * 迁移自 auth/* 路由（4-B 安全语义保留：登录双层防护、模糊文案、setup 一次性令牌）。
  */
 import { ApiError } from "../platform/http/errors";
-import { assertLoginAllowed, recordLoginAttempt, clientIp } from "../platform/security/login-guard";
+import { assertLoginAllowed, LoginLockedError, recordLoginAttempt, clientIp } from "../platform/security/login-guard";
 import { timingSafeEqual } from "node:crypto";
 import { loadConfig } from "@/server/platform/config";
 import { createSession, destroySession } from "@/server/identity/auth";
@@ -52,8 +52,12 @@ export async function login(input: LoginInput) {
   try {
     await assertLoginAllowed(identity, input.ip);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "尝试次数过多，请稍后再试";
-    throw new ApiError(423, "locked", msg);
+    // 只把「登录锁」转 423；DB 抖动等基础设施异常原样上抛（withRoute 收敛为通用 500、
+    // 细节只进日志）——旧版把任意异常 message 透进响应体且伪装成「尝试次数过多」（二十轮）
+    if (e instanceof LoginLockedError) {
+      throw new ApiError(423, "locked", e.message || "尝试次数过多，请稍后再试");
+    }
+    throw e;
   }
 
   const { rows } = await profilesRepo.byIdentity(identity, byEmail);
@@ -72,7 +76,14 @@ export async function login(input: LoginInput) {
   }
 
   if (input.password) {
-    if (!user.password_hash || !verifyPassword(input.password, user.password_hash)) {
+    // 计时对齐（二十轮）：「有账号但未设密码」（微信自动建号）旧版直接 fuzzyFail 零成本返回，
+    // 与「账号不存在跑满成本 scrypt」构成「已注册未设密码」探测 oracle——补同成本哑验证
+    if (!user.password_hash) {
+      void noteAttempt(identity, input.ip, false);
+      verifyPassword(input.password, DUMMY_PASSWORD_HASH);
+      throw fuzzyFail();
+    }
+    if (!verifyPassword(input.password, user.password_hash)) {
       void noteAttempt(identity, input.ip, false);
       throw fuzzyFail();
     }

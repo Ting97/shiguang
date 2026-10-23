@@ -167,6 +167,14 @@ export default function CaptureButton({
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onCancel}
+        onClick={(e) => {
+          // 键盘可达（二十轮）：键盘 Enter/空格触发的 click 无 pointer 前置（detail=0），
+          // 走点按语义开文字面板；指针路径已在 onUp 里 onTap，此处 detail≥1 让位防双发
+          if (e.detail === 0) {
+            markHintSeen();
+            onTap();
+          }
+        }}
         onContextMenu={(e) => e.preventDefault()}
         style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))", touchAction: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
         className={`fixed left-1/2 z-40 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full shadow-lg shadow-black/40 transition capture-btn sm:hidden ${

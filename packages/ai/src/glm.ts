@@ -7,7 +7,7 @@
  *                         切换前经 poc-20 实测对照（SDK 78% ≥ legacy 67%，同参同模型）。
  *   GLM_TRANSPORT=legacy  自研 fetch 实现（等价回退开关，保留一个版本周期）
  */
-import { generateText, tool, type CoreMessage } from "ai";
+import { generateText, tool, InvalidToolArgumentsError, type CoreMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { APICallError } from "@ai-sdk/provider";
 import type { z } from "zod";
@@ -588,6 +588,12 @@ export async function chatAgent(opts: ChatAgentOptions): Promise<ChatAgentResult
       if (!text && toolCalls.length === 0) throw new GlmError("badOutput", "GLM 对话返回空内容");
       return { text, toolCalls };
     } catch (e) {
+      // 工具参数 schema 级违规（二十轮）：AI SDK 在 execute 之前校验工具实参，失败抛
+      // InvalidToolArgumentsError 直达这里——旧版经 classifySdkError 原样透传为裸 500。
+      // 收敛为 badOutput（不重试、用户拿到友好文案），模型侧自纠由工具参数层的放宽+execute 钳制承接
+      if (InvalidToolArgumentsError.isInstance(e)) {
+        throw new GlmError("badOutput", `GLM 工具调用参数不合法（${String((e as { text?: string }).text ?? e.message).slice(0, 120)}）`);
+      }
       const err = classifySdkError(e, model);
       if (err instanceof GlmError) {
         if (err.kind === "quota") {

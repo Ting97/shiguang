@@ -8,7 +8,8 @@ import { hitRateLimit } from "@/server/platform/security/rate-limit";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  email: z.string().optional(),
+  // RFC 5321 邮箱长度上限：超长串直插 email_codes 并参与 advisory lock 是未认证滥用面（二十轮）
+  email: z.string().max(254).optional(),
   purpose: z.enum(["login", "bind"]).default("login"),
 });
 

@@ -31,7 +31,10 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex").slice
  *  Windows/Mac 两台部署机互斥报「已变更但曾应用」（2026-10-14 生产实测）。
  *  SQL 语义不受行尾影响，归一化后跨平台 checksum 恒等。 */
 function readSql(path: string): string {
-  return readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+  // UTF-8 BOM 同样污染 checksum 且 \uFEFF 进首语句报难定位的语法错误（二十轮，csv-import 同款剥离）
+  return readFileSync(path, "utf8")
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n");
 }
 
 /** 迁移文件自带事务语句会让 runner 的「单条迁移整体事务」契约失效：
@@ -41,7 +44,9 @@ function readSql(path: string): string {
  *  十五轮补 begin transaction; 变体：旧正则 (work)? 漏接，放行进 runner 事务后文件内
  *  commit; 提前提交 → 记录表 insert autocommit 落库、runner 收尾 commit 报「无事务进行中」假失败） */
 function assertNoInlineTx(sql: string, f: string) {
-  if (/^\s*(begin|start\s+transaction|commit|rollback)(\s+(work|transaction))?\s*;/im.test(sql)) {
+  // 二十轮补带参数变体：`start transaction isolation level …` / `commit and chain` 带后随
+  // 子句时旧正则不命中，可绕过内联事务拦截（现存迁移无此形态，纯防御加固）
+  if (/^\s*(begin|start\s+transaction|commit|rollback)(\s+(work|transaction|\S[^;]*))?\s*;/im.test(sql)) {
     console.error(`[migrate] ✗ ${f} 自带 begin/commit 语句——事务由 runner 统一管理，请移除文件内事务语句`);
     process.exit(1);
   }

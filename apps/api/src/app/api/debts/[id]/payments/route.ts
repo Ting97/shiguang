@@ -34,6 +34,10 @@ export const POST = withModuleParams("debt", async (req, { user, params }) => {
   if (!isValidCalendarDate(paidAt)) {
     throw ApiError.badRequest("还款日期需为真实存在的 YYYY-MM-DD 日期");
   }
+  // 未来日期拒绝（二十轮）：未来还款无业务语义，且 autoCheck 会按 paidAt 给未来月误勾备付
+  if (paidAt > new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10)) {
+    throw ApiError.badRequest("还款日期不能晚于今天");
+  }
 
   const client = await pool.connect();
   try {
@@ -46,6 +50,13 @@ export const POST = withModuleParams("debt", async (req, { user, params }) => {
     if (!liab) throw ApiError.notFound("负债不存在");
     if (liab.status !== "active") {
       throw ApiError.badRequest("仅进行中的负债可记还款");
+    }
+    // 超额还款拒绝（二十轮）：旧版 greatest(0, balance-amount) 把溢出部分静默丢弃——
+    // 联动流水却按全额记支出、paid_cents 按全额累计，「累计还款 > 本金」且差额无处对账
+    if (body.amountCents! > Number(liab.balance_cents)) {
+      throw ApiError.badRequest(
+        `还款金额（¥${(body.amountCents! / 100).toFixed(2)}）超过剩余本金（¥${(Number(liab.balance_cents) / 100).toFixed(2)}），结清请按剩余本金金额记录`,
+      );
     }
 
     const dup = await client.query(
@@ -107,8 +118,9 @@ export const POST = withModuleParams("debt", async (req, { user, params }) => {
       )
     ).rows[0];
     await client.query("commit");
-    // REQ-005 FR-3.4：记还款 ≥ 当月应还 → 自动勾选备付（幂等；事务外执行，失败不影响还款）
-    void autoCheckAfterPayment(user.id, id, body.amountCents as number).catch(() => {});
+    // REQ-005 FR-3.4：记还款 ≥ 当月应还 → 自动勾选备付（幂等；事务外执行，失败不影响还款）。
+    // 月归属按本笔 paidAt 所在月（二十轮）：补记上月还款不再误勾当月备付
+    void autoCheckAfterPayment(user.id, id, body.amountCents as number, paidAt).catch(() => {});
     return NextResponse.json({ payment: serializePayment(payment), debt: serializeDebt(updated), transactionId: txId });
   } catch (e) {
     await client.query("rollback").catch(() => {}); // 连接已死时 rollback 自身抛错会顶替原始错误

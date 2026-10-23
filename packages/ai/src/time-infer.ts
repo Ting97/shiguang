@@ -179,8 +179,15 @@ export function parseClockRange(
   if (pmish && b.hour === 12) endHour = 24;
   // 终点抬 pm 用 >=（等钟点区间："下午1点到1点半"= 13:00–13:30）：
   // 旧严格 > 把等钟点判成 end<start 跨日 +24h，膨胀成 24.5h 块；起点本身已过正午
-  //（"中午12点到1点"，noon 不在 pmish）同样适用
-  else if ((pmish || a.hour >= 12) && b.hour < 12 && b.hour + 12 >= a.hour) endHour = b.hour + 12;
+  //（"中午12点到1点"，noon 不在 pmish）同样适用。起点 10/11 点 + noon 语境 + 裸终点
+  // ≤2 点同理按午后抬（"中午11点到1点"= 11:00–13:00 而非跨日 +14h；二十轮：
+  // pmish 排除 noon 且 a.hour>=12 不含 11，午饭区间被误判成跨日）
+  else if (
+    (pmish || a.hour >= 12 || (period === "noon" && a.hour >= 10)) &&
+    b.hour < 12 &&
+    b.hour + 12 >= a.hour
+  )
+    endHour = b.hour + 12;
   return { start: a, end: { hour: endHour, minute: b.minute } };
 }
 
@@ -237,12 +244,24 @@ export function resolveMoment(s: string | null | undefined, now: Date): Date | n
   // 时区，UTC 容器上偏 8 小时且 CST 本机永不复现（十九轮补）；归一后再补 +08:00
   const t = s.trim();
   const naive = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/);
+  // 假日历回读（与 parseYmd/parseCstTime 同族收口，二十轮）：resolveMoment 直接消费模型输出的
+  // schedule/todo 时间——LLM 月末幻觉（4月31日/2月30日）经 new Date 静默进位成次月块，须拒之
   const d = naive
     ? new Date(
         `${naive[1]}-${naive[2].padStart(2, "0")}-${naive[3].padStart(2, "0")}T${naive[4].padStart(2, "0")}:${naive[5]}:${naive[6] ?? "00"}+08:00`,
       )
     : new Date(t);
   if (isNaN(d.getTime())) return null;
+  if (naive) {
+    const cst = new Date(d.getTime() + 8 * 3600_000);
+    if (
+      cst.getUTCFullYear() !== Number(naive[1]) ||
+      cst.getUTCMonth() + 1 !== Number(naive[2]) ||
+      cst.getUTCDate() !== Number(naive[3]) ||
+      cst.getUTCHours() !== Number(naive[4])
+    )
+      return null;
+  }
   if (Math.abs(d.getTime() - now.getTime()) > MAX_SPAN_MS) return null;
   return d;
 }

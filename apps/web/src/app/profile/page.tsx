@@ -78,6 +78,10 @@ export default function ProfilePage() {
 
   async function savePassword() {
     if (busy) return;
+    if (newPwd.length < 8) {
+      toast("新密码至少 8 位", "err"); // 前端先拦（二十轮）：服务端 422 兜底但往返慢
+      return;
+    }
     if (newPwd !== confirmPwd) {
       toast("两次输入的新密码不一致", "err");
       return;

@@ -93,7 +93,7 @@ export default function ContactFormModal({
 
   const ime = useImeSubmit(save);
   return (
-    <Modal title={initial ? "编辑联系人" : "新建联系人"} onClose={onClose}>
+    <Modal title={initial ? "编辑联系人" : "新建联系人"} onClose={onClose} busy={busy}>
       <form
         className="space-y-2.5"
         onSubmit={ime.onSubmit}

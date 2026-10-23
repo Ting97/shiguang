@@ -111,6 +111,12 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
     load();
   }, [load]);
 
+  // 切换日期/视图时关闭残留的块编辑面板（二十轮）：editing 不随 range 清空时，
+  // saveEdit 在新区间找不到块会静默 return——「点了保存没反应」且改动悄悄丢失
+  useEffect(() => {
+    setEditing(null);
+  }, [range.from, range.to]);
+
   // ----- 日期导航 -----
   function shift(dir: 1 | -1) {
     if (view === "day") setAnchor(addDays(anchor, dir));
@@ -130,7 +136,12 @@ export default function CalendarPanel({ initialAnchor }: { initialAnchor?: strin
   async function saveEdit() {
     if (!editing || editSaving) return; // 保存进行中忽略再次提交，防双击重复保存
     const b = blocks.find((x) => x.id === editing.id);
-    if (!b) return;
+    if (!b) {
+      // 块不在当前区间（切换后残留等）：提示并关面板而非静默 return（二十轮，与「菜单删除静默失败」同族收口）
+      toast("该日程不在当前视图内，请返回原日期再编辑");
+      setEditing(null);
+      return;
+    }
     // 跨天块（23:00→次日 07:00 的睡眠）end 钟点 ≤ start 是合法次日语义，不走同日校验；
     // 结束写回用「开始日 + end 钟点，≤ 开始自动 +1 天」的跨日组合——旧逻辑对跨天块恒报
     // 「结束必须晚于开始时间」（无法编辑），绕过校验又会把结束钉在原次日日期、块膨胀约 24 小时。

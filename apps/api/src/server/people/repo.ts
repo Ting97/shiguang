@@ -16,7 +16,8 @@ export const contactsRepo = {
               c.birthday_cal, c.lunar_month, c.lunar_day, c.lunar_leap,
               to_char(c.anniversary, 'YYYY-MM-DD') as anniversary,
               c.intimacy, c.importance, c.notes, c.created_at,
-              (select count(*) from interactions i where i.contact_id = c.id) as interaction_count,
+              -- ::int 收口（二十轮）：count(*) 是 int8，node-pg 返回 string，前端 TS 类型声明 number
+              (select count(*)::int from interactions i where i.contact_id = c.id) as interaction_count,
               (select i.occurred_at from interactions i where i.contact_id = c.id
                 order by i.occurred_at desc nulls last limit 1) as last_at,
               (select i.summary from interactions i where i.contact_id = c.id
@@ -27,7 +28,7 @@ export const contactsRepo = {
            -- 人情净额先按对方聚合一次再 join（contacts.name 有 (user_id,name) 唯一约束，1:1）：
            -- 旧相关子查询逐联系人扫 transactions（counterparty/category 无索引支撑），联系人多×流水多时列表页明显变慢
            select t.counterparty,
-                  sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end) as gift_net_cents
+                  sum(case when t.direction = 'out' then -t.amount_cents else t.amount_cents end)::bigint as gift_net_cents
              from transactions t
             where t.user_id = $1 and t.counterparty is not null
               and t.category = '人情往来' and t.is_draft = false

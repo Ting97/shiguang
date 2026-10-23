@@ -110,6 +110,11 @@ export default function SpacesPage() {
     if (!editing || saving) return;
     // 内置运动空间不可改名：PATCH 不携带 name（携带会被服务端守卫 400），其余字段照常
     const sportEditing = spaces?.find((s) => s.id === editingId)?.kind === "sport";
+    // 目标日期早于开始日期拦截（二十轮 P3）：无校验时会存出「目标在开始前」的时间倒挂
+    if (editing.startedAt && editing.targetDate && editing.targetDate < editing.startedAt) {
+      toast("目标日期不能早于开始日期", "err");
+      return;
+    }
     const body = {
       ...(sportEditing ? {} : { name: editing.name }),
       description: editing.description || null,

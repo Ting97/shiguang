@@ -32,9 +32,11 @@ export async function sendSmsCode(phone: string, purpose: "login" | "bind"): Pro
     await client.query("begin");
     await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`sms-code:${phone}`]);
     const recent = await client.query(
+      // 60 秒频控是通道级骚扰防护，与核销 purpose 无关——带 purpose 判定会被
+      // 交替 purpose（login/bind）绕成每分钟 2 条（二十轮）
       `select 1 from sms_codes
-       where phone = $1 and purpose = $2 and created_at > now() - interval '60 seconds' limit 1`,
-      [phone, purpose],
+       where phone = $1 and created_at > now() - interval '60 seconds' limit 1`,
+      [phone],
     );
     if (recent.rows.length > 0) {
       await client.query("commit");

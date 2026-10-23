@@ -66,6 +66,7 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
       const r = await api<ReserveData>(`/api/debts/reserve?ym=${ym}`);
       if (seq !== loadSeq.current) return; // 过期响应丢弃
       setData(r);
+      setMsg(null); // 成功路径清陈旧错误（旧版错误文案跨切月/跨成功操作一直挂底部）
       const a = await api<{ accounts?: Array<{ id: string; name: string; balanceCents: number; reserveTracked?: boolean }> }>("/api/accounts");
       if (seq !== loadSeq.current) return;
       setSavings((a.accounts ?? []).map((x) => ({ id: x.id, name: x.name, balanceCents: x.balanceCents, reserveTracked: Boolean(x.reserveTracked) })));
@@ -120,11 +121,16 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
   }
 
   async function toggleAccount(id: string, on: boolean) {
+    if (busy) return; // 与 toggle/toggleAll 的 busy 门对齐（二十轮）：快速双击连发同值 PATCH
+    setBusy(true);
     try {
       await api(`/api/accounts/${id}`, "PATCH", { reserveTracked: on });
       await load();
+      setMsg(null);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -292,9 +298,9 @@ export default function ReserveSection({ onChanged }: { onChanged?: () => void }
           <div className="mt-3 rounded-xl border border-line-soft bg-bg/40 p-3">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-micro">
               <span className="text-ink-mute">
-                储蓄覆盖（
-                {savings.length === 0 && <span className="text-ink-faint">尚未勾选参与账户</span>}
-                ）
+                储蓄覆盖
+                {/* 括号只属于空态提示（二十轮：有账户时渲染成「储蓄覆盖（）」空括号） */}
+                {savings.length === 0 && <span className="text-ink-faint">（尚未勾选参与账户）</span>}
                 <span className={`ml-1.5 font-semibold tabular-nums ${gap >= 0 ? "text-success" : "text-danger"}`}>{fmt(data.savingsCents)}</span>
                 <span className="text-ink-faint"> vs 应还 {fmt(data.totalNeed)}</span>
                 {data.coveragePct != null && (

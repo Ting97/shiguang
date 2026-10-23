@@ -228,17 +228,24 @@ export async function runDailyReminderPush(): Promise<void> {
       return m;
     };
     for (const row of tokenRows) {
-      const c = byUser.get(row.user_id)!;
-      const mods = await modulesOf(row.user_id);
-      const body = summarize({
-        dueTodos: mods.has("goal") ? c.dueTodos : 0,
-        birthdays: mods.has("people") ? c.birthdays : 0,
-        anniversaries: mods.has("people") ? c.anniversaries : 0,
-        staleContacts: mods.has("people") ? c.staleContacts : 0,
-      });
-      if (!body) continue;
-      await expoPushSend(row.token, "拾光 · 今日提醒", body);
-      sent += 1;
+      // 投递级失败单用户跳过（二十轮）：循环体的 DB 查询（modulesOf）抛错若落进最外层
+      // scan-catch 会回滚今日标记 → 下个 tick 全量重推，已投用户重复打扰——违背
+      // 「投递级失败不重试」口径；只有循环外的扫描阶段失败才留给整日重试
+      try {
+        const c = byUser.get(row.user_id)!;
+        const mods = await modulesOf(row.user_id);
+        const body = summarize({
+          dueTodos: mods.has("goal") ? c.dueTodos : 0,
+          birthdays: mods.has("people") ? c.birthdays : 0,
+          anniversaries: mods.has("people") ? c.anniversaries : 0,
+          staleContacts: mods.has("people") ? c.staleContacts : 0,
+        });
+        if (!body) continue;
+        await expoPushSend(row.token, "拾光 · 今日提醒", body);
+        sent += 1;
+      } catch (e) {
+        log.warn({ user: row.user_id, err: String(e).slice(0, 120) }, "daily-push-delivery-error");
+      }
     }
     log.info({ users: targets.length, sent }, "daily-push");
   } catch (e) {

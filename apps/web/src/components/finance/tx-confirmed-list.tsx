@@ -13,6 +13,7 @@ export function ConfirmedTxSection({
   txs,
   total,
   onLoadMore,
+  loadingMore = false,
   editing,
   setEditing,
   onSubmitEdit,
@@ -23,6 +24,8 @@ export function ConfirmedTxSection({
   /** 当月已确认流水总数（分页：txs 为最近一窗，total > txs.length 时展示「加载更多」） */
   total: number;
   onLoadMore: () => void;
+  /** 扩窗请求在途（二十轮 P3）：按钮「加载中…」态——旧版可连点且无任何在途反馈 */
+  loadingMore?: boolean;
   editing: Tx | null;
   setEditing: Dispatch<SetStateAction<Tx | null>>;
   onSubmitEdit: (t: Tx, payload: Record<string, unknown>) => Promise<void>;
@@ -66,9 +69,10 @@ export function ConfirmedTxSection({
       {hasMore && (
         <button
           onClick={onLoadMore}
-          className="mt-3 w-full rounded-xl border border-line-soft py-2 text-xs text-ink-mute transition hover:border-sky-500/50 hover:text-accent"
+          disabled={loadingMore}
+          className="mt-3 w-full rounded-xl border border-line-soft py-2 text-xs text-ink-mute transition hover:border-sky-500/50 hover:text-accent disabled:opacity-50"
         >
-          加载更多 · 还有 {total - txs.length} 笔
+          {loadingMore ? "加载中…" : `加载更多 · 还有 ${total - txs.length} 笔`}
         </button>
       )}
     </section>

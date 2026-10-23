@@ -67,7 +67,10 @@ export async function reserveOverview(userId: string, ym: string) {
   for (const l of liabilities) {
     const pay = Number(l.monthly_cents ?? 0);
     const due = isoDate(l.due_date);
-    const extra = due && due >= ymFirst && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
+    // 到期本金：本月内到期照计；已逾期（due < 本月且余额>0）也计入当月 extra（二十轮 P2）——
+    // 旧版「due >= ymFirst 才计」让逾期月错过即永不再计，本金风险从备付页消失（余额仍挂账）。
+    // due < ymNext 恰好覆盖两段：本月 [ymFirst, ymNext) 与逾期 (−∞, ymFirst)
+    const extra = due && Number(l.balance_cents ?? 0) > 0 && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
     const row: ReserveRow = merged.get(l.name) ?? {
       liabilityId: l.id,
       name: l.name,
@@ -82,6 +85,11 @@ export async function reserveOverview(userId: string, ym: string) {
     row.need += pay + extra;
     if (l.pay_day != null && !row.payDays.includes(Number(l.pay_day))) row.payDays.push(Number(l.pay_day));
     merged.set(l.name, row);
+  }
+  // 当月无任何应还的行不进清单（二十轮体验）：无月供 + 无还款日 + 本金不在到期/逾期窗口的
+  // 负债（如无息亲友周转）渲染成「月供 ¥0 / ¥0」噪音行，还会被「一键备付」无意义勾选
+  for (const [k, r] of merged) {
+    if (r.need === 0 && r.payDays.length === 0) merged.delete(k);
   }
 
   // trade 备付镜像（当月有数据才启用；无镜像的月份退回手写清单口径）
@@ -154,7 +162,8 @@ export async function reserveOverview(userId: string, ym: string) {
       const need = unc.reduce((s, l) => {
         const pay = Number(l.monthly_cents ?? 0);
         const due = isoDate(l.due_date);
-        const extra = due && due >= ymFirst && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
+        // 逾期本金同主清单口径计入（二十轮 P2，见上方 merged 循环注释）
+        const extra = due && Number(l.balance_cents ?? 0) > 0 && due < ymNext ? Number(l.balance_cents ?? 0) : 0;
         return s + pay + extra;
       }, 0);
       if (need > 0) kept.push({ ...it, need, liabilityIds: unc.map((l) => l.id) });
@@ -294,9 +303,11 @@ export async function setReserveCheck(
   return { ok: true };
 }
 
-/** FR-3.4 还款联动：该负债当月（北京）已还合计 ≥ need → 自动勾选（幂等；手动取消后仍会被下次还款重新勾上，可接受） */
-export async function autoCheckAfterPayment(userId: string, liabilityId: string, paidCents: number) {
-  const ymFirst = currentMonthFirst();
+/** FR-3.4 还款联动：该负债当月（北京）已还合计 ≥ need → 自动勾选（幂等；手动取消后仍会被下次还款重新勾上，可接受）。
+ *  月归属按 paidAt 所在月（二十轮 P3）：补记上月大额还款时旧版按「今天所在月」判定，
+ *  当月备付被误勾选而实际服务的上月不勾 */
+export async function autoCheckAfterPayment(userId: string, liabilityId: string, paidCents: number, paidAt?: string) {
+  const ymFirst = paidAt ? `${paidAt.slice(0, 7)}-01` : currentMonthFirst();
   const l = (
     await pool.query(
       `select monthly_cents, balance_cents, due_date from liabilities where id = $1 and user_id = $2`,

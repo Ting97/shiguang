@@ -71,7 +71,15 @@ const trimmedCapped = (v: unknown, cap: number, label: string): string | null =>
 /** GET /api/contacts —— 联系人列表（含互动次数/最近往来/人情往来净额） */
 export async function listContacts(userId: string) {
   const { rows } = await contactsRepo.listWithStats(userId);
-  return { contacts: rows };
+  // 聚合列 Number 收口（二十轮 P3，对齐 finance 域口径）：sum() 返回 int8 → node-pg 给 string，
+  // 前端 TS 类型声明 number——gift_net_cents 目前靠前端 Number() 兜底，服务端统一归一
+  return {
+    contacts: rows.map((r) => ({
+      ...r,
+      interaction_count: Number(r.interaction_count),
+      gift_net_cents: Number(r.gift_net_cents),
+    })),
+  };
 }
 
 /** POST /api/contacts —— 手动建档 */

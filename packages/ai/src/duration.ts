@@ -72,7 +72,12 @@ export function parseDuration(text: string): number | null {
       const prev = norm[m.index - 1];
       if (prev === "点" || (prev === "时" && norm[m.index - 2] !== "小")) continue;
     }
-    const n = /^\d+(?:\.\d+)?$/.test(m[1]) ? parseFloat(m[1]) : cnToNumber(m[1]);
+    // 约数并列（"两三个小时""三四小时"）先于 cnToNumber：cnToNumber 按复合进位把「两三」直读成 23
+    // 小时（1380 分钟垃圾块）——取末位（区间上界），与 parseClock/relativeOffsetDays/parseAmountCents 同款
+    const approx = /^([一两俩二三四五六七八九])([一两俩二三四五六七八九])$/.exec(m[1]);
+    const n = /^\d+(?:\.\d+)?$/.test(m[1])
+      ? parseFloat(m[1])
+      : cnToNumber(approx && approx[1] !== approx[2] ? approx[2] : m[1]);
     if (n === null || n === 0) continue;
     const isHour = /小时|钟头|^h$/.test(m[4]);
     // "一个半小时" 与 "一小时半/两小时半" 两形态都补 30；"X分半"忽略。

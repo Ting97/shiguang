@@ -69,6 +69,11 @@ async function isBusinessEmpty(
       + (select count(*) from public.trade_reserve_banks where user_id = $1)
       + (select count(*) from public.debt_reserve_checks where user_id = $1)
       + (select count(*) from public.debt_reserve_sources where user_id = $1)
+      + (select count(*) from public.user_ai_profiles where user_id = $1)
+      + (select count(*) from public.user_module_prefs where user_id = $1)
+      + (select count(*) from public.review_caches where user_id = $1)
+      + (select count(*) from public.review_gen_quotas where user_id = $1)
+      + (select count(*) from public.device_tokens where user_id = $1)
       )::int as n`,
       [userId],
     );

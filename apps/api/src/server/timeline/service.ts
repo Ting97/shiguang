@@ -458,7 +458,10 @@ export async function appendManual(
     // 手动补录 = 用户在该动态上落定数据：先打 analyzed_at（幂等，UPDATE 同时取得 entry 行锁，
     // 与 analyzeAndPersist/confirmPending「先锁 entry 再动子表」同序）。识别若还在飞行中，
     // 落库阶段看到 analyzed_at 已置会主动放弃清写——否则本条手动数据会被识别结果整体覆盖
-    await entriesRepo.stampAnalyzedAt(client, entryId);
+    const stamped = await entriesRepo.stampAnalyzedAt(client, entryId);
+    // 事务内复检（二十轮，对齐 confirmPending）：事务外属主检查后动态被并发删除时，
+    // 后续子表 insert 触发 FK 23503 → 500「手动添加失败」；此处改判 404
+    if (stamped.rowCount === 0) throw ApiError.notFound("动态不存在");
     let message = "";
     let result: unknown = {};
     // 事件发生日收集：提交后据此失效对应周期的四档复盘缓存（滞后补录历史时刻不抬 buildLatest
@@ -981,10 +984,11 @@ export async function reRecognize(userId: string, entryId: string, domain?: stri
     // 重识别删旧插新后按事件发生日失效复盘缓存（旧块/旧流水被删会让对应历史周期水位盲区陈旧；十一轮 P2 同批，
     // 十七轮补旧派生行事件日：挪天重识别不再让旧发生日缓存滞留已删数据）
     void invalidateReviewCachesForOccurrence(userId, new Date(entry.created_at));
-    void invalidateReviewCachesForOccurrence(
-      userId,
-      domain === "schedule" ? new Date(r.time.start) : new Date(r.time.end),
-    );
+    // start 与 end 都失效（二十轮，与 analyze/confirmPending/appendManual 同口径）：
+    // schedule 跨天块（睡眠 23:00→07:00）结束日分摊时长，只失效 start 漏掉结束日；
+    // todo 分支落库 due_at = r.time.start 而旧代码只失效 end，到期日同样漏
+    void invalidateReviewCachesForOccurrence(userId, new Date(r.time.start));
+    void invalidateReviewCachesForOccurrence(userId, new Date(r.time.end));
     for (const at of oldEventTimes) void invalidateReviewCachesForOccurrence(userId, at);
     // 新流水按 occurredDate 落历史日时，目标历史日的既有缓存同样要失效（与 confirmPending/analyze 同口径）
     if (domain === "finance" && financeOccurredAt) {

@@ -32,8 +32,11 @@ export default function DailySection({ accountId }: { accountId: string }) {
     let live = true;
     setDays(null);
     setLoadErr(null);
-    const to = toSel || bjToday();
-    const from = fromSel || addDays(to, -100); // 默认多取窗口，日视图切片出近 30 个「有交易」的交易日
+    let to = toSel || bjToday();
+    let from = fromSel || addDays(to, -100); // 默认多取窗口，日视图切片出近 30 个「有交易」的交易日
+    // 区间倒置钳制（二十轮 P3）：手选开始>结束旧版发出去按空区间渲染成「暂无平仓记录」，
+    // 被误读为无数据——交换起止让筛选语义保持「从早到晚」
+    if (from > to) [from, to] = [to, from];
     api<{ days: DailyDay[] }>(`/api/trading/daily?accountId=${accountId}&from=${from}&to=${to}`)
       .then((j) => {
         if (!live) return;

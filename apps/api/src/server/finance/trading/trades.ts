@@ -171,7 +171,9 @@ export async function importTrades(userId: string, body: ImportBody) {
       const chunk = fresh.slice(i, i + CHUNK);
       const vals: unknown[] = [];
       const tuples = chunk.map((r) => {
-        vals.push(userId, accountId, imp.id, String(r.ticket), r.symbol ?? "XAUUSD", r.direction, r.openTime, r.closeTime, Number(r.lots), r.openPrice == null ? null : Number(r.openPrice), r.closePrice == null ? null : Number(r.closePrice), Number(r.profit ?? 0), Number(r.commission ?? 0), Number(r.swap ?? 0));
+        // 品种缺省不再静默归类 XAUUSD（二十轮 P3）：MT5 报表列探测失败/客户端漏传时，
+        // 全部成交被冒名 XAUUSD 聚合失真且无警告——落 UNKNOWN 让按品种聚合的口径失真可见
+        vals.push(userId, accountId, imp.id, String(r.ticket), r.symbol ?? "UNKNOWN", r.direction, r.openTime, r.closeTime, Number(r.lots), r.openPrice == null ? null : Number(r.openPrice), r.closePrice == null ? null : Number(r.closePrice), Number(r.profit ?? 0), Number(r.commission ?? 0), Number(r.swap ?? 0));
         const b = vals.length;
         return `($${b - 13},$${b - 12},$${b - 11},$${b - 10},$${b - 9},$${b - 8},$${b - 7},$${b - 6},$${b - 5},$${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`;
       });
@@ -188,6 +190,8 @@ export async function importTrades(userId: string, body: ImportBody) {
       importId: imp.id,
       rowsNew: fresh.length,
       rowsDup: body.rows.length - fresh.length,
+      // 品种缺失行数（前端提示条用；二十轮）
+      rowsNoSymbol: fresh.filter((r) => !r.symbol).length,
     };
   } catch (e) {
     await client.query("rollback").catch(() => {});

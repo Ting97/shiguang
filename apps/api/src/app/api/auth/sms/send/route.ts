@@ -8,7 +8,8 @@ import { hitRateLimit } from "@/server/platform/security/rate-limit";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  phone: z.string().optional(),
+  // E.164 上限 15 位：超长串直插 sms_codes 是未认证滥用面（二十轮，对齐 email max 254）
+  phone: z.string().max(24).optional(),
   purpose: z.enum(["login", "bind"]).default("login"),
 });
 

@@ -63,17 +63,19 @@ export function storagePath(key: string): string {
   return join(uploadDir(), key);
 }
 
-/** 写盘（递归建目录） */
+/** 写盘（递归建目录）。key 校验与读侧 storagePath 同源（二十轮纵深防御）：
+ *  storage_key/audio_url 列若被未来导入路径污染，写/删侧不复用正则即可目录穿越 */
 export async function saveImageFile(key: string, data: Buffer): Promise<void> {
-  const p = join(uploadDir(), key);
+  const p = storagePath(key);
   await mkdir(join(p, ".."), { recursive: true });
   await writeFile(p, data, { mode: 0o644 });
 }
 
-/** 删盘上文件（异步，失败仅记日志——行已删，孤儿文件无泄露风险） */
+/** 删盘上文件（异步，失败仅记日志——行已删，孤儿文件无泄露风险）。
+ *  key 非法（被污染列）时同样只告警不 unlink，调用方 fire-and-forget 语义不变（二十轮） */
 export async function deleteImageFile(key: string): Promise<void> {
   try {
-    await unlink(join(uploadDir(), key));
+    await unlink(storagePath(key));
   } catch (e) {
     console.warn(`[storage] 删除文件失败（忽略）${key}:`, String(e).slice(0, 120));
   }

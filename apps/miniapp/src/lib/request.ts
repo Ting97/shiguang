@@ -31,10 +31,11 @@ interface Options {
   timeout?: number;
 }
 
-function postProcessToken(data: unknown) {
-  // 与 client-api 同语义：任何响应带 token 即视为服务端下发的新会话
+function postProcessToken(data: unknown, path: string) {
+  // 与 client-api 同口径（二十轮对齐）：仅 /api/auth 路径的响应 token 才入库——
+  // 任意接口若恰好返回名为 token 的字段，静默覆盖会话属于隐性踩踏（旧版全路径入库）
   if (data && typeof data === "object" && typeof (data as { token?: unknown }).token === "string") {
-    setSessionToken((data as { token: string }).token);
+    if (/\/api\/auth(\/|$)/.test(path)) setSessionToken((data as { token: string }).token);
   }
 }
 
@@ -64,7 +65,7 @@ export async function request<T = unknown>(path: string, opts: Options = {}): Pr
   const status = res.statusCode;
   const data = res.data as T & { error?: string; token?: string };
   if (status >= 200 && status < 300) {
-    postProcessToken(data);
+    postProcessToken(data, path);
     return data;
   }
   if (status === 401) {
@@ -95,7 +96,7 @@ export function upload<T = unknown>(path: string, filePath: string, extra?: Reco
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          postProcessToken(data);
+          postProcessToken(data, path);
           resolve(data);
         } else if (res.statusCode === 401) {
           // 游客模式同 request：只抛错不强跳（上传只发生在有 token 的写操作，此处兜底）

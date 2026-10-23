@@ -34,9 +34,11 @@ export async function sendEmailCode(email: string, purpose: "login" | "bind"): P
     await client.query("begin");
     await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`email-code:${email}`]);
     const recent = await client.query(
+      // 60 秒频控是通道级骚扰防护，与核销 purpose 无关——带 purpose 判定会被
+      // 交替 purpose（login/bind）绕成每分钟 2 封（二十轮，与 sms 同款）
       `select 1 from email_codes
-       where email = $1 and purpose = $2 and created_at > now() - interval '60 seconds' limit 1`,
-      [email, purpose],
+       where email = $1 and created_at > now() - interval '60 seconds' limit 1`,
+      [email],
     );
     if (recent.rows.length > 0) {
       await client.query("commit");

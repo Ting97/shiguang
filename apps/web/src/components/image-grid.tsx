@@ -86,7 +86,12 @@ export function ImageLightbox({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing) onClose();
+      if (e.key === "Escape" && !e.isComposing) {
+        // preventDefault = Esc 消费标记（r19 规范）：ToastHost 见 defaultPrevented 让位，
+        // 关灯箱瞬间弹出的 toast 不被同帧吃掉
+        e.preventDefault();
+        onClose();
+      }
       if (e.key === "ArrowLeft") go(-1);
       if (e.key === "ArrowRight") go(1);
     };

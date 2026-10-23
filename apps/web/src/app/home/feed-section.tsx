@@ -83,7 +83,11 @@ export default function FeedSection({
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape" && !e.nativeEvent.isComposing) setSearchInput("");
+              if (e.key === "Escape" && !e.nativeEvent.isComposing) {
+                // Esc 消费标记（r19 规范）：清空搜索不联动吃掉 toast
+                e.nativeEvent.preventDefault();
+                setSearchInput("");
+              }
             }}
             placeholder="🔍 搜索：原文/日程/todo/金额/联系人"
             className="w-full rounded-xl border border-line-soft bg-surface/60 py-1.5 pl-3 pr-8 text-xs outline-none placeholder:text-ink-faint focus:border-sky-500/60"

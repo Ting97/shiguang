@@ -323,12 +323,12 @@ const queryContacts: ChatTool = {
     const { staleOnly, limit } = p as { staleOnly: boolean; limit: number };
     const { rows } = await pool.query(
       `select c.name, c.group_tag, c.importance, c.intimacy,
-              (select max(i.occurred_at) from interactions i where i.contact_id = c.id) as last_interaction
+              (select max(i.occurred_at) from interactions i where i.contact_id = c.id and i.user_id = c.user_id) as last_interaction
        from contacts c
        where c.user_id = $1
          and ($2 = false or (
            c.importance >= 4
-           and coalesce((select max(i.occurred_at) from interactions i where i.contact_id = c.id), c.created_at) < now() - interval '30 days'
+           and coalesce((select max(i.occurred_at) from interactions i where i.contact_id = c.id and i.user_id = c.user_id), c.created_at) < now() - interval '30 days'
          ))
        order by c.importance desc, c.intimacy desc limit $3`,
       [ctx.userId, staleOnly, limit],
@@ -574,9 +574,9 @@ const queryGoals: ChatTool = {
     const { includeArchived, limit } = p as { includeArchived: boolean; limit: number };
     const { rows: spaces } = await pool.query(
       `select s.id, s.name, s.description, s.icon, s.status, s.started_at, s.target_date,
-              (select count(*)::int from todos t where t.space_id = s.id and t.status = 'pending') as open_todos,
-              (select count(*)::int from todos t where t.space_id = s.id and t.status = 'done') as done_todos,
-              (select count(*)::int from space_reflections r where r.space_id = s.id) as reflections
+              (select count(*)::int from todos t where t.space_id = s.id and t.status = 'pending' and t.user_id = s.user_id) as open_todos,
+              (select count(*)::int from todos t where t.space_id = s.id and t.status = 'done' and t.user_id = s.user_id) as done_todos,
+              (select count(*)::int from space_reflections r where r.space_id = s.id and r.user_id = s.user_id) as reflections
        from goal_spaces s
        where s.user_id = $1 and ($2 or s.status = 'active')
        order by s.sort, s.created_at limit $3`,
@@ -591,7 +591,17 @@ const queryDebtReserve: ChatTool = {
   description:
     "查询每月备付计划（与 trade 每月备付追踪逐行同源）：当月各银行需还金额/已备付/差额。适用：这个月备付够不够、每家银行要还多少。",
   params: z.object({
-    ym: z.string().regex(/^\d{4}-\d{2}$/).optional().describe("月份 YYYY-MM，默认当月（北京时间）"),
+    // 月份校验（二十轮）：裸 \d{4}-\d{2} 放行 13~99 月，拼 `2026-13-01`::date 抛 22008——
+    // 在 execute 内会被包成 {error} 浪费模型一步重试，这里 zod 层直接拦
+    ym: z
+      .string()
+      .regex(/^\d{4}-\d{2}$/)
+      .refine((s) => {
+        const [, m] = s.split("-").map(Number);
+        return m >= 1 && m <= 12;
+      }, "月份需为 01~12")
+      .optional()
+      .describe("月份 YYYY-MM，默认当月（北京时间）"),
   }),
   async execute(ctx, p) {
     if (!(await moduleAllowed(ctx, "debt"))) return MODULE_OFF("负债");
@@ -771,6 +781,9 @@ const queryFitnessLogs: ChatTool = {
     const fromBj = from ?? bjAddDays(todayBj, -13);
     const toBj = to ?? todayBj;
     const [start, end] = rangeOf(fromBj, toBj);
+    // sleep 子序列过 sleep 模块门禁（二十轮，与 /api/fitness/sleep 路由 withModule("sleep") 同口径）：
+    // 用户自关睡眠模块后 REST 403，助手却可读——模块开关旁路的最后一处（r18/r19 同族收口）
+    const sleepAllowed = await moduleAllowed(ctx, "sleep");
     const [{ rows }, sleep] = await Promise.all([
       pool.query(
         `select l.log_date, l.module_code, m.name as module, l.actual, l.fatigue, l.sleep_h_x10, l.soreness, l.note
@@ -779,28 +792,35 @@ const queryFitnessLogs: ChatTool = {
          order by l.log_date desc`,
         [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
       ),
-      pool
-        .query(
-          `select log_date, sleep_h_x10, feeling, score from fitness_sleep_logs
+      sleepAllowed
+        ? pool
+            .query(
+              `select log_date, sleep_h_x10, feeling, score from fitness_sleep_logs
            where user_id = $1 and log_date >= $2::date and log_date < $3::date order by log_date desc`,
-          [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
-        )
-        .then((r: { rows: { log_date: string; sleep_h_x10: number; feeling: string | null; score: number | null }[] }) =>
-          (r.rows ?? []).map((row) => ({
-            log_date: row.log_date,
-            hours: row.sleep_h_x10 / 10,
-            feeling: row.feeling ?? undefined,
-            score: row.score ?? undefined,
-          })),
-        )
-        .catch(() => [] as { log_date: string; hours: number }[]),
+              [ctx.userId, start.slice(0, 10), end.slice(0, 10)],
+            )
+            .then((r: { rows: { log_date: string; sleep_h_x10: number; feeling: string | null; score: number | null }[] }) =>
+              (r.rows ?? []).map((row) => ({
+                log_date: row.log_date,
+                hours: row.sleep_h_x10 / 10,
+                feeling: row.feeling ?? undefined,
+                score: row.score ?? undefined,
+              })),
+            )
+            .catch((e: unknown) => {
+              // 空数组兜底保留（DB 抖动不炸工具），但静默吞错会让模型拿假「无睡眠」排课——至少留日志（二十轮）
+              console.warn("[chat-tools] sleep 序列查询失败（回空）:", String(e).slice(0, 120));
+              return [] as { log_date: string; hours: number }[];
+            })
+        : Promise.resolve([] as { log_date: string; hours: number }[]),
     ]);
     return {
       range: { from: fromBj, to: toBj },
       items: rows,
       sleep,
-      unitHint:
-        "距离米、配速秒每公里；睡眠为独立每日记录（sleep[].hours 小时、feeling 主观感受 good/ok/bad、score 为手环/运动 App 的睡眠得分 0-100）——排课前结合时长+感受+得分判断恢复状态",
+      unitHint: sleepAllowed
+        ? "距离米、配速秒每公里；睡眠为独立每日记录（sleep[].hours 小时、feeling 主观感受 good/ok/bad、score 为手环/运动 App 的睡眠得分 0-100）——排课前结合时长+感受+得分判断恢复状态"
+        : "距离米、配速秒每公里；用户未开通睡眠模块，sleep 序列不可用，勿虚构恢复状态",
     };
   },
 };
@@ -999,32 +1019,44 @@ const proposeFitnessPlan: ChatTool = {
   params: z.object({
     plan_date: z.string().describe("计划日期（北京时间，只能是今天或明天）"),
     module_code: z.string().describe("训练模块：run 或 strength"),
-    title: z.string().max(40).nullish().describe("课表名（如 课A·胸肩三头 / 节奏跑）"),
+    // 上限刻意放宽、真钳制挪 execute（二十轮）：AI SDK 在 execute 之前按 parameters 校验，
+    // glm-4-flash 写超长 note（>200）/超量 exercises（>15）等标量越界同样抛 InvalidToolArgumentsError
+    // 整轮 500——参数层只拦结构灾难，业务上限在 execute 内截断
+    title: z.string().max(400).nullish().describe("课表名（如 课A·胸肩三头 / 节奏跑）"),
     exercises: z
       .array(z.object({}).passthrough())
-      .max(15)
+      .max(60)
       .nullish()
       .describe("力量动作明细（module_code=strength 时必填）：[{name 动作名, sets 组数, repsText 次数如 '8-12', weightKg 重量, rir 次数储备}]"),
     segments: z
       .array(z.object({}).passthrough())
-      .max(12)
+      .max(60)
       .nullish()
       .describe("跑步分段（module_code=run 时必填）：[{label 如 热身/主课, distanceKm, paceText 配速如 5'50}]"),
     workout_type: z.string().nullish().describe("跑步课型：interval(间歇)/tempo(节奏)/long(长距离)/easy(轻松)/recovery(恢复)"),
-    note: z.string().max(200).nullish().describe("备注"),
-    rationale: z.string().max(800).nullish().describe("生成依据（引用调整协议与当日已有安排，一两句话）"),
+    note: z.string().max(2000).nullish().describe("备注"),
+    rationale: z.string().max(4000).nullish().describe("生成依据（引用调整协议与当日已有安排，一两句话）"),
   }),
   async execute(ctx, p) {
-    const { plan_date, module_code, title, exercises, segments, workout_type, note, rationale } = p as {
+    const { plan_date, module_code, workout_type } = p as {
       plan_date: string;
       module_code: string;
+      workout_type?: string | null;
+    };
+    let { title, exercises, segments, note, rationale } = p as {
       title?: string | null;
       exercises?: Array<Record<string, unknown>>;
       segments?: Array<Record<string, unknown>>;
-      workout_type?: string | null;
       note?: string | null;
       rationale?: string | null;
     };
+    // 业务上限在 execute 内真钳制（二十轮）：入库前截断到服务端真实约束（title 40/note 200/
+    // rationale 800/exercises 15/segments 12），参数层的放宽只防 SDK 级 500
+    title = typeof title === "string" && title.length > 40 ? title.slice(0, 40) : title;
+    note = typeof note === "string" && note.length > 200 ? note.slice(0, 200) : note;
+    rationale = typeof rationale === "string" && rationale.length > 800 ? rationale.slice(0, 800) : rationale;
+    exercises = Array.isArray(exercises) && exercises.length > 15 ? exercises.slice(0, 15) : exercises;
+    segments = Array.isArray(segments) && segments.length > 12 ? segments.slice(0, 12) : segments;
     // 日期守卫：仅限今天/明天（过期的提案没有意义）
     const todayBj = bjToday();
     const tomorrowBj = bjAddDays(todayBj, 1);

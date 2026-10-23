@@ -203,6 +203,9 @@ export default function PublishSheet({
       <div className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm" />
       <div
         ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="记录此刻"
         className="safe-bottom anim-modal-pop fixed inset-x-0 bottom-0 z-[56] rounded-t-2xl border-t border-line-soft bg-surface p-4 pb-5 shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:border-line-soft"
       >
         <div className="mb-2 flex items-center justify-between">

@@ -98,6 +98,14 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
         return;
       }
       stream = s;
+      // 设备断开显式对齐（二十轮 P1 纵深）：蓝牙/USB 麦中途断连时 track ended 是状态机
+      // 收不到任何按键事件的唯一信号——按「松开」语义停录送识别；正常松开路径已把
+      // recorder 置 null，此处晚到的 onended 在 stopRecorder 入口即早退
+      s.getTracks().forEach((t) => {
+        t.onended = () => {
+          if (state === "recording") stopRecorder();
+        };
+      });
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((m) => MediaRecorder.isTypeSupported(m));
       const rec = new MediaRecorder(s, mime ? { mimeType: mime } : undefined);
       chunks = [];
@@ -128,14 +136,23 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
     }
   }
 
-  /** 停止录音（onstop 里走 finish 转写）；幂等 */
+  /** 停止录音（onstop 里走 finish 转写）；幂等。
+   *  设备拔出守卫（二十轮 P1）：录音中音频设备断开（蓝牙麦断连/USB 拔出）时 MediaRecorder
+   *  因 track ended 自动触发 dataavailable+stop，直接走 onstop→finish 而不经本函数——
+   *  若 finish 不清 timer/recorder，残留的 autoStopTimer 仍会在 startAt+29s 调回本函数，
+   *  把已 idle 的状态无条件置成 transcribing 且无任何事件能推进（移动端全屏蒙层砖死整页） */
   function stopRecorder() {
     const rec = recorder;
     if (!rec) return;
     recorder = null;
     teardownTimer();
+    // recorder 已被 finish 收尾（inactive）：按「已完成」复位而非置 transcribing
+    if (rec.state === "inactive") {
+      backToIdle();
+      return;
+    }
     setState("transcribing");
-    if (rec.state !== "inactive") rec.stop();
+    rec.stop();
   }
 
   /** 松开：已开录则停止送识别；还在起流（含权限申请中）则记取消意图 */
@@ -166,6 +183,11 @@ export function createVoiceRecorder(h: VoiceRecorderHandlers) {
   }
 
   async function finish() {
+    // 秒表/自动停表与 recorder 引用就地收尾（二十轮 P1）：正常路径 stopRecorder 已清过
+    // （幂等）；设备拔出走 onstop 直达本函数时不清，残留的 autoStopTimer 会把状态
+    // 重新推入 transcribing 死态（见 stopRecorder 注释）
+    teardownTimer();
+    recorder = null;
     const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
     const live = stream;
     stream = null;
